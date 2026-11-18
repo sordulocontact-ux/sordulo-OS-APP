@@ -33,6 +33,8 @@ async function post<TReq, TRes>(path: string, body: TReq): Promise<TRes> {
   if (!response.ok) {
     const message =
       payload && typeof payload === 'object' && 'error' in payload ? payload.error : `Erreur ${response.status}`
+    // Session révoquée ou expirée côté serveur : on l'oublie ici, l'app revient à l'écran de connexion.
+    if (response.status === 401) void supabase.auth.signOut({ scope: 'local' })
     throw new ApiRequestError(message, response.status)
   }
   return payload as TRes
