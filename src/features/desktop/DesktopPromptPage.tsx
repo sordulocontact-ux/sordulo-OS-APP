@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Badge, Button, ErrorState, Field, LoadingState, Select, Spinner, TextInput } from '../../components/ui'
+import { Button, Select, Spinner } from '../../components/ui'
 import {
   deleteRecording,
   dismissPrompt,
@@ -52,7 +52,6 @@ export function DesktopPromptPage() {
   const [apps, setApps] = useState<MicApp[]>([])
   const [recording, setRecording] = useState<RecordingState | null>(null)
   const [chosenProjectId, setChosenProjectId] = useState<string | null>(null)
-  const [title, setTitle] = useState('')
   const [starting, setStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
   const [pending, setPending] = useState<RecordingResult | null>(() => readPendingRecording())
@@ -189,7 +188,7 @@ export function DesktopPromptPage() {
     setStarting(true)
     setStartError(null)
     try {
-      const state = await startRecording({ projectId, title: title.trim() || null })
+      const state = await startRecording({ projectId, title: null })
       writeLastProjectId(projectId)
       setRecording(state)
       setView('recording')
@@ -211,39 +210,35 @@ export function DesktopPromptPage() {
 
   if (view === 'loading' || (view === 'propose' && projects.isLoading)) {
     return (
-      <main className={styles.page}>
-        <LoadingState />
+      <main className={styles.bar} aria-label="Sordulo OS">
+        <Spinner label="Chargement…" />
       </main>
     )
   }
 
   if (view === 'sending') {
+    const problem = sendError ? `${sendError}${pending ? ' Le fichier est conservé sur cet ordinateur.' : ''}` : null
     return (
-      <main className={styles.page}>
-        <h1 className={styles.title}>Envoi de l'enregistrement</h1>
-        <div aria-live="polite">
-          {step ? (
-            <p className={styles.step}>
-              <Spinner label="" />
-              {SEND_STEP_LABELS[step]}
-            </p>
-          ) : null}
-        </div>
-        {sendError ? (
-          <>
-            <p className={styles.error} role="alert">
-              {sendError}
-              {pending ? ' Le fichier est conservé sur cet ordinateur.' : ''}
-            </p>
-            <div className={styles.actions}>
-              <Button variant="primary" onClick={() => void send()}>
-                Réessayer l'envoi
-              </Button>
-              <Button variant="ghost" onClick={() => silently(hideCurrentWindow())}>
-                Fermer
-              </Button>
-            </div>
-          </>
+      <main className={styles.bar} aria-label="Envoi de l'enregistrement">
+        {problem ? (
+          <p className={[styles.message, styles.error].join(' ')} role="alert" title={problem}>
+            {problem}
+          </p>
+        ) : (
+          <p className={[styles.message, styles.step].join(' ')} aria-live="polite">
+            <Spinner label="" />
+            {step ? SEND_STEP_LABELS[step] : "Envoi de l'enregistrement…"}
+          </p>
+        )}
+        {problem ? (
+          <div className={styles.actions}>
+            <Button variant="primary" onClick={() => void send()}>
+              Réessayer l'envoi
+            </Button>
+            <Button variant="secondary" onClick={() => silently(hideCurrentWindow())}>
+              Fermer
+            </Button>
+          </div>
         ) : null}
       </main>
     )
@@ -251,10 +246,9 @@ export function DesktopPromptPage() {
 
   if (view === 'done') {
     return (
-      <main className={styles.page}>
-        <h1 className={styles.title}>Appel envoyé</h1>
-        <p className={styles.success} role="status">
-          Entrée créée dans {projectName(sentProjectId)} : la transcription démarre.
+      <main className={styles.bar} aria-label="Appel envoyé">
+        <p className={[styles.message, styles.success].join(' ')} role="status">
+          Appel envoyé dans {projectName(sentProjectId)} : la transcription démarre.
         </p>
         <div className={styles.actions}>
           <Button variant="primary" onClick={() => void showMainWindow()}>
@@ -267,47 +261,39 @@ export function DesktopPromptPage() {
 
   if (view === 'recording' || view === 'ended') {
     return (
-      <main className={styles.page}>
-        <h1 className={styles.title}>{view === 'ended' ? 'Appel terminé ?' : 'Enregistrement en cours'}</h1>
-        {view === 'ended' ? (
-          <p className={styles.text}>L'appel semble terminé. Arrêter l'enregistrement ?</p>
-        ) : null}
+      <main className={styles.bar} aria-label={view === 'ended' ? 'Appel terminé ?' : 'Enregistrement en cours'}>
+        <span className={styles.recDot} aria-hidden="true" />
         <p className={styles.timer} role="timer" aria-live="off" aria-label="Durée de l'enregistrement">
           {formatElapsed(elapsed)}
         </p>
-        <p className={styles.project}>Projet : {projectName(recordingProjectId)}</p>
+        <p className={styles.message} title={projectName(recordingProjectId)}>
+          {view === 'ended' ? "L'appel semble terminé" : projectName(recordingProjectId)}
+        </p>
         <div className={styles.actions}>
           {stopButton}
-          {view === 'ended' ? (
-            <Button variant="ghost" onClick={() => silently(hideCurrentWindow())}>
-              Continuer
-            </Button>
-          ) : (
-            <Button variant="ghost" onClick={() => silently(hideCurrentWindow())}>
-              Masquer
-            </Button>
-          )}
+          <Button variant="secondary" onClick={() => silently(hideCurrentWindow())}>
+            {view === 'ended' ? 'Continuer' : 'Masquer'}
+          </Button>
         </div>
       </main>
     )
   }
 
-  // Proposal.
+  // Proposition : choix du projet, puis Transcrire et Pas maintenant.
+  const heading = reason === 'manual-start' ? 'Enregistrer un appel' : 'Transcrire cet appel ?'
+  const appNames = apps.map((app) => app.displayName).join(', ')
   return (
-    <main className={styles.page}>
-      <h1 className={styles.title}>{reason === 'manual-start' ? 'Enregistrer un appel' : 'Transcrire cet appel ?'}</h1>
-      {apps.length > 0 ? (
-        <p className={styles.apps}>
-          Micro utilisé par
-          {apps.map((app) => (
-            <Badge key={app.id}>{app.displayName}</Badge>
-          ))}
-        </p>
-      ) : null}
+    <main className={styles.bar} aria-label={appNames ? `${heading} (${appNames})` : heading}>
       {projects.isError ? (
-        <ErrorState message="Impossible de charger les projets." onRetry={() => void projects.refetch()} />
+        <p className={[styles.message, styles.error].join(' ')} role="alert">
+          Impossible de charger les projets.{' '}
+          <button type="button" className={styles.link} onClick={() => void projects.refetch()}>
+            Réessayer
+          </button>
+        </p>
       ) : (
-        <Field label="Projet">
+        <label className={styles.project}>
+          <span className={styles.srOnly}>Projet</span>
           <Select value={projectId} onChange={(e) => setChosenProjectId(e.target.value)} disabled={starting}>
             {(projectList ?? []).map((project) => (
               <option key={project.id} value={project.id}>
@@ -315,14 +301,10 @@ export function DesktopPromptPage() {
               </option>
             ))}
           </Select>
-        </Field>
+        </label>
       )}
-      <Field label="Titre (optionnel)">
-        <TextInput value={title} onChange={(e) => setTitle(e.target.value)} disabled={starting} />
-      </Field>
-      <p className={styles.reminder}>Prévenez les participants que l'appel est enregistré.</p>
       {startError ? (
-        <p className={styles.error} role="alert">
+        <p className={[styles.message, styles.error].join(' ')} role="alert" title={startError}>
           {startError}
         </p>
       ) : null}
@@ -330,7 +312,7 @@ export function DesktopPromptPage() {
         <Button variant="primary" onClick={() => void onStart()} loading={starting} disabled={!projectId}>
           Transcrire
         </Button>
-        <Button variant="ghost" onClick={() => silently(dismissPrompt())} disabled={starting}>
+        <Button variant="secondary" onClick={() => silently(dismissPrompt())} disabled={starting}>
           Pas maintenant
         </Button>
       </div>

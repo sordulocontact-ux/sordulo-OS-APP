@@ -1,5 +1,14 @@
 @import "./tokens.css";
 
+/* Police des titres du Figma (Exposure, version d'essai fournie par l'équipe). */
+@font-face {
+  font-family: "Exposure";
+  src: url("../assets/fonts/ExposureTrialVAR.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 *,
 *::before,
 *::after {

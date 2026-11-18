@@ -9,10 +9,10 @@ use tauri_plugin_positioner::{Position, WindowExt};
 use crate::events::{EVENT_PROMPT, PROMPT_ROUTE, WINDOW_MAIN, WINDOW_PROMPT};
 use crate::state::{DesktopState, PromptReason};
 
-/// Taille de la fenêtre prompt (pixels logiques).
-const PROMPT_WIDTH: f64 = 380.0;
-const PROMPT_HEIGHT: f64 = 300.0;
-/// Marge avec le bord de l'écran quand la position de la zone de notification est inconnue.
+/// Taille de la fenêtre prompt (pixels logiques) : une barre horizontale, sans défilement.
+const PROMPT_WIDTH: f64 = 620.0;
+const PROMPT_HEIGHT: f64 = 64.0;
+/// Marge avec le haut de l'écran.
 const SCREEN_MARGIN: i32 = 12;
 
 /// Crée la fenêtre prompt, cachée. Appelé une fois dans `setup`.
@@ -67,7 +67,7 @@ pub fn show_prompt(app: &AppHandle, reason: PromptReason, focus: bool) {
     if let Err(e) = app.emit_to(WINDOW_PROMPT, EVENT_PROMPT, &payload) {
         log::warn!("émission de {EVENT_PROMPT} impossible : {e}");
     }
-    place_near_tray(&window);
+    place_top_center(&window);
 
     let shown = if focus {
         window.show().and_then(|_| window.set_focus())
@@ -85,24 +85,17 @@ pub fn show_prompt(app: &AppHandle, reason: PromptReason, focus: bool) {
     }
 }
 
-/// `TrayBottomRight` si la zone de notification a déjà signalé sa position (survol ou clic),
-/// sinon coin bas droit de la zone de travail de l'écran (hors barre des tâches).
-fn place_near_tray(window: &WebviewWindow<Wry>) {
-    match window.move_window_constrained(Position::TrayBottomRight) {
-        Ok(()) => return,
-        Err(e) => {
-            log::debug!("position de la zone de notification inconnue ({e}), repli bas droite")
-        }
-    }
-    if let Err(e) = place_bottom_right(window) {
-        log::debug!("repli BottomRight du positioner : {e}");
-        if let Err(e) = window.move_window(Position::BottomRight) {
+/// En haut au centre de la zone de travail de l'écran principal (hors barre des tâches).
+fn place_top_center(window: &WebviewWindow<Wry>) {
+    if let Err(e) = place_top_center_of_work_area(window) {
+        log::debug!("position en haut au centre impossible ({e}), repli du positioner");
+        if let Err(e) = window.move_window(Position::TopCenter) {
             log::warn!("impossible de placer la fenêtre prompt : {e}");
         }
     }
 }
 
-fn place_bottom_right(window: &WebviewWindow<Wry>) -> tauri::Result<()> {
+fn place_top_center_of_work_area(window: &WebviewWindow<Wry>) -> tauri::Result<()> {
     let monitor = window
         .primary_monitor()?
         .or(window.current_monitor()?)
@@ -110,7 +103,7 @@ fn place_bottom_right(window: &WebviewWindow<Wry>) -> tauri::Result<()> {
     let area = monitor.work_area();
     let size = window.outer_size()?;
     let margin = (f64::from(SCREEN_MARGIN) * monitor.scale_factor()).round() as i32;
-    let x = area.position.x + area.size.width as i32 - size.width as i32 - margin;
-    let y = area.position.y + area.size.height as i32 - size.height as i32 - margin;
+    let x = area.position.x + (area.size.width as i32 - size.width as i32) / 2;
+    let y = area.position.y + margin;
     window.set_position(PhysicalPosition::new(x, y))
 }
