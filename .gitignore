@@ -9,3 +9,9 @@ dist
 coverage
 src-tauri/target
 src-tauri/gen
+
+# Skills des assistants (Claude Code, etc.), installés en local : non partagés pour l'instant
+.agents/
+.claude/skills/
+.claude/hooks/
+skills-lock.json
