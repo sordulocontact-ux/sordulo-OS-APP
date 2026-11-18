@@ -13,3 +13,7 @@ pub const EVENT_MIC_STATE: &str = "desktop://mic-state";
 pub const EVENT_RECORDING_STATE: &str = "desktop://recording-state";
 /// `DESKTOP_EVENTS.prompt` (payload `PromptPayload`).
 pub const EVENT_PROMPT: &str = "desktop://prompt";
+/// `DESKTOP_EVENTS.authCallback` (sans payload) : un lien de connexion attend `take_auth_callback`.
+pub const EVENT_AUTH_CALLBACK: &str = "desktop://auth-callback";
+/// Schéma de `DESKTOP_AUTH_REDIRECT` (`sordulo://auth`).
+pub const URL_SCHEME: &str = "sordulo";

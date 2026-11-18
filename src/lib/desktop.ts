@@ -64,6 +64,8 @@ export const showMainWindow = () => call<void>(DESKTOP_COMMANDS.showMainWindow)
 
 export const openPrompt = (args: { reason: 'manual-start' }) => call<void>(DESKTOP_COMMANDS.openPrompt, args)
 
+export const takeAuthCallback = () => call<string | null>(DESKTOP_COMMANDS.takeAuthCallback)
+
 /** Each returns a promise of the unsubscribe function. */
 export const onPrompt = (handler: (payload: PromptPayload) => void) =>
   subscribe<PromptPayload>(DESKTOP_EVENTS.prompt, handler)
@@ -73,6 +75,13 @@ export const onRecordingState = (handler: (state: RecordingState) => void) =>
 
 export const onMicState = (handler: (state: MicState) => void) =>
   subscribe<MicState>(DESKTOP_EVENTS.micState, handler)
+
+export const onAuthCallback = (handler: () => void) => subscribe<null>(DESKTOP_EVENTS.authCallback, () => handler())
+
+/** Label of the window this code runs in (DESKTOP_WINDOWS). */
+export function currentWindowLabel(): string {
+  return getCurrentWindow().label
+}
 
 /** Hides the window this code runs in (prompt window). */
 export async function hideCurrentWindow(): Promise<void> {

@@ -150,6 +150,8 @@ pub struct Shared {
     pub mic: MicState,
     /// L'utilisateur a écarté la proposition « mic-active » : rien de neuf tant que le micro reste actif.
     pub prompt_dismissed: bool,
+    /// Lien de connexion reçu (`sordulo://auth…`), en attente de lecture par la fenêtre principale.
+    pub pending_auth_url: Option<String>,
 }
 
 pub struct DesktopState {

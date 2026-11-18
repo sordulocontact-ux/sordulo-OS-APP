@@ -1,6 +1,7 @@
 //! Coque Tauri 2 de Sordulo OS : fenêtres, zone de notification, détection du micro, commandes IPC.
 //! Contrat avec le front : `src/shared/desktop-contract.ts`. Fonctions système : `platform/` uniquement.
 
+mod auth_link;
 mod commands;
 mod events;
 mod logging;
@@ -12,7 +13,7 @@ mod time;
 mod tray;
 mod windows_mgmt;
 
-use tauri::WindowEvent;
+use tauri::{Manager, WindowEvent};
 
 use crate::events::{WINDOW_MAIN, WINDOW_PROMPT};
 use crate::state::DesktopState;
@@ -23,14 +24,26 @@ pub fn run() {
 
     let app = tauri::Builder::default()
         // En premier : un second lancement montre la fenêtre de l'instance déjà ouverte.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            log::info!("second lancement : affichage de la fenêtre principale");
-            windows_mgmt::show_main(app);
-        }))
+        // Un clic sur le lien de connexion relance l'exécutable avec `sordulo://auth…` en argument.
+        .plugin(tauri_plugin_single_instance::init(
+            |app, args, _cwd| match auth_link::find_in_args(&args) {
+                Some(url) => auth_link::deliver(app, url),
+                None => {
+                    log::info!("second lancement : affichage de la fenêtre principale");
+                    windows_mgmt::show_main(app);
+                }
+            },
+        ))
         .plugin(tauri_plugin_positioner::init())
         .manage(DesktopState::new())
         .setup(|app| {
             let handle = app.handle().clone();
+            auth_link::register();
+            // App lancée par le lien de connexion alors qu'elle était fermée.
+            let args: Vec<String> = std::env::args().collect();
+            if let Some(url) = auth_link::find_in_args(&args) {
+                handle.state::<DesktopState>().shared().pending_auth_url = Some(url);
+            }
             windows_mgmt::create_prompt_window(&handle)?;
             tray::create(&handle)?;
             match recording::recordings_dir(&handle) {
@@ -61,6 +74,7 @@ pub fn run() {
             commands::dismiss_prompt,
             commands::show_main_window,
             commands::open_prompt,
+            commands::take_auth_callback,
         ])
         .build(tauri::generate_context!())
         .expect("erreur au démarrage de Sordulo OS");

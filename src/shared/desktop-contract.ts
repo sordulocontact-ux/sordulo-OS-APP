@@ -15,6 +15,12 @@ export const DESKTOP_WINDOWS = {
 /** Front route loaded by the prompt window (outside the regular app layout). */
 export const DESKTOP_PROMPT_ROUTE = '/desktop/prompt'
 
+/**
+ * Where Supabase sends the email login link back when the login was requested from the desktop app.
+ * Windows opens the app with this URL (scheme registered by Rust at startup). Must be in Supabase Redirect URLs.
+ */
+export const DESKTOP_AUTH_REDIRECT = 'sordulo://auth'
+
 /** An app that currently uses the microphone (Sordulo OS itself excluded). */
 export interface MicApp {
   id: string
@@ -79,6 +85,8 @@ export const DESKTOP_EVENTS = {
   recordingState: 'desktop://recording-state',
   /** Payload PromptPayload, emitted to the prompt window right before Rust shows it. */
   prompt: 'desktop://prompt',
+  /** No payload, main window only: a login link arrived, read it with takeAuthCallback. */
+  authCallback: 'desktop://auth-callback',
 } as const
 
 /** Commands implemented in Rust (invoke from @tauri-apps/api/core). Arguments are camelCase. */
@@ -99,4 +107,6 @@ export const DESKTOP_COMMANDS = {
   showMainWindow: 'show_main_window',
   /** ({ reason: 'manual-start' }) => void — emits a PromptPayload to the prompt window and shows it (header "Enregistrer un appel" button). */
   openPrompt: 'open_prompt',
+  /** () => string | null — the pending `sordulo://auth…` login link, returned once (main window only). */
+  takeAuthCallback: 'take_auth_callback',
 } as const

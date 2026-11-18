@@ -2,6 +2,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ToastProvider } from '../components/ui'
 import { AuthProvider } from '../features/auth/AuthProvider'
+import { DesktopAuthBridge } from '../features/auth/DesktopAuthBridge'
 import { ConfigMissing } from '../features/auth/ConfigMissing'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { AppRoutes } from './routes'
@@ -16,6 +17,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <AuthProvider>
+          <DesktopAuthBridge />
           <BrowserRouter>
             <AppRoutes />
           </BrowserRouter>

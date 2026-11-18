@@ -79,3 +79,15 @@ pub fn open_prompt(app: AppHandle, reason: String) -> Result<(), String> {
     windows_mgmt::show_prompt(&app, PromptReason::ManualStart, true);
     Ok(())
 }
+
+/// Lien de connexion reçu (`sordulo://auth…`), rendu une seule fois. Réservé à la fenêtre principale.
+#[tauri::command]
+pub fn take_auth_callback(
+    window: tauri::WebviewWindow,
+    state: State<'_, DesktopState>,
+) -> Option<String> {
+    if window.label() != crate::events::WINDOW_MAIN {
+        return None;
+    }
+    state.shared().pending_auth_url.take()
+}

@@ -88,6 +88,21 @@ pub fn recorder() -> Box<dyn Recorder> {
     }
 }
 
+/// Associe le schéma d'URL `scheme://` à l'exécutable courant (retour du lien de connexion par email).
+/// macOS : se déclare dans l'Info.plist du bundle (lot L13), rien à faire à l'exécution.
+pub fn register_url_scheme(scheme: &str) -> anyhow::Result<()> {
+    #[cfg(windows)]
+    {
+        let exe = std::env::current_exe()?;
+        windows::register_url_scheme(scheme, &exe)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = scheme;
+        Ok(())
+    }
+}
+
 #[cfg(not(any(windows, target_os = "macos")))]
 struct Unsupported;
 

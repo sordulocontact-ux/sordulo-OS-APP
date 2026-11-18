@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { Button, Card, Field, TextInput } from '../../components/ui'
+import { isDesktop } from '../../lib/desktop'
 import { supabase } from '../../lib/supabase'
+import { DESKTOP_AUTH_REDIRECT } from '../../shared/desktop-contract'
 import { useAuth } from './useAuth'
 import { parseLoginCode } from './parseLoginCode'
 import styles from './AuthScreen.module.css'
@@ -9,8 +11,7 @@ import styles from './AuthScreen.module.css'
 type Status = { kind: 'idle' } | { kind: 'sending' } | { kind: 'sent'; email: string } | { kind: 'error'; message: string }
 type CodeStatus = 'idle' | 'verifying' | 'invalid'
 
-const CODE_HINT =
-  'Dans l’app bureau : clic droit sur "Sign in" dans l’email > Copier l’adresse du lien, puis colle-le ici, sans ouvrir le lien.'
+const CODE_HINT = 'Si le lien ne rouvre pas l’app : clic droit sur "Sign in" dans l’email > Copier l’adresse du lien, puis colle-le ici.'
 
 export function LoginPage() {
   const { session, loading } = useAuth()
@@ -29,7 +30,8 @@ export function LoginPage() {
     setCodeStatus('idle')
     const { error } = await supabase.auth.signInWithOtp({
       email: target,
-      options: { emailRedirectTo: window.location.origin },
+      // App bureau : le lien rouvre l'app (sordulo://auth) au lieu d'une page du navigateur.
+      options: { emailRedirectTo: isDesktop() ? DESKTOP_AUTH_REDIRECT : window.location.origin },
     })
     setStatus(error ? { kind: 'error', message: error.message } : { kind: 'sent', email: target })
     return !error
@@ -69,6 +71,7 @@ export function LoginPage() {
   }
 
   const sent = status.kind === 'sent' ? status : null
+  const desktop = isDesktop()
 
   return (
     <main className={styles.screen}>
@@ -80,13 +83,22 @@ export function LoginPage() {
               <p className={styles.text}>
                 Lien envoyé à <strong>{sent.email}</strong>. Ouvre l'email et clique sur le lien pour te connecter.
               </p>
+              {desktop ? (
+                <p className={styles.text}>
+                  Ton navigateur te demande alors d'ouvrir Sordulo OS : accepte, l'app se connecte toute seule.
+                </p>
+              ) : null}
               {resent ? <p className={styles.text}>Un nouvel email vient d'être envoyé.</p> : null}
             </div>
-            <p className={styles.text}>Ou saisis le code reçu par email, ou colle le lien.</p>
+            {desktop ? (
+              <p className={styles.text}>Sinon, colle le lien ici.</p>
+            ) : (
+              <p className={styles.text}>Ou saisis le code reçu par email, ou colle le lien.</p>
+            )}
             <form className={styles.form} onSubmit={(e) => void onVerify(e, sent.email)}>
               <Field
                 label="Code ou lien reçu par email"
-                hint={CODE_HINT}
+                hint={desktop ? CODE_HINT : undefined}
                 error={codeStatus === 'invalid' ? 'Lien ou code invalide, ou déjà utilisé : renvoie un nouveau lien.' : null}
               >
                 <TextInput
