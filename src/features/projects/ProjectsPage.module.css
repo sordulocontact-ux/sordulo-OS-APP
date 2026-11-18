@@ -1,55 +1,102 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
-.list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.page > h1 {
+  margin-bottom: var(--space-3);
 }
 
-.item {
+/* Figma « Projet » : tableau bordé, en-tête gris, séparateurs de colonnes discrets. */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  border: var(--size-border) solid var(--color-border);
+  background: var(--color-surface);
+  table-layout: fixed;
+}
+
+.table th,
+.table td {
+  padding: var(--space-4);
+  border-bottom: var(--size-border) solid var(--color-border);
+  border-right: var(--size-border) solid var(--color-border-subtle);
+  font-weight: var(--font-weight-medium);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table th:last-child,
+.table td:last-child {
+  border-right: 0;
+}
+
+.table th {
+  background: var(--color-surface-muted);
+}
+
+.row {
+  position: relative;
+}
+
+.row:hover {
+  background: var(--color-surface-muted);
+}
+
+.project {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
-.info {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+.logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--size-control-md);
+  height: var(--size-control-md);
+  border-radius: var(--radius-logo);
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: normal;
 }
 
 .name {
   color: var(--color-text);
-  font-weight: var(--font-weight-semibold);
   text-decoration: none;
 }
 
-.name:hover {
-  color: var(--color-primary);
-  text-decoration: underline;
-}
-
-.client {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-/* Toute la carte ouvre le lien. */
+/* Toute la ligne ouvre le projet. */
 .name::after {
   content: '';
   position: absolute;
   inset: 0;
-  border-radius: inherit;
 }
 
-.item:hover .name {
-  color: var(--color-primary);
+.row:hover .name {
+  text-decoration: underline;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dot {
+  width: var(--size-status-dot);
+  height: var(--size-status-dot);
+  flex-shrink: 0;
+}
+
+.active {
+  background: var(--color-info-dot);
+}
+
+.idle {
+  background: var(--color-idle-dot);
 }

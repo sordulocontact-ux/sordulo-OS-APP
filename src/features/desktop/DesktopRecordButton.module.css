@@ -1,0 +1,38 @@
+/* Même gabarit que les liens de la barre latérale (AppLayout.module.css .navItem). */
+.icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: var(--size-control-md);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-nav);
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--easing-standard);
+}
+
+.icon:hover {
+  background: var(--color-surface-hover);
+}
+
+.icon:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.recording {
+  background: var(--color-danger-soft);
+}
+
+.dot {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-3);
+  width: var(--size-status-dot);
+  height: var(--size-status-dot);
+  border-radius: var(--radius-pill);
+  background: var(--color-danger);
+}

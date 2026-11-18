@@ -28,44 +28,83 @@
   grid-auto-flow: column;
   grid-auto-columns: var(--size-kanban-column);
   align-items: start;
-  gap: var(--space-4);
+  gap: var(--space-3);
   overflow-x: auto;
   padding-bottom: var(--space-2);
 }
 
+/* Figma « Tâches » : colonne teintée selon le statut, pastille arrondie en en-tête. */
 .column {
+  --column-bg: var(--color-idle-soft);
+  --column-pill: var(--color-idle-pill);
+  --column-ink: var(--color-idle);
+
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-3);
-  border: var(--size-border-strong) solid transparent;
-  border-radius: var(--radius-lg);
-  background: var(--color-surface-muted);
-  transition:
-    background var(--duration-fast) var(--easing-standard),
-    border-color var(--duration-fast) var(--easing-standard);
+  padding: var(--space-2);
+  outline: var(--size-border-strong) dashed transparent;
+  outline-offset: calc(-1 * var(--size-border-strong));
+  background: var(--column-bg);
+  transition: outline-color var(--duration-fast) var(--easing-standard);
+}
+
+.todo {
+  --column-bg: var(--color-idle-soft);
+  --column-pill: var(--color-idle-pill);
+  --column-ink: var(--color-idle);
+}
+
+.in_progress {
+  --column-bg: var(--color-info-soft);
+  --column-pill: var(--color-info-pill);
+  --column-ink: var(--color-info);
+}
+
+.review {
+  --column-bg: var(--color-warning-soft);
+  --column-pill: var(--color-warning-pill);
+  --column-ink: var(--color-warning);
+}
+
+.done {
+  --column-bg: var(--color-success-soft);
+  --column-pill: var(--color-success-pill);
+  --column-ink: var(--color-success);
 }
 
 .columnOver {
-  border-color: var(--color-primary);
-  background: var(--color-primary-soft);
+  outline-color: var(--column-ink);
 }
 
 .columnHeader {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
 }
 
 .columnTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--column-pill);
+  color: var(--column-ink);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+}
+
+.columnDot {
+  width: var(--size-status-dot);
+  height: var(--size-status-dot);
+  background: var(--column-ink);
 }
 
 .columnStats {
-  color: var(--color-text-muted);
+  color: var(--color-text-subtle);
   font-size: var(--font-size-sm);
 }
 

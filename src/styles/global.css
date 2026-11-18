@@ -16,8 +16,9 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-sans);
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
+  letter-spacing: var(--letter-spacing-body);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -30,25 +31,28 @@ p {
 }
 
 h1 {
+  font-family: var(--font-display);
   font-size: var(--font-size-2xl);
   line-height: var(--line-height-tight);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-regular);
+  letter-spacing: normal;
+  color: var(--color-text-heading);
 }
 
 h2 {
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-lg);
   line-height: var(--line-height-tight);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
 }
 
 h3 {
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-md);
   line-height: var(--line-height-tight);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
 }
 
 a {
-  color: var(--color-primary);
+  color: var(--color-link);
 }
 
 button,

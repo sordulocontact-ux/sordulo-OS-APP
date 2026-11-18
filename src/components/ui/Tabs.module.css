@@ -1,24 +1,31 @@
+/* Figma : sélecteur segmenté (« All / Installed »), onglet actif sur fond gris. */
 .list {
-  display: flex;
-  gap: var(--space-1);
-  border-bottom: var(--size-border) solid var(--color-border);
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 0;
+  background: var(--color-surface-muted);
 }
 
 .tab {
-  padding: var(--space-2) var(--space-4);
-  margin-bottom: calc(var(--size-border) * -1);
-  border-bottom: var(--size-border-strong) solid transparent;
-  color: var(--color-text-muted);
-  font-weight: var(--font-weight-medium);
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text-subtle);
+  font-weight: var(--font-weight-regular);
   text-decoration: none;
+  transition:
+    background var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard);
 }
 
 .tab:hover {
   color: var(--color-text);
 }
 
-.active {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
+.tab:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
 }
 
+.active {
+  background: var(--color-surface-active);
+  color: var(--color-text);
+}

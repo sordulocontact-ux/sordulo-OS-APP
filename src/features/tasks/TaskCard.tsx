@@ -71,7 +71,7 @@ export function TaskCard({
           {assignee ? (
             <>
               <Avatar name={assignee.name} />
-              <span>{assignee.name.split(' ')[0]}</span>
+              <span>{assignee.name}</span>
             </>
           ) : (
             <span className={styles.unassigned}>Non attribuée</span>

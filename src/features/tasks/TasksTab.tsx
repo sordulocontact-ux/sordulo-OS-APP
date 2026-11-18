@@ -123,7 +123,7 @@ export function TasksTab() {
           return (
             <section
               key={status}
-              className={[styles.column, isTarget ? styles.columnOver : ''].filter(Boolean).join(' ')}
+              className={[styles.column, styles[status], isTarget ? styles.columnOver : ''].filter(Boolean).join(' ')}
               aria-labelledby={`column-${status}`}
               onDragOver={(e) => allowDrop(e, { status, beforeId: null })}
               onDrop={(e) => {
@@ -133,6 +133,7 @@ export function TasksTab() {
             >
               <header className={styles.columnHeader}>
                 <h3 id={`column-${status}`} className={styles.columnTitle}>
+                  <span className={styles.columnDot} aria-hidden="true" />
                   {LABELS.taskStatus[status]}
                 </h3>
                 <span className={styles.columnStats}>
