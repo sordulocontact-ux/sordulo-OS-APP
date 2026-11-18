@@ -5,7 +5,7 @@
  * appellent useProject(projectId) : même clé de requête, donc servi par le cache TanStack Query.
  */
 import { Link, Outlet, useParams } from 'react-router-dom'
-import { EmptyState, ErrorState, LoadingState, Tabs, type TabItem } from '../../components/ui'
+import { BackLink, EmptyState, ErrorState, LoadingState, Tabs, type TabItem } from '../../components/ui'
 import { useProject } from './useProject'
 import type { ProjectOutletContext } from './useProjectContext'
 import styles from './ProjectPage.module.css'
@@ -37,9 +37,7 @@ export function ProjectPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <Link to="/" className={styles.back}>
-          Projets
-        </Link>
+        <BackLink to="/" label="Projets" />
         <h1>{project.name}</h1>
         <p className={styles.client}>{project.client?.name ?? 'Sans client'}</p>
       </header>

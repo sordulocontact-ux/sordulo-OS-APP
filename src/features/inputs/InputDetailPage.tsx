@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, EmptyState, ErrorState, LoadingState, useToast, type BadgeTone } from '../../components/ui'
+import { BackLink, Badge, Button, Card, EmptyState, ErrorState, LoadingState, useToast, type BadgeTone } from '../../components/ui'
 import { api, ApiRequestError } from '../../lib/api'
 import { queryKeys } from '../../lib/queryKeys'
 import { formatTimestamp, speakerLabel } from '../../shared/transcript'
@@ -141,9 +141,7 @@ function InputDetail({ input, projectId }: { input: Input; projectId: string }) 
   return (
     <article className={styles.page}>
       <header className={styles.header}>
-        <Link to={`/projects/${projectId}/inputs`} className={styles.back}>
-          Entrées
-        </Link>
+        <BackLink to={`/projects/${projectId}/inputs`} label="Entrées" />
         <h1 className={styles.title}>{inputTitle(input)}</h1>
         <div className={styles.meta}>
           <Badge tone={input.kind === 'meeting' ? 'primary' : 'neutral'}>{kindLabel(input.kind)}</Badge>

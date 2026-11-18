@@ -23,14 +23,27 @@
   white-space: nowrap;
 }
 
+/* Les 4 colonnes se partagent la largeur : pas de barre de défilement horizontale. */
 .board {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: var(--size-kanban-column);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: start;
   gap: var(--space-3);
-  overflow-x: auto;
-  padding-bottom: var(--space-2);
+}
+
+/* Écran étroit : colonnes de largeur fixe, défilement sans barre visible. */
+@media (max-width: 60rem) {
+  .board {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: var(--size-kanban-column);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .board::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Figma « Tâches » : colonne teintée selon le statut, pastille arrondie en en-tête. */

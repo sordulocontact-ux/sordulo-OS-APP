@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, EmptyState, ErrorState, LoadingState, Spinner, useToast } from '../../components/ui'
+import { BackLink, Badge, Button, EmptyState, ErrorState, LoadingState, Spinner, useToast } from '../../components/ui'
 import { useOrgMembers } from '../auth/useOrgMembers'
 import { useProject } from '../projects/useProject'
 import { useProjectTickets } from '../tickets/useProjectTickets'
@@ -65,7 +65,7 @@ export function ReviewPage() {
   if (PROCESSING_STATUSES.includes(current.status)) {
     return (
       <section className={styles.page} aria-live="polite">
-        <BackLink to={backTo} />
+        <BackLink to={backTo} label="Retour à l'entrée" />
         <div className={styles.waiting}>
           <Spinner label="" />
           <p>L'entrée est en cours de traitement ({LABELS.inputStatus[current.status].replace('…', '')}). Les tickets apparaîtront ici dès que l'analyse sera terminée.</p>
@@ -76,7 +76,7 @@ export function ReviewPage() {
   if (current.status === 'error') {
     return (
       <section className={styles.page}>
-        <BackLink to={backTo} />
+        <BackLink to={backTo} label="Retour à l'entrée" />
         <ErrorState message={current.error_message ?? "Le traitement de l'entrée a échoué."} />
         <p>
           <Link to={backTo}>Ouvrir la fiche de l'entrée pour relancer le traitement</Link>
@@ -110,14 +110,6 @@ export function ReviewPage() {
       members={members.data ?? []}
       projectTickets={projectTickets.data ?? []}
     />
-  )
-}
-
-function BackLink({ to }: { to: string }) {
-  return (
-    <Link to={to} className={styles.back}>
-      Retour à l'entrée
-    </Link>
   )
 }
 
@@ -254,7 +246,7 @@ function ReviewBoard({ projectId, input, tickets, tasks, members, projectTickets
 
   return (
     <section className={styles.page} aria-labelledby="review-title">
-      <BackLink to={`/projects/${projectId}/inputs/${input.id}`} />
+      <BackLink to={`/projects/${projectId}/inputs/${input.id}`} label="Retour à l'entrée" />
       <header className={styles.header}>
         <div className={styles.titles}>
           <h1 id="review-title">Tickets proposés</h1>
