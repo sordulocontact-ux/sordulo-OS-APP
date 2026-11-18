@@ -7,12 +7,14 @@ import { useProject } from '../projects/useProject'
 import { useProjectTickets } from '../tickets/useProjectTickets'
 import { inputLabel, STATUS_TONE } from '../tickets/format'
 import { countLabel } from '../inputs/inputUtils'
+import { ticketHours } from '../../shared/assignment'
 import { queryKeys } from '../../lib/queryKeys'
 import { LABELS, type Input, type Member, type Task, type Ticket, type TicketStatus } from '../../shared/types'
 import {
   hasChanges,
   makeTicketDraft,
   nextPosition,
+  parseEstimate,
   planSave,
   validateDraft,
   type SavePlan,
@@ -150,8 +152,11 @@ function ReviewBoard({ projectId, input, tickets, tasks, members, projectTickets
     return drafts[ticket.id] ?? makeTicketDraft(ticket, tasksOf(ticket))
   }
 
-  // Suit les modifications en cours (tâches ajoutées ou retirées avant validation).
-  const proposedTaskCount = proposed.reduce((sum, ticket) => sum + draftOf(ticket).tasks.length, 0)
+  // Durée totale, qui suit les modifications en cours.
+  const proposedHours = proposed.reduce(
+    (sum, ticket) => sum + ticketHours(draftOf(ticket).tasks.map((t) => ({ estimate_hours: parseEstimate(t.estimate) ?? null }))),
+    0,
+  )
 
   function setBusy(id: string, value: boolean) {
     setBusyIds((previous) => {
@@ -254,13 +259,13 @@ function ReviewBoard({ projectId, input, tickets, tasks, members, projectTickets
         <div className={styles.titles}>
           <h1 id="review-title">Tickets proposés</h1>
           <p className={styles.muted}>
-            {inputLabel(input)} · {countLabel(proposed.length, 'ticket')} à traiter, décomposé
-            {proposed.length > 1 ? 's' : ''} en {countLabel(proposedTaskCount, 'tâche')}
+            {inputLabel(input)} · {countLabel(proposed.length, 'ticket')} à traiter
+            {proposedHours > 0 ? `, environ ${String(Math.round(proposedHours * 100) / 100).replace('.', ',')} h` : ''}
           </p>
         </div>
         {proposed.length > 0 ? (
           <Button variant="primary" loading={bulk} disabled={busyIds.size > 0} onClick={() => void validateAll()}>
-            Tout valider ({countLabel(proposed.length, 'ticket')}, {countLabel(proposedTaskCount, 'tâche')})
+            Tout valider ({countLabel(proposed.length, 'ticket')})
           </Button>
         ) : null}
       </header>

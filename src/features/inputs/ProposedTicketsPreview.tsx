@@ -2,12 +2,13 @@ import { Badge, Card, LoadingState } from '../../components/ui'
 import { useOrgMembers } from '../auth/useOrgMembers'
 import { useInputTasks, useInputTickets } from '../review/useReviewData'
 import { formatHours } from '../tasks/board'
+import { ticketHours } from '../../shared/assignment'
 import { LABELS, type Input } from '../../shared/types'
 import { LinkButton } from './LinkButton'
 import { reviewPath } from './inputUtils'
 import styles from './ProposedTicketsPreview.module.css'
 
-/** Aperçu en lecture seule des tickets proposés et de leurs tâches, avant l'écran de validation. */
+/** Aperçu en lecture seule des tickets proposés (un ticket = une tâche), avant l'écran de validation. */
 export function ProposedTicketsPreview({ input }: { input: Input }) {
   const tickets = useInputTickets(input.id, input.status === 'ready')
   const proposed = (tickets.data ?? []).filter((t) => t.status === 'proposed')
@@ -45,18 +46,20 @@ export function ProposedTicketsPreview({ input }: { input: Input }) {
                     {ticket.area ? <Badge>{ticket.area}</Badge> : null}
                   </div>
                 </div>
-                {ticket.assignment_note ? <p className={styles.note}>{ticket.assignment_note}</p> : null}
-                <ol className={styles.tasks} aria-label={`Tâches du ticket « ${ticket.title} »`}>
-                  {ticketTasks.map((task) => (
-                    <li key={task.id} className={styles.task}>
-                      <Badge tone={task.skill}>{LABELS.skill[task.skill]}</Badge>
-                      <span className={styles.taskTitle}>{task.title}</span>
-                      <span className={styles.taskMeta}>
-                        {formatHours(task.estimate_hours)} · {nameOf(task.assignee_member_id)}
+                <p className={styles.meta}>
+                  {ticketTasks.length > 0 ? (
+                    <>
+                      <Badge tone={ticketTasks[0]!.skill}>{LABELS.skill[ticketTasks[0]!.skill]}</Badge>
+                      <span>
+                        {formatHours(ticketHours(ticketTasks))} · {nameOf(ticketTasks[0]!.assignee_member_id)}
                       </span>
-                    </li>
-                  ))}
-                </ol>
+                    </>
+                  ) : (
+                    <span>Aucune tâche</span>
+                  )}
+                  {ticket.assignment_note ? <span className={styles.note}>· {ticket.assignment_note}</span> : null}
+                </p>
+                {ticket.description ? <p className={styles.description}>{ticket.description}</p> : null}
               </Card>
             </li>
           )

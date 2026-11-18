@@ -26,29 +26,30 @@ function analysis(tasks: AnalysisTask[], related: string | null = null): Analysi
 }
 
 describe('postProcessAnalysis', () => {
-  it('garde une dépendance valide et nettoie les titres', () => {
-    const [ticket] = postProcessAnalysis(analysis([task({ skill: 'design' }), task({ depends_on_index: 0 })]), [])
+  it('nettoie le titre et la partie, et garde une seule tâche telle quelle', () => {
+    const [ticket] = postProcessAnalysis(analysis([task({ title: ' Corriger le menu mobile ', skill: 'design', estimate_hours: 0.75 })]), [])
     expect(ticket?.title).toBe('Corriger le menu')
     expect(ticket?.area).toBe('Menu principal')
-    expect(ticket?.tasks.map((t) => t.depends_on_index)).toEqual([null, 0])
+    expect(ticket?.tasks).toEqual([{ title: 'Corriger le menu mobile', skill: 'design', estimate_hours: 0.75, depends_on_index: null }])
   })
 
-  it('met à null un index hors bornes, négatif, décimal ou égal à lui-même', () => {
+  it('fusionne plusieurs tâches en une : titre du ticket, durée totale, compétence la plus lourde', () => {
     const [ticket] = postProcessAnalysis(
       analysis([
-        task({ depends_on_index: 0 }),
-        task({ depends_on_index: 5 }),
-        task({ depends_on_index: -1 }),
-        task({ depends_on_index: 0.5 }),
+        task({ skill: 'design', estimate_hours: 0.5 }),
+        task({ skill: 'dev', estimate_hours: 1.5, depends_on_index: 0 }),
+        task({ skill: 'dev', estimate_hours: Number.NaN }),
       ]),
       [],
     )
-    expect(ticket?.tasks.map((t) => t.depends_on_index)).toEqual([null, null, null, null])
+    expect(ticket?.tasks).toEqual([{ title: 'Corriger le menu', skill: 'dev', estimate_hours: 2, depends_on_index: null }])
   })
 
-  it('casse un cycle de dépendances', () => {
-    const [ticket] = postProcessAnalysis(analysis([task({ depends_on_index: 1 }), task({ depends_on_index: 0 })]), [])
-    expect(ticket?.tasks.map((t) => t.depends_on_index)).toEqual([null, 0])
+  it('choisit design quand le design pèse le plus, et crée une tâche si l’analyse n’en donne pas', () => {
+    const [heavyDesign] = postProcessAnalysis(analysis([task({ skill: 'design', estimate_hours: 3 }), task({ estimate_hours: 1 })]), [])
+    expect(heavyDesign?.tasks[0]?.skill).toBe('design')
+    const [empty] = postProcessAnalysis(analysis([]), [])
+    expect(empty?.tasks).toEqual([{ title: 'Corriger le menu', skill: 'dev', estimate_hours: null, depends_on_index: null }])
   })
 
   it('met à null un related_ticket_id inconnu et garde un id connu', () => {
@@ -57,18 +58,9 @@ describe('postProcessAnalysis', () => {
     expect(postProcessAnalysis(analysis([], OPEN_ID), [])[0]?.related_ticket_id).toBeNull()
   })
 
-  it('met à null une estimation négative ou non finie', () => {
-    const [ticket] = postProcessAnalysis(
-      analysis([
-        task({ estimate_hours: -2 }),
-        task({ estimate_hours: Number.NaN }),
-        task({ estimate_hours: Number.POSITIVE_INFINITY }),
-        task({ estimate_hours: 2.5 }),
-        task({ estimate_hours: 0 }),
-      ]),
-      [],
-    )
-    expect(ticket?.tasks.map((t) => t.estimate_hours)).toEqual([null, null, null, 2.5, 0])
+  it('ignore une estimation négative ou non finie', () => {
+    const [ticket] = postProcessAnalysis(analysis([task({ estimate_hours: -2 })]), [])
+    expect(ticket?.tasks[0]?.estimate_hours).toBeNull()
   })
 
   it('transforme une citation vide en null', () => {
