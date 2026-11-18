@@ -2,7 +2,8 @@
 //!
 //! - App d'appel dédiée (Zoom, Teams, Slack, Discord, WhatsApp…) : proposition immédiate.
 //! - Navigateur : le registre dit seulement qu'il utilise le micro, pas quel onglet. On propose s'il
-//!   joue du son (le son des participants) ou si le titre d'une fenêtre visible indique un appel
+//!   joue du son audible sur au moins deux mesures (le son des participants, pas le « bip » de début de
+//!   dictée) ou si le titre d'une fenêtre visible indique un appel
 //!   (« Meet – abc-defg-hij »). Une dictée vocale dans Claude web ne joue rien : pas de proposition.
 //! - Autres apps (Claude bureau, enregistreur…) : ignorées.
 //!
@@ -62,10 +63,28 @@ pub fn is_call_title(title: &str) -> bool {
         .any(|word| CALL_TITLE_WORDS.contains(&word))
 }
 
-/// Le navigateur `browser_id` semble en appel : il joue du son, ou une fenêtre a un titre d'appel.
-pub fn browser_in_call(browser_id: &str, playing_audio: &[String], titles: &[String]) -> bool {
-    let name = short_name(browser_id);
-    playing_audio.contains(&name) || titles.iter().any(|t| is_call_title(t))
+/// Signe qu'un navigateur est en appel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrowserSignal {
+    /// Une fenêtre visible a un titre d'appel : suffit seul.
+    Title,
+    /// Le navigateur joue du son audible : à confirmer sur plusieurs mesures (un « bip » de début de
+    /// dictée ne doit pas compter).
+    Sound,
+}
+
+pub fn browser_signal(
+    browser_id: &str,
+    playing_audio: &[String],
+    titles: &[String],
+) -> Option<BrowserSignal> {
+    if titles.iter().any(|t| is_call_title(t)) {
+        Some(BrowserSignal::Title)
+    } else if playing_audio.contains(&short_name(browser_id)) {
+        Some(BrowserSignal::Sound)
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -115,15 +134,20 @@ mod tests {
         let arc = "TheBrowserCompany.Arc_ttt1ap7aakyb4";
         let none: Vec<String> = vec![];
         // Dictée dans Claude web : rien ne joue, aucun titre d'appel.
-        assert!(!browser_in_call(arc, &["spotify".into()], &["Arc".into()]));
+        assert_eq!(
+            browser_signal(arc, &["spotify".into()], &["Arc".into()]),
+            None
+        );
         // Meet dans Arc : Arc joue le son des participants.
-        assert!(browser_in_call(arc, &["arc".into()], &none));
+        assert_eq!(
+            browser_signal(arc, &["arc".into()], &none),
+            Some(BrowserSignal::Sound)
+        );
         // Meet dans Chrome : titre de fenêtre.
         let chrome = "C:#Program Files#Google#Chrome#Application#chrome.exe";
-        assert!(browser_in_call(
-            chrome,
-            &none,
-            &["Meet – abc - Google Chrome".into()]
-        ));
+        assert_eq!(
+            browser_signal(chrome, &none, &["Meet – abc - Google Chrome".into()]),
+            Some(BrowserSignal::Title)
+        );
     }
 }
