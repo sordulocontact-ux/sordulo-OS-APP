@@ -8,10 +8,10 @@ import { formatTimestamp, speakerLabel } from '../../shared/transcript'
 import type { Input } from '../../shared/types'
 import { DeleteInputButton } from './DeleteInputButton'
 import { DownloadInputButtons } from './DownloadInputButtons'
+import { ProposedTicketsPreview } from './ProposedTicketsPreview'
 import { InputStatusBadge } from './InputStatusBadge'
-import { LinkButton } from './LinkButton'
 import { SpeakerNamesForm } from './SpeakerNamesForm'
-import { countLabel, formatDateTime, inputTitle, kindLabel, reviewPath } from './inputUtils'
+import { formatDateTime, inputTitle, kindLabel } from './inputUtils'
 import { useInput, useProposedTicketCount } from './useInputs'
 import styles from './InputDetailPage.module.css'
 
@@ -168,11 +168,7 @@ function InputDetail({ input, projectId }: { input: Input; projectId: string }) 
 
       {ready ? (
         <div className={styles.actions}>
-          {proposed && proposed.tickets > 0 ? (
-            <LinkButton to={reviewPath(projectId, input.id)} variant="primary">
-              Valider les tickets proposés ({countLabel(proposed.tickets, 'ticket')}, {countLabel(proposed.tasks, 'tâche')})
-            </LinkButton>
-          ) : countLoaded ? (
+          {proposed && proposed.tickets > 0 ? null : countLoaded ? (
             <p className={styles.noTicket}>
               Aucun ticket proposé.{' '}
               <Link to={`/projects/${projectId}/tickets`}>Voir les tickets du projet</Link>
@@ -197,6 +193,8 @@ function InputDetail({ input, projectId }: { input: Input; projectId: string }) 
           )}
         </div>
       ) : null}
+
+      {ready ? <ProposedTicketsPreview input={input} /> : null}
 
       {input.kind === 'written' ? (
         <Card>

@@ -39,7 +39,7 @@ function InputRow({ input }: { input: Input }) {
         <div className={styles.rowActions}>
           {ready && proposed && proposed.tickets > 0 ? (
             <LinkButton to={reviewPath(input.project_id, input.id)} variant="primary" size="sm">
-              Valider {countLabel(proposed.tickets, 'ticket')} · {countLabel(proposed.tasks, 'tâche')}
+              Voir {countLabel(proposed.tickets, 'ticket')} · {countLabel(proposed.tasks, 'tâche')}
             </LinkButton>
           ) : null}
           <DeleteInputButton input={input} size="sm" />
