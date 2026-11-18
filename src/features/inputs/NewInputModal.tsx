@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useId, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button, Field, Modal, Spinner, Textarea, TextInput, useToast } from '../../components/ui'
@@ -78,14 +78,6 @@ export function NewInputModal({ projectId, open, onClose }: NewInputModalProps) 
   const [uploaded, setUploaded] = useState(false)
 
   const busy = step !== 'idle'
-
-  // Escape must not close the dialog while something is being sent.
-  useEffect(() => {
-    if (!busy) return
-    const block = (event: Event) => event.preventDefault()
-    document.addEventListener('cancel', block, true)
-    return () => document.removeEventListener('cancel', block, true)
-  }, [busy])
 
   function reset() {
     setMode('written')
@@ -216,6 +208,7 @@ export function NewInputModal({ projectId, open, onClose }: NewInputModalProps) 
     <Modal
       open={open}
       onClose={handleClose}
+      dismissible={!busy}
       title="Nouvelle entrée"
       actions={
         <>
