@@ -4,19 +4,13 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Button, Field, Modal, Spinner, Textarea, TextInput, useToast } from '../../components/ui'
 import { api, ApiRequestError } from '../../lib/api'
 import { queryKeys } from '../../lib/queryKeys'
-import { supabase } from '../../lib/supabase'
 import { AUDIO_MAX_BYTES, type CreateInputResponse } from '../../shared/api-contract'
 import { formatFileSize } from './inputUtils'
+import { MeetingUploadError, UPLOAD_STEP_LABELS, uploadMeetingRecording, type UploadStep } from './uploadMeeting'
 import styles from './NewInputModal.module.css'
 
 type Mode = 'written' | 'meeting'
-type Step = 'idle' | 'creating' | 'uploading' | 'processing'
-
-const STEP_LABELS: Record<Exclude<Step, 'idle'>, string> = {
-  creating: 'Création…',
-  uploading: 'Envoi du fichier…',
-  processing: 'Lancement de la transcription…',
-}
+type Step = 'idle' | UploadStep
 
 const EXTENSION_TYPES: Record<string, string> = {
   mp3: 'audio/mpeg',
@@ -139,43 +133,27 @@ export function NewInputModal({ projectId, open, onClose }: NewInputModalProps) 
   async function submitMeeting(chosen: File) {
     const contentType = acceptedContentType(chosen)
     if (!contentType) return
-    let current = created
     try {
-      if (!current) {
-        setStep('creating')
-        current = await api.createInput({
-          projectId,
-          kind: 'meeting',
-          title: title.trim() || undefined,
-          fileName: chosen.name,
-          contentType,
-          sizeBytes: chosen.size,
-        })
-        setCreated(current)
-        void queryClient.invalidateQueries({ queryKey: queryKeys.inputs(projectId) })
-      }
-      if (!uploaded) {
-        const { upload } = current
-        if (!upload) throw new ApiRequestError('Le serveur n\'a pas fourni d\'adresse d\'envoi.', 500)
-        setStep('uploading')
-        const { error: uploadError } = await supabase.storage
-          .from(upload.bucket)
-          .uploadToSignedUrl(upload.path, upload.token, chosen, { contentType })
-        if (uploadError) {
-          throw new ApiRequestError(`L'envoi du fichier a échoué (${uploadError.message}). Réessaie.`, 0)
-        }
-        setUploaded(true)
-      }
-      setStep('processing')
-      try {
-        await api.processInput({ inputId: current.input.id })
-      } catch (e) {
-        // 409: a processing is already running, which is what we wanted.
-        if (!(e instanceof ApiRequestError && e.status === 409)) throw e
-      }
+      const { input } = await uploadMeetingRecording({
+        projectId,
+        title,
+        file: chosen,
+        fileName: chosen.name,
+        contentType,
+        resume: { created, uploaded },
+        onStep: setStep,
+        onCreated: (done) => {
+          setCreated(done)
+          void queryClient.invalidateQueries({ queryKey: queryKeys.inputs(projectId) })
+        },
+      })
       toast.success('Fichier envoyé, transcription en cours.')
-      finish(current.input.id)
+      finish(input.id)
     } catch (e) {
+      if (e instanceof MeetingUploadError) {
+        setCreated(e.resume.created)
+        setUploaded(e.resume.uploaded)
+      }
       setError(errorMessage(e))
       setStep('idle')
     }
@@ -282,7 +260,7 @@ export function NewInputModal({ projectId, open, onClose }: NewInputModalProps) 
           {step !== 'idle' ? (
             <p className={styles.step}>
               <Spinner label="" />
-              {STEP_LABELS[step]}
+              {UPLOAD_STEP_LABELS[step]}
             </p>
           ) : null}
         </div>

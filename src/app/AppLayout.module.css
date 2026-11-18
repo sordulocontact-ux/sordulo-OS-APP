@@ -37,6 +37,18 @@
   margin-left: auto;
 }
 
+.desktopActions {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+.userDesktop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .userName {
   font-size: var(--font-size-sm);
 }

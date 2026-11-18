@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { LoginPage } from '../features/auth/LoginPage'
 import { MemberGate } from '../features/auth/MemberGate'
 import { RequireAuth } from '../features/auth/RequireAuth'
+import { DesktopPromptRoute } from '../features/desktop/DesktopPromptRoute'
 import { InputDetailPage } from '../features/inputs/InputDetailPage'
 import { InputsTab } from '../features/inputs/InputsTab'
 import { ProjectPage } from '../features/projects/ProjectPage'
@@ -16,6 +17,7 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/desktop/prompt" element={<DesktopPromptRoute />} />
       <Route
         element={
           <RequireAuth>
