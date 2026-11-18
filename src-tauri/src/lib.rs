@@ -2,6 +2,7 @@
 //! Contrat avec le front : `src/shared/desktop-contract.ts`. Fonctions système : `platform/` uniquement.
 
 mod auth_link;
+mod call_apps;
 mod commands;
 mod events;
 mod logging;
