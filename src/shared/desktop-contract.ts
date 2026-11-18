@@ -97,4 +97,6 @@ export const DESKTOP_COMMANDS = {
   dismissPrompt: 'dismiss_prompt',
   /** () => void — shows and focuses the main window. */
   showMainWindow: 'show_main_window',
+  /** ({ reason: 'manual-start' }) => void — emits a PromptPayload to the prompt window and shows it (header "Enregistrer un appel" button). */
+  openPrompt: 'open_prompt',
 } as const
