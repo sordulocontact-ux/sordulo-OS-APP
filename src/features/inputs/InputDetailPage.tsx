@@ -9,7 +9,7 @@ import type { Input } from '../../shared/types'
 import { InputStatusBadge } from './InputStatusBadge'
 import { LinkButton } from './LinkButton'
 import { SpeakerNamesForm } from './SpeakerNamesForm'
-import { formatDateTime, inputTitle, kindLabel, reviewPath } from './inputUtils'
+import { countLabel, formatDateTime, inputTitle, kindLabel, reviewPath } from './inputUtils'
 import { useInput, useProposedTicketCount } from './useInputs'
 import styles from './InputDetailPage.module.css'
 
@@ -108,7 +108,7 @@ function InputDetail({ input, projectId }: { input: Input; projectId: string }) 
   const [running, setRunning] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const ready = input.status === 'ready'
-  const { data: proposed = 0, isSuccess: countLoaded } = useProposedTicketCount(input.id, ready)
+  const { data: proposed, isSuccess: countLoaded } = useProposedTicketCount(input.id, ready)
 
   async function rerun() {
     setRunning(true)
@@ -162,9 +162,9 @@ function InputDetail({ input, projectId }: { input: Input; projectId: string }) 
 
       {ready ? (
         <div className={styles.actions}>
-          {proposed > 0 ? (
+          {proposed && proposed.tickets > 0 ? (
             <LinkButton to={reviewPath(projectId, input.id)} variant="primary">
-              Valider les tickets proposés ({proposed})
+              Valider les tickets proposés ({countLabel(proposed.tickets, 'ticket')}, {countLabel(proposed.tasks, 'tâche')})
             </LinkButton>
           ) : countLoaded ? (
             <p className={styles.noTicket}>

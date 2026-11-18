@@ -6,6 +6,7 @@ import { useOrgMembers } from '../auth/useOrgMembers'
 import { useProject } from '../projects/useProject'
 import { useProjectTickets } from '../tickets/useProjectTickets'
 import { inputLabel, STATUS_TONE } from '../tickets/format'
+import { countLabel } from '../inputs/inputUtils'
 import { queryKeys } from '../../lib/queryKeys'
 import { LABELS, type Input, type Member, type Task, type Ticket, type TicketStatus } from '../../shared/types'
 import {
@@ -149,6 +150,9 @@ function ReviewBoard({ projectId, input, tickets, tasks, members, projectTickets
     return drafts[ticket.id] ?? makeTicketDraft(ticket, tasksOf(ticket))
   }
 
+  // Suit les modifications en cours (tâches ajoutées ou retirées avant validation).
+  const proposedTaskCount = proposed.reduce((sum, ticket) => sum + draftOf(ticket).tasks.length, 0)
+
   function setBusy(id: string, value: boolean) {
     setBusyIds((previous) => {
       const next = new Set(previous)
@@ -250,12 +254,13 @@ function ReviewBoard({ projectId, input, tickets, tasks, members, projectTickets
         <div className={styles.titles}>
           <h1 id="review-title">Tickets proposés</h1>
           <p className={styles.muted}>
-            {inputLabel(input)} · {proposed.length} ticket{proposed.length > 1 ? 's' : ''} à traiter
+            {inputLabel(input)} · {countLabel(proposed.length, 'ticket')} à traiter, décomposé
+            {proposed.length > 1 ? 's' : ''} en {countLabel(proposedTaskCount, 'tâche')}
           </p>
         </div>
         {proposed.length > 0 ? (
           <Button variant="primary" loading={bulk} disabled={busyIds.size > 0} onClick={() => void validateAll()}>
-            Tout valider ({proposed.length})
+            Tout valider ({countLabel(proposed.length, 'ticket')}, {countLabel(proposedTaskCount, 'tâche')})
           </Button>
         ) : null}
       </header>

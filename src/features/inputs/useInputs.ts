@@ -71,19 +71,34 @@ export function useInput(inputId: string | undefined) {
   return query
 }
 
-/** Number of tickets of this input still waiting for validation. */
+export interface ProposedCounts {
+  tickets: number
+  /** Tasks the analysis broke those tickets into. */
+  tasks: number
+}
+
+/** Tickets of this input still waiting for validation, and their tasks. */
 export function useProposedTicketCount(inputId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: [...queryKeys.inputTickets(inputId ?? ''), 'proposed-count'],
     enabled: Boolean(inputId) && enabled,
-    queryFn: async () => {
-      const { count, error } = await supabase
+    queryFn: async (): Promise<ProposedCounts> => {
+      const { data: tickets, error } = await supabase
         .from('tickets')
-        .select('id', { count: 'exact', head: true })
+        .select('id')
         .eq('input_id', inputId ?? '')
         .eq('status', 'proposed')
       if (error) throw error
-      return count ?? 0
+      if (tickets.length === 0) return { tickets: 0, tasks: 0 }
+      const { count, error: tasksError } = await supabase
+        .from('tasks')
+        .select('id', { count: 'exact', head: true })
+        .in(
+          'ticket_id',
+          tickets.map((t) => t.id),
+        )
+      if (tasksError) throw tasksError
+      return { tickets: tickets.length, tasks: count ?? 0 }
     },
   })
 }

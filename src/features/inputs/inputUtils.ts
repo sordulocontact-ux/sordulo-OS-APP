@@ -42,3 +42,8 @@ export function formatFileSize(bytes: number): string {
 export function reviewPath(projectId: string, inputId: string): string {
   return `/projects/${projectId}/inputs/${inputId}/review`
 }
+
+/** « 1 tâche », « 3 tâches », « 0 ticket ». */
+export function countLabel(count: number, word: string): string {
+  return `${count} ${word}${count > 1 ? 's' : ''}`
+}

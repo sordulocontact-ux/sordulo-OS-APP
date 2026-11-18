@@ -6,7 +6,7 @@ import { useProjectContext } from '../projects/useProjectContext'
 import { InputStatusBadge } from './InputStatusBadge'
 import { LinkButton } from './LinkButton'
 import { NewInputModal } from './NewInputModal'
-import { formatDateTime, inputTitle, kindLabel, reviewPath } from './inputUtils'
+import { countLabel, formatDateTime, inputTitle, kindLabel, reviewPath } from './inputUtils'
 import { DOCUMENT_ACCEPT, dragHasFiles, filesFromDrop } from './documentText'
 import { useDocumentImport } from './useDocumentImport'
 import { useInputs, useProposedTicketCount } from './useInputs'
@@ -14,7 +14,7 @@ import styles from './InputsTab.module.css'
 
 function InputRow({ input }: { input: Input }) {
   const ready = input.status === 'ready'
-  const { data: proposed = 0 } = useProposedTicketCount(input.id, ready)
+  const { data: proposed } = useProposedTicketCount(input.id, ready)
   const detailPath = `/projects/${input.project_id}/inputs/${input.id}`
 
   return (
@@ -35,9 +35,9 @@ function InputRow({ input }: { input: Input }) {
         <span aria-live="polite">
           <InputStatusBadge status={input.status} />
         </span>
-        {ready && proposed > 0 ? (
+        {ready && proposed && proposed.tickets > 0 ? (
           <LinkButton to={reviewPath(input.project_id, input.id)} variant="primary" size="sm">
-            Valider {proposed} ticket{proposed > 1 ? 's' : ''}
+            Valider {countLabel(proposed.tickets, 'ticket')} · {countLabel(proposed.tasks, 'tâche')}
           </LinkButton>
         ) : null}
       </div>
