@@ -2,7 +2,7 @@
 //! Deux threads dédiés, lancés une fois dans `setup`.
 
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -14,37 +14,8 @@ use crate::state::{DesktopState, MicState, PromptReason};
 use crate::tray;
 use crate::windows_mgmt;
 
-const MIC_POLL: Duration = Duration::from_secs(2);
+const MIC_POLL: Duration = Duration::from_secs(1);
 const RECORDING_TICK: Duration = Duration::from_secs(1);
-/// Le micro doit rester actif ce temps avant « Transcrire cet appel ? » : une dictée vocale de quelques
-/// secondes ne déclenche rien.
-const MIC_ACTIVE_DELAY: Duration = Duration::from_secs(6);
-
-/// Proposition « mic-active » en attente du délai `MIC_ACTIVE_DELAY`.
-#[derive(Debug, Default)]
-struct PromptDelay {
-    since: Option<Instant>,
-}
-
-impl PromptDelay {
-    fn arm(&mut self, now: Instant) {
-        self.since = Some(now);
-    }
-    fn cancel(&mut self) {
-        self.since = None;
-    }
-    /// Vrai une seule fois, quand le délai est écoulé.
-    fn fire(&mut self, now: Instant) -> bool {
-        match self.since {
-            Some(since) if now.duration_since(since) >= MIC_ACTIVE_DELAY => {
-                self.since = None;
-                true
-            }
-            _ => false,
-        }
-    }
-}
-
 /// Ce que la boucle doit faire après un changement d'état du micro.
 #[derive(Debug, PartialEq, Eq)]
 enum Action {
@@ -72,24 +43,32 @@ pub fn spawn_mic_loop(app: AppHandle) {
             let monitor = platform::mic_monitor();
             log::info!("boucle de détection du micro démarrée (toutes les {MIC_POLL:?})");
             let mut ticks: u64 = 0;
-            let mut delay = PromptDelay::default();
+            // « mic-active » en attente d'un signe d'appel (navigateur sans son ni titre d'appel pour l'instant).
+            let mut pending = false;
             loop {
                 match monitor.active_apps() {
                     Ok(apps) => {
-                        // Seules les apps d'appel comptent (pas la dictée vocale, etc.).
-                        let apps = apps.into_iter().filter(|a| call_apps::is_call_app(&a.id));
+                        // Seules les apps d'appel et les navigateurs comptent (pas la dictée dans Claude, etc.).
+                        let apps = apps
+                            .into_iter()
+                            .filter(|a| call_apps::classify(&a.id).is_some());
                         let mic = MicState::from_apps(apps.collect());
                         let active = mic.active;
                         match on_poll(&app, mic) {
-                            Some(PromptReason::MicActive) => delay.arm(Instant::now()),
+                            Some(PromptReason::MicActive) => pending = true,
                             Some(reason) => windows_mgmt::show_prompt(&app, reason, false),
                             None => {}
                         }
                         if !active {
-                            delay.cancel();
+                            pending = false;
                         }
-                        if delay.fire(Instant::now()) && still_promptable(&app) {
-                            windows_mgmt::show_prompt(&app, PromptReason::MicActive, false);
+                        if pending {
+                            if !still_promptable(&app) {
+                                pending = false;
+                            } else if looks_like_call(&app) {
+                                pending = false;
+                                windows_mgmt::show_prompt(&app, PromptReason::MicActive, false);
+                            }
                         }
                     }
                     Err(e) => log::warn!("détection du micro : {e:#}"),
@@ -107,7 +86,27 @@ pub fn spawn_mic_loop(app: AppHandle) {
     }
 }
 
-/// Toujours vrai au bout du délai ? (micro actif, rien en cours, proposition pas écartée entre-temps)
+/// Une app d'appel dédiée utilise le micro, ou un navigateur qui semble en appel (voir `call_apps`).
+fn looks_like_call(app: &AppHandle) -> bool {
+    let apps = app.state::<DesktopState>().shared().mic.apps.clone();
+    if apps
+        .iter()
+        .any(|a| call_apps::classify(&a.id) == Some(call_apps::CallApp::Dedicated))
+    {
+        return true;
+    }
+    let playing = platform::processes_playing_audio();
+    let titles = platform::visible_window_titles();
+    let in_call = apps
+        .iter()
+        .any(|a| call_apps::browser_in_call(&a.id, &playing, &titles));
+    if !in_call {
+        log::debug!("navigateur au micro sans signe d'appel (son : {playing:?})");
+    }
+    in_call
+}
+
+/// Proposition toujours d'actualité ? (micro actif, rien en cours, pas écartée entre-temps)
 fn still_promptable(app: &AppHandle) -> bool {
     let state = app.state::<DesktopState>();
     let shared = state.shared();
@@ -190,20 +189,5 @@ mod tests {
         );
         // Changement d'apps sans changement d'activité.
         assert_eq!(transition(true, true, false, &mut dismissed), Action::None);
-    }
-
-    #[test]
-    fn prompt_waits_for_the_delay() {
-        let t0 = Instant::now();
-        let mut delay = PromptDelay::default();
-        assert!(!delay.fire(t0 + MIC_ACTIVE_DELAY));
-        delay.arm(t0);
-        assert!(!delay.fire(t0 + Duration::from_secs(4)));
-        assert!(delay.fire(t0 + MIC_ACTIVE_DELAY));
-        assert!(!delay.fire(t0 + MIC_ACTIVE_DELAY * 2), "une seule fois");
-        // Dictée courte : le micro se coupe avant le délai.
-        delay.arm(t0);
-        delay.cancel();
-        assert!(!delay.fire(t0 + MIC_ACTIVE_DELAY));
     }
 }

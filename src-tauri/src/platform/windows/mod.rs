@@ -13,8 +13,10 @@
 //! - `mixer`    : mix des deux pistes (niveau automatique borné + saturation douce).
 //! - `encoder`  : écriture MP3 en continu (`mp3lame-encoder`).
 //! - `recorder` : orchestration (threads, arrêt, `RecordingInfo`).
+//! - `activity` : indices d'appel pour les navigateurs (son joué, titres de fenêtres).
 //! - `url_scheme` : association du schéma `sordulo://` (retour du lien de connexion).
 
+mod activity;
 mod capture;
 mod dsp;
 mod encoder;
@@ -24,6 +26,7 @@ mod recorder;
 mod timeline;
 mod url_scheme;
 
+pub use activity::{processes_playing_audio, visible_window_titles};
 pub use mic::RegistryMicMonitor;
 pub use recorder::WasapiRecorder;
 pub use url_scheme::register_url_scheme;

@@ -88,6 +88,33 @@ pub fn recorder() -> Box<dyn Recorder> {
     }
 }
 
+/// Exécutables (minuscules, sans `.exe`) qui jouent du son en ce moment. Vide si non disponible.
+pub fn processes_playing_audio() -> Vec<String> {
+    #[cfg(windows)]
+    {
+        windows::processes_playing_audio().unwrap_or_else(|e| {
+            log::debug!("sessions audio : {e:#}");
+            Vec::new()
+        })
+    }
+    #[cfg(not(windows))]
+    {
+        Vec::new()
+    }
+}
+
+/// Titres des fenêtres visibles. Vide si non disponible.
+pub fn visible_window_titles() -> Vec<String> {
+    #[cfg(windows)]
+    {
+        windows::visible_window_titles()
+    }
+    #[cfg(not(windows))]
+    {
+        Vec::new()
+    }
+}
+
 /// Associe le schéma d'URL `scheme://` à l'exécutable courant (retour du lien de connexion par email).
 /// macOS : se déclare dans l'Info.plist du bundle (lot L13), rien à faire à l'exécution.
 pub fn register_url_scheme(scheme: &str) -> anyhow::Result<()> {
