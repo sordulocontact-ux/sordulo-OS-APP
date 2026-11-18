@@ -143,6 +143,10 @@ export function DesktopPromptPage() {
         setView('ended')
       } else if (payload.recording.status === 'recording') {
         setView('recording')
+      } else if (readPendingRecording()) {
+        // Un envoi a échoué : proposer de le relancer avant tout nouvel enregistrement.
+        setSendError("Un enregistrement n'a pas encore été envoyé.")
+        setView('sending')
       } else {
         setReason(payload.reason)
         setStartError(null)

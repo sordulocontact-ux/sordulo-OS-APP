@@ -13,7 +13,13 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), apiDevPlugin()],
     // Tauri (src-tauri/tauri.conf.json devUrl) expects exactly this port.
     clearScreen: false,
-    server: { port: 5173, strictPort: true },
+    server: {
+      port: 5173,
+      strictPort: true,
+      // Précharge les fonctions /api au démarrage : sinon leur premier chargement peut se bloquer
+      // pendant que les fenêtres de l'app bureau rechargent tout le front en même temps.
+      warmup: { ssrFiles: ['./api/**/!(*.test).ts'] },
+    },
     test: { include: ['src/**/*.test.ts', 'api/**/*.test.ts'], environment: 'node' },
   }
 })

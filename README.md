@@ -33,7 +33,7 @@ Dans Supabase, sous **Authentication > URL Configuration**, ajoute `http://local
 | `VITE_SUPABASE_ANON_KEY` | front | Clé publique (la RLS protège les données) |
 | `SUPABASE_SERVICE_ROLE_KEY` | serveur uniquement | Fonctions `/api` |
 | `ANTHROPIC_API_KEY` | serveur uniquement | Analyse IA |
-| `ANTHROPIC_MODEL` | serveur uniquement | Modèle Claude (`claude-opus-5-5` par défaut) |
+| `ANTHROPIC_MODEL` | serveur uniquement | Modèle Claude (`claude-sonnet-5-5` conseillé : rapide et économique) |
 | `TRANSCRIPTION_API_KEY` | serveur uniquement | Clé Deepgram |
 | `SUPABASE_DB_URL` | local uniquement | Scripts de migration et de seed (Session pooler) |
 | `SEED_MAEL_EMAIL`, `SEED_SACHA_EMAIL` | local uniquement | Emails du seed, jamais dans git |
