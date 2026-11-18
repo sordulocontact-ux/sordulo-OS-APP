@@ -38,6 +38,13 @@ Dans Supabase, sous **Authentication > URL Configuration**, ajoute `http://local
 | `SUPABASE_DB_URL` | local uniquement | Scripts de migration et de seed (Session pooler) |
 | `SEED_MAEL_EMAIL`, `SEED_SACHA_EMAIL` | local uniquement | Emails du seed, jamais dans git |
 
+## Production
+
+- Site : **https://sordulo-os-app.vercel.app** (projet Vercel `sordulo-os-app`, compte sordulocontact).
+- Chaque push sur `main` (repo `sordulocontact-ux/sordulo-OS-APP`) redéploie automatiquement.
+- Supabase : Site URL = l'adresse du site ; Redirect URLs = `http://localhost:5173/**`, `sordulo://auth`, `https://sordulo-os-app.vercel.app/**`.
+- Supabase Free n'envoie que quelques emails de connexion par heure : en cas de « Trop d'emails », attendre ou brancher un SMTP.
+
 ## Déployer sur Vercel
 
 1. Pousser le repo sur GitHub, puis **Add New Project** dans Vercel et importer le repo. Le framework Vite est détecté et `vercel.json` est déjà configuré : fonctions `api/**` avec 300 s max, fallback SPA.
