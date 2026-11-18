@@ -87,3 +87,18 @@ unsafe extern "system" fn collect(hwnd: HWND, lparam: LPARAM) -> BOOL {
     }
     1
 }
+
+#[cfg(test)]
+mod tests {
+    /// Diagnostic manuel : `cargo test print_call_hints -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn print_call_hints() {
+        println!("son joué par : {:?}", super::processes_playing_audio());
+        let titles: Vec<String> = super::visible_window_titles()
+            .into_iter()
+            .filter(|t| crate::call_apps::is_call_title(t))
+            .collect();
+        println!("titres d'appel : {titles:?}");
+    }
+}
