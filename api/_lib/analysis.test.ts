@@ -89,7 +89,10 @@ describe('analyzeInput : repli Mistral', () => {
     usage: { input_tokens: 1, output_tokens: 1 },
   }
   const mistralTickets = [] as Awaited<ReturnType<typeof mistral.analyzeWithMistral>>
-  let create: ReturnType<typeof vi.spyOn>
+  let stream: ReturnType<typeof vi.spyOn>
+  // L'analyse lit la réponse en continu : messages.stream(...).finalMessage().
+  const streamOk = () => stream.mockReturnValue({ finalMessage: () => Promise.resolve(claudeOk) } as never)
+  const streamKo = () => stream.mockReturnValue({ finalMessage: () => Promise.reject(billingError()) } as never)
   let fallback: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
@@ -98,7 +101,7 @@ describe('analyzeInput : repli Mistral', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    create = vi.spyOn(Anthropic.Messages.prototype, 'create')
+    stream = vi.spyOn(Anthropic.Messages.prototype, 'stream')
     fallback = vi.spyOn(mistral, 'analyzeWithMistral').mockResolvedValue(mistralTickets)
   })
   afterEach(() => {
@@ -111,7 +114,7 @@ describe('analyzeInput : repli Mistral', () => {
 
   it('Claude OK : aucun appel Mistral', async () => {
     vi.stubEnv('MISTRAL_API_KEY', 'm')
-    create.mockResolvedValue(claudeOk as never)
+    streamOk()
     const tickets = await analyzeInput(context())
     expect(tickets).toHaveLength(1)
     expect(fallback).not.toHaveBeenCalled()
@@ -119,7 +122,7 @@ describe('analyzeInput : repli Mistral', () => {
 
   it('crédits épuisés + clé Mistral : bascule sur Mistral avec le même prompt', async () => {
     vi.stubEnv('MISTRAL_API_KEY', 'm')
-    create.mockRejectedValue(billingError())
+    streamKo()
     await expect(analyzeInput(context())).resolves.toBe(mistralTickets)
     const request = fallback.mock.calls[0]![0] as mistral.MistralAnalysisRequest
     expect(request.system).toBe(ANALYSIS_SYSTEM_PROMPT)
@@ -129,14 +132,14 @@ describe('analyzeInput : repli Mistral', () => {
 
   it('Claude KO sans clé Mistral : erreur Claude inchangée', async () => {
     vi.stubEnv('MISTRAL_API_KEY', '')
-    create.mockRejectedValue(billingError())
+    streamKo()
     await expect(analyzeInput(context())).rejects.toThrow('requête refusée par l’API Claude : ')
     expect(fallback).not.toHaveBeenCalled()
   })
 
   it('les deux KO : message combiné', async () => {
     vi.stubEnv('MISTRAL_API_KEY', 'm')
-    create.mockRejectedValue(billingError())
+    streamKo()
     fallback.mockRejectedValue(new Error('clé MISTRAL_API_KEY refusée par l’API Mistral.'))
     await expect(analyzeInput(context())).rejects.toThrow(
       /^Analyse impossible : Claude indisponible \(.*\), et le repli Mistral a échoué \(clé MISTRAL_API_KEY refusée par l’API Mistral\.\)$/,
@@ -146,7 +149,7 @@ describe('analyzeInput : repli Mistral', () => {
   it('une entrée vide n’appelle aucun fournisseur', async () => {
     vi.stubEnv('MISTRAL_API_KEY', 'm')
     await expect(analyzeInput(context({ rawText: ' ' }))).rejects.toThrow()
-    expect(create).not.toHaveBeenCalled()
+    expect(stream).not.toHaveBeenCalled()
     expect(fallback).not.toHaveBeenCalled()
   })
 })
