@@ -6,6 +6,12 @@
   box-shadow: var(--shadow-sm);
 }
 
+.interactive {
+  /* Le lien principal de la carte s'étend sur toute la carte (voir ::after dans la page). */
+  position: relative;
+  cursor: pointer;
+}
+
 .interactive:hover {
   border-color: var(--color-border-strong);
   box-shadow: var(--shadow-md);

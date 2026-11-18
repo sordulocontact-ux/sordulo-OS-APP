@@ -41,3 +41,15 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
+
+/* Toute la carte ouvre le lien. */
+.name::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.item:hover .name {
+  color: var(--color-primary);
+}
