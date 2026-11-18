@@ -58,5 +58,6 @@ export interface ApiError {
 }
 
 /** Audio upload limits, checked on the front and on the server. */
-export const AUDIO_MAX_BYTES = 200 * 1024 * 1024
+/** Supabase Free: 50 MB max per file (checked in the Storage settings). */
+export const AUDIO_MAX_BYTES = 50 * 1024 * 1024
 export const AUDIO_BUCKET = 'audio'

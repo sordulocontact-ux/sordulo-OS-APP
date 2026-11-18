@@ -11,6 +11,9 @@ export default defineConfig(({ mode }) => {
   }
   return {
     plugins: [react(), apiDevPlugin()],
+    // Tauri (src-tauri/tauri.conf.json devUrl) expects exactly this port.
+    clearScreen: false,
+    server: { port: 5173, strictPort: true },
     test: { include: ['src/**/*.test.ts', 'api/**/*.test.ts'], environment: 'node' },
   }
 })

@@ -7,3 +7,5 @@ dist
 *.log
 .DS_Store
 coverage
+src-tauri/target
+src-tauri/gen
