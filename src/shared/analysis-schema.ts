@@ -19,6 +19,7 @@ export const AnalysisTicketSchema = z.object({
   type: z.enum(TICKET_TYPES),
   priority: z.enum(TICKET_PRIORITIES),
   source_quote: z.string(),
+  area: z.string(),
   related_ticket_id: z.string().nullable(),
   tasks: z.array(AnalysisTaskSchema),
 })

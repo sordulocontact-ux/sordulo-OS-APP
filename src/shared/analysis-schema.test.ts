@@ -9,6 +9,7 @@ const valid = {
       type: 'modification',
       priority: 'high',
       source_quote: 'le bouton de paiement est vraiment trop petit',
+      area: 'Paiement',
       related_ticket_id: null,
       tasks: [
         { title: 'Ajuster la maquette du bouton', skill: 'design', estimate_hours: 1, depends_on_index: null },

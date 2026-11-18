@@ -77,6 +77,7 @@ describe('analyzeInput : repli Mistral', () => {
         type: 'modification',
         priority: 'medium',
         source_quote: 'Le bouton est trop petit.',
+        area: 'Paiement',
         related_ticket_id: null,
         tasks: [{ title: 'Agrandir le bouton', description: 'Passer à 48 px.', skill: 'dev', depends_on_index: null, estimate_hours: 1 }],
       },

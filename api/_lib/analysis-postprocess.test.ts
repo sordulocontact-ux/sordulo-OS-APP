@@ -17,6 +17,7 @@ function analysis(tasks: AnalysisTask[], related: string | null = null): Analysi
         type: 'bug',
         priority: 'medium',
         source_quote: 'le menu ne s’ouvre plus',
+        area: ' Menu  principal ',
         related_ticket_id: related,
         tasks,
       },
@@ -28,6 +29,7 @@ describe('postProcessAnalysis', () => {
   it('garde une dépendance valide et nettoie les titres', () => {
     const [ticket] = postProcessAnalysis(analysis([task({ skill: 'design' }), task({ depends_on_index: 0 })]), [])
     expect(ticket?.title).toBe('Corriger le menu')
+    expect(ticket?.area).toBe('Menu principal')
     expect(ticket?.tasks.map((t) => t.depends_on_index)).toEqual([null, 0])
   })
 

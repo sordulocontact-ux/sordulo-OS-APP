@@ -18,9 +18,14 @@ export interface ProcessedTicket {
   type: TicketType
   priority: TicketPriority
   source_quote: string | null
+  /** Partie du produit concernée, null si l'analyse n'en donne pas. */
+  area: string | null
   related_ticket_id: string | null
   tasks: ProcessedTask[]
 }
+
+/** Longueur maximale d'une partie du produit (« Finance », « Page d'accueil »). */
+export const AREA_MAX_LENGTH = 40
 
 /** Valid index of another task of the same ticket, else null. */
 function validDependency(index: number | null, self: number, count: number): number | null {
@@ -55,6 +60,7 @@ export function postProcessAnalysis(analysis: Analysis, openTicketIds: readonly 
     const deps = breakCycles(ticket.tasks.map((task, i) => validDependency(task.depends_on_index, i, count)))
     const related = ticket.related_ticket_id ? (knownIds.get(ticket.related_ticket_id.trim().toLowerCase()) ?? null) : null
     const quote = ticket.source_quote.trim()
+    const area = ticket.area.replace(/\s+/g, ' ').trim().slice(0, AREA_MAX_LENGTH).trim()
 
     return {
       title: ticket.title.trim(),
@@ -62,6 +68,7 @@ export function postProcessAnalysis(analysis: Analysis, openTicketIds: readonly 
       type: ticket.type,
       priority: ticket.priority,
       source_quote: quote === '' ? null : quote,
+      area: area === '' ? null : area,
       related_ticket_id: related,
       tasks: ticket.tasks.map((task, i) => ({
         title: task.title.trim(),

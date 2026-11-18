@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { Member, Task, Ticket } from '../../shared/types'
 import {
   type TaskDraft,
+  assignTicket,
   changeTaskSkill,
+  ticketAssigneeOf,
   hasChanges,
   makeNewTaskDraft,
   makeTicketDraft,
@@ -28,6 +30,8 @@ const ticket: Ticket = {
   source_quote: null,
   status: 'proposed',
   related_ticket_id: null,
+  area: null,
+  assignment_note: null,
   created_at: '2026-11-18T10:00:00Z',
 }
 
@@ -104,12 +108,20 @@ describe('planSave', () => {
     expect(plan.taskUpdates).toEqual([{ id: 'b', patch: { depends_on_task_id: null } }])
   })
 
-  it('re-assigns a task when its skill changes', () => {
+  it('keeps the assignee when the skill of a task changes (one person per ticket)', () => {
     const draft = makeTicketDraft(ticket, tasks)
-    draft.tasks[0] = changeTaskSkill(at(draft.tasks, 0), 'dev', members)
-    expect(at(draft.tasks, 0).assigneeId).toBe('mael')
+    const before = at(draft.tasks, 0).assigneeId
+    draft.tasks[0] = changeTaskSkill(at(draft.tasks, 0), 'dev')
+    expect(at(draft.tasks, 0).assigneeId).toBe(before)
     const plan = planSave(ticket, tasks, draft, { startPosition: 2 })
-    expect(plan.taskUpdates).toEqual([{ id: 'a', patch: { skill: 'dev', assignee_member_id: 'mael' } }])
+    expect(plan.taskUpdates).toEqual([{ id: 'a', patch: { skill: 'dev' } }])
+  })
+
+  it('gives the whole ticket to one person', () => {
+    const draft = assignTicket(makeTicketDraft(ticket, tasks), 'mael')
+    expect(ticketAssigneeOf(draft)).toBe('mael')
+    expect(draft.tasks.every((t) => t.assigneeId === 'mael')).toBe(true)
+    expect(makeNewTaskDraft('new-x', members, 'design', 'mael').assigneeId).toBe('mael')
   })
 })
 

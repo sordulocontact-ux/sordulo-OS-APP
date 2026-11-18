@@ -115,6 +115,10 @@ export interface Ticket {
   source_quote: string | null
   status: TicketStatus
   related_ticket_id: string | null
+  /** Partie du produit concernée (« Finance », « Juridique »…), donnée par l'analyse. */
+  area: string | null
+  /** Pourquoi le ticket est allé à cette personne (charge, habitude). */
+  assignment_note: string | null
   created_at: string
 }
 

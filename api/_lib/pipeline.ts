@@ -3,7 +3,14 @@
  * Never throws: any error puts the input in status "error" with a French message naming the step.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { pickAssignee } from '../../src/shared/assignment.js'
+import {
+  addToWorkload,
+  areaKey,
+  emptyWorkload,
+  pickTicketAssignee,
+  ticketHours,
+  type TeamWorkload,
+} from '../../src/shared/assignment.js'
 import type { Client, Input, InputStatus, Member, Project, Transcript } from '../../src/shared/types.js'
 import { analyzeInput, type OpenTicketSummary } from './analysis.js'
 import type { ProcessedTicket } from './analysis-postprocess.js'
@@ -103,6 +110,58 @@ async function loadOpenTickets(admin: SupabaseClient, projectId: string): Promis
   return (data as OpenTicketSummary[] | null) ?? []
 }
 
+/**
+ * Charge de l'équipe (heures des tâches de tickets validés pas encore faites, tous projets de
+ * l'organisation) et habitudes (tickets validés ou faits du projet, par partie). Sert à attribuer
+ * chaque nouveau ticket. Renvoie aussi les parties déjà connues du projet, pour l'analyse.
+ */
+async function loadWorkload(
+  admin: SupabaseClient,
+  project: Project,
+): Promise<{ workload: TeamWorkload; knownAreas: string[] }> {
+  const ticketsRes = await admin
+    .from('tickets')
+    .select('id, project_id, status, area')
+    .eq('organization_id', project.organization_id)
+    .in('status', ['validated', 'done'])
+  if (ticketsRes.error) throw new Error(`lecture de la charge : ${ticketsRes.error.message}`)
+  const tickets = (ticketsRes.data as { id: string; project_id: string; status: string; area: string | null }[] | null) ?? []
+  const ticketById = new Map(tickets.map((t) => [t.id, t]))
+
+  const workload = emptyWorkload()
+  const knownAreas = new Map<string, string>()
+  for (const t of tickets) {
+    const key = areaKey(t.area)
+    if (key && t.area && t.project_id === project.id && !knownAreas.has(key)) knownAreas.set(key, t.area.trim())
+  }
+  if (tickets.length === 0) return { workload, knownAreas: [] }
+
+  const tasksRes = await admin
+    .from('tasks')
+    .select('ticket_id, assignee_member_id, estimate_hours, status')
+    .eq('organization_id', project.organization_id)
+    .not('assignee_member_id', 'is', null)
+  if (tasksRes.error) throw new Error(`lecture de la charge : ${tasksRes.error.message}`)
+  const tasks =
+    (tasksRes.data as { ticket_id: string | null; assignee_member_id: string; estimate_hours: number | null; status: string }[] | null) ?? []
+
+  const counted = new Set<string>()
+  for (const task of tasks) {
+    const ticket = task.ticket_id ? ticketById.get(task.ticket_id) : undefined
+    if (!ticket) continue
+    if (ticket.status === 'validated' && task.status !== 'done') {
+      addToWorkload(workload, task.assignee_member_id, ticketHours([task]), null)
+    }
+    // Habitude : un ticket compte une fois par personne, seulement dans ce projet.
+    const seen = `${ticket.id}:${task.assignee_member_id}`
+    if (ticket.project_id === project.id && !counted.has(seen)) {
+      counted.add(seen)
+      addToWorkload(workload, task.assignee_member_id, 0, ticket.area)
+    }
+  }
+  return { workload, knownAreas: [...knownAreas.values()] }
+}
+
 async function nextTaskPosition(admin: SupabaseClient, projectId: string): Promise<number> {
   const { data, error } = await admin
     .from('tasks')
@@ -121,11 +180,20 @@ async function saveTickets(
   admin: SupabaseClient,
   ctx: LoadedContext,
   tickets: ProcessedTicket[],
+  workload: TeamWorkload,
 ): Promise<{ tickets: number; tasks: number }> {
   if (tickets.length === 0) return { tickets: 0, tasks: 0 }
   const { input, project, members } = ctx
 
-  const ticketRows = tickets.map((t) => ({
+  // Un ticket = une personne : la moins chargée, avec un bonus d'habitude sur la même partie.
+  // La charge augmente au fil des tickets de cette analyse, pour les répartir.
+  const assignments = tickets.map((t) => {
+    const picked = pickTicketAssignee(members, { area: t.area }, workload)
+    if (picked) addToWorkload(workload, picked.member.id, ticketHours(t.tasks), t.area)
+    return picked
+  })
+
+  const ticketRows = tickets.map((t, i) => ({
     id: crypto.randomUUID(),
     organization_id: project.organization_id,
     project_id: project.id,
@@ -137,6 +205,8 @@ async function saveTickets(
     source_quote: t.source_quote,
     status: 'proposed',
     related_ticket_id: t.related_ticket_id,
+    area: t.area,
+    assignment_note: assignments[i]?.note ?? null,
   }))
   const ticketIds = ticketRows.map((row) => row.id)
 
@@ -160,7 +230,7 @@ async function saveTickets(
           title: task.title,
           skill: task.skill,
           estimate_hours: task.estimate_hours,
-          assignee_member_id: pickAssignee(task.skill, members)?.id ?? null,
+          assignee_member_id: assignments[ticketIndex]?.member.id ?? null,
           status: 'todo',
           depends_on_task_id: null,
           position: position++,
@@ -232,12 +302,14 @@ export async function processInput(inputId: string): Promise<void> {
     const removed = await admin.from('tickets').delete().eq('input_id', input.id).eq('status', 'proposed')
     if (removed.error) throw new Error(`suppression des anciens tickets proposés : ${removed.error.message}`)
     const openTickets = await loadOpenTickets(admin, project.id)
+    const { workload, knownAreas } = await loadWorkload(admin, project)
     const analysisStarted = Date.now()
     const tickets = await analyzeInput({
       clientName: client?.name ?? null,
       projectName: project.name,
       toneOfVoice: project.tone_of_voice,
       openTickets,
+      knownAreas,
       input: {
         kind: input.kind,
         title: input.title,
@@ -249,7 +321,7 @@ export async function processInput(inputId: string): Promise<void> {
     console.log(`[process] input=${inputId} analyse ok : ${tickets.length} tickets, ${Date.now() - analysisStarted} ms`)
 
     step = 'enregistrement'
-    const saved = await saveTickets(admin, ctx, tickets)
+    const saved = await saveTickets(admin, ctx, tickets, workload)
     await setStatus(admin, input.id, 'ready')
     console.log(
       `[process] input=${inputId} prête : ${saved.tickets} tickets, ${saved.tasks} tâches, ${Date.now() - started} ms au total`,

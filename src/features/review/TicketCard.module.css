@@ -23,6 +23,15 @@
   gap: var(--space-1);
 }
 
+.assignment {
+  display: grid;
+  grid-template-columns: minmax(12rem, 18rem) 1fr;
+  align-items: end;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface-muted);
+}
+
 .grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

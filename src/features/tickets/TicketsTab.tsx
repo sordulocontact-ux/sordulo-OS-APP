@@ -160,6 +160,7 @@ function TicketItem({ ticket, input, stats, projectId }: TicketItemProps) {
           </Badge>
           <Badge tone={PRIORITY_TONE[ticket.priority]}>Priorité {LABELS.ticketPriority[ticket.priority].toLowerCase()}</Badge>
           <Badge tone={STATUS_TONE[ticket.status]}>{LABELS.ticketStatus[ticket.status]}</Badge>
+          {ticket.area ? <Badge>{ticket.area}</Badge> : null}
         </div>
       </div>
       {ticket.description ? <p className={styles.description}>{shortText(ticket.description)}</p> : null}

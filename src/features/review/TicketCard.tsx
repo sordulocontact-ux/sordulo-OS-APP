@@ -9,7 +9,17 @@ import {
   type TicketPriority,
   type TicketType,
 } from '../../shared/types'
-import { changeTaskSkill, makeNewTaskDraft, type TaskDraft, type TicketDraft, type TicketErrors } from './diff'
+import { ticketHours } from '../../shared/assignment'
+import {
+  assignTicket,
+  changeTaskSkill,
+  parseEstimate,
+  makeNewTaskDraft,
+  ticketAssigneeOf,
+  type TaskDraft,
+  type TicketDraft,
+  type TicketErrors,
+} from './diff'
 import { TaskRow } from './TaskRow'
 import styles from './TicketCard.module.css'
 
@@ -54,10 +64,13 @@ export function TicketCard({
   }
 
   function addTask() {
-    onChange({ ...draft, tasks: [...draft.tasks, makeNewTaskDraft(`new-${crypto.randomUUID()}`, members)] })
+    const task = makeNewTaskDraft(`new-${crypto.randomUUID()}`, members, 'dev', ticketAssigneeOf(draft))
+    onChange({ ...draft, tasks: [...draft.tasks, task] })
   }
 
   const titleForLabel = draft.title.trim() || ticket.title
+  const holder = ticketAssigneeOf(draft)
+  const hours = ticketHours(draft.tasks.map((task) => ({ estimate_hours: parseEstimate(task.estimate) ?? null })))
 
   return (
     <Card className={styles.card} aria-labelledby={headingId} role="group">
@@ -66,9 +79,31 @@ export function TicketCard({
           {titleForLabel}
         </h2>
         <div className={styles.badges}>
+          {ticket.area ? <Badge>{ticket.area}</Badge> : null}
           {dirty ? <Badge tone="warning">Modifications non enregistrées</Badge> : null}
         </div>
       </header>
+
+      <div className={styles.assignment}>
+        <Field label="Personne (tout le ticket)">
+          <Select
+            value={holder ?? ''}
+            disabled={disabled || draft.tasks.length === 0}
+            onChange={(e) => onChange(assignTicket(draft, e.target.value || null))}
+          >
+            {holder === null ? <option value="">{draft.tasks.length > 1 ? 'Plusieurs personnes' : 'Personne'}</option> : null}
+            {members.map((member) => (
+              <option key={member.id} value={member.id}>
+                {member.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <p className={styles.muted}>
+          Environ {String(Math.round(hours * 10) / 10).replace('.', ',')} h
+          {ticket.assignment_note ? ` · ${ticket.assignment_note}` : ''}
+        </p>
+      </div>
 
       <div className={styles.grid}>
         <div className={styles.wide}>
@@ -139,7 +174,7 @@ export function TicketCard({
                 errors={errors.tasks[task.id]}
                 disabled={disabled}
                 onChange={setTask}
-                onSkillChange={(skill: Skill) => setTask(changeTaskSkill(task, skill, members))}
+                onSkillChange={(skill: Skill) => setTask(changeTaskSkill(task, skill))}
                 onRemove={() => removeTask(task.id)}
               />
             )

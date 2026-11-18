@@ -92,23 +92,42 @@ export function makeTicketDraft(ticket: Ticket, tasks: readonly Task[]): TicketD
   }
 }
 
-/** A new task: dev by default, assigned with the same rule as the server. */
-export function makeNewTaskDraft(id: string, members: readonly AssignableMember[], skill: Skill = 'dev'): TaskDraft {
+/**
+ * A new task: dev by default. It goes to the person who already holds the ticket (a ticket = one
+ * person); with no one yet, the best member for the skill.
+ */
+export function makeNewTaskDraft(
+  id: string,
+  members: readonly AssignableMember[],
+  skill: Skill = 'dev',
+  ticketAssigneeId: string | null = null,
+): TaskDraft {
   return {
     id,
     title: '',
     skill,
     estimate: '',
-    assigneeId: pickAssignee(skill, members)?.id ?? null,
+    assigneeId: ticketAssigneeId ?? pickAssignee(skill, members)?.id ?? null,
     dependsOnId: null,
     isNew: true,
   }
 }
 
-/** Changing the skill of a task re-assigns it to the best member for the new skill. */
-export function changeTaskSkill(task: TaskDraft, skill: Skill, members: readonly AssignableMember[]): TaskDraft {
+/** Changing the skill of a task keeps its assignee: the whole ticket stays with one person. */
+export function changeTaskSkill(task: TaskDraft, skill: Skill): TaskDraft {
   if (task.skill === skill) return task
-  return { ...task, skill, assigneeId: pickAssignee(skill, members)?.id ?? null }
+  return { ...task, skill }
+}
+
+/** The person holding the ticket: the assignee shared by its tasks, null if none or mixed. */
+export function ticketAssigneeOf(draft: Pick<TicketDraft, 'tasks'>): string | null {
+  const ids = new Set(draft.tasks.map((task) => task.assigneeId))
+  return ids.size === 1 ? ([...ids][0] ?? null) : null
+}
+
+/** Gives the whole ticket (all its tasks) to one person. */
+export function assignTicket<D extends Pick<TicketDraft, 'tasks'>>(draft: D, memberId: string | null): D {
+  return { ...draft, tasks: draft.tasks.map((task) => ({ ...task, assigneeId: memberId })) }
 }
 
 export interface TicketErrors {
