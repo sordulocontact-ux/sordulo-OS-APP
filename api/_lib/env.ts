@@ -6,6 +6,8 @@ export const SERVER_ENV_NAMES = [
   'ANTHROPIC_API_KEY',
   'ANTHROPIC_MODEL',
   'TRANSCRIPTION_API_KEY',
+  'MISTRAL_API_KEY',
+  'MISTRAL_MODEL',
 ] as const
 export type ServerEnvName = (typeof SERVER_ENV_NAMES)[number]
 
@@ -25,4 +27,9 @@ export function getEnv(name: ServerEnvName): string {
   const value = process.env[name]?.trim()
   if (!value) throw new MissingEnvError(name)
   return value
+}
+
+/** Optional variable: the trimmed value, or undefined when absent or empty. */
+export function getOptionalEnv(name: ServerEnvName): string | undefined {
+  return process.env[name]?.trim() || undefined
 }

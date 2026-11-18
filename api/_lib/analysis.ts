@@ -9,6 +9,7 @@ import { formatTranscriptForPrompt } from '../../src/shared/transcript.js'
 import type { InputKind, SpeakerNames, Ticket, Transcript } from '../../src/shared/types.js'
 import { postProcessAnalysis, type ProcessedTicket } from './analysis-postprocess.js'
 import { getEnv } from './env.js'
+import { analyzeWithMistral, isMistralConfigured } from './mistral.js'
 
 export const ANALYSIS_MAX_TOKENS = 16000
 const MAX_ATTEMPTS = 2
@@ -119,13 +120,43 @@ function getClient(): Anthropic {
 }
 
 /**
- * Calls Claude and returns the validated, post-processed tickets.
- * Invalid or missing JSON: one new attempt, then an error. Refusal or truncation: error.
+ * Analyzes an input: Claude first; if Claude fails (after its own attempts) and MISTRAL_API_KEY is set,
+ * falls back to Mistral. Without a Mistral key the Claude error is thrown unchanged.
  * Error messages are in French, without the step prefix (added by the pipeline).
  */
 export async function analyzeInput(ctx: AnalysisContext): Promise<ProcessedTicket[]> {
+  const content = buildUserMessage(ctx) // throws on an empty input: not a Claude failure
+  try {
+    const tickets = await analyzeWithClaude(ctx, content)
+    console.log('[analysis] provider=claude')
+    return tickets
+  } catch (claudeError) {
+    if (!isMistralConfigured()) throw claudeError
+    const claudeReason = claudeError instanceof Error ? claudeError.message : String(claudeError)
+    console.warn(`[analysis] provider=mistral raison=${claudeReason.replace(/\s+/g, ' ').slice(0, 200)}`)
+    try {
+      const tickets = await analyzeWithMistral({
+        system: ANALYSIS_SYSTEM_PROMPT,
+        content,
+        openTicketIds: ctx.openTickets.map((t) => t.id),
+      })
+      console.log('[analysis] provider=mistral ok')
+      return tickets
+    } catch (mistralError) {
+      const mistralReason = mistralError instanceof Error ? mistralError.message : String(mistralError)
+      throw new Error(`Analyse impossible : Claude indisponible (${claudeReason}), et le repli Mistral a échoué (${mistralReason})`, {
+        cause: mistralError,
+      })
+    }
+  }
+}
+
+/**
+ * Calls Claude and returns the validated, post-processed tickets.
+ * Invalid or missing JSON: one new attempt, then an error. Refusal or truncation: error.
+ */
+async function analyzeWithClaude(ctx: AnalysisContext, content: string): Promise<ProcessedTicket[]> {
   const model = getEnv('ANTHROPIC_MODEL')
-  const content = buildUserMessage(ctx)
   const format = zodOutputFormat(AnalysisSchema)
   let lastProblem = ''
 

@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import Anthropic from '@anthropic-ai/sdk'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { AnalysisSchema } from '../../src/shared/analysis-schema.js'
-import { ANALYSIS_SYSTEM_PROMPT, buildUserMessage, type AnalysisContext } from './analysis.js'
+import { analyzeInput, ANALYSIS_SYSTEM_PROMPT, buildUserMessage, type AnalysisContext } from './analysis.js'
+import * as mistral from './mistral.js'
 
 function context(overrides: Partial<AnalysisContext['input']> = {}): AnalysisContext {
   return {
@@ -63,5 +65,87 @@ describe('format de sortie structurée', () => {
     for (const keyword of ['"format"', '"minimum"', '"maximum"', '"minLength"', '"maxLength"', '"pattern"']) {
       expect(schema).not.toContain(keyword)
     }
+  })
+})
+
+describe('analyzeInput : repli Mistral', () => {
+  const claudeJson = JSON.stringify({
+    tickets: [
+      {
+        title: 'Agrandir le bouton',
+        description: 'Le bouton est trop petit.',
+        type: 'modification',
+        priority: 'medium',
+        source_quote: 'Le bouton est trop petit.',
+        related_ticket_id: null,
+        tasks: [{ title: 'Agrandir le bouton', description: 'Passer à 48 px.', skill: 'dev', depends_on_index: null, estimate_hours: 1 }],
+      },
+    ],
+  })
+  const claudeOk = {
+    stop_reason: 'end_turn',
+    content: [{ type: 'text', text: claudeJson }],
+    usage: { input_tokens: 1, output_tokens: 1 },
+  }
+  const mistralTickets = [] as Awaited<ReturnType<typeof mistral.analyzeWithMistral>>
+  let create: ReturnType<typeof vi.spyOn>
+  let fallback: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test')
+    vi.stubEnv('ANTHROPIC_MODEL', 'claude-test')
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    create = vi.spyOn(Anthropic.Messages.prototype, 'create')
+    fallback = vi.spyOn(mistral, 'analyzeWithMistral').mockResolvedValue(mistralTickets)
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.restoreAllMocks()
+  })
+
+  const billingError = () =>
+    Anthropic.APIError.generate(400, { error: { message: 'Your credit balance is too low' } }, 'Your credit balance is too low', new Headers())
+
+  it('Claude OK : aucun appel Mistral', async () => {
+    vi.stubEnv('MISTRAL_API_KEY', 'm')
+    create.mockResolvedValue(claudeOk as never)
+    const tickets = await analyzeInput(context())
+    expect(tickets).toHaveLength(1)
+    expect(fallback).not.toHaveBeenCalled()
+  })
+
+  it('crédits épuisés + clé Mistral : bascule sur Mistral avec le même prompt', async () => {
+    vi.stubEnv('MISTRAL_API_KEY', 'm')
+    create.mockRejectedValue(billingError())
+    await expect(analyzeInput(context())).resolves.toBe(mistralTickets)
+    const request = fallback.mock.calls[0]![0] as mistral.MistralAnalysisRequest
+    expect(request.system).toBe(ANALYSIS_SYSTEM_PROMPT)
+    expect(request.content).toBe(buildUserMessage(context()))
+    expect(request.openTicketIds).toEqual(['ticket-1'])
+  })
+
+  it('Claude KO sans clé Mistral : erreur Claude inchangée', async () => {
+    vi.stubEnv('MISTRAL_API_KEY', '')
+    create.mockRejectedValue(billingError())
+    await expect(analyzeInput(context())).rejects.toThrow('requête refusée par l’API Claude : ')
+    expect(fallback).not.toHaveBeenCalled()
+  })
+
+  it('les deux KO : message combiné', async () => {
+    vi.stubEnv('MISTRAL_API_KEY', 'm')
+    create.mockRejectedValue(billingError())
+    fallback.mockRejectedValue(new Error('clé MISTRAL_API_KEY refusée par l’API Mistral.'))
+    await expect(analyzeInput(context())).rejects.toThrow(
+      /^Analyse impossible : Claude indisponible \(.*\), et le repli Mistral a échoué \(clé MISTRAL_API_KEY refusée par l’API Mistral\.\)$/,
+    )
+  })
+
+  it('une entrée vide n’appelle aucun fournisseur', async () => {
+    vi.stubEnv('MISTRAL_API_KEY', 'm')
+    await expect(analyzeInput(context({ rawText: ' ' }))).rejects.toThrow()
+    expect(create).not.toHaveBeenCalled()
+    expect(fallback).not.toHaveBeenCalled()
   })
 })
