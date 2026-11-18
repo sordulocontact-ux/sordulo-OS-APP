@@ -162,6 +162,25 @@ async function loadWorkload(
   return { workload, knownAreas: [...knownAreas.values()] }
 }
 
+/**
+ * Filet de sécurité contre les doublons à la relance d'une analyse : écarte un ticket dont le titre
+ * (sans casse ni accents) est celui d'un ticket déjà validé ou fait de la même entrée.
+ */
+async function dropAlreadyValidated(
+  admin: SupabaseClient,
+  inputId: string,
+  tickets: ProcessedTicket[],
+): Promise<ProcessedTicket[]> {
+  const { data, error } = await admin.from('tickets').select('title').eq('input_id', inputId).in('status', ['validated', 'done'])
+  if (error) throw new Error(`lecture des tickets validés : ${error.message}`)
+  const existing = new Set(((data as { title: string }[] | null) ?? []).map((t) => areaKey(t.title)))
+  const kept = tickets.filter((t) => !existing.has(areaKey(t.title)))
+  if (kept.length < tickets.length) {
+    console.log(`[process] input=${inputId} : ${tickets.length - kept.length} ticket(s) déjà validé(s) écarté(s)`)
+  }
+  return kept
+}
+
 async function nextTaskPosition(admin: SupabaseClient, projectId: string): Promise<number> {
   const { data, error } = await admin
     .from('tasks')
@@ -321,7 +340,8 @@ export async function processInput(inputId: string): Promise<void> {
     console.log(`[process] input=${inputId} analyse ok : ${tickets.length} tickets, ${Date.now() - analysisStarted} ms`)
 
     step = 'enregistrement'
-    const saved = await saveTickets(admin, ctx, tickets, workload)
+    const fresh = await dropAlreadyValidated(admin, input.id, tickets)
+    const saved = await saveTickets(admin, ctx, fresh, workload)
     await setStatus(admin, input.id, 'ready')
     console.log(
       `[process] input=${inputId} prête : ${saved.tickets} tickets, ${saved.tasks} tâches, ${Date.now() - started} ms au total`,

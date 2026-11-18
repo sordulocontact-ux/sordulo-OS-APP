@@ -9,6 +9,7 @@ import type { Input } from '../../shared/types'
 import { DeleteInputButton } from './DeleteInputButton'
 import { DownloadInputButtons } from './DownloadInputButtons'
 import { ProposedTicketsPreview } from './ProposedTicketsPreview'
+import { useInputTickets } from '../review/useReviewData'
 import { InputStatusBadge } from './InputStatusBadge'
 import { SpeakerNamesForm } from './SpeakerNamesForm'
 import { formatDateTime, inputTitle, kindLabel } from './inputUtils'
@@ -111,6 +112,8 @@ function InputDetail({ input, projectId }: { input: Input; projectId: string }) 
   const [confirming, setConfirming] = useState(false)
   const ready = input.status === 'ready'
   const { data: proposed, isSuccess: countLoaded } = useProposedTicketCount(input.id, ready)
+  const allTickets = useInputTickets(input.id, ready)
+  const validatedCount = (allTickets.data ?? []).filter((t) => t.status === 'validated' || t.status === 'done').length
 
   async function rerun() {
     setRunning(true)
@@ -177,6 +180,13 @@ function InputDetail({ input, projectId }: { input: Input; projectId: string }) 
           {confirming ? (
             <div className={styles.confirm} role="group" aria-label="Confirmer la relance">
               <p>Les tickets encore proposés de cette entrée seront remplacés.</p>
+              {validatedCount > 0 ? (
+                <p className={styles.warning} role="alert">
+                  Attention : cette entrée a déjà {validatedCount} ticket{validatedCount > 1 ? 's' : ''} validé
+                  {validatedCount > 1 ? 's' : ''}, qui {validatedCount > 1 ? 'restent' : 'reste'} en place. L'analyse évite de
+                  les recréer, mais vérifie qu'il n'y a pas de doublon avant de valider.
+                </p>
+              ) : null}
               <div className={styles.confirmButtons}>
                 <Button variant="primary" onClick={() => void rerun()} loading={running}>
                   Relancer l'analyse

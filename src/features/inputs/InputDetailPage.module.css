@@ -171,3 +171,9 @@
   gap: var(--space-2);
   margin-left: auto;
 }
+
+.warning {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
