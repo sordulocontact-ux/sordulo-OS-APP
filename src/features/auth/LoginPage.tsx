@@ -33,7 +33,11 @@ export function LoginPage() {
       // App bureau : le lien rouvre l'app (sordulo://auth) au lieu d'une page du navigateur.
       options: { emailRedirectTo: isDesktop() ? DESKTOP_AUTH_REDIRECT : window.location.origin },
     })
-    setStatus(error ? { kind: 'error', message: error.message } : { kind: 'sent', email: target })
+    const message =
+      error && (error.status === 429 || /rate limit/i.test(error.message))
+        ? 'Trop d’emails envoyés : Supabase en limite le nombre par heure. Réessaie un peu plus tard.'
+        : error?.message
+    setStatus(message ? { kind: 'error', message } : { kind: 'sent', email: target })
     return !error
   }
 
