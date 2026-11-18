@@ -118,7 +118,7 @@ export function pickTicketAssignee<T extends AssignableMember>(
   if (best.familiar > 0 && ticket.area) {
     parts.push(`a déjà travaillé sur « ${ticket.area.trim()} » (${best.familiar} ticket${best.familiar > 1 ? 's' : ''})`)
   }
-  if (leastLoaded) parts.push(`la moins chargée (${formatHours(best.load)} en cours)`)
+  if (leastLoaded) parts.push(`le moins de travail en cours (${formatHours(best.load)})`)
   else parts.push(`${formatHours(best.load)} en cours`)
   return { member: best.member, note: `${best.member.name} : ${parts.join(', ')}` }
 }

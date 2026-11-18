@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Badge, Button, Card, EmptyState, ErrorState, LoadingState, Spinner } from '../../components/ui'
 import type { Input } from '../../shared/types'
 import { useProjectContext } from '../projects/useProjectContext'
+import { DeleteInputButton } from './DeleteInputButton'
 import { InputStatusBadge } from './InputStatusBadge'
 import { LinkButton } from './LinkButton'
 import { NewInputModal } from './NewInputModal'
@@ -35,11 +36,14 @@ function InputRow({ input }: { input: Input }) {
         <span aria-live="polite">
           <InputStatusBadge status={input.status} />
         </span>
-        {ready && proposed && proposed.tickets > 0 ? (
-          <LinkButton to={reviewPath(input.project_id, input.id)} variant="primary" size="sm">
-            Valider {countLabel(proposed.tickets, 'ticket')} · {countLabel(proposed.tasks, 'tâche')}
-          </LinkButton>
-        ) : null}
+        <div className={styles.rowActions}>
+          {ready && proposed && proposed.tickets > 0 ? (
+            <LinkButton to={reviewPath(input.project_id, input.id)} variant="primary" size="sm">
+              Valider {countLabel(proposed.tickets, 'ticket')} · {countLabel(proposed.tasks, 'tâche')}
+            </LinkButton>
+          ) : null}
+          <DeleteInputButton input={input} size="sm" />
+        </div>
       </div>
     </Card>
   )

@@ -1,8 +1,12 @@
 import { supabase } from './supabase'
 import type {
   ApiError,
+  AudioUrlRequest,
+  AudioUrlResponse,
   CreateInputRequest,
   CreateInputResponse,
+  DeleteInputRequest,
+  DeleteInputResponse,
   ProcessInputRequest,
   ProcessInputResponse,
 } from '../shared/api-contract'
@@ -44,4 +48,6 @@ export const api = {
   createInput: (body: CreateInputRequest) => post<CreateInputRequest, CreateInputResponse>('/api/inputs/create', body),
   processInput: (body: ProcessInputRequest) =>
     post<ProcessInputRequest, ProcessInputResponse>('/api/inputs/process', body),
+  deleteInput: (body: DeleteInputRequest) => post<DeleteInputRequest, DeleteInputResponse>('/api/inputs/delete', body),
+  audioUrl: (body: AudioUrlRequest) => post<AudioUrlRequest, AudioUrlResponse>('/api/inputs/audio-url', body),
 }

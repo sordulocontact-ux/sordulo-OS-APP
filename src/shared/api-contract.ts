@@ -53,6 +53,32 @@ export interface ProcessInputResponse {
   status: Input['status']
 }
 
+/**
+ * POST /api/inputs/delete — supprime une entrée, ses tickets encore proposés ou refusés (et leurs tâches)
+ * et son fichier audio. Les tickets validés ou faits restent dans le projet (input_id passe à null).
+ * 409 pendant un traitement en cours.
+ */
+export interface DeleteInputRequest {
+  inputId: string
+}
+
+export interface DeleteInputResponse {
+  inputId: string
+  /** Tickets supprimés avec l'entrée. */
+  deletedTickets: number
+  /** Tickets validés conservés dans le projet. */
+  keptTickets: number
+}
+
+/** POST /api/inputs/audio-url — lien temporaire (5 min) pour télécharger l'audio d'une réunion. */
+export interface AudioUrlRequest {
+  inputId: string
+}
+
+export interface AudioUrlResponse {
+  url: string
+}
+
 export interface ApiError {
   error: string
 }

@@ -6,6 +6,8 @@ import { api, ApiRequestError } from '../../lib/api'
 import { queryKeys } from '../../lib/queryKeys'
 import { formatTimestamp, speakerLabel } from '../../shared/transcript'
 import type { Input } from '../../shared/types'
+import { DeleteInputButton } from './DeleteInputButton'
+import { DownloadInputButtons } from './DownloadInputButtons'
 import { InputStatusBadge } from './InputStatusBadge'
 import { LinkButton } from './LinkButton'
 import { SpeakerNamesForm } from './SpeakerNamesForm'
@@ -145,6 +147,10 @@ function InputDetail({ input, projectId }: { input: Input; projectId: string }) 
           <span className={styles.date}>{formatDateTime(input.created_at)}</span>
           <span aria-live="polite">
             <InputStatusBadge status={input.status} />
+          </span>
+          <span className={styles.headerAction}>
+            <DownloadInputButtons input={input} />
+            <DeleteInputButton input={input} size="sm" goBackAfter />
           </span>
         </div>
       </header>

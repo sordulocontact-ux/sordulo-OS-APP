@@ -53,7 +53,7 @@ describe('pickTicketAssignee', () => {
     addToWorkload(load, 's-1', 2, null)
     const picked = pickTicketAssignee([mael, sacha], { area: 'Finance' }, load)
     expect(picked?.member.id).toBe('s-1')
-    expect(picked?.note).toContain('la moins chargée')
+    expect(picked?.note).toContain('le moins de travail en cours (2 h)')
   })
 
   it("préfère qui connaît déjà la partie, dans la limite du bonus d'habitude", () => {

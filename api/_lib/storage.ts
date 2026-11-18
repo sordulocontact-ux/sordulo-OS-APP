@@ -45,3 +45,20 @@ export async function createSignedReadUrl(path: string, expiresInSeconds: number
   }
   return data.signedUrl
 }
+
+/** Supprime un fichier audio (suppression d'une entrée). Un fichier déjà absent n'est pas une erreur. */
+export async function removeAudio(path: string): Promise<void> {
+  const { error } = await getSupabaseAdmin().storage.from(AUDIO_BUCKET).remove([path])
+  if (error) throw new Error(`Suppression du fichier audio impossible : ${error.message}`)
+}
+
+/** URL de téléchargement temporaire (le navigateur enregistre le fichier sous `fileName`). */
+export async function createSignedDownloadUrl(path: string, expiresInSeconds: number, fileName: string): Promise<string> {
+  const { data, error } = await getSupabaseAdmin()
+    .storage.from(AUDIO_BUCKET)
+    .createSignedUrl(path, expiresInSeconds, { download: sanitizeFileName(fileName) })
+  if (error || !data?.signedUrl) {
+    throw new Error(`URL de téléchargement impossible : ${error?.message ?? 'fichier introuvable'}`)
+  }
+  return data.signedUrl
+}
