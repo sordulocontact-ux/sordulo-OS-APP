@@ -1,0 +1,127 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.badges {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+.quote {
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--color-surface-muted);
+  border-left: var(--size-border-strong) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.quoteLabel {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.quoteText {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text);
+  font-style: italic;
+  line-height: var(--line-height-relaxed);
+}
+
+.muted {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.tasks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tasksTitle {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.taskList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-bg);
+  border: var(--size-border) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.taskFields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-kanban-column), 1fr));
+  gap: var(--space-3);
+}
+
+.taskFields > :first-child {
+  grid-column: 1 / -1;
+}
+
+.taskMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.assignee {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.taskMeta > button {
+  margin-left: auto;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
