@@ -1,6 +1,9 @@
 //! Indices qu'un navigateur est en appel (le registre dit seulement « Arc utilise le micro », pas quel onglet) :
-//! - les processus qui jouent du son en ce moment (session audio active sur la sortie par défaut) ;
+//! - les processus qui jouent du son audible en ce moment (crête de leur session sur la sortie par défaut) ;
 //! - les titres des fenêtres visibles (« Meet – abc-defg-hij - Google Chrome »).
+
+use std::thread;
+use std::time::Duration;
 
 use anyhow::Context;
 use wasapi::{DeviceEnumerator, Direction, SessionState};
@@ -13,7 +16,15 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetWindowTextLengthW, GetWindowTextW, IsWindowVisible,
 };
 
-/// Noms d'exécutables (minuscules, sans `.exe`) qui ont une session audio active sur la sortie par défaut.
+/// Niveau crête (0..1) au-dessus duquel une session « joue vraiment du son » (≈ -40 dBFS).
+/// Un navigateur garde souvent son canal audio ouvert en silence : l'état « actif » ne suffit pas.
+const PEAK_THRESHOLD: f32 = 0.01;
+/// Mesures par appel : la crête ne couvre qu'un instant très court, on échantillonne ~200 ms.
+const PEAK_SAMPLES: usize = 5;
+const PEAK_INTERVAL: Duration = Duration::from_millis(40);
+
+/// Noms d'exécutables (minuscules, sans `.exe`) qui jouent du son audible en ce moment
+/// sur la sortie par défaut.
 pub fn processes_playing_audio() -> anyhow::Result<Vec<String>> {
     let _ = wasapi::initialize_mta();
     let device = DeviceEnumerator::new()
@@ -23,7 +34,7 @@ pub fn processes_playing_audio() -> anyhow::Result<Vec<String>> {
     let sessions = device
         .get_iaudiosessionmanager()?
         .get_audiosessionenumerator()?;
-    let mut names = Vec::new();
+    let mut active = Vec::new();
     for i in 0..sessions.get_count()? {
         let Ok(session) = sessions.get_session(i) else {
             continue;
@@ -31,8 +42,28 @@ pub fn processes_playing_audio() -> anyhow::Result<Vec<String>> {
         if !matches!(session.get_state(), Ok(SessionState::Active)) {
             continue;
         }
+        let Ok(meter) = session.get_audiometerinformation() else {
+            continue;
+        };
         if let Some(name) = session.get_process_id().ok().and_then(exe_stem) {
-            names.push(name);
+            active.push((name, meter));
+        }
+    }
+
+    let mut names = Vec::new();
+    for round in 0..PEAK_SAMPLES {
+        if round > 0 {
+            thread::sleep(PEAK_INTERVAL);
+        }
+        active.retain(|(name, meter)| {
+            let audible = meter.get_peak_value().is_ok_and(|p| p > PEAK_THRESHOLD);
+            if audible {
+                names.push(name.clone());
+            }
+            !audible
+        });
+        if active.is_empty() {
+            break;
         }
     }
     names.sort();
