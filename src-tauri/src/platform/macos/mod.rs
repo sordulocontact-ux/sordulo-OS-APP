@@ -8,7 +8,7 @@
 //! Obligations : conserver la mention de copyright MIT d'origine dans les fichiers portés ;
 //! ne pas reprendre les noms « Coucou », « Mochi » ni leurs sons.
 
-use super::{MicApp, MicMonitor, RecordingInfo, Recorder};
+use super::{MicApp, MicMonitor, Recorder, RecordingInfo};
 use std::path::Path;
 
 pub struct CoreAudioMicMonitor;

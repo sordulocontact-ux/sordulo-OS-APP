@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 
 /// Une application qui utilise le micro en ce moment.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MicApp {
     /// Identifiant stable (nom de la sous-clé du registre sous Windows, bundle id sous macOS).
     pub id: String,
@@ -50,10 +51,10 @@ pub trait Recorder: Send {
 /// Extension du fichier produit par `Recorder` (sans point).
 pub const RECORDING_EXTENSION: &str = "mp3";
 
-#[cfg(windows)]
-mod windows;
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(windows)]
+mod windows;
 
 /// Détecteur de micro du système courant.
 pub fn mic_monitor() -> Box<dyn MicMonitor> {
