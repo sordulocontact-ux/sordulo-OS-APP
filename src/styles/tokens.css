@@ -100,6 +100,9 @@
   --shadow-lg: 0 12px 32px rgb(22 26 33 / 0.16);
   --shadow-focus: 0 0 0 3px var(--color-focus-ring);
 
+  /* Opacity */
+  --opacity-disabled: 0.6;
+
   /* Overlay */
   --color-overlay: rgb(22 26 33 / 0.45);
 

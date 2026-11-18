@@ -1,0 +1,21 @@
+.root {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ring {
+  display: block;
+  width: var(--size-icon);
+  height: var(--size-icon);
+  border: var(--size-border-strong) solid var(--color-border-strong);
+  border-top-color: currentColor;
+  border-radius: var(--radius-pill);
+  animation: spin calc(var(--duration-normal) * 5) linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

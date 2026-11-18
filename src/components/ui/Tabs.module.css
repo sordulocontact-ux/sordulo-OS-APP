@@ -1,0 +1,24 @@
+.list {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: var(--size-border) solid var(--color-border);
+}
+
+.tab {
+  padding: var(--space-2) var(--space-4);
+  margin-bottom: calc(var(--size-border) * -1);
+  border-bottom: var(--size-border-strong) solid transparent;
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+}
+
+.tab:hover {
+  color: var(--color-text);
+}
+
+.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
