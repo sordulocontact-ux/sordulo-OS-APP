@@ -326,23 +326,27 @@ revoke all on function public.tg_enforce_project_scope() from public;
 -- Appartenance à une organisation (utilisée par toutes les politiques RLS)
 -- -----------------------------------------------------------------------------
 
-create or replace function public.is_org_member(org uuid)
-returns boolean
+-- Schéma privé : non exposé par l'API (pas d'appel RPC possible), seulement utilisé par les politiques.
+create schema if not exists private;
+revoke all on schema private from public, anon;
+grant usage on schema private to authenticated, service_role;
+
+-- Organisations du membre connecté. Évaluée une seule fois par requête dans les politiques
+-- grâce à « organization_id in (select private.user_org_ids()) » (initplan, pas d'appel par ligne).
+create or replace function private.user_org_ids()
+returns setof uuid
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select exists (
-    select 1
-    from public.members m
-    where m.organization_id = org
-      and m.user_id = auth.uid()
-  );
+  select m.organization_id
+  from public.members m
+  where m.user_id = (select auth.uid());
 $$;
 
-revoke all on function public.is_org_member(uuid) from public, anon;
-grant execute on function public.is_org_member(uuid) to authenticated, service_role;
+revoke all on function private.user_org_ids() from public, anon;
+grant execute on function private.user_org_ids() to authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
 -- Liaison compte auth ↔ membre (par email, insensible à la casse)
@@ -450,103 +454,103 @@ grant all on public.organizations, public.members, public.clients, public.projec
 drop policy if exists organizations_select on public.organizations;
 create policy organizations_select on public.organizations
   for select to authenticated
-  using (public.is_org_member(id));
+  using (id in (select private.user_org_ids()));
 
 -- members
 drop policy if exists members_select on public.members;
 create policy members_select on public.members
   for select to authenticated
-  using (public.is_org_member(organization_id));
+  using (organization_id in (select private.user_org_ids()));
 
 -- clients
 drop policy if exists clients_select on public.clients;
 create policy clients_select on public.clients
   for select to authenticated
-  using (public.is_org_member(organization_id));
+  using (organization_id in (select private.user_org_ids()));
 
 drop policy if exists clients_insert on public.clients;
 create policy clients_insert on public.clients
   for insert to authenticated
-  with check (public.is_org_member(organization_id));
+  with check (organization_id in (select private.user_org_ids()));
 
 drop policy if exists clients_update on public.clients;
 create policy clients_update on public.clients
   for update to authenticated
-  using (public.is_org_member(organization_id))
-  with check (public.is_org_member(organization_id));
+  using (organization_id in (select private.user_org_ids()))
+  with check (organization_id in (select private.user_org_ids()));
 
 -- projects
 drop policy if exists projects_select on public.projects;
 create policy projects_select on public.projects
   for select to authenticated
-  using (public.is_org_member(organization_id));
+  using (organization_id in (select private.user_org_ids()));
 
 drop policy if exists projects_insert on public.projects;
 create policy projects_insert on public.projects
   for insert to authenticated
-  with check (public.is_org_member(organization_id));
+  with check (organization_id in (select private.user_org_ids()));
 
 drop policy if exists projects_update on public.projects;
 create policy projects_update on public.projects
   for update to authenticated
-  using (public.is_org_member(organization_id))
-  with check (public.is_org_member(organization_id));
+  using (organization_id in (select private.user_org_ids()))
+  with check (organization_id in (select private.user_org_ids()));
 
 -- inputs
 drop policy if exists inputs_select on public.inputs;
 create policy inputs_select on public.inputs
   for select to authenticated
-  using (public.is_org_member(organization_id));
+  using (organization_id in (select private.user_org_ids()));
 
 drop policy if exists inputs_insert on public.inputs;
 create policy inputs_insert on public.inputs
   for insert to authenticated
-  with check (public.is_org_member(organization_id));
+  with check (organization_id in (select private.user_org_ids()));
 
 drop policy if exists inputs_update on public.inputs;
 create policy inputs_update on public.inputs
   for update to authenticated
-  using (public.is_org_member(organization_id))
-  with check (public.is_org_member(organization_id));
+  using (organization_id in (select private.user_org_ids()))
+  with check (organization_id in (select private.user_org_ids()));
 
 -- tickets (création par /api en service_role uniquement)
 drop policy if exists tickets_select on public.tickets;
 create policy tickets_select on public.tickets
   for select to authenticated
-  using (public.is_org_member(organization_id));
+  using (organization_id in (select private.user_org_ids()));
 
 drop policy if exists tickets_update on public.tickets;
 create policy tickets_update on public.tickets
   for update to authenticated
-  using (public.is_org_member(organization_id))
-  with check (public.is_org_member(organization_id));
+  using (organization_id in (select private.user_org_ids()))
+  with check (organization_id in (select private.user_org_ids()));
 
 drop policy if exists tickets_delete on public.tickets;
 create policy tickets_delete on public.tickets
   for delete to authenticated
-  using (public.is_org_member(organization_id));
+  using (organization_id in (select private.user_org_ids()));
 
 -- tasks
 drop policy if exists tasks_select on public.tasks;
 create policy tasks_select on public.tasks
   for select to authenticated
-  using (public.is_org_member(organization_id));
+  using (organization_id in (select private.user_org_ids()));
 
 drop policy if exists tasks_insert on public.tasks;
 create policy tasks_insert on public.tasks
   for insert to authenticated
-  with check (public.is_org_member(organization_id));
+  with check (organization_id in (select private.user_org_ids()));
 
 drop policy if exists tasks_update on public.tasks;
 create policy tasks_update on public.tasks
   for update to authenticated
-  using (public.is_org_member(organization_id))
-  with check (public.is_org_member(organization_id));
+  using (organization_id in (select private.user_org_ids()))
+  with check (organization_id in (select private.user_org_ids()));
 
 drop policy if exists tasks_delete on public.tasks;
 create policy tasks_delete on public.tasks
   for delete to authenticated
-  using (public.is_org_member(organization_id));
+  using (organization_id in (select private.user_org_ids()));
 
 -- -----------------------------------------------------------------------------
 -- Storage : bucket privé pour les enregistrements de réunion (200 Mo max).
