@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { Badge, Button, Card, EmptyState, ErrorState, LoadingState } from '../../components/ui'
+import { Badge, Button, Card, EmptyState, ErrorState, LoadingState, Spinner } from '../../components/ui'
 import type { Input } from '../../shared/types'
 import { useProjectContext } from '../projects/useProjectContext'
 import { InputStatusBadge } from './InputStatusBadge'
 import { LinkButton } from './LinkButton'
 import { NewInputModal } from './NewInputModal'
 import { formatDateTime, inputTitle, kindLabel, reviewPath } from './inputUtils'
+import { DOCUMENT_ACCEPT, dragHasFiles, filesFromDrop } from './documentText'
+import { useDocumentImport } from './useDocumentImport'
 import { useInputs, useProposedTicketCount } from './useInputs'
 import styles from './InputsTab.module.css'
 
@@ -47,6 +49,44 @@ export function InputsTab() {
   const { project } = useProjectContext()
   const { data, isLoading, isError, refetch } = useInputs(project.id)
   const [modalOpen, setModalOpen] = useState(false)
+  const { remaining, importFiles } = useDocumentImport(project.id)
+  const fileInput = useRef<HTMLInputElement>(null)
+  // dragenter/dragleave fire for every child element: count them to know when the drag really leaves.
+  const dragDepth = useRef(0)
+  const [dragging, setDragging] = useState(false)
+
+  function onDragEnter(event: DragEvent) {
+    if (!dragHasFiles(event.dataTransfer)) return
+    event.preventDefault()
+    dragDepth.current += 1
+    setDragging(true)
+  }
+
+  function onDragOver(event: DragEvent) {
+    if (!dragHasFiles(event.dataTransfer)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+  }
+
+  function onDragLeave(event: DragEvent) {
+    if (!dragHasFiles(event.dataTransfer)) return
+    dragDepth.current = Math.max(0, dragDepth.current - 1)
+    if (dragDepth.current === 0) setDragging(false)
+  }
+
+  function onDrop(event: DragEvent) {
+    if (!dragHasFiles(event.dataTransfer)) return
+    event.preventDefault()
+    dragDepth.current = 0
+    setDragging(false)
+    void filesFromDrop(event.dataTransfer).then(importFiles)
+  }
+
+  function onPick(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? [])
+    event.target.value = ''
+    if (files.length > 0) void importFiles(files)
+  }
 
   const newButton = (
     <Button variant="primary" onClick={() => setModalOpen(true)}>
@@ -54,21 +94,56 @@ export function InputsTab() {
     </Button>
   )
 
+  const importButton = (
+    <Button onClick={() => fileInput.current?.click()} disabled={remaining > 0}>
+      Importer un document
+    </Button>
+  )
+
   return (
-    <section className={styles.page} aria-labelledby="inputs-title">
+    <section
+      className={styles.page}
+      aria-labelledby="inputs-title"
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
       <div className={styles.header}>
         <h2 id="inputs-title" className={styles.title}>
           Entrées
         </h2>
-        {newButton}
+        <div className={styles.actions}>
+          {importButton}
+          {newButton}
+        </div>
       </div>
+      <input
+        ref={fileInput}
+        type="file"
+        multiple
+        accept={DOCUMENT_ACCEPT}
+        className={styles.fileInput}
+        onChange={onPick}
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+      <p className={styles.hint}>
+        Glisse ici un ticket déjà rédigé (PDF, Word, texte ou mail, ou tout un dossier) : une entrée par fichier.
+      </p>
+      {remaining > 0 ? (
+        <p className={styles.importing} aria-live="polite">
+          <Spinner label="" />
+          Import de {remaining} document{remaining > 1 ? 's' : ''}…
+        </p>
+      ) : null}
       {isLoading ? (
         <LoadingState label="Chargement des entrées…" />
       ) : isError ? (
         <ErrorState message="Impossible de charger les entrées." onRetry={() => void refetch()} />
       ) : !data || data.length === 0 ? (
         <EmptyState
-          title="Aucune entrée. Ajoute un retour écrit ou une réunion."
+          title="Aucune entrée. Ajoute un retour écrit, une réunion ou glisse un document ici."
           action={newButton}
         />
       ) : (
@@ -81,6 +156,11 @@ export function InputsTab() {
         </ul>
       )}
       <NewInputModal projectId={project.id} open={modalOpen} onClose={() => setModalOpen(false)} />
+      {dragging ? (
+        <div className={styles.dropOverlay} aria-hidden="true">
+          Dépose pour créer une entrée par fichier
+        </div>
+      ) : null}
     </section>
   )
 }
