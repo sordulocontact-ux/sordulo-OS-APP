@@ -87,7 +87,7 @@ export interface TicketAssignment<T> {
 }
 
 function formatHours(hours: number): string {
-  const rounded = Math.round(hours * 10) / 10
+  const rounded = Math.round(hours * 100) / 100
   return `${String(rounded).replace('.', ',')} h`
 }
 

@@ -100,7 +100,7 @@ export function TicketCard({
           </Select>
         </Field>
         <p className={styles.muted}>
-          Environ {String(Math.round(hours * 10) / 10).replace('.', ',')} h
+          Environ {String(Math.round(hours * 100) / 100).replace('.', ',')} h
           {ticket.assignment_note ? ` · ${ticket.assignment_note}` : ''}
         </p>
       </div>
