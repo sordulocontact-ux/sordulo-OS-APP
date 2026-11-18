@@ -11,7 +11,7 @@ use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::num::NonZeroU32;
 
-#[cfg_attr(not(test), allow(dead_code))]
+#[allow(dead_code)] // documents the encoder bitrate (Bitrate::Kbps32 below)
 pub const BITRATE_KBPS: u32 = 32;
 
 pub struct Mp3Writer {
