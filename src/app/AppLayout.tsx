@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import briefcaseIcon from '../assets/icons/briefcase.svg'
 import sidebarIcon from '../assets/icons/sidebar.svg'
 import { Avatar, Button } from '../components/ui'
+import { SetPasswordButton } from '../features/auth/SetPasswordButton'
 import { useAuth } from '../features/auth/useAuth'
 import { useCurrentMember } from '../features/auth/useCurrentMember'
 import { DesktopRecordButton } from '../features/desktop/DesktopRecordButton'
@@ -74,6 +75,7 @@ export function AppLayout() {
             <div className={styles.menu} role="menu">
               {member ? <p className={styles.menuName}>{member.name}</p> : null}
               {organization ? <p className={styles.menuOrg}>{organization.name}</p> : null}
+              <SetPasswordButton />
               <Button variant="secondary" size="sm" role="menuitem" onClick={() => void signOut()}>
                 Déconnexion
               </Button>

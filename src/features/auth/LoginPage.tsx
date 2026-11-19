@@ -20,6 +20,10 @@ export function LoginPage() {
   const [code, setCode] = useState('')
   const [codeStatus, setCodeStatus] = useState<CodeStatus>('idle')
   const [resent, setResent] = useState(false)
+  const [mode, setMode] = useState<'password' | 'link'>('password')
+  const [password, setPassword] = useState('')
+  const [signingIn, setSigningIn] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
 
   // Une session valide (lien magique, code ou lien collé) ramène à l'accueil.
   if (!loading && session) return <Navigate to="/" replace />
@@ -39,6 +43,26 @@ export function LoginPage() {
         : error?.message
     setStatus(message ? { kind: 'error', message } : { kind: 'sent', email: target })
     return !error
+  }
+
+  async function onPasswordSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const trimmed = email.trim()
+    if (!trimmed || !password) return
+    setSigningIn(true)
+    setPasswordError(null)
+    const { error } = await supabase.auth.signInWithPassword({ email: trimmed, password })
+    setSigningIn(false)
+    // En cas de succès, onAuthStateChange met la session à jour et le rendu redirige vers « / ».
+    if (error) {
+      setPasswordError(
+        /invalid login credentials/i.test(error.message)
+          ? 'Email ou mot de passe incorrect. Pas encore de mot de passe ? Connecte-toi une fois par lien email, puis définis-le dans le menu de ton compte.'
+          : error.status === 429
+            ? 'Trop de tentatives : réessaie dans quelques minutes.'
+            : error.message,
+      )
+    }
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -138,9 +162,55 @@ export function LoginPage() {
               </div>
             </form>
           </>
+        ) : mode === 'password' ? (
+          <>
+            <form className={styles.form} onSubmit={(e) => void onPasswordSubmit(e)}>
+              <Field label="Email">
+                <TextInput
+                  type="email"
+                  name="email"
+                  autoComplete="username"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={signingIn}
+                />
+              </Field>
+              <Field label="Mot de passe" error={passwordError}>
+                <TextInput
+                  type="password"
+                  name="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    if (passwordError) setPasswordError(null)
+                  }}
+                  disabled={signingIn}
+                />
+              </Field>
+              <div className={styles.actions}>
+                <Button type="submit" variant="primary" loading={signingIn}>
+                  {signingIn ? 'Connexion…' : 'Se connecter'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setMode('link')
+                    setPasswordError(null)
+                  }}
+                  disabled={signingIn}
+                >
+                  Recevoir un lien par email
+                </Button>
+              </div>
+            </form>
+            <p className={styles.text}>Première connexion ou mot de passe oublié : reçois un lien par email, puis définis ton mot de passe dans le menu de ton compte.</p>
+          </>
         ) : (
           <>
-            <p className={styles.text}>Connexion par lien magique : saisis ton email, tu recevras un lien de connexion.</p>
+            <p className={styles.text}>Connexion par lien : saisis ton email, tu recevras un lien de connexion.</p>
             <form className={styles.form} onSubmit={(e) => void onSubmit(e)}>
               <Field label="Email" error={status.kind === 'error' ? status.message : null}>
                 <TextInput
@@ -156,6 +226,16 @@ export function LoginPage() {
               <div className={styles.actions}>
                 <Button type="submit" variant="primary" loading={status.kind === 'sending'}>
                   {status.kind === 'sending' ? 'Envoi…' : 'Recevoir le lien'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setMode('password')
+                    setStatus({ kind: 'idle' })
+                  }}
+                  disabled={status.kind === 'sending'}
+                >
+                  Utiliser mon mot de passe
                 </Button>
               </div>
             </form>
