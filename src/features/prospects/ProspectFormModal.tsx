@@ -118,7 +118,7 @@ export function ProspectFormModal({ open, onClose, prospect, onSaved }: Prospect
         setError('Ton organisation est introuvable. Recharge la page.')
         return
       }
-      const saved = await create.mutateAsync({ organizationId: organization.id, createdBy: member?.id ?? null, fields })
+      const saved = await create.mutateAsync({ organizationId: organization.id, fields })
       toast.success('Prospect créé')
       onSaved?.(saved)
       onClose()

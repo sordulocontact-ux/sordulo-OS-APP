@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react'
 import { Button, Field, Modal, Select, TextInput, useToast } from '../../components/ui'
-import { defaultLine } from '../../shared/billing'
 import { useCurrentMember } from '../auth/useCurrentMember'
 import { quoteErrorText } from './quoteLogic'
 import { useClientProjectOptions, useCreateQuote, useQuoteClients } from './useQuotes'
@@ -44,7 +43,6 @@ export function NewQuoteModal({ open, onClose, initialClientId = '', initialProj
         clientId,
         projectId: projectId === '' ? null : projectId,
         title: title.trim(),
-        firstLine: defaultLine(organization, 'day'),
       })
       toast.success('Devis créé')
       onCreated(quote.id)

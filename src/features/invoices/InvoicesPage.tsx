@@ -206,76 +206,78 @@ export function InvoicesPage() {
       ) : visible.length === 0 ? (
         <EmptyState title="Aucune facture ne correspond à la recherche ni aux filtres." />
       ) : (
-        <table className={table.table}>
-          <thead>
-            <tr>
-              <th scope="col">Facture</th>
-              <th scope="col">Client</th>
-              <th scope="col" className={styles.amount}>
-                Montant TTC
-              </th>
-              <th scope="col">Statut</th>
-              <th scope="col">Échéance</th>
-              <th scope="col" className={table.actionsCell}>
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((invoice) => {
-              const status = invoiceDisplayStatus(invoice, today)
-              const canTogglePaid = invoice.kind !== 'credit_note' && (invoice.status === 'issued' || invoice.status === 'paid')
-              return (
-                <tr key={invoice.id} className={[table.row, invoice.status === 'cancelled' ? styles.cancelled : ''].join(' ')}>
-                  <td>
-                    <span className={styles.numberCell}>
-                      <Link to={`/invoices/${invoice.id}`} className={table.rowLink}>
-                        {invoiceNumberLabel(invoice)}
-                      </Link>
-                      <span className={table.secondLine}>
-                        {LABELS.invoiceKind[invoice.kind]} : {invoice.title}
+        <div className={table.scroll}>
+          <table className={table.table}>
+            <thead>
+              <tr>
+                <th scope="col">Facture</th>
+                <th scope="col">Client</th>
+                <th scope="col" className={styles.amount}>
+                  Montant TTC
+                </th>
+                <th scope="col">Statut</th>
+                <th scope="col">Échéance</th>
+                <th scope="col" className={table.actionsCell}>
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((invoice) => {
+                const status = invoiceDisplayStatus(invoice, today)
+                const canTogglePaid = invoice.kind !== 'credit_note' && (invoice.status === 'issued' || invoice.status === 'paid')
+                return (
+                  <tr key={invoice.id} className={[table.row, invoice.status === 'cancelled' ? styles.cancelled : ''].join(' ')}>
+                    <td>
+                      <span className={styles.numberCell}>
+                        <Link to={`/invoices/${invoice.id}`} className={table.rowLink}>
+                          {invoiceNumberLabel(invoice)}
+                        </Link>
+                        <span className={table.secondLine}>
+                          {LABELS.invoiceKind[invoice.kind]} : {invoice.title}
+                        </span>
                       </span>
-                    </span>
-                  </td>
-                  <td>{invoice.client?.name ?? <span className={table.muted}>Client inconnu</span>}</td>
-                  <td className={styles.amount}>{formatMoney(invoice.total_ttc_cents)}</td>
-                  <td>
-                    <Badge tone={DISPLAY_STATUS_TONE[status]}>{statusBadgeLabel(invoice, today)}</Badge>
-                  </td>
-                  <td>{invoice.due_date ? formatDate(invoice.due_date) : <span className={table.muted}>Aucune</span>}</td>
-                  <td className={table.actionsCell}>
-                    <ActionsMenu
-                      label={`Actions pour ${invoiceNumberLabel(invoice)} ${invoice.title}`}
-                      items={[
-                        { label: 'Ouvrir', onSelect: () => void navigate(`/invoices/${invoice.id}`) },
-                        { label: 'Aperçu PDF', onSelect: () => void navigate(`/invoices/${invoice.id}/print`) },
-                        ...(canTogglePaid
-                          ? [
-                              invoice.status === 'paid'
-                                ? { label: 'Marquer non payée', onSelect: () => void togglePaid(invoice, false), disabled: setPaid.isPending }
-                                : { label: 'Marquer payée', onSelect: () => void togglePaid(invoice, true), disabled: setPaid.isPending },
-                            ]
-                          : []),
-                        ...(invoice.status === 'draft'
-                          ? [
-                              {
-                                label: 'Supprimer',
-                                tone: 'danger' as const,
-                                onSelect: () => {
-                                  setDeleteError(null)
-                                  setToDelete(invoice)
+                    </td>
+                    <td>{invoice.client?.name ?? <span className={table.muted}>Client inconnu</span>}</td>
+                    <td className={styles.amount}>{formatMoney(invoice.total_ttc_cents)}</td>
+                    <td>
+                      <Badge tone={DISPLAY_STATUS_TONE[status]}>{statusBadgeLabel(invoice, today)}</Badge>
+                    </td>
+                    <td>{invoice.due_date ? formatDate(invoice.due_date) : <span className={table.muted}>Aucune</span>}</td>
+                    <td className={table.actionsCell}>
+                      <ActionsMenu
+                        label={`Actions pour ${invoiceNumberLabel(invoice)} ${invoice.title}`}
+                        items={[
+                          { label: 'Ouvrir', onSelect: () => void navigate(`/invoices/${invoice.id}`) },
+                          { label: 'Aperçu PDF', onSelect: () => void navigate(`/invoices/${invoice.id}/print`) },
+                          ...(canTogglePaid
+                            ? [
+                                invoice.status === 'paid'
+                                  ? { label: 'Marquer non payée', onSelect: () => void togglePaid(invoice, false), disabled: setPaid.isPending }
+                                  : { label: 'Marquer payée', onSelect: () => void togglePaid(invoice, true), disabled: setPaid.isPending },
+                              ]
+                            : []),
+                          ...(invoice.status === 'draft'
+                            ? [
+                                {
+                                  label: 'Supprimer',
+                                  tone: 'danger' as const,
+                                  onSelect: () => {
+                                    setDeleteError(null)
+                                    setToDelete(invoice)
+                                  },
                                 },
-                              },
-                            ]
-                          : []),
-                      ]}
-                    />
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+                              ]
+                            : []),
+                        ]}
+                      />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
       <NewInvoiceModal
         open={creating}

@@ -62,6 +62,7 @@ export function InviteMemberModal({ organizationId, onClose }: InviteMemberModal
     try {
       const response = await api.inviteMember({ organizationId, name: trimmedName, email: trimmedEmail, role })
       void queryClient.invalidateQueries({ queryKey: queryKeys.members(organizationId) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.memberSignIn(organizationId) })
       setResult({ name: response.member.name, link: response.link })
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : 'Impossible d’inviter ce membre. Réessaie.')

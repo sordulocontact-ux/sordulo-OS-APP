@@ -175,69 +175,71 @@ export function ProspectsPage() {
           }
         />
       ) : (
-        <table className={table.table}>
-          <thead>
-            <tr>
-              <th scope="col">Entreprise</th>
-              <th scope="col">Contact</th>
-              <th scope="col">Étape</th>
-              <th scope="col">Prochaine action</th>
-              <th scope="col">Responsable</th>
-              <th scope="col" className={table.actionsCell}>
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((prospect) => {
-              const next = relativeAction(prospect, now)
-              const ownerName = memberName(prospect.owner_member_id)
-              return (
-                <tr key={prospect.id} className={table.row}>
-                  <td>
-                    <Link to={`/prospects/${prospect.id}`} className={table.rowLink}>
-                      {prospect.company}
-                    </Link>
-                    {prospect.website ? <span className={table.secondLine}>{prospect.website}</span> : null}
-                  </td>
-                  <td>
-                    {prospect.contact_name ? (
-                      <>
-                        <div>{prospect.contact_name}</div>
-                        {prospect.contact_email ? <div className={table.muted}>{prospect.contact_email}</div> : null}
-                      </>
-                    ) : (
-                      <span className={table.muted}>Aucun contact</span>
-                    )}
-                  </td>
-                  <td>
-                    <Badge tone={STAGE_TONES[prospect.stage]}>{LABELS.prospectStage[prospect.stage]}</Badge>
-                  </td>
-                  <td>
-                    {next ? (
-                      <span className={next.overdue ? styles.overdue : undefined}>{next.text}</span>
-                    ) : (
-                      <span className={table.muted}>Aucune</span>
-                    )}
-                  </td>
-                  <td>
-                    {ownerName ? (
-                      <span className={styles.nameCell}>
-                        <Avatar name={ownerName} size="sm" />
-                        {ownerName}
-                      </span>
-                    ) : (
-                      <span className={table.muted}>Non attribué</span>
-                    )}
-                  </td>
-                  <td className={table.actionsCell}>
-                    <ActionsMenu label={`Actions pour ${prospect.company}`} items={actions(prospect)} />
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <div className={table.scroll}>
+          <table className={table.table}>
+            <thead>
+              <tr>
+                <th scope="col">Entreprise</th>
+                <th scope="col">Contact</th>
+                <th scope="col">Étape</th>
+                <th scope="col">Prochaine action</th>
+                <th scope="col">Responsable</th>
+                <th scope="col" className={table.actionsCell}>
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((prospect) => {
+                const next = relativeAction(prospect, now)
+                const ownerName = memberName(prospect.owner_member_id)
+                return (
+                  <tr key={prospect.id} className={table.row}>
+                    <td>
+                      <Link to={`/prospects/${prospect.id}`} className={table.rowLink}>
+                        {prospect.company}
+                      </Link>
+                      {prospect.website ? <span className={table.secondLine}>{prospect.website}</span> : null}
+                    </td>
+                    <td>
+                      {prospect.contact_name ? (
+                        <>
+                          <div>{prospect.contact_name}</div>
+                          {prospect.contact_email ? <div className={table.muted}>{prospect.contact_email}</div> : null}
+                        </>
+                      ) : (
+                        <span className={table.muted}>Aucun contact</span>
+                      )}
+                    </td>
+                    <td>
+                      <Badge tone={STAGE_TONES[prospect.stage]}>{LABELS.prospectStage[prospect.stage]}</Badge>
+                    </td>
+                    <td>
+                      {next ? (
+                        <span className={next.overdue ? styles.overdue : undefined}>{next.text}</span>
+                      ) : (
+                        <span className={table.muted}>Aucune</span>
+                      )}
+                    </td>
+                    <td>
+                      {ownerName ? (
+                        <span className={styles.nameCell}>
+                          <Avatar name={ownerName} size="sm" />
+                          {ownerName}
+                        </span>
+                      ) : (
+                        <span className={table.muted}>Non attribué</span>
+                      )}
+                    </td>
+                    <td className={table.actionsCell}>
+                      <ActionsMenu label={`Actions pour ${prospect.company}`} items={actions(prospect)} />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
       <ProspectFormModal open={editing !== null} onClose={() => setEditing(null)} prospect={editing} />
       <ProspectFormModal

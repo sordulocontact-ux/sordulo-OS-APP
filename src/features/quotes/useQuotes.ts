@@ -109,7 +109,6 @@ export interface NewQuoteInput {
   clientId: string
   projectId: string | null
   title: string
-  firstLine: DocumentLine
 }
 
 export function useCreateQuote() {
@@ -124,7 +123,8 @@ export function useCreateQuote() {
           project_id: input.projectId,
           title: input.title,
           status: 'draft',
-          lines: [input.firstLine],
+          // Sans ligne : la base refuse une ligne sans libellé, l'éditeur propose « Ajouter une ligne ».
+          lines: [],
           created_by: input.memberId,
         })
         .select()

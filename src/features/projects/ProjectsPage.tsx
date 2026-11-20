@@ -126,75 +126,77 @@ export function ProjectsPage() {
           }
         />
       ) : (
-        <table className={table.table}>
-          <thead>
-            <tr>
-              <th scope="col">Projet</th>
-              <th scope="col">Client</th>
-              <th scope="col">Statut</th>
-              <th scope="col">Échéance</th>
-              <th scope="col">Créé le</th>
-              {canWrite ? (
-                <th scope="col" className={table.actionsCell}>
-                  Actions
-                </th>
-              ) : null}
-            </tr>
-          </thead>
-          <tbody>
-            {projects.map((project) => {
-              const due = formatDay(project.due_date)
-              const relative = relativeDue(project, now)
-              return (
-                <tr key={project.id} className={table.row}>
-                  <td>
-                    <span className={styles.project}>
-                      <span className={styles.logo} aria-hidden="true">
-                        {projectInitials(project.name)}
-                      </span>
-                      {canWrite ? (
-                        <Link to={`/projects/${project.id}`} className={table.rowLink}>
-                          {project.name}
-                        </Link>
-                      ) : (
-                        <span className={table.primary}>{project.name}</span>
-                      )}
-                    </span>
-                  </td>
-                  <td>
-                    {project.client ? (
+        <div className={table.scroll}>
+          <table className={table.table}>
+            <thead>
+              <tr>
+                <th scope="col">Projet</th>
+                <th scope="col">Client</th>
+                <th scope="col">Statut</th>
+                <th scope="col">Échéance</th>
+                <th scope="col">Créé le</th>
+                {canWrite ? (
+                  <th scope="col" className={table.actionsCell}>
+                    Actions
+                  </th>
+                ) : null}
+              </tr>
+            </thead>
+            <tbody>
+              {projects.map((project) => {
+                const due = formatDay(project.due_date)
+                const relative = relativeDue(project, now)
+                return (
+                  <tr key={project.id} className={table.row}>
+                    <td>
                       <span className={styles.project}>
-                        <Avatar name={project.client.name} size="sm" />
-                        <Link to={`/clients/${project.client.id}`} className={styles.clientLink}>
-                          {project.client.name}
-                        </Link>
+                        <span className={styles.logo} aria-hidden="true">
+                          {projectInitials(project.name)}
+                        </span>
+                        {canWrite ? (
+                          <Link to={`/projects/${project.id}`} className={table.rowLink}>
+                            {project.name}
+                          </Link>
+                        ) : (
+                          <span className={table.primary}>{project.name}</span>
+                        )}
                       </span>
-                    ) : (
-                      <span className={table.inactive}>Sans client</span>
-                    )}
-                  </td>
-                  <td>
-                    <ProjectStatus status={project.status} />
-                  </td>
-                  <td>
-                    {due ?? <span className={table.inactive}>Non définie</span>}
-                    {relative ? (
-                      <span className={[table.secondLine, relative.overdue ? table.danger : ''].filter(Boolean).join(' ')}>
-                        {relative.text}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td>{formatDate(project.created_at)}</td>
-                  {canWrite ? (
-                    <td className={table.actionsCell}>
-                      <ActionsMenu label={`Actions pour ${project.name}`} items={projectActions(project)} />
                     </td>
-                  ) : null}
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+                    <td>
+                      {project.client ? (
+                        <span className={styles.project}>
+                          <Avatar name={project.client.name} size="sm" />
+                          <Link to={`/clients/${project.client.id}`} className={styles.clientLink}>
+                            {project.client.name}
+                          </Link>
+                        </span>
+                      ) : (
+                        <span className={table.inactive}>Sans client</span>
+                      )}
+                    </td>
+                    <td>
+                      <ProjectStatus status={project.status} />
+                    </td>
+                    <td>
+                      {due ?? <span className={table.inactive}>Non définie</span>}
+                      {relative ? (
+                        <span className={[table.secondLine, relative.overdue ? table.danger : ''].filter(Boolean).join(' ')}>
+                          {relative.text}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td>{formatDate(project.created_at)}</td>
+                    {canWrite ? (
+                      <td className={table.actionsCell}>
+                        <ActionsMenu label={`Actions pour ${project.name}`} items={projectActions(project)} />
+                      </td>
+                    ) : null}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {canWrite ? (

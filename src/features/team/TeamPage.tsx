@@ -126,86 +126,88 @@ export function TeamPage() {
           text={members.length === 0 ? 'Invite le premier membre de l’équipe.' : 'Change la recherche ou les filtres.'}
         />
       ) : (
-        <table className={table.table}>
-          <thead>
-            <tr>
-              <th scope="col">Membre</th>
-              <th scope="col">Rôle</th>
-              <th scope="col">Compétences</th>
-              <th scope="col">Capacité</th>
-              <th scope="col">Statut</th>
-              <th scope="col" className={table.actionsCell}>
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((member) => {
-              const status = memberStatus(member)
-              const skills = skillsSummary(member.skills)
-              const unavailable = unavailableText(member.unavailable_weekdays)
-              const block = removalBlock(member, me?.id, members)
-              const items: ActionsMenuItem[] =
-                status === 'removed'
-                  ? [{ label: 'Réintégrer', onSelect: () => void restore(member), disabled: pendingId !== null }]
-                  : [
-                      { label: 'Modifier', onSelect: () => setEditing(member) },
-                      ...(status === 'invited'
-                        ? [{ label: 'Nouveau lien', onSelect: () => void newLink(member), disabled: pendingId !== null }]
-                        : []),
-                      {
-                        label: 'Retirer',
-                        tone: 'danger' as const,
-                        disabled: block !== null,
-                        hint: block ? REMOVAL_BLOCK_TEXT[block] : undefined,
-                        onSelect: () => setRemoving(member),
-                      },
-                    ]
-              return (
-                <tr key={member.id} className={[table.row, status === 'removed' ? table.inactive : ''].filter(Boolean).join(' ')}>
-                  <td>
-                    <span className={[styles.member, status === 'removed' ? styles.removed : ''].filter(Boolean).join(' ')}>
-                      <Avatar name={member.name} />
-                      <span className={styles.identity}>
-                        <span className={table.primary}>
-                          {member.name}
-                          {member.id === me?.id ? <span className={styles.self}> (toi)</span> : null}
+        <div className={table.scroll}>
+          <table className={table.table}>
+            <thead>
+              <tr>
+                <th scope="col">Membre</th>
+                <th scope="col">Rôle</th>
+                <th scope="col">Compétences</th>
+                <th scope="col">Capacité</th>
+                <th scope="col">Statut</th>
+                <th scope="col" className={table.actionsCell}>
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((member) => {
+                const status = memberStatus(member)
+                const skills = skillsSummary(member.skills)
+                const unavailable = unavailableText(member.unavailable_weekdays)
+                const block = removalBlock(member, me?.id, members)
+                const items: ActionsMenuItem[] =
+                  status === 'removed'
+                    ? [{ label: 'Réintégrer', onSelect: () => void restore(member), disabled: pendingId !== null }]
+                    : [
+                        { label: 'Modifier', onSelect: () => setEditing(member) },
+                        ...(status === 'invited'
+                          ? [{ label: 'Nouveau lien', onSelect: () => void newLink(member), disabled: pendingId !== null }]
+                          : []),
+                        {
+                          label: 'Retirer',
+                          tone: 'danger' as const,
+                          disabled: block !== null,
+                          hint: block ? REMOVAL_BLOCK_TEXT[block] : undefined,
+                          onSelect: () => setRemoving(member),
+                        },
+                      ]
+                return (
+                  <tr key={member.id} className={[table.row, status === 'removed' ? table.inactive : ''].filter(Boolean).join(' ')}>
+                    <td>
+                      <span className={[styles.member, status === 'removed' ? styles.removed : ''].filter(Boolean).join(' ')}>
+                        <Avatar name={member.name} />
+                        <span className={styles.identity}>
+                          <span className={table.primary}>
+                            {member.name}
+                            {member.id === me?.id ? <span className={styles.self}> (toi)</span> : null}
+                          </span>
+                          <span className={table.muted}>{member.email}</span>
                         </span>
-                        <span className={table.muted}>{member.email}</span>
                       </span>
-                    </span>
-                  </td>
-                  <td>{LABELS.memberRole[member.role]}</td>
-                  <td>
-                    {skills.length === 0 ? (
-                      <span className={table.muted}>Non renseigné</span>
-                    ) : (
-                      <span className={styles.badges}>
-                        {skills.map((s) => (
-                          <Badge key={s.skill} tone={s.skill}>
-                            {s.text}
-                          </Badge>
-                        ))}
+                    </td>
+                    <td>{LABELS.memberRole[member.role]}</td>
+                    <td>
+                      {skills.length === 0 ? (
+                        <span className={table.muted}>Non renseigné</span>
+                      ) : (
+                        <span className={styles.badges}>
+                          {skills.map((s) => (
+                            <Badge key={s.skill} tone={s.skill}>
+                              {s.text}
+                            </Badge>
+                          ))}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={styles.stack}>
+                        <span>{formatCapacity(member.weekly_capacity_hours)}</span>
+                        {unavailable ? <span className={[table.muted, styles.small].join(' ')}>{unavailable}</span> : null}
                       </span>
-                    )}
-                  </td>
-                  <td>
-                    <span className={styles.stack}>
-                      <span>{formatCapacity(member.weekly_capacity_hours)}</span>
-                      {unavailable ? <span className={[table.muted, styles.small].join(' ')}>{unavailable}</span> : null}
-                    </span>
-                  </td>
-                  <td>
-                    <Badge tone={STATUS_TONE[status]}>{STATUS_LABELS[status]}</Badge>
-                  </td>
-                  <td className={table.actionsCell}>
-                    <ActionsMenu label={`Actions pour ${member.name}`} items={items} />
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+                    </td>
+                    <td>
+                      <Badge tone={STATUS_TONE[status]}>{STATUS_LABELS[status]}</Badge>
+                    </td>
+                    <td className={table.actionsCell}>
+                      <ActionsMenu label={`Actions pour ${member.name}`} items={items} />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {inviting && orgId ? <InviteMemberModal organizationId={orgId} onClose={() => setInviting(false)} /> : null}

@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react'
 import { Button, Field, Modal, Select, TextInput } from '../../components/ui'
-import { defaultLine } from '../../shared/billing'
 import type { Invoice } from '../../shared/types'
 import { useCurrentMember } from '../auth/useCurrentMember'
 import { useClients } from '../clients/useClients'
@@ -73,7 +72,8 @@ export function NewInvoiceModal({ open, onClose, initialClientId = '', initialPr
         projectId: clientProjects.some((p) => p.id === draft.projectId) ? draft.projectId : null,
         kind: draft.kind,
         title: draft.title.trim(),
-        lines: [defaultLine(organization, 'day')],
+        // Sans ligne : la base refuse une ligne sans libellé, l'éditeur propose « Ajouter une ligne ».
+        lines: [],
       })
       onCreated(invoice)
     } catch (e) {

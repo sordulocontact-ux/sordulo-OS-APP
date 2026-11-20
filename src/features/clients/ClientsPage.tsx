@@ -105,66 +105,68 @@ export function ClientsPage() {
       ) : visible.length === 0 ? (
         <EmptyState title="Aucun client ne correspond à la recherche ni aux filtres." />
       ) : (
-        <table className={table.table}>
-          <thead>
-            <tr>
-              <th scope="col">Client</th>
-              <th scope="col">Contact principal</th>
-              <th scope="col">Ville</th>
-              <th scope="col">Projets</th>
-              <th scope="col">Créé le</th>
-              {canWrite ? (
-                <th scope="col" className={table.actionsCell}>
-                  Actions
-                </th>
-              ) : null}
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((client) => {
-              const contact = primaryContact(client.contacts)
-              return (
-                <tr key={client.id} className={[table.row, client.archived_at ? table.inactive : ''].join(' ')}>
-                  <td>
-                    <span className={styles.nameCell}>
-                      <Avatar name={client.name} size="sm" />
-                      <Link to={`/clients/${client.id}`} className={table.rowLink}>
-                        {client.name}
-                      </Link>
-                      {client.archived_at ? <Badge>Archivé</Badge> : null}
-                    </span>
-                  </td>
-                  <td>
-                    {contact ? (
-                      <>
-                        <div>{contact.name}</div>
-                        {contact.email ? <div className={table.muted}>{contact.email}</div> : null}
-                      </>
-                    ) : (
-                      <span className={table.muted}>Aucun contact</span>
-                    )}
-                  </td>
-                  <td>{client.billing_city ?? <span className={table.muted}>Non renseignée</span>}</td>
-                  <td>{client.projects[0]?.count ?? 0}</td>
-                  <td>{formatDate(client.created_at)}</td>
-                  {canWrite ? (
-                    <td className={table.actionsCell}>
-                      <ActionsMenu
-                        label={`Actions pour ${client.name}`}
-                        items={[
-                          { label: 'Modifier', onSelect: () => setEditing(client) },
-                          client.archived_at
-                            ? { label: 'Désarchiver', onSelect: () => void unarchive(client), disabled: toggleArchived.isPending }
-                            : { label: 'Archiver', onSelect: () => setArchiving(client) },
-                        ]}
-                      />
+        <div className={table.scroll}>
+          <table className={table.table}>
+            <thead>
+              <tr>
+                <th scope="col">Client</th>
+                <th scope="col">Contact principal</th>
+                <th scope="col">Ville</th>
+                <th scope="col">Projets</th>
+                <th scope="col">Créé le</th>
+                {canWrite ? (
+                  <th scope="col" className={table.actionsCell}>
+                    Actions
+                  </th>
+                ) : null}
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((client) => {
+                const contact = primaryContact(client.contacts)
+                return (
+                  <tr key={client.id} className={[table.row, client.archived_at ? table.inactive : ''].join(' ')}>
+                    <td>
+                      <span className={styles.nameCell}>
+                        <Avatar name={client.name} size="sm" />
+                        <Link to={`/clients/${client.id}`} className={table.rowLink}>
+                          {client.name}
+                        </Link>
+                        {client.archived_at ? <Badge>Archivé</Badge> : null}
+                      </span>
                     </td>
-                  ) : null}
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+                    <td>
+                      {contact ? (
+                        <>
+                          <div>{contact.name}</div>
+                          {contact.email ? <div className={table.muted}>{contact.email}</div> : null}
+                        </>
+                      ) : (
+                        <span className={table.muted}>Aucun contact</span>
+                      )}
+                    </td>
+                    <td>{client.billing_city ?? <span className={table.muted}>Non renseignée</span>}</td>
+                    <td>{client.projects[0]?.count ?? 0}</td>
+                    <td>{formatDate(client.created_at)}</td>
+                    {canWrite ? (
+                      <td className={table.actionsCell}>
+                        <ActionsMenu
+                          label={`Actions pour ${client.name}`}
+                          items={[
+                            { label: 'Modifier', onSelect: () => setEditing(client) },
+                            client.archived_at
+                              ? { label: 'Désarchiver', onSelect: () => void unarchive(client), disabled: toggleArchived.isPending }
+                              : { label: 'Archiver', onSelect: () => setArchiving(client) },
+                          ]}
+                        />
+                      </td>
+                    ) : null}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
       <ClientFormModal open={editing !== null} onClose={() => setEditing(null)} client={editing} />
       {archiving ? <ArchiveClientModal client={archiving} onClose={() => setArchiving(null)} /> : null}

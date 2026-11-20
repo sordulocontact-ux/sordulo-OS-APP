@@ -44,6 +44,15 @@
   margin-left: auto;
 }
 
+/* Conteneur du tableau : défile horizontalement sur écran étroit au lieu d'écraser les colonnes. */
+.scroll {
+  overflow-x: auto;
+}
+
+.scroll > .table {
+  min-width: var(--size-table-min);
+}
+
 /* Tableau bordé, en-tête gris, séparateurs de colonnes discrets, lignes aérées. */
 .table {
   width: 100%;
@@ -61,7 +70,7 @@
   font-weight: var(--font-weight-regular);
   text-align: left;
   vertical-align: middle;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .table th:last-child,

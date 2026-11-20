@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { queryKeys } from '../../lib/queryKeys'
 import { supabase } from '../../lib/supabase'
 import { signInMap } from './teamLogic'
 
@@ -8,7 +9,7 @@ import { signInMap } from './teamLogic'
  */
 export function useMemberSignIn(organizationId: string | undefined, enabled = true) {
   return useQuery({
-    queryKey: ['member-sign-in', organizationId ?? ''],
+    queryKey: queryKeys.memberSignIn(organizationId ?? ''),
     enabled: Boolean(organizationId) && enabled,
     queryFn: async () => {
       const { data, error } = await supabase.rpc('member_sign_in_status', { p_organization_id: organizationId ?? '' })

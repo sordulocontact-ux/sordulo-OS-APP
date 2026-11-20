@@ -161,58 +161,60 @@ export function QuotesPage() {
       ) : visible.length === 0 ? (
         <EmptyState title="Aucun devis ne correspond à la recherche ni aux filtres." />
       ) : (
-        <table className={table.table}>
-          <thead>
-            <tr>
-              <th scope="col">Devis</th>
-              <th scope="col">Client</th>
-              <th scope="col" className={styles.amount}>
-                Montant TTC
-              </th>
-              <th scope="col">Statut</th>
-              <th scope="col">Date</th>
-              <th scope="col" className={table.actionsCell}>
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((quote) => {
-              const shown = quoteDisplayStatus(quote, today)
-              return (
-                <tr key={quote.id} className={table.row}>
-                  <td>
-                    <span className={styles.titleCell}>
-                      <Link to={`/quotes/${quote.id}`} className={table.rowLink}>
-                        {quote.title}
-                      </Link>
-                      <span className={table.secondLine}>{quote.number}</span>
-                    </span>
-                  </td>
-                  <td>{quote.client?.name ?? <span className={table.muted}>Client inconnu</span>}</td>
-                  <td className={styles.amount}>{formatMoney(quote.total_ttc_cents)}</td>
-                  <td>
-                    <Badge tone={QUOTE_DISPLAY_TONE[shown]}>{QUOTE_DISPLAY_LABELS[shown]}</Badge>
-                  </td>
-                  <td>{formatDate(quote.issue_date)}</td>
-                  <td className={table.actionsCell}>
-                    <ActionsMenu
-                      label={`Actions pour le devis ${quote.number}`}
-                      items={[
-                        { label: 'Ouvrir', onSelect: () => void navigate(`/quotes/${quote.id}`) },
-                        { label: 'Aperçu PDF', onSelect: () => void navigate(`/quotes/${quote.id}/print`) },
-                        { label: 'Dupliquer', onSelect: () => void copy(quote.id), disabled: duplicate.isPending },
-                        ...(canDeleteQuote(quote.status)
-                          ? [{ label: 'Supprimer', tone: 'danger' as const, onSelect: () => setToDelete({ id: quote.id, number: quote.number }) }]
-                          : []),
-                      ]}
-                    />
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <div className={table.scroll}>
+          <table className={table.table}>
+            <thead>
+              <tr>
+                <th scope="col">Devis</th>
+                <th scope="col">Client</th>
+                <th scope="col" className={styles.amount}>
+                  Montant TTC
+                </th>
+                <th scope="col">Statut</th>
+                <th scope="col">Date</th>
+                <th scope="col" className={table.actionsCell}>
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((quote) => {
+                const shown = quoteDisplayStatus(quote, today)
+                return (
+                  <tr key={quote.id} className={table.row}>
+                    <td>
+                      <span className={styles.titleCell}>
+                        <Link to={`/quotes/${quote.id}`} className={table.rowLink}>
+                          {quote.title}
+                        </Link>
+                        <span className={table.secondLine}>{quote.number}</span>
+                      </span>
+                    </td>
+                    <td>{quote.client?.name ?? <span className={table.muted}>Client inconnu</span>}</td>
+                    <td className={styles.amount}>{formatMoney(quote.total_ttc_cents)}</td>
+                    <td>
+                      <Badge tone={QUOTE_DISPLAY_TONE[shown]}>{QUOTE_DISPLAY_LABELS[shown]}</Badge>
+                    </td>
+                    <td>{formatDate(quote.issue_date)}</td>
+                    <td className={table.actionsCell}>
+                      <ActionsMenu
+                        label={`Actions pour le devis ${quote.number}`}
+                        items={[
+                          { label: 'Ouvrir', onSelect: () => void navigate(`/quotes/${quote.id}`) },
+                          { label: 'Aperçu PDF', onSelect: () => void navigate(`/quotes/${quote.id}/print`) },
+                          { label: 'Dupliquer', onSelect: () => void copy(quote.id), disabled: duplicate.isPending },
+                          ...(canDeleteQuote(quote.status)
+                            ? [{ label: 'Supprimer', tone: 'danger' as const, onSelect: () => setToDelete({ id: quote.id, number: quote.number }) }]
+                            : []),
+                        ]}
+                      />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
       <Modal
         open={toDelete !== null}

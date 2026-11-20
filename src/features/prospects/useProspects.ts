@@ -74,10 +74,11 @@ function useInvalidateProspects() {
 export function useCreateProspect() {
   const invalidate = useInvalidateProspects()
   return useMutation({
-    mutationFn: async ({ organizationId, createdBy, fields }: { organizationId: string; createdBy: string | null; fields: ProspectFields }) => {
+    // created_by, updated_at, won_at et client_id sont posés par la base (pas de droit d’écriture sur ces colonnes).
+    mutationFn: async ({ organizationId, fields }: { organizationId: string; fields: ProspectFields }) => {
       const { data, error } = await supabase
         .from('prospects')
-        .insert({ ...fields, organization_id: organizationId, created_by: createdBy })
+        .insert({ ...fields, organization_id: organizationId })
         .select()
         .overrideTypes<Prospect[], { merge: false }>()
       if (error) throw error
@@ -96,7 +97,7 @@ export function useUpdateProspect() {
     mutationFn: async ({ prospectId, fields }: { prospectId: string; fields: Partial<ProspectFields> }) => {
       const { data, error } = await supabase
         .from('prospects')
-        .update({ ...fields, updated_at: new Date().toISOString() })
+        .update(fields)
         .eq('id', prospectId)
         .select('id')
       if (error) throw error

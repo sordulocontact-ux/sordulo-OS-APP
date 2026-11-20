@@ -254,40 +254,42 @@ export function ClientPage() {
         ) : projects.length === 0 ? (
           <EmptyState title="Aucun projet pour ce client" action={newProjectButton('secondary')} />
         ) : (
-          <table className={table.table}>
-            <thead>
-              <tr>
-                <th scope="col">Projet</th>
-                <th scope="col">Statut</th>
-                <th scope="col">Échéance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {projects.map((project) => (
-                <tr key={project.id} className={table.row}>
-                  <td>
-                    {canWrite ? (
-                      <Link to={`/projects/${project.id}`} className={table.rowLink}>
-                        {project.name}
-                      </Link>
-                    ) : (
-                      <span className={table.primary}>{project.name}</span>
-                    )}
-                  </td>
-                  <td>
-                    <ProjectStatus status={project.status} />
-                  </td>
-                  <td>
-                    {project.due_date ? (
-                      formatDate(`${project.due_date}T00:00:00`)
-                    ) : (
-                      <span className={table.muted}>Non renseignée</span>
-                    )}
-                  </td>
+          <div className={table.scroll}>
+            <table className={table.table}>
+              <thead>
+                <tr>
+                  <th scope="col">Projet</th>
+                  <th scope="col">Statut</th>
+                  <th scope="col">Échéance</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {projects.map((project) => (
+                  <tr key={project.id} className={table.row}>
+                    <td>
+                      {canWrite ? (
+                        <Link to={`/projects/${project.id}`} className={table.rowLink}>
+                          {project.name}
+                        </Link>
+                      ) : (
+                        <span className={table.primary}>{project.name}</span>
+                      )}
+                    </td>
+                    <td>
+                      <ProjectStatus status={project.status} />
+                    </td>
+                    <td>
+                      {project.due_date ? (
+                        formatDate(`${project.due_date}T00:00:00`)
+                      ) : (
+                        <span className={table.muted}>Non renseignée</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 

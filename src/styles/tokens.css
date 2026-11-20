@@ -115,6 +115,8 @@
   --size-search-max: 34rem;
   --size-menu-min: 12rem;
   --size-stat-card-min: 13rem;
+  /* Largeur minimale d'un tableau de liste : en dessous, il défile horizontalement. */
+  --size-table-min: 48rem;
   /* Devis et factures (V0.3) : colonnes de l'éditeur de lignes et page A4 imprimable */
   --size-lines-min: 52rem;
   --size-col-quantity: 6rem;
