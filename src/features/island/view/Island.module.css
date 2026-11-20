@@ -3,7 +3,7 @@
  * Couleurs, police, tailles de texte, rayons de contrôle et durées : tokens `--island-*` de src/styles/tokens.css.
  * Tailles par état, positions des éléments partagés et ressort : src/features/island/geometry.ts.
  * Les petites dimensions internes (marges, barres de 2 px…) restent ici en px, comme dans le prototype.
- * Variante Mac (lot macOS, inactive) : sélecteurs [data-platform='mac'].
+ * Variante Mac (autour de l'encoche) : sélecteurs [data-platform='mac'].
  */
 
 /* Racine : toute la fenêtre transparente, aucun fond, les clics passent hors de la forme et de la bulle. */

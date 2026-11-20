@@ -7,7 +7,7 @@
 
 import type { CallService } from '../../shared/desktop-contract'
 
-/** Variante de forme : Windows (bord haut de l'écran) ou Mac (autour de l'encoche, lot macOS, inactive). */
+/** Variante de forme : Windows (bord haut de l'écran) ou Mac (autour de l'encoche de la caméra). */
 export type IslandPlatform = 'win' | 'mac'
 
 /** État affiché dans l'île (prototype : variable `state`). */

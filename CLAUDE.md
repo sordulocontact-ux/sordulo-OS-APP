@@ -14,7 +14,7 @@ Premier client de test : **Ibé** (projet « App Ibé »).
 
 L'app existe en deux versions avec le même code :
 - **Web**, déployée sur Vercel (production = chaque push sur `main` du dépôt `sordulocontact-ux/sordulo-OS-APP`).
-- **Bureau** (Tauri 2) : la même interface, plus une icône soleil dans la zone de notification, la détection du micro (« Transcrire cet appel ? ») et l'enregistrement des appels. Windows marche, macOS est prévu juste après.
+- **Bureau** (Tauri 2) : la même interface, plus une icône soleil dans la zone de notification, la détection du micro (« Transcrire cet appel ? ») et l'enregistrement des appels. Windows marche. Sur macOS, l'île marche (collée à l'encoche de la caméra, variante `mac` du front choisie par Rust via `?platform=mac`, au-dessus de la barre des menus) ainsi que le relais Claude Code ; la détection du micro et l'enregistrement des appels restent à faire (lot L13, `src-tauri/src/platform/macos/`).
 
 Le design suit le Figma « SORDULO-OS », déjà appliqué via les tokens. Toute nouvelle page reprend ce design : mêmes tokens, mêmes composants, même structure que les écrans existants (par exemple le tableau de la page Projets).
 

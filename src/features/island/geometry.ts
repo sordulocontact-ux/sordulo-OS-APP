@@ -8,8 +8,13 @@
 import type { IslandRect } from '../../shared/desktop-contract'
 import type { IslandPlatform, IslandSizeKey, IslandState } from './types'
 
-/** Plateforme active. 'mac' (variante autour de l'encoche) est déclarée pour le lot macOS, pas encore utilisée. */
+/** Plateforme par défaut. L'app de bureau choisit la vraie dans l'URL de l'île (`?platform=mac` sur un Mac à encoche). */
 export const ACTIVE_PLATFORM: IslandPlatform = 'win'
+
+/** Variante demandée par l'app de bureau dans l'URL de la fenêtre de l'île ; ACTIVE_PLATFORM sinon. */
+export function platformFromSearch(search: string): IslandPlatform {
+  return new URLSearchParams(search).get('platform') === 'mac' ? 'mac' : ACTIVE_PLATFORM
+}
 
 // ---------------------------------------------------------------------------
 // Tailles par état (prototype : objet S)

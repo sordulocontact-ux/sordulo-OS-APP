@@ -2,7 +2,8 @@
 //!
 //! Une implémentation par système d'exploitation :
 //! - `windows/` : ce soir (registre CapabilityAccessManager + WASAPI + MP3).
-//! - `macos/`   : lot à venir (Core Audio : détection du micro + process tap), voir TICKET.md (L13).
+//! - `macos/`   : île (curseur, encoche, niveau de fenêtre) et presse-papiers ; détection du micro et
+//!   enregistrement à venir (Core Audio : process tap), voir TICKET.md (L13).
 //!
 //! Le reste de l'app (tray, commandes Tauri, boucle de détection) ne dépend QUE de ce module :
 //! jamais de `cfg(windows)` en dehors de `platform/`.
@@ -64,6 +65,13 @@ pub struct CursorState {
     pub y: i32,
     /// Bouton principal enfoncé (le gauche, ou le droit si les boutons sont inversés).
     pub primary_down: bool,
+}
+
+/// Encoche de la caméra en haut de l'écran principal (Mac), en points (px logiques).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Notch {
+    pub width: f64,
+    pub height: f64,
 }
 
 /// Extension du fichier produit par `Recorder` (sans point).
@@ -173,6 +181,54 @@ pub fn cursor_state() -> Option<CursorState> {
     #[cfg(not(any(windows, target_os = "macos")))]
     {
         None
+    }
+}
+
+/// Encoche de l'écran principal, `None` sans encoche (Windows, Mac sans encoche, écran externe en
+/// principal). À appeler sur le thread principal.
+pub fn primary_notch() -> Option<Notch> {
+    #[cfg(target_os = "macos")]
+    {
+        macos::primary_notch()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        None
+    }
+}
+
+/// Réglages système de la fenêtre de l'île après sa création (Mac : au-dessus de la barre des menus).
+/// À appeler sur le thread principal.
+pub fn prepare_island_window(window: &tauri::WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    {
+        match window.ns_window() {
+            Ok(ns_window) => macos::raise_island_window(ns_window),
+            Err(e) => log::warn!("fenêtre native de l'île introuvable : {e}"),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = window;
+    }
+}
+
+/// Rend `path` exécutable (relais Claude Code copié par l'app). Sans effet sous Windows.
+pub fn make_executable(path: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = std::fs::metadata(path)?.permissions();
+        if permissions.mode() & 0o111 != 0o111 {
+            permissions.set_mode(permissions.mode() | 0o755);
+            std::fs::set_permissions(path, permissions)?;
+        }
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        Ok(())
     }
 }
 

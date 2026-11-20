@@ -1,7 +1,9 @@
 //! L'île : la fenêtre `prompt`, transparente, collée au bord haut de l'écran principal, toujours présente.
 //!
 //! - Taille fixe (plus grand état + bulle secondaire), centrée sur la zone de travail de l'écran principal,
-//!   sans marge. Replacée si l'écran principal, la résolution ou la mise à l'échelle changent : vérification
+//!   sans marge. Mac avec encoche : centrée sur l'écran entier et collée à son bord haut, au-dessus de la
+//!   barre des menus, pour que l'île sorte de chaque côté de la caméra (variante `mac` du front, passée
+//!   dans l'URL : `?platform=mac`). Replacée si l'écran principal, la résolution ou la mise à l'échelle changent : vérification
 //!   toutes les 2 s, et tout de suite après un changement d'échelle ou un déplacement de la fenêtre.
 //! - Clics qui passent à travers : la fenêtre ignore la souris, sauf au-dessus des zones cliquables envoyées
 //!   par le front (`island_set_hit_rects`). Un thread (~60 Hz) suit le curseur et bascule ; il émet
@@ -28,8 +30,9 @@ use crate::state::{DesktopState, IslandHitRects, IslandPointer};
 /// bulle secondaire à droite : 4 d'écart + 44 + 2 × 10 = 68. Fenêtre symétrique pour rester centrée :
 /// 2 × (460 / 2 + 68) = 596, arrondi à 640 pour laisser la place aux effets (ressort qui dépasse, ombres).
 const ISLAND_WIDTH: f64 = 640.0;
-/// Hauteur de la fenêtre (px logiques). Plus grand état : `multiOpen` 220 de haut, + marge pour le ressort.
-const ISLAND_HEIGHT: f64 = 260.0;
+/// Hauteur de la fenêtre (px logiques). Plus grand état : `multiOpen` 220 de haut (250 sur Mac), + marge
+/// pour le ressort.
+const ISLAND_HEIGHT: f64 = 300.0;
 
 /// Période de la surveillance du curseur (~60 Hz).
 const POINTER_POLL: Duration = Duration::from_millis(16);
@@ -41,10 +44,24 @@ const PLACE_SOON_TICKS: u32 = 15;
 /// Levé par les événements de la fenêtre (échelle, déplacement) : vérifier le placement sans attendre 2 s.
 static PLACE_REQUESTED: AtomicBool = AtomicBool::new(false);
 
+/// Écran principal avec encoche au démarrage : l'île se colle au bord haut de l'écran (pas de la zone de
+/// travail, qui commence sous la barre des menus) et le front dessine la variante Mac.
+static AROUND_NOTCH: AtomicBool = AtomicBool::new(false);
+
 /// Crée la fenêtre de l'île, la place et la montre sans prendre le focus. Appelé une fois dans `setup`.
 pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
+    let notch = platform::primary_notch();
+    AROUND_NOTCH.store(notch.is_some(), Ordering::Relaxed);
+    let variant = match notch {
+        Some(n) => {
+            log::info!("encoche détectée ({} × {} points) : île autour de la caméra", n.width, n.height);
+            "mac"
+        }
+        None => "win",
+    };
+    let url = format!("{PROMPT_ROUTE}?platform={variant}");
     let window =
-        WebviewWindowBuilder::new(app, WINDOW_PROMPT, WebviewUrl::App(PROMPT_ROUTE.into()))
+        WebviewWindowBuilder::new(app, WINDOW_PROMPT, WebviewUrl::App(url.into()))
             .title("Sordulo OS")
             .inner_size(ISLAND_WIDTH, ISLAND_HEIGHT)
             .resizable(false)
@@ -55,6 +72,8 @@ pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             .shadow(false)
             .always_on_top(true)
             .skip_taskbar(true)
+            // Mac : présente sur tous les bureaux (Spaces) ; sans effet sous Windows.
+            .visible_on_all_workspaces(true)
             // Cachée le temps d'être placée, puis montrée par `place` sans activation.
             .visible(false)
             .focused(false)
@@ -63,6 +82,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             .disable_drag_drop_handler()
             .build()?;
 
+    platform::prepare_island_window(&window);
     // Par défaut la souris traverse : tant que le front n'a rien envoyé, rien n'est cliquable.
     window.set_ignore_cursor_events(true)?;
     window.on_window_event(|event| {
@@ -135,8 +155,14 @@ fn place(window: &WebviewWindow<Wry>) -> tauri::Result<(WindowFrame, bool)> {
         .or(window.current_monitor()?)
         .ok_or_else(|| tauri::Error::Io(std::io::Error::other("aucun écran détecté")))?;
     let scale = monitor.scale_factor();
-    let area = monitor.work_area();
-    let target = placement_in(area.position.x, area.position.y, area.size.width, scale);
+    let target = if AROUND_NOTCH.load(Ordering::Relaxed) {
+        // L'encoche est au centre de l'écran entier, au-dessus de la zone de travail.
+        let (position, size) = (monitor.position(), monitor.size());
+        placement_in(position.x, position.y, size.width, scale)
+    } else {
+        let area = monitor.work_area();
+        placement_in(area.position.x, area.position.y, area.size.width, scale)
+    };
 
     let mut changed = false;
     let size = window.outer_size()?;
@@ -429,7 +455,7 @@ mod tests {
                 x: 640,
                 y: 0,
                 width: 640,
-                height: 260
+                height: 300
             }
         );
         // 2560 à 150 %, barre des tâches en haut (zone de travail décalée de 72 px).
@@ -439,7 +465,7 @@ mod tests {
                 x: 800,
                 y: 72,
                 width: 960,
-                height: 390
+                height: 450
             }
         );
         // Écran principal à droite d'un autre (origine négative possible pour les autres écrans).

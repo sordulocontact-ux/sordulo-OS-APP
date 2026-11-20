@@ -19,6 +19,7 @@ import { useAuth } from '../../auth/useAuth'
 import { useCurrentMember } from '../../auth/useCurrentMember'
 import { syncSession } from '../../desktop/useSessionSync'
 import { Garden } from '../garden'
+import { platformFromSearch } from '../geometry'
 import { useProjects } from '../../projects/useProjects'
 import { Island } from '../view'
 import type { IslandProjectOption } from '../view/types'
@@ -105,6 +106,8 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
   const [keyboardFocus, setKeyboardFocus] = useState(false)
   const surfaceRef = useRef<HTMLDivElement>(null)
   const lastRectsRef = useRef('')
+  // Choisie par Rust à la création de la fenêtre (encoche ou non), fixe ensuite.
+  const [platform] = useState(() => platformFromSearch(window.location.search))
 
   /** Survol (Rust ou DOM). En sortant, un focus laissé par un clic de souris est rendu : l'île se referme. */
   const applyHover = useCallback((inside: boolean) => {
@@ -156,6 +159,7 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
     <div ref={surfaceRef} className={styles.surface} onFocus={onFocus} onBlur={onBlur}>
       <Island
         snapshot={snapshot}
+        platform={platform}
         hover={pointerHover}
         call={view.call}
         audioLevels={view.audioLevels}

@@ -1,4 +1,5 @@
-//! macOS — LOT À VENIR (L13, voir .tickets/…/TICKET.md). Rien n'est implémenté ce soir.
+//! macOS. L'île (curseur, encoche, niveau de fenêtre : `island.rs`) et la copie dans le presse-papiers
+//! marchent ; détection du micro et enregistrement : LOT À VENIR (L13, voir .tickets/…/TICKET.md).
 //!
 //! Plan : porter depuis le projet open source Coucou (https://github.com/Louis-CFM/coucou, licence MIT)
 //! - `NotchBuddy/Sources/App/SystemMute.swift` → détection du micro actif (Core Audio,
@@ -8,8 +9,14 @@
 //! Obligations : conserver la mention de copyright MIT d'origine dans les fichiers portés ;
 //! ne pas reprendre les noms « Coucou », « Mochi » ni leurs sons.
 
-use super::{CursorState, MicApp, MicMonitor, Recorder, RecordingInfo};
+mod island;
+
+pub use island::{cursor_state, primary_notch, raise_island_window};
+
+use super::{MicApp, MicMonitor, Recorder, RecordingInfo};
+use std::io::Write;
 use std::path::Path;
+use std::process::{Command, Stdio};
 
 pub struct CoreAudioMicMonitor;
 impl CoreAudioMicMonitor {
@@ -44,12 +51,19 @@ impl Recorder for CoreAudioRecorder {
     }
 }
 
-/// Position du curseur : pas encore implémentée (lot L13). `None` = les clics traversent toujours l'île.
-pub fn cursor_state() -> Option<CursorState> {
-    None
-}
-
-/// Presse-papiers : pas encore implémenté (lot L13). Le front retombe sur `navigator.clipboard`.
-pub fn copy_text(_text: &str) -> anyhow::Result<()> {
-    anyhow::bail!("Copie dans le presse-papiers pas encore disponible sur macOS (lot L13)")
+/// Presse-papiers par `pbcopy` (texte passé sur stdin, jamais en argument).
+pub fn copy_text(text: &str) -> anyhow::Result<()> {
+    let mut child = Command::new("/usr/bin/pbcopy")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?;
+    child
+        .stdin
+        .take()
+        .ok_or_else(|| anyhow::anyhow!("pbcopy : stdin indisponible"))?
+        .write_all(text.as_bytes())?;
+    let status = child.wait()?;
+    anyhow::ensure!(status.success(), "pbcopy a échoué ({status})");
+    Ok(())
 }
