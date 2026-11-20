@@ -1,0 +1,13 @@
+/*
+ * Fenêtre de l'île (route /desktop/prompt) : le document entier est transparent, sans marge ni défilement.
+ * La classe est posée sur <html> par DesktopPromptRoute, seulement sur cette route.
+ */
+:global(html.islandWindow),
+:global(html.islandWindow body),
+:global(html.islandWindow #root) {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}

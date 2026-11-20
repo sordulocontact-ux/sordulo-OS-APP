@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import briefcaseIcon from '../assets/icons/briefcase.svg'
 import sidebarIcon from '../assets/icons/sidebar.svg'
 import { Avatar, Button } from '../components/ui'
@@ -7,10 +7,33 @@ import { SetPasswordButton } from '../features/auth/SetPasswordButton'
 import { useAuth } from '../features/auth/useAuth'
 import { useCurrentMember } from '../features/auth/useCurrentMember'
 import { DesktopRecordButton } from '../features/desktop/DesktopRecordButton'
-import { useIsDesktop } from '../lib/desktop'
+import { currentWindowLabel, isDesktop, onNavigate, useIsDesktop } from '../lib/desktop'
+import { DESKTOP_WINDOWS } from '../shared/desktop-contract'
 import styles from './AppLayout.module.css'
 
 const NAV = [{ to: '/', label: 'Projets', icon: briefcaseIcon, end: false }] as const
+
+/** App de bureau, fenêtre principale : suit les routes envoyées par l'île (openMainAt → desktop://navigate). */
+function useDesktopNavigation(): void {
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (!isDesktop() || currentWindowLabel() !== DESKTOP_WINDOWS.main) return
+    let active = true
+    let off: (() => void) | null = null
+    onNavigate(({ route }) => {
+      if (active && route.startsWith('/')) void navigate(route)
+    })
+      .then((unlisten) => {
+        if (active) off = unlisten
+        else unlisten()
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+      off?.()
+    }
+  }, [navigate])
+}
 
 /** Barre latérale d'icônes (Figma « Sidebar ») + contenu de la page. */
 export function AppLayout() {
@@ -19,6 +42,7 @@ export function AppLayout() {
   const desktop = useIsDesktop()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  useDesktopNavigation()
 
   // Ferme le menu du compte au clic à l'extérieur ou avec Échap.
   useEffect(() => {
