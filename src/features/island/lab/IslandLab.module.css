@@ -1,0 +1,136 @@
+/* Labo de l'île : page de développement, sobre. Tokens de l'app uniquement (src/styles/tokens.css). */
+.page {
+  min-height: 100vh;
+  padding: var(--space-6) var(--space-4) var(--space-12);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+}
+
+.header,
+.stageBlock,
+.controls {
+  max-width: var(--island-lab-max-width);
+  margin: 0 auto;
+}
+
+.title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-heading);
+}
+
+.intro {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-muted);
+  max-width: 66ch;
+}
+
+.intro code {
+  font-family: var(--font-mono);
+}
+
+/* Scène : la fenêtre transparente de l'île (640 × 260) sur un fond d'écran clair ou sombre. */
+.stageBlock {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  align-items: flex-start;
+  padding: var(--space-3) 0;
+  background: var(--color-bg);
+  border-bottom: var(--size-border) solid var(--color-border-subtle);
+}
+
+.scene {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  border: var(--size-border) solid var(--color-border);
+}
+
+.scene[data-backdrop='light'] {
+  background: var(--color-surface-muted);
+}
+
+.scene[data-backdrop='dark'] {
+  background: var(--color-text-heading);
+}
+
+.values {
+  flex: 1 1 var(--island-lab-values-basis);
+  min-width: 0;
+}
+
+.valuesTitle,
+.groupTitle {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-heading);
+}
+
+.specs {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.specs dt {
+  color: var(--color-text-muted);
+}
+
+.specs dd {
+  margin: 0;
+}
+
+.muted {
+  color: var(--color-text-subtle);
+}
+
+.log {
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.controls {
+  display: grid;
+  gap: var(--space-6);
+  padding-top: var(--space-4);
+}
+
+.group {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.buttons,
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.inline,
+.check {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  color: var(--color-text);
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}

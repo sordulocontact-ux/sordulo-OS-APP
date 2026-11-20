@@ -1,0 +1,217 @@
+/**
+ * Boucle requestAnimationFrame de l'île (prototype : frame) : ressort, rendu de la forme, minuteurs, onde,
+ * anneau, égaliseur, rapport des zones cliquables. Tout s'écrit directement dans le DOM.
+ */
+import type { IslandRect } from '../../../shared/desktop-contract'
+import { WAVE, progressRatio, ringDashOffset, waveBarHeight } from '../geometry'
+import type { ClaudeSession, IslandState, ProgressActivity } from '../types'
+import type { IslandEngine } from './engine'
+import { formatElapsed } from './labels'
+
+/** Intervalle minimal entre deux rapports de zones cliquables pendant une animation (ms). */
+export const HIT_RECTS_INTERVAL_MS = 50
+
+/** Égaliseur de la musique (hors périmètre, gardé pour les scénarios du prototype). */
+const EQ_BARS = 8
+
+/** Éléments mis à jour par la boucle (texte et styles que React ne rend pas). */
+export interface LiveElements {
+  timer: HTMLElement | null
+  elapsed: HTMLElement | null
+  waveBars: (HTMLElement | null)[]
+  eqBars: (HTMLElement | null)[]
+  ring: SVGCircleElement | null
+  bubbleRing: SVGCircleElement | null
+  /** Temps écoulé des sessions qui travaillent, dans multiOpen. */
+  rowElapsed: Map<string, HTMLElement>
+}
+
+/** Données lues par la boucle, mises à jour à chaque rendu React. */
+export interface LiveData {
+  state: IslandState
+  withCall: boolean
+  reduced: boolean
+  /** Début de l'enregistrement (epoch ms) ; null : minuteur à 00:00. */
+  callStartedAt: number | null
+  /** Début de la session Claude affichée dans agent / agentAsk (epoch ms). */
+  elapsedStartedAt: number | null
+  sessions: readonly ClaudeSession[]
+  progress: ProgressActivity | null
+  bubbleProgress: ProgressActivity | null
+  audioLevels: readonly number[] | undefined
+  onHitRects: (rects: IslandRect[]) => void
+}
+
+function sameRects(a: IslandRect[], b: IslandRect[] | null): boolean {
+  if (!b || a.length !== b.length) return false
+  return a.every((r, i) => {
+    const o = b[i]
+    return !!o && o.x === r.x && o.y === r.y && o.width === r.width && o.height === r.height
+  })
+}
+
+function setText(el: HTMLElement | null, text: string): void {
+  if (el && el.textContent !== text) el.textContent = text
+}
+
+/** Une image de la boucle de l'île : temps, pas (s) et taille courante du ressort (px). */
+export interface IslandFrameInfo {
+  now: number
+  dt: number
+  width: number
+  height: number
+}
+
+/**
+ * Scène de l'île pour ce qui s'anime à l'intérieur de la forme (le jardin) : taille animée réelle et
+ * abonnement aux images de la boucle, sans rendu React.
+ */
+export interface IslandStage {
+  /** Appelé à chaque image tant qu'on est abonné ; renvoie la désinscription. */
+  subscribe: (listener: (frame: IslandFrameInfo) => void) => () => void
+  /** Taille courante du ressort ; null tant que l'île n'est pas montée. */
+  size: () => { width: number; height: number } | null
+}
+
+export interface IslandStageHandle extends IslandStage {
+  /** Image suivante (appelé par la boucle). */
+  emit: (frame: IslandFrameInfo) => void
+  /** Lecture de la taille courante (le moteur, une fois monté). */
+  setSizeReader: (read: (() => { width: number; height: number }) | null) => void
+}
+
+export function createIslandStage(): IslandStageHandle {
+  const listeners = new Set<(frame: IslandFrameInfo) => void>()
+  let read: (() => { width: number; height: number }) | null = null
+  return {
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    size: () => (read ? read() : null),
+    emit: (frame) => {
+      for (const listener of [...listeners]) listener(frame)
+    },
+    setSizeReader: (next) => {
+      read = next
+    },
+  }
+}
+
+export interface IslandLoop {
+  stop: () => void
+  /** Rapporte les zones cliquables dès la prochaine image (nouvelle cible, redimensionnement). */
+  requestHitRects: () => void
+}
+
+/** `onFrame` : appelé à chaque image après le rendu de la forme (scène du jardin). */
+export function startIslandLoop(
+  engine: IslandEngine,
+  live: LiveElements,
+  data: () => LiveData,
+  onFrame?: (now: number, dtSeconds: number) => void,
+): IslandLoop {
+  let raf = 0
+  let last = performance.now()
+  let lastReport = -Infinity
+  let reported: IslandRect[] | null = null
+  let forceReport = true
+  let wasAnimating = false
+  let lastScroll = 0
+  const wave: number[] = [...WAVE.initial]
+  // Onde simulée du prototype quand aucun niveau sonore n'est fourni (labo).
+  let talking = true
+  let talkLeft = 14
+  const phase = Array.from({ length: EQ_BARS }, () => Math.random() * 6.28)
+  const freq = Array.from({ length: EQ_BARS }, () => 5 + Math.random() * 7)
+  live.waveBars.forEach((b, j) => {
+    if (b) b.style.height = `${wave[j] ?? WAVE.minHeight}px`
+  })
+
+  function simulatedSample(): number {
+    if (--talkLeft <= 0) {
+      talking = !talking
+      talkLeft = talking ? 8 + Math.random() * 18 : 3 + Math.random() * 7
+    }
+    if (!talking) return WAVE.minHeight
+    return Math.random() < 0.15 ? 3 : Math.round(5 + Math.random() * 9)
+  }
+
+  function report(d: LiveData, now: number): void {
+    const rects = engine.hitRects()
+    lastReport = now
+    if (sameRects(rects, reported)) return
+    reported = rects
+    d.onHitRects(rects)
+  }
+
+  function frame(now: number): void {
+    const d = data()
+    const dt = (now - last) / 1000
+    const animating = engine.step(dt)
+    last = now
+    engine.render()
+    onFrame?.(now, dt)
+
+    if (forceReport || (animating && now - lastReport >= HIT_RECTS_INTERVAL_MS) || (!animating && wasAnimating)) {
+      forceReport = false
+      report(d, now)
+    }
+    wasAnimating = animating
+
+    const epoch = Date.now()
+    const { state } = d
+    const callVisible = state === 'meet' || (d.withCall && (state === 'notif' || state === 'agentAsk'))
+    if (callVisible) {
+      setText(live.timer, formatElapsed(d.callStartedAt === null ? 0 : epoch - d.callStartedAt))
+      if (!d.reduced && now - lastScroll > WAVE.scrollMs) {
+        lastScroll = now
+        if (d.audioLevels) {
+          const levels = d.audioLevels.slice(-WAVE.bars)
+          const pad = WAVE.bars - levels.length
+          for (let j = 0; j < WAVE.bars; j++) wave[j] = j < pad ? WAVE.minHeight : waveBarHeight(levels[j - pad] ?? 0)
+        } else {
+          wave.shift()
+          wave.push(simulatedSample())
+        }
+        live.waveBars.forEach((b, j) => {
+          if (b) b.style.height = `${wave[j] ?? WAVE.minHeight}px`
+        })
+      }
+    }
+    if ((state === 'agent' || state === 'agentAsk') && d.elapsedStartedAt !== null) {
+      setText(live.elapsed, formatElapsed(epoch - d.elapsedStartedAt))
+    }
+    if (state === 'multi') {
+      for (const s of d.sessions) {
+        const el = live.rowElapsed.get(s.id)
+        if (el) setText(el, formatElapsed(epoch - s.startedAt))
+      }
+    }
+    if (state === 'progress' && d.progress && live.ring) {
+      live.ring.style.strokeDashoffset = ringDashOffset(progressRatio(d.progress, epoch)).toFixed(2)
+    }
+    if (d.bubbleProgress && live.bubbleRing) {
+      live.bubbleRing.style.strokeDashoffset = ringDashOffset(progressRatio(d.bubbleProgress, epoch)).toFixed(2)
+    }
+    if (state === 'music' && !d.reduced) {
+      const t = now / 1000
+      live.eqBars.forEach((b, j) => {
+        if (!b) return
+        const v = 0.3 + 0.7 * Math.abs(Math.sin(t * (freq[j] ?? 6) * 0.5 + (phase[j] ?? 0)) * Math.sin(t * 1.7 + j))
+        b.style.transform = `scaleY(${v.toFixed(3)})`
+      })
+    }
+    raf = requestAnimationFrame(frame)
+  }
+
+  raf = requestAnimationFrame(frame)
+  return {
+    stop: () => cancelAnimationFrame(raf),
+    requestHitRects: () => {
+      forceReport = true
+    },
+  }
+}

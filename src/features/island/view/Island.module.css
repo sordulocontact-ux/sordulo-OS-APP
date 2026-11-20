@@ -1,0 +1,1160 @@
+/*
+ * L'île (prototype design/prototypes/ile-sordulo-os.html, lignes 75-292).
+ * Couleurs, police, tailles de texte, rayons de contrôle et durées : tokens `--island-*` de src/styles/tokens.css.
+ * Tailles par état, positions des éléments partagés et ressort : src/features/island/geometry.ts.
+ * Les petites dimensions internes (marges, barres de 2 px…) restent ici en px, comme dans le prototype.
+ * Variante Mac (lot macOS, inactive) : sélecteurs [data-platform='mac'].
+ */
+
+/* Racine : toute la fenêtre transparente, aucun fond, les clics passent hors de la forme et de la bulle. */
+.root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  pointer-events: none;
+  color: var(--island-text);
+  color-scheme: dark;
+  font-family: var(--island-font);
+  font-size: var(--island-font-size-md);
+  line-height: var(--line-height-normal);
+  letter-spacing: var(--island-letter-spacing);
+}
+
+.root :focus-visible {
+  outline: var(--island-outline-width) solid var(--island-focus);
+  outline-offset: var(--island-outline-offset);
+  box-shadow: none;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* L'île */
+.island {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+
+.shape {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.shapeBody {
+  fill: var(--island-bg);
+}
+
+.content {
+  position: absolute;
+  top: 0;
+  overflow: hidden;
+}
+
+.layer {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%) scale(0.94);
+  opacity: 0;
+  filter: blur(var(--island-blur));
+  pointer-events: none;
+  color: var(--island-text);
+  transition:
+    opacity var(--island-duration-layer-out) ease,
+    filter var(--island-duration-layer-out) ease,
+    transform var(--island-duration-layer-scale-out) ease;
+}
+
+.layer.on {
+  opacity: 1;
+  filter: blur(0);
+  transform: translateX(-50%) scale(1);
+  pointer-events: auto;
+  transition:
+    opacity var(--island-duration-layer-in) ease var(--island-delay-layer-in),
+    filter var(--island-duration-layer-in) ease var(--island-delay-layer-in),
+    transform var(--island-duration-layer-scale-in) var(--island-easing-pop) var(--island-delay-layer-scale-in);
+}
+
+.ico {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pixel {
+  image-rendering: pixelated;
+}
+
+/* Boutons dans l'île */
+.btn {
+  height: var(--island-control-height);
+  border: 0;
+  border-radius: var(--island-radius-control);
+  font: inherit;
+  font-size: var(--island-font-size-md);
+  font-weight: var(--font-weight-medium);
+  padding: 0 var(--island-space-14);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform var(--island-duration-press) ease;
+}
+
+.btn:active {
+  transform: scale(0.94);
+}
+
+.btnGhost {
+  background: var(--island-ghost);
+  color: var(--island-text);
+}
+
+.btnMain {
+  background: var(--island-btn-main-bg);
+  color: var(--island-btn-main-text);
+}
+
+.btnSm {
+  height: var(--island-control-height-sm);
+  padding: 0 var(--island-space-12);
+  font-size: var(--island-font-size-sm);
+  border-radius: var(--radius-pill);
+}
+
+/* Appel en cours */
+.meetIcon {
+  width: var(--island-size-16);
+  height: var(--island-size-16);
+  flex: none;
+  fill: var(--island-call);
+}
+
+.scrollWave {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: var(--island-size-14);
+}
+
+.scrollWave i {
+  display: block;
+  width: var(--island-size-2);
+  border-radius: 1px;
+  background: var(--island-call);
+  transition: height var(--island-duration-wave) linear;
+}
+
+.timer {
+  font-size: var(--island-font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--island-call);
+  font-variant-numeric: tabular-nums;
+}
+
+.meetRow {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  height: var(--island-size-28);
+  margin-top: var(--island-space-10);
+}
+
+/* Musique (hors périmètre, gardée pour les scénarios du prototype) */
+.layerMusic {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--island-space-13);
+}
+
+.cover {
+  width: var(--island-size-28);
+  height: var(--island-size-28);
+  border-radius: var(--island-radius-6);
+  background: linear-gradient(135deg, var(--island-music-cover-start), var(--island-music-cover-end));
+  flex: none;
+}
+
+.root[data-platform='mac'] .layerMusic .cover {
+  width: var(--island-size-22);
+  height: var(--island-size-22);
+  border-radius: var(--island-radius-5);
+}
+
+.eq {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: var(--island-size-14);
+}
+
+.eq i {
+  display: block;
+  width: var(--island-size-2);
+  border-radius: 1px;
+  background: var(--island-music);
+  transform-origin: center;
+}
+
+/* Progression : import, analyse */
+.layerProg {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--island-space-13);
+}
+
+.progLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-8);
+  min-width: 0;
+}
+
+.progIcon {
+  width: var(--island-size-18);
+  height: var(--island-size-18);
+  flex: none;
+  color: var(--island-tone);
+}
+
+.progLabel {
+  font-size: var(--island-font-size-sm);
+  color: var(--island-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.root[data-platform='mac'] .progLabel {
+  display: none;
+}
+
+.ring {
+  width: var(--island-size-18);
+  height: var(--island-size-18);
+  transform: rotate(-90deg);
+  flex: none;
+}
+
+.ring circle {
+  fill: none;
+  stroke-width: 2.4;
+}
+
+.ringTrack {
+  stroke: var(--island-track);
+}
+
+.ringBar {
+  stroke: var(--island-tone);
+  stroke-linecap: round;
+}
+
+/* Session Claude */
+.agentIcon {
+  display: grid;
+  place-items: center;
+}
+
+.agentIcon img {
+  width: 100%;
+  height: 100%;
+}
+
+.live img {
+  animation: hop var(--island-duration-hop) ease-in-out infinite;
+}
+
+@keyframes hop {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-8%);
+  }
+}
+
+.dots {
+  display: flex;
+  gap: var(--island-space-3);
+  align-items: center;
+}
+
+.dots i {
+  width: var(--island-size-4);
+  height: var(--island-size-4);
+  border-radius: 50%;
+  background: var(--island-claude);
+  animation: dot var(--island-duration-dots) ease-in-out infinite;
+}
+
+.dots i:nth-child(2) {
+  animation-delay: var(--island-delay-dots);
+}
+
+.dots i:nth-child(3) {
+  animation-delay: calc(var(--island-delay-dots) * 2);
+}
+
+@keyframes dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(calc(-1 * var(--island-nudge)));
+  }
+}
+
+/* Détail au survol : agentOpen, meetOpen, multiOpen */
+.detail {
+  position: absolute;
+  inset: 0;
+  padding: var(--island-space-14) var(--island-space-16);
+  opacity: 0;
+  transition: opacity var(--island-duration-detail-out) ease;
+}
+
+.root[data-platform='mac'] .detail {
+  padding-top: var(--island-space-44);
+}
+
+.open .detail {
+  opacity: 1;
+  transition: opacity var(--island-duration-detail-in) ease var(--island-delay-detail-in);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-10);
+}
+
+.head strong,
+.headText strong {
+  display: block;
+  font-size: var(--island-font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--island-line-height);
+}
+
+.head small,
+.headText small {
+  display: block;
+  font-size: var(--island-font-size-sm);
+  color: var(--island-muted);
+  line-height: var(--island-line-height);
+}
+
+.headText {
+  margin-left: var(--island-space-38);
+  padding-right: var(--island-space-44);
+  min-height: var(--island-size-34);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.headText strong,
+.headText small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.headTextPlain {
+  margin-left: 0;
+  padding-right: var(--island-space-52);
+}
+
+/* Éléments partagés : ils se déplacent d'un état à l'autre au lieu de disparaître */
+.shared {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.sh {
+  position: absolute;
+  top: 0;
+  opacity: 0;
+}
+
+.shText {
+  line-height: var(--island-size-14);
+  white-space: nowrap;
+}
+
+.elapsed {
+  font-size: var(--island-font-size-xs);
+  color: var(--island-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.meetGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-6);
+  height: var(--island-size-16);
+}
+
+.step {
+  margin-top: var(--island-space-12);
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-8);
+  font-family: var(--island-font-mono);
+  font-size: var(--island-font-size-sm);
+  color: var(--island-text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.step span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spin {
+  width: var(--island-size-12);
+  height: var(--island-size-12);
+  border-radius: 50%;
+  border: var(--island-ring-width) solid var(--island-claude-track);
+  border-top-color: var(--island-claude);
+  animation: spin var(--island-duration-spin) linear infinite;
+  flex: none;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Demande d'autorisation */
+.layerAsk {
+  padding: var(--island-space-14) var(--island-space-16) var(--island-space-16);
+}
+
+.root[data-platform='mac'] .layerAsk {
+  padding-top: var(--island-space-44);
+}
+
+.layerAsk.withCall {
+  padding-top: var(--island-space-54);
+}
+
+.root[data-platform='mac'] .layerAsk.withCall {
+  padding-top: var(--island-space-44);
+}
+
+.code {
+  margin-top: var(--island-space-12);
+  height: var(--island-size-32);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--island-space-10);
+  border-radius: var(--island-radius-control);
+  background: var(--island-field);
+  border: 1px solid var(--island-line);
+  font-family: var(--island-font-mono);
+  font-size: var(--island-font-size-code);
+  min-width: 0;
+}
+
+.code span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.askRow {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--island-space-8);
+  margin-top: var(--island-space-12);
+}
+
+.later {
+  margin-right: auto;
+}
+
+/* Plusieurs sessions Claude Code */
+.seg {
+  width: var(--island-size-6);
+  height: var(--island-size-6);
+  border-radius: 50%;
+  background: var(--island-idle-dot);
+}
+
+.segWorking {
+  background: var(--island-claude);
+  animation: beat var(--island-duration-beat) ease-in-out infinite;
+}
+
+.segWaiting {
+  background: var(--island-text);
+  animation: pulse var(--island-duration-pulse) ease-out infinite;
+}
+
+.segDone {
+  background: var(--island-success);
+}
+
+@keyframes beat {
+  50% {
+    transform: scale(0.6);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--island-pulse);
+  }
+  100% {
+    box-shadow: 0 0 0 var(--island-pulse-spread) transparent;
+  }
+}
+
+.count {
+  font-size: var(--island-font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--island-claude);
+}
+
+.rows {
+  margin-top: var(--island-space-8);
+}
+
+.row {
+  height: var(--island-size-30);
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-8);
+  padding-left: var(--island-space-14);
+  font-size: var(--island-font-size-md);
+  min-width: 0;
+}
+
+.row b {
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.task {
+  color: var(--island-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.st {
+  font-size: var(--island-font-size-xs);
+  color: var(--island-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stDone {
+  color: var(--island-success);
+}
+
+.stConflict {
+  color: var(--island-danger);
+}
+
+.stError {
+  color: var(--island-alert);
+}
+
+.rowBtn {
+  height: var(--island-control-height-xs);
+  padding: 0 var(--island-space-10);
+  font-size: var(--island-font-size-xs);
+}
+
+/* Jardin des Claude (autre lot) : multi au repos */
+.garden {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--island-duration-garden-out) ease;
+}
+
+.garden.on {
+  opacity: 1;
+  transition: opacity var(--island-duration-garden-in) ease var(--island-delay-garden-in);
+}
+
+/* Bulle de l'activité secondaire */
+.bubble {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 1;
+  display: none;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--island-text);
+  pointer-events: auto;
+}
+
+.bubble > svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.bubble > svg path {
+  fill: var(--island-bg);
+}
+
+.bubbleContent,
+.ghost {
+  display: grid;
+  place-items: center;
+}
+
+.bubbleContent {
+  position: absolute;
+  top: 0;
+  overflow: hidden;
+}
+
+.bubbleContent img,
+.ghost img {
+  width: var(--island-size-20);
+  height: var(--island-size-20);
+}
+
+.bubbleContent .cover,
+.ghost .cover {
+  width: var(--island-size-20);
+  height: var(--island-size-20);
+  border-radius: var(--island-radius-5);
+}
+
+.bubbleRing {
+  position: relative;
+  width: var(--island-size-22);
+  height: var(--island-size-22);
+  display: grid;
+  place-items: center;
+  color: var(--island-tone);
+}
+
+.bubbleRing .ring {
+  position: absolute;
+  inset: 0;
+  width: var(--island-size-22);
+  height: var(--island-size-22);
+}
+
+.bubbleIco {
+  width: var(--island-size-11);
+  height: var(--island-size-11);
+}
+
+.badge {
+  position: absolute;
+  right: var(--island-space-4);
+  bottom: calc(-1 * var(--island-space-7));
+  min-width: var(--island-size-18);
+  height: var(--island-size-14);
+  padding: 0 var(--island-space-4);
+  border-radius: var(--island-radius-7);
+  background: var(--island-badge-bg);
+  color: var(--island-text);
+  font-size: var(--island-font-size-badge);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--island-size-14);
+  text-align: center;
+}
+
+.ghost {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  pointer-events: none;
+  transition:
+    transform var(--island-duration-ghost) var(--island-easing-ghost),
+    opacity var(--island-duration-ghost) ease;
+}
+
+/* Glisser-déposer de fichiers */
+.dragHint {
+  position: absolute;
+  left: var(--island-space-42);
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  font-size: var(--island-font-size-md);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+.root[data-platform='mac'] .dragHint {
+  top: var(--island-space-32);
+}
+
+.dropIcon {
+  width: var(--island-size-18);
+  height: var(--island-size-18);
+  color: var(--island-text);
+}
+
+.dropIcon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.dropName {
+  position: absolute;
+  left: var(--island-space-42);
+  right: var(--island-space-16);
+  top: var(--island-space-12);
+  line-height: var(--island-size-20);
+  font-size: var(--island-font-size-md);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.root[data-platform='mac'] .dropName {
+  top: var(--island-space-40);
+}
+
+.zones {
+  position: absolute;
+  left: var(--island-space-14);
+  right: var(--island-space-14);
+  top: var(--island-space-42);
+  height: var(--island-size-92);
+  display: flex;
+  gap: var(--island-space-8);
+}
+
+.root[data-platform='mac'] .zones {
+  top: var(--island-space-70);
+}
+
+.zone {
+  flex: 1;
+  border-radius: var(--island-radius-14);
+  border: 1px dashed var(--island-zone-border);
+  background: var(--island-zone-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--island-space-3);
+  min-width: 0;
+  transition:
+    background var(--island-duration-zone) ease,
+    border-color var(--island-duration-zone) ease,
+    transform var(--island-duration-zone-scale) var(--island-easing-zone);
+}
+
+.zone svg,
+.zone img {
+  width: var(--island-size-22);
+  height: var(--island-size-22);
+  margin-bottom: var(--island-space-4);
+}
+
+.zone b {
+  font-size: var(--island-font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.zone small {
+  font-size: var(--island-font-size-xs);
+  color: var(--island-muted);
+}
+
+.zoneHot {
+  background: var(--island-zone-hot-bg);
+  border: 1px solid var(--island-text);
+  transform: scale(1.04);
+}
+
+.zonesEmpty {
+  flex: 1;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--island-font-size-sm);
+  color: var(--island-muted);
+}
+
+/* Proposition « Transcrire cet appel ? » */
+.layerAppel {
+  padding: var(--island-space-14) var(--island-space-16) var(--island-space-16);
+}
+
+.root[data-platform='mac'] .layerAppel {
+  padding-top: var(--island-space-44);
+}
+
+.appelIcon {
+  width: var(--island-size-28);
+  height: var(--island-size-28);
+  padding: var(--island-space-6);
+  border-radius: var(--island-radius-control);
+  background: color-mix(in srgb, var(--island-call) var(--island-tint-call), transparent);
+}
+
+.appelRow {
+  display: flex;
+  gap: var(--island-space-8);
+  margin-top: var(--island-space-14);
+}
+
+.select {
+  flex: 1;
+  min-width: 0;
+  height: var(--island-control-height);
+  border-radius: var(--island-radius-control);
+  border: 1px solid var(--island-line);
+  background: var(--island-field);
+  color: var(--island-text);
+  font: inherit;
+  font-size: var(--island-font-size-md);
+  padding: 0 var(--island-space-10);
+}
+
+/* Notifications */
+.layerNotif {
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-12);
+  padding: 0 var(--island-space-14);
+}
+
+.root[data-platform='mac'] .layerNotif {
+  padding-top: var(--island-space-32);
+}
+
+.layerNotif.withCall {
+  padding-top: var(--island-space-40);
+}
+
+.root[data-platform='mac'] .layerNotif.withCall {
+  padding-top: var(--island-space-32);
+}
+
+.notifCall {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--island-size-40);
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--island-space-14);
+}
+
+.notifCall::after {
+  content: "";
+  position: absolute;
+  left: var(--island-space-14);
+  right: var(--island-space-14);
+  bottom: 0;
+  height: 1px;
+  background: var(--island-ground);
+}
+
+.root[data-platform='mac'] .notifCall {
+  height: var(--island-size-32);
+}
+
+.withCall .notifCall {
+  display: flex;
+}
+
+.notifIcon {
+  flex: none;
+  width: var(--island-size-36);
+  height: var(--island-size-36);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: var(--island-font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--island-tone);
+  background: color-mix(in srgb, var(--island-tone) var(--island-tint), transparent);
+}
+
+.notifIcon svg {
+  width: var(--island-size-20);
+  height: var(--island-size-20);
+}
+
+.notifIcon img {
+  width: var(--island-size-22);
+  height: var(--island-size-22);
+}
+
+.notifAvatar {
+  color: var(--island-text);
+  background: var(--island-avatar);
+}
+
+.check {
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+}
+
+.layerNotif.on .check {
+  animation: draw var(--island-duration-check) var(--island-easing-check) var(--island-delay-check) forwards;
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.notifText {
+  flex: 1;
+  min-width: 0;
+}
+
+.notifText strong {
+  display: block;
+  font-size: var(--island-font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--island-line-height);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notifText small {
+  display: block;
+  font-size: var(--island-font-size-sm);
+  color: var(--island-muted);
+  line-height: var(--island-line-height);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notifProgress {
+  position: absolute;
+  left: var(--island-space-14);
+  right: var(--island-space-14);
+  bottom: var(--island-space-6);
+  height: var(--island-size-2);
+  border-radius: 1px;
+  background: var(--island-bar-track);
+  overflow: hidden;
+}
+
+.notifProgress::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--island-bar-fill);
+  transform-origin: left;
+}
+
+.layerNotif.on .notifProgress::after {
+  animation: shrink var(--nd, var(--island-duration-notif)) linear forwards;
+}
+
+.root[data-hover='true'] .notifProgress::after {
+  animation-play-state: paused;
+}
+
+@keyframes shrink {
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/*
+ * prefers-reduced-motion (ou forcé par le labo) : tout se cale sans animation. La barre de temps des
+ * notifications reste, comme dans le prototype : elle porte l'information du temps restant.
+ */
+.root[data-reduced='true'] .layer,
+.root[data-reduced='true'] .layer.on,
+.root[data-reduced='true'] .detail,
+.root[data-reduced='true'] .open .detail,
+.root[data-reduced='true'] .garden,
+.root[data-reduced='true'] .garden.on,
+.root[data-reduced='true'] .zone,
+.root[data-reduced='true'] .btn,
+.root[data-reduced='true'] .scrollWave i {
+  transition: none;
+}
+
+.root[data-reduced='true'] .layer {
+  filter: none;
+  transform: translateX(-50%);
+}
+
+.root[data-reduced='true'] .check {
+  stroke-dashoffset: 0;
+}
+
+.root[data-reduced='true'] .segWorking,
+.root[data-reduced='true'] .segWaiting,
+.root[data-reduced='true'] .layerNotif.on .check,
+.root[data-reduced='true'] .dots i,
+.root[data-reduced='true'] .spin,
+.root[data-reduced='true'] .live img {
+  animation: none;
+}
+
+.root[data-reduced='true'] .btn:active,
+.root[data-reduced='true'] .zoneHot {
+  transform: none;
+}
+
+/*
+ * Choix du projet de l'appel (lot L5) : bouton à l'allure du champ du prototype, liste dessinée dans la forme
+ * (un <select> natif ouvrirait sa liste hors des zones cliquables de l'île).
+ */
+.pickerTrigger {
+  flex: 1;
+  min-width: 0;
+  height: var(--island-control-height);
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-6);
+  border-radius: var(--island-radius-control);
+  border: 1px solid var(--island-line);
+  background: var(--island-field);
+  color: var(--island-text);
+  font: inherit;
+  font-size: var(--island-font-size-md);
+  padding: 0 var(--island-space-8) 0 var(--island-space-10);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pickerTrigger:disabled {
+  color: var(--island-muted);
+  cursor: default;
+}
+
+.pickerValue {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pickerChevron {
+  width: var(--island-size-16);
+  height: var(--island-size-16);
+  flex: none;
+  color: var(--island-muted);
+}
+
+.pickerPanel {
+  position: absolute;
+  inset: 0;
+  padding: inherit;
+  display: flex;
+  flex-direction: column;
+  background: var(--island-bg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--island-duration-detail-out) ease;
+}
+
+.pickerPanel.on {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity var(--island-duration-detail-in) ease;
+}
+
+.pickerList {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--island-line) transparent;
+  outline: none;
+}
+
+.pickerOption {
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-8);
+  height: var(--island-control-height-sm);
+  padding: 0 var(--island-space-10);
+  border-radius: var(--island-radius-control);
+  font-size: var(--island-font-size-md);
+  color: var(--island-text-soft);
+  cursor: pointer;
+}
+
+.pickerOptionActive {
+  background: var(--island-ghost);
+  color: var(--island-text);
+}
+
+.pickerList:focus-visible .pickerOptionActive {
+  box-shadow: inset 0 0 0 1px var(--island-focus);
+}
+
+.pickerOptionSelected {
+  color: var(--island-text);
+  font-weight: var(--font-weight-medium);
+}
+
+.pickerCheck {
+  width: var(--island-size-16);
+  height: var(--island-size-16);
+  flex: none;
+}
+
+.layerAppel .btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.root[data-reduced='true'] .pickerPanel {
+  transition: none;
+}

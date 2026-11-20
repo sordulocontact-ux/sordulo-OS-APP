@@ -10,8 +10,16 @@ import { useSyncExternalStore } from 'react'
 import {
   DESKTOP_COMMANDS,
   DESKTOP_EVENTS,
+  type AudioLevel,
+  type ClaudeConnection,
+  type ClaudeDecision,
+  type ClaudeRelayEvent,
   type DesktopStatus,
+  type FocusModeState,
+  type IslandHitRects,
+  type IslandPointer,
   type MicState,
+  type NavigatePayload,
   type PromptPayload,
   type RecordingResult,
   type RecordingState,
@@ -49,15 +57,19 @@ export const startRecording = (args: { projectId: string; title?: string | null 
 
 export const stopRecording = () => call<RecordingResult>(DESKTOP_COMMANDS.stopRecording)
 
-export async function readRecording(path: string): Promise<ArrayBuffer> {
-  const raw = await call<ArrayBuffer | number[] | Uint8Array>(DESKTOP_COMMANDS.readRecording, { path })
+/** Raw bytes returned by a Rust command (tauri::ipc::Response), whatever shape the IPC delivers them in. */
+async function callBytes(command: string, args: Record<string, unknown>): Promise<ArrayBuffer> {
+  const raw = await call<ArrayBuffer | number[] | Uint8Array>(command, args)
   if (raw instanceof ArrayBuffer) return raw
   const bytes = raw instanceof Uint8Array ? raw : Uint8Array.from(raw)
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
 }
 
+export const readRecording = (path: string) => callBytes(DESKTOP_COMMANDS.readRecording, { path })
+
 export const deleteRecording = (path: string) => call<void>(DESKTOP_COMMANDS.deleteRecording, { path })
 
+/** The mic-active prompt stays dismissed until the mic goes inactive. The island is not hidden. */
 export const dismissPrompt = () => call<void>(DESKTOP_COMMANDS.dismissPrompt)
 
 export const showMainWindow = () => call<void>(DESKTOP_COMMANDS.showMainWindow)
@@ -65,6 +77,31 @@ export const showMainWindow = () => call<void>(DESKTOP_COMMANDS.showMainWindow)
 export const openPrompt = (args: { reason: 'manual-start' }) => call<void>(DESKTOP_COMMANDS.openPrompt, args)
 
 export const takeAuthCallback = () => call<string | null>(DESKTOP_COMMANDS.takeAuthCallback)
+
+/** Island window only: the black shapes (CSS px, relative to the window). The mouse passes through elsewhere. */
+export const islandSetHitRects = (args: IslandHitRects) =>
+  call<void>(DESKTOP_COMMANDS.islandSetHitRects, { rects: args.rects, dragMargin: args.dragMargin })
+
+/** Shows and focuses the main window, then sends it DESKTOP_EVENTS.navigate (route must start with "/"). */
+export const openMainAt = (args: NavigatePayload) => call<void>(DESKTOP_COMMANDS.openMainAt, { route: args.route })
+
+export const getFocusMode = () => call<FocusModeState>(DESKTOP_COMMANDS.getFocusMode)
+
+/** Also updates the tray menu check and emits DESKTOP_EVENTS.focusMode to the island. */
+export const setFocusMode = (args: FocusModeState) =>
+  call<FocusModeState>(DESKTOP_COMMANDS.setFocusMode, { on: args.on })
+
+export const claudeGetConnection = () => call<ClaudeConnection>(DESKTOP_COMMANDS.claudeGetConnection)
+
+/** Answers a pending PermissionRequest (requestId from the ClaudeRelayEvent). */
+export const claudeAnswer = (args: { requestId: string; decision: ClaudeDecision }) =>
+  call<void>(DESKTOP_COMMANDS.claudeAnswer, args)
+
+/** Bytes of an audio file dropped on the island (audio extensions only). */
+export const readDroppedAudio = (path: string) => callBytes(DESKTOP_COMMANDS.readDroppedAudio, { path })
+
+/** Island window: copies text to the system clipboard (no focus or user gesture needed). */
+export const copyText = (text: string) => call<void>(DESKTOP_COMMANDS.copyText, { text })
 
 /** Each returns a promise of the unsubscribe function. */
 export const onPrompt = (handler: (payload: PromptPayload) => void) =>
@@ -78,12 +115,27 @@ export const onMicState = (handler: (state: MicState) => void) =>
 
 export const onAuthCallback = (handler: () => void) => subscribe<null>(DESKTOP_EVENTS.authCallback, () => handler())
 
+export const onAudioLevel = (handler: (level: AudioLevel) => void) =>
+  subscribe<AudioLevel>(DESKTOP_EVENTS.audioLevel, handler)
+
+/** Island window: the mouse entered or left the hit rects (source of truth for the island hover). */
+export const onIslandPointer = (handler: (pointer: IslandPointer) => void) =>
+  subscribe<IslandPointer>(DESKTOP_EVENTS.islandPointer, handler)
+
+/** Main window: go to this route (sent by openMainAt). */
+export const onNavigate = (handler: (payload: NavigatePayload) => void) =>
+  subscribe<NavigatePayload>(DESKTOP_EVENTS.navigate, handler)
+
+export const onFocusMode = (handler: (state: FocusModeState) => void) =>
+  subscribe<FocusModeState>(DESKTOP_EVENTS.focusMode, handler)
+
+export const onClaude = (handler: (event: ClaudeRelayEvent) => void) =>
+  subscribe<ClaudeRelayEvent>(DESKTOP_EVENTS.claude, handler)
+
+export const onClaudeConnection = (handler: (connection: ClaudeConnection) => void) =>
+  subscribe<ClaudeConnection>(DESKTOP_EVENTS.claudeConnection, handler)
+
 /** Label of the window this code runs in (DESKTOP_WINDOWS). */
 export function currentWindowLabel(): string {
   return getCurrentWindow().label
-}
-
-/** Hides the window this code runs in (prompt window). */
-export async function hideCurrentWindow(): Promise<void> {
-  await getCurrentWindow().hide()
 }
