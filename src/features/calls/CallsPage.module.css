@@ -1,0 +1,38 @@
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.titles h1 {
+  margin-bottom: var(--space-1);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.duration {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.projectLink {
+  position: relative;
+  z-index: 1;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.projectLink:hover {
+  text-decoration: underline;
+}
+
+.projectLink:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
