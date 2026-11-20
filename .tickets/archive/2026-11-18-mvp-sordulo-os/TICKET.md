@@ -46,19 +46,34 @@ Devis, factures, contrats, prospection, catalogue, tableau de bord, fichiers pro
 Bureau, ce soir : implémentation macOS (lot L13, note ci-dessous), signature, installateur, mises à jour automatiques, build de production de l'app bureau (il faudra alors `VITE_API_BASE_URL` vers Vercel).
 
 ## Critères d'acceptation
-- [ ] Maël et Sacha se connectent et voient seulement les données de Sordulo.
-- [ ] Coller un retour écrit d'Ibé crée des tickets proposés en moins d'une minute.
-- [ ] Sur l'écran de validation, on peut modifier, valider ou refuser chaque ticket, et tout valider d'un coup.
-- [ ] Les tâches validées apparaissent dans le kanban, attribuées selon la compétence.
-- [ ] Une tâche dev qui dépend d'une tâche design l'indique dans le kanban.
-- [ ] Un fichier audio d'environ 5 minutes est transcrit avec les voix séparées, puis analysé.
-- [ ] Une erreur de transcription ou d'analyse s'affiche clairement, et on peut relancer.
-- [ ] Typecheck, lint et build passent. L'app est déployée sur Vercel.
-- [ ] Toutes les valeurs de style viennent du fichier de tokens.
-- [ ] Sur Windows, un appel Meet de 2 minutes déclenche la proposition, l'enregistrement contient les deux voix (micro + son système), et l'entrée apparaît dans le projet avec ses tickets proposés.
-- [ ] La version web (navigateur / Vercel) est identique : aucune fonction bureau visible hors Tauri.
+Bilan à la clôture (20/11) : 11 critères sur 13 cochés, 2 non vérifiés (réserves dans le Rapport).
+
+- [x] Maël et Sacha se connectent et voient seulement les données de Sordulo.
+  Preuve : RLS par organisation, 46/46 tests sur PGlite (11:55, 12:45) ; Maël connecté (web et bureau) ; Sacha connecté au site de production, accès complet (journal 17:05). Connexion par mot de passe ajoutée le 19/11.
+- [x] Coller un retour écrit d'Ibé crée des tickets proposés en moins d'une minute.
+  Preuve : E2E réel (13:00), entrée prête en 8,6 s avec Opus ; avec Sonnet, analyses en 3 à 12 s (journal 15:47, 20:20).
+- [x] Sur l'écran de validation, on peut modifier, valider ou refuser chaque ticket, et tout valider d'un coup.
+  Preuve : lot L5, 65/65 tests (12:15) ; utilisé en réel par l'utilisateur (validations des 18 et 19/11).
+- [x] Les tâches validées apparaissent dans le kanban, attribuées selon la compétence.
+  Preuve : kanban vérifié dans Chrome avec le ticket validé de l'audit Finance (21:05). Règle changée à la demande de l'utilisateur (18:20) : attribution par ticket à la personne la moins chargée, avec un bonus pour qui connaît déjà la partie du produit, raison affichée.
+- [x] Une tâche dev qui dépend d'une tâche design l'indique dans le kanban.
+  Preuve : E2E du 18/11 à 13:00 (tâche dev liée à la tâche design), tests L6. Devenu sans objet depuis « un ticket = une tâche » (20:40, décision de l'utilisateur) : l'analyse ne crée plus de dépendances, l'affichage reste en place.
+- [x] Un fichier audio d'environ 5 minutes est transcrit avec les voix séparées, puis analysé.
+  Preuve en base (vérifiée le 20/11) : réunion avec Ibé du 18/11 à 20:57, 85 min, 3 voix, 1 163 énoncés, prête avec 8 tickets proposés regroupés par partie du produit ; réunion du 19/11 à 11:49, 4 min, 2 voix, prête (aucun ticket proposé). Réserve sur les premiers essais, voir Rapport.
+- [x] Une erreur de transcription ou d'analyse s'affiche clairement, et on peut relancer.
+  Preuve : statut `error` + `error_message` affichés dans la liste et la fiche de l'entrée, tests de `process` et `analysis` ; relance utilisée en réel (entrée bloquée relancée à 15:47, « Relancer l'analyse » avec avertissement vérifié dans Chrome à 20:55). Aucune erreur provoquée exprès dans l'interface.
+- [x] Typecheck, lint et build passent. L'app est déployée sur Vercel.
+  Preuve : typecheck (`tsc -b`) sans erreur, lint (`eslint .`) propre, 102/102 tests (16 fichiers), build OK ; production https://sordulo-os-app.vercel.app répond 200, /api répond (400 sans corps) le 20/11.
+- [x] Toutes les valeurs de style viennent du fichier de tokens.
+  Preuve : recherche du 20/11 sur les CSS hors `tokens.css` / `global.css`, aucune couleur ni taille en dur, sauf `1px` du motif « texte réservé aux lecteurs d'écran » (SearchField, DesktopPromptPage), qui est un usage standard.
+- [x] Sur Windows, un appel Meet de 2 minutes déclenche la proposition, l'enregistrement contient les deux voix (micro + son système), et l'entrée apparaît dans le projet avec ses tickets proposés.
+  Preuve : appels Discord dans Arc (15:30, 15:47), ~1 min 10 et ~1 min 20 : proposition, enregistrement micro -23,5 dBFS + son de l'ordinateur -12,7 dBFS, entrée prête avec tickets proposés. Écart : testé avec Discord et non Meet, et sur un peu plus d'une minute au lieu de deux.
+- [x] La version web (navigateur / Vercel) est identique : aucune fonction bureau visible hors Tauri.
+  Preuve : fonctions bureau derrière `isDesktop()` (bouton micro de la barre latérale, fenêtre d'appel) ; Sacha utilise le site de production sans elles.
 - [ ] L'app bureau reste dans la zone de notification à la fermeture de la fenêtre ; le menu (ouvrir, statut, démarrer/arrêter, quitter) fonctionne.
+  Non vérifié : code en place (`src-tauri/src/lib.rs`, fermeture → fenêtre cachée ; `tray.rs`), icône créée au lancement (13:08), mais le menu n'a pas été contrôlé à l'écran.
 - [ ] Si Claude est indisponible et qu'une clé Mistral est configurée, l'analyse passe par Mistral.
+  Non vérifié en réel : repli codé et testé (35 tests api, 12:56), mais aucune clé Mistral utilisable (plan Free sans clé API), donc repli inactif.
 
 ## Lots
 | Lot | Objectif | Fichiers possédés | Dépend de | Modèle / effort | Statut |
@@ -70,7 +85,7 @@ Bureau, ce soir : implémentation macOS (lot L13, note ci-dessous), signature, i
 | L4 | Onglet Entrées : nouvelle entrée texte/audio, upload signé, statut, relance, fiche avec transcription et noms des voix | src/features/inputs/ | L3 | sonnet / medium | validé |
 | L5 | Écran de validation + onglet Tickets | src/features/review/, src/features/tickets/ | L3 | sonnet / medium | validé |
 | L6 | Onglet Tâches : kanban 4 colonnes, DnD + menu, filtre personne, dépendances, réattribution | src/features/tasks/ | L3 | sonnet / medium | validé |
-| L7 | Intégration : README, test bout en bout, corrections | README.md + corrections ciblées | L1–L6 | orchestrateur | en cours |
+| L7 | Intégration : README, test bout en bout, corrections | README.md + corrections ciblées | L1–L6 | orchestrateur | validé |
 | L8 | Coque Tauri : config, fenêtres main/prompt, zone de notification (soleil), boucle de détection 2 s, commandes IPC, état, single-instance | src-tauri/ (sauf src/platform/**), icônes | contrats L0 bis | opus / high | validé |
 | L9 | Windows : détection micro (registre) + capture WASAPI micro + loopback, mix, MP3 16 kHz mono | src-tauri/src/platform/windows/** | contrats L0 bis | opus / high | validé |
 | L10 | Front bureau : détection Tauri, `uploadMeeting.ts` partagé (refacto de NewInputModal), fenêtre `/desktop/prompt`, boutons d'enregistrement | src/lib/desktop.ts, src/features/desktop/**, src/features/inputs/uploadMeeting.ts + NewInputModal.tsx, src/app/routes.tsx, src/app/AppLayout.* | L4 (validé), contrat IPC | sonnet / medium | validé |
@@ -134,3 +149,31 @@ Socle bureau posé par l'orchestrateur (« L0 bis ») : `@tauri-apps/api` + `@ta
 - 21:05 Retours design : liens de retour bleus remplacés par un composant `BackLink` (flèche + texte gris, noir au survol) ; liens du texte en noir souligné (plus de bleu, absent du Figma) ; icônes flèche et téléchargement redessinées dans le style des icônes de la barre latérale (20 px, trait 2 px, extrémités carrées) ; kanban : les 4 colonnes se partagent la largeur, plus de barre de défilement horizontale (défilement sans barre sur écran étroit). Vérifié dans Chrome.
 - 19/11 Connexion web : email + mot de passe par défaut (le mot de passe se définit dans le menu du compte, 8 caractères min.), lien email gardé en secours (première connexion, oubli). Évite la limite d'emails de Supabase. Lien de connexion à usage unique généré côté serveur pour Sacha (sans email). Non vérifié à l'écran (Chrome ne répondait pas) ; type-check, 102 tests et build OK.
 - 20/11 À faire plus tard (décision utilisateur) : version release de l'app de bureau Windows (installeur, plus de console, API pointée vers Vercel avec CORS, sans serveur local), base des mises à jour automatiques et du lot L13 (macOS).
+
+## Rapport
+Clôturé le 20/11/2026. Résultat : MVP livré et utilisé en réel. La réunion avec Ibé du 18/11 au soir a donné 8 tickets proposés, regroupés par partie du produit, qui attendent la relecture de l'équipe.
+
+### Livré
+- **Parcours complet** : entrée (texte collé, document glissé — PDF, Word, texte, dossiers entiers —, fichier audio, ou appel enregistré par l'app de bureau) → transcription Deepgram avec voix séparées → analyse Claude Sonnet (sortie structurée, en streaming) → tickets proposés → relecture et validation → kanban à 4 colonnes.
+- **Découpage et attribution**, recalés sur les retours de l'utilisateur : un ticket = une tâche (confiée ensuite à Claude Code avec /ticket), regroupement par partie du produit, attribution à la personne la moins chargée avec un bonus pour qui connaît la partie, durées calibrées pour Claude Code, raison de l'attribution affichée, protections contre les doublons à la relance.
+- **Gestion des entrées** : aperçu des tickets avant validation, suppression avec confirmation, téléchargement du texte, de la transcription et de l'audio.
+- **App de bureau Windows** (Tauri 2, version de développement) : détection des appels (apps d'appel dédiées, ou navigateur qui joue du son ou dont la fenêtre a un titre d'appel), barre de proposition en haut de l'écran, enregistrement micro + son de l'ordinateur en MP3, envoi et analyse automatiques, connexion par lien `sordulo://auth`.
+- **Production** : https://sordulo-os-app.vercel.app, déploiement automatique à chaque push sur `main` ; connexion par email + mot de passe, lien email en secours.
+- **Design** : maquette Figma appliquée par les tokens (une seule source de valeurs), police des titres Exposure.
+
+### Vérifications
+Le 20/11 : typecheck (`tsc -b`) sans erreur, lint (`eslint .`) propre, 102/102 tests (16 fichiers), build OK ; 40 tests Rust ; 46 tests RLS (lot L1) ; production 200 ; données de production relues (3 entrées, 9 tickets). 51 commits sur `main`, 2 migrations appliquées en production.
+
+### Réserves
+- **Voix séparées (Deepgram)** : sur les deux appels de test du 18/11 (Discord dans Arc, ~1 min chacun), Deepgram n'a reconnu qu'une voix. Sur les vraies réunions, la séparation fonctionne : 3 voix sur la réunion avec Ibé (85 min), 2 voix sur celle du 19/11 (4 min). À surveiller sur les appels courts ou quand un participant parle peu.
+- **Repli Mistral inactif** : codé et testé, mais sans clé API utilisable (le plan Free de Mistral n'en donne pas). Si Claude est indisponible (crédits épuisés, limite atteinte), l'analyse échoue avec un message, sans repli.
+- **App de bureau : version release reportée** (décision de l'utilisateur, 20/11). Seule la version de développement existe : console Windows ouverte à côté, serveur local (`npm run dev`) obligatoire, pas d'installeur ni de mise à jour automatique. À faire : API pointée vers Vercel (CORS), installeur, mises à jour automatiques.
+- **App de bureau macOS reportée** (lot L13, note ci-dessus) : Sacha utilise le site en attendant.
+- **Non vérifié à l'écran** : menu de la zone de notification (critère non coché) ; page de connexion par mot de passe et fenêtre « Mot de passe » (Chrome ne répondait pas le 19/11, code testé et compilé).
+- **Police Exposure en version d'essai** : vérifier la licence avant tout usage public.
+- **Crédits Anthropic** : crédits gratuits qui expirent le 06/12, clé qui expire le 18/12/2026, aucun moyen de paiement enregistré. À prévoir avant ces dates pour que l'analyse continue.
+
+### Suites proposées
+1. Relire et valider les 8 tickets de la réunion avec Ibé.
+2. Version release Windows de l'app de bureau, puis macOS (L13) avec mises à jour automatiques.
+3. Clé Mistral payante ou autre repli, et renouvellement de l'accès Anthropic avant le 06/12.
