@@ -106,6 +106,8 @@ export function EditMemberModal({ member, currentMemberId, currentUserId, onClos
           </p>
         ) : null}
 
+        {role !== 'admin' && role !== 'membre' ? <p className={styles.help}>Pas d’attribution automatique pour ce rôle.</p> : null}
+
         <div className={styles.levels}>
           {SKILLS.map((skill) => (
             <Field key={skill} label={`Niveau ${LABELS.skill[skill].toLowerCase()}`}>

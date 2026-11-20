@@ -34,6 +34,7 @@ Hors périmètre : chantier de Maël (île, app de bureau, release Windows, macO
 - Idées retenues : devis accepté → facture (ou facture d'acompte en %), mentions légales automatiques (échéance 30 j par défaut, pénalités de retard, indemnité 40 €, mention TVA, badge « En retard »), dupliquer un devis, export CSV comptable (réponse utilisateur).
 - Migrations : l'utilisateur remplit `SUPABASE_DB_URL` ; tout est testé sur le Supabase local, puis `npm run db:migrate` en prod juste avant son push (réponse utilisateur).
 - Git : branche `feature/v0-3-devis-factures-accueil` partie de la V0.2, un commit par phase ; l'utilisateur pousse (réponse utilisateur).
+- Barre d'outils des listes (demande de Sacha en cours de ticket) : recherche sur toute la largeur, bouton carré « filtre » qui ouvre un panneau de filtres, bouton carré « + » à la place des boutons texte « Nouveau … », sur Projets, Clients, Équipe et toutes les nouvelles listes (réponse utilisateur, Figma 61:2989).
 - Accueil devient la page `/` ; la liste des projets passe à `/projects` (Figma : maison en premier, mallette ensuite) (choix par défaut).
 - Libellés : la page s'appelle « Devis » (le Figma dit « Contrats », mais un devis n'est pas un contrat : signalé à Sacha) ; statuts devis Brouillon / Envoyé / Accepté / Refusé, « Expiré » affiché quand la date de validité est passée sur un devis envoyé (choix par défaut).
 - Montants en centimes entiers (`bigint`), TVA par ligne, arrondis : HT ligne = arrondi(quantité × PU) ; TVA = arrondi(somme HT du taux × taux / 100) par taux ; TTC = HT + TVA. Calcul identique en SQL (trigger, source de vérité) et dans `src/shared/billing.ts` (aperçu) (choix par défaut).
@@ -80,18 +81,22 @@ V0.3 :
 
 | Lot | Objectif | Fichiers possédés | Dépend de | Modèle / effort | Statut |
 |---|---|---|---|---|---|
-| L0 | Socle front : types, rôles, routes, navigation, clés de requête, icônes | `src/shared/types.ts`, `src/features/auth/roles.ts`, `src/features/auth/RequireRole.tsx`, `src/app/**`, `src/lib/queryKeys.ts`, `src/assets/icons/**`, liens « / » des projets | - | orchestrateur | à faire |
+| L0 | Socle front : types, rôles, routes, navigation, clés de requête, icônes | `src/shared/types.ts`, `src/features/auth/roles.ts`, `src/features/auth/RequireRole.tsx`, `src/app/**`, `src/lib/queryKeys.ts`, `src/assets/icons/**`, liens « / » des projets | - | orchestrateur | validé |
 | L1 | Migration 0004 + tests RLS + README | `supabase/**`, `scripts/db-seed.mjs` | - | opus / high | à faire |
 | L2 | Logique de facturation partagée + composants communs (lignes, aperçu A4, montants) | `src/shared/billing.ts`, `src/shared/billing.test.ts`, `src/features/billing/**` | L0 | sonnet / medium | à faire |
-| L3 | Attribution par capacité | `src/shared/assignment.ts`, `src/shared/assignment.test.ts`, `api/_lib/pipeline.ts`, `api/_lib/pipeline.test.ts`, `src/features/review/diff.ts` (+ test) | - | sonnet / medium | à faire |
+| L3 | Attribution par capacité | `src/shared/assignment.ts`, `src/shared/assignment.test.ts`, `api/_lib/pipeline.ts`, `api/_lib/pipeline.test.ts`, `src/features/review/diff.ts` (+ test) | - | sonnet / medium | validé |
 | L4 | Devis : liste, édition, envoi / acceptation, duplication, aperçu | `src/features/quotes/**` | L0, L2 | sonnet / medium | à faire |
 | L5 | Factures : liste, brouillon, émission, paiement, avoir, acompte, export CSV, aperçu | `src/features/invoices/**` | L0, L2 | sonnet / medium | à faire |
 | L6 | Prospection : liste, étapes, fiche, conversion | `src/features/prospects/**` | L0 | sonnet / medium | à faire |
 | L7 | Accueil | `src/features/home/**` | L0 | sonnet / medium | à faire |
 | L8 | Paramètres (facturation) et Équipe (rôle finance) | `src/features/settings/**`, `src/features/team/**` | L0 | sonnet / medium | à faire |
+| L10 | Barre d'outils des listes (recherche pleine largeur + bouton filtre + bouton « + », Figma 61:2989) sur Projets, Clients, Équipe ; lecture seule finance | `src/components/ui/ListToolbar.*`, `IconButton.*`, `index.ts`, `dataTable.module.css`, `src/features/projects/ProjectsPage.*`, `projectLogic.*`, `src/features/clients/**`, `src/features/team/TeamPage.*`, `teamFilters.*` | L0 | sonnet / medium | en cours |
 | L9 | Clôture V0.2 (navigateur, rapport, archive) | `.tickets/2026-11-20-v0-2-clients-projets-equipe/**` (worktree V0.2) | - | orchestrateur | en cours |
 
 ## Journal
 
 - 14:25 Questions posées et répondues ; branche `feature/v0-3-devis-factures-accueil` créée depuis `b2a1fbb`.
 - 14:30 Supabase local démarré (ports 565xx). V0.2 : 0001 + 0002 appliquées, données comme en prod (Ibé avec `contact_name`, App Ibé `active`), puis 0003 : contact repris en principal, App Ibé `in_progress`.
+- 14:40 L1 (opus) et L3 (sonnet) lancés.
+- 14:55 L3 rendu et validé (charge relative, capacité 0 exclue, indisponible du jour relégué ; 136 tests front OK). L0 fait (types, rôles ALL/CLIENT_READ/FINANCE/PROSPECT, routes, nav Accueil / Projets / Clients / Prospection / Devis / Factures / Équipe / Paramètres, icônes file-text, receipt, target dessinées). Commit `e58c617`.
+- 14:58 Demande de Sacha : barre d'outils façon Figma « Contrats » partout → lot L10. L10, L2, L8 lancés.

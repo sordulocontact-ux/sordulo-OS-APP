@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Badge, BackLink, Button, EmptyState, ErrorState, LoadingState, Modal, useToast } from '../../components/ui'
+import { PROJECT_ROLES, useHasRole } from '../auth/roles'
 import type { ClientContact } from '../../shared/types'
 import { ProjectFormModal, ProjectStatus } from '../projects'
 import { formatDate } from '../tickets/format'
@@ -27,6 +28,8 @@ export function ClientPage() {
   const { clientId } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
+  // Finance consulte la fiche sans rien modifier ni ouvrir les projets (RLS et routes).
+  const canWrite = useHasRole(PROJECT_ROLES)
   const clientQuery = useClient(clientId)
   const contactsQuery = useClientContacts(clientId)
   const projectsQuery = useClientProjects(clientId)
@@ -99,11 +102,12 @@ export function ClientPage() {
     }
   }
 
-  const newProjectButton = (variant: 'primary' | 'secondary') => (
-    <Button variant={variant} onClick={() => setCreatingProject(true)}>
-      Nouveau projet
-    </Button>
-  )
+  const newProjectButton = (variant: 'primary' | 'secondary') =>
+    canWrite ? (
+      <Button variant={variant} onClick={() => setCreatingProject(true)}>
+        Nouveau projet
+      </Button>
+    ) : undefined
 
   return (
     <div className={styles.page}>
@@ -114,6 +118,7 @@ export function ClientPage() {
             <h1>{client.name}</h1>
             {archived ? <Badge>Archivé</Badge> : null}
           </div>
+          {canWrite ? (
           <div className={styles.actions}>
             <Button onClick={() => setEditing(true)}>Modifier</Button>
             <Button
@@ -128,6 +133,7 @@ export function ClientPage() {
             </Button>
             {newProjectButton('primary')}
           </div>
+          ) : null}
         </div>
         {archived && archiveError ? (
           <p className={styles.error} role="alert">
@@ -171,9 +177,11 @@ export function ClientPage() {
           <h2 id="client-contacts" className={styles.sectionTitle}>
             Contacts
           </h2>
-          <Button size="sm" onClick={() => setContactModal({ contact: null })}>
-            Ajouter un contact
-          </Button>
+          {canWrite ? (
+            <Button size="sm" onClick={() => setContactModal({ contact: null })}>
+              Ajouter un contact
+            </Button>
+          ) : null}
         </div>
         {contactsError ? (
           <p className={styles.error} role="alert">
@@ -185,7 +193,7 @@ export function ClientPage() {
         ) : contactsQuery.isError ? (
           <ErrorState message="Impossible de charger les contacts." onRetry={() => void contactsQuery.refetch()} />
         ) : contacts.length === 0 ? (
-          <EmptyState title="Aucun contact" text="Ajoute la personne à qui écrire chez ce client." />
+          <EmptyState title="Aucun contact" text={canWrite ? 'Ajoute la personne à qui écrire chez ce client.' : undefined} />
         ) : (
           <ul className={styles.contacts}>
             {contacts.map((contact) => (
@@ -201,6 +209,7 @@ export function ClientPage() {
                     {contact.phone ? <a href={`tel:${contact.phone}`} className={styles.link}>{contact.phone}</a> : null}
                   </span>
                 </div>
+                {canWrite ? (
                 <div className={styles.actions}>
                   {contact.is_primary ? null : (
                     <Button
@@ -227,6 +236,7 @@ export function ClientPage() {
                     Supprimer
                   </Button>
                 </div>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -256,9 +266,13 @@ export function ClientPage() {
               {projects.map((project) => (
                 <tr key={project.id} className={table.row}>
                   <td>
-                    <Link to={`/projects/${project.id}`} className={table.rowLink}>
-                      {project.name}
-                    </Link>
+                    {canWrite ? (
+                      <Link to={`/projects/${project.id}`} className={table.rowLink}>
+                        {project.name}
+                      </Link>
+                    ) : (
+                      <span className={table.primary}>{project.name}</span>
+                    )}
                   </td>
                   <td>
                     <ProjectStatus status={project.status} />

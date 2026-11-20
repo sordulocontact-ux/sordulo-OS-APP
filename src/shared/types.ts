@@ -177,6 +177,8 @@ export interface Prospect {
   owner_member_id: string | null
   /** Client créé à la conversion. */
   client_id: string | null
+  /** Passage à « gagné » (posé par la base), null sinon. */
+  won_at: string | null
   created_by: string | null
   created_at: string
   updated_at: string

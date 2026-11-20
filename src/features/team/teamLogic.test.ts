@@ -1,7 +1,8 @@
+import { MEMBER_ROLES } from '../../shared/types'
 import { describe, expect, it } from 'vitest'
 import {
   buildSkills, formatCapacity, formatHours, teamStats, levelFromSelect, levelToSelect, memberStatus, parseCapacity, removalBlock,
-  skillsSummary, translateMemberError, unavailableText,
+  ROLE_HELP, skillsSummary, translateMemberError, unavailableText, withSignIn,
 } from './teamLogic'
 
 describe('memberStatus', () => {
@@ -10,6 +11,13 @@ describe('memberStatus', () => {
     expect(memberStatus({ removed_at: null, invited_at: '2026-01-01', user_id: null })).toBe('invited')
     expect(memberStatus({ removed_at: null, invited_at: '2026-01-01', user_id: 'u' })).toBe('active')
     expect(memberStatus({ removed_at: '2026-01-02', invited_at: '2026-01-01', user_id: null })).toBe('removed')
+  })
+  it('un invité relié à son compte reste invité tant qu’il ne s’est pas connecté', () => {
+    const invited = { removed_at: null, invited_at: '2026-01-01', user_id: 'u' }
+    expect(memberStatus({ ...invited, signed_in: false })).toBe('invited')
+    expect(memberStatus({ ...invited, signed_in: true })).toBe('active')
+    expect(memberStatus({ ...invited, invited_at: null, signed_in: false })).toBe('active')
+    expect(withSignIn([{ id: 'a' }, { id: 'b' }], new Map([['a', false]]))).toEqual([{ id: 'a', signed_in: false }, { id: 'b' }])
   })
 })
 
@@ -91,5 +99,12 @@ describe('teamStats', () => {
   it('formate les heures', () => {
     expect(formatHours(70)).toBe('70 h')
     expect(formatHours(52.5)).toBe('52,5 h')
+  })
+})
+
+describe('ROLE_HELP', () => {
+  it('couvre tous les rôles, finance compris', () => {
+    for (const role of MEMBER_ROLES) expect(ROLE_HELP[role]).toBeTruthy()
+    expect(ROLE_HELP.finance).toMatch(/Devis/)
   })
 })

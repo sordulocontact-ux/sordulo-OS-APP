@@ -1,0 +1,139 @@
+/* Styles propres aux écrans Factures. La liste réutilise dataTable.module.css. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-lg);
+}
+
+.infos {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-3) var(--space-6);
+  margin: 0;
+}
+
+.infos dt {
+  color: var(--color-text-muted);
+}
+
+.infos dd {
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.link {
+  color: var(--color-link);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.error {
+  color: var(--color-danger);
+}
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: var(--size-border) solid var(--color-border);
+  background: var(--color-surface-muted);
+}
+
+.noticeDanger {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.noticeWarning {
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.notice p,
+.notice ul {
+  margin: 0;
+}
+
+.notice ul {
+  padding-left: var(--space-5);
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+/* Carte « En retard » : chiffre en rouge quand il y a du retard. */
+.dangerStat > div {
+  color: var(--color-danger);
+}
+
+/* Montant d'une ligne de tableau : aligné à droite, chiffres de même largeur. */
+.amount {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.amount.amount {
+  text-align: right;
+}
+
+.cancelled a,
+.cancelled .amount {
+  text-decoration: line-through;
+  color: var(--color-text-subtle);
+}
+
+.numberCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.multiline {
+  white-space: pre-line;
+}

@@ -3,6 +3,7 @@ import {
   clientStats,
   emailError,
   findDuplicate,
+  matchesProjectsFilter,
   formatSiret,
   matchesQuery,
   needsCompletion,
@@ -120,5 +121,20 @@ describe('clientStats', () => {
       { ...full, archived_at: '2026-01-01', siret: null, contacts: [], project_statuses: [{ status: 'in_progress' }] },
     ])
     expect(stats).toEqual({ active: 2, withOngoingProject: 1, withoutPrimaryContact: 1, toComplete: 1 })
+  })
+})
+
+describe('matchesProjectsFilter', () => {
+  const withActive = { projects: [{ count: 2 }], project_statuses: [{ status: 'in_progress' }, { status: 'paid' }] }
+  const onlyPaid = { projects: [{ count: 1 }], project_statuses: [{ status: 'paid' }] }
+  const empty = { projects: [{ count: 0 }], project_statuses: [] }
+  it('tous : tout passe', () => {
+    expect([withActive, onlyPaid, empty].every((c) => matchesProjectsFilter(c, ''))).toBe(true)
+  })
+  it('en cours : au moins un projet in_progress', () => {
+    expect([withActive, onlyPaid, empty].map((c) => matchesProjectsFilter(c, 'active'))).toEqual([true, false, false])
+  })
+  it('sans projet', () => {
+    expect([withActive, onlyPaid, empty].map((c) => matchesProjectsFilter(c, 'none'))).toEqual([false, false, true])
   })
 })

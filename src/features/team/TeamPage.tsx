@@ -1,18 +1,19 @@
 import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ActionsMenu, Avatar, Icon, Badge, Button, EmptyState, ErrorState, LoadingState, StatCard, useToast, type ActionsMenuItem } from '../../components/ui'
-import plusIcon from '../../assets/icons/plus.svg'
+import { ActionsMenu, Avatar, Badge, EmptyState, ErrorState, Field, ListToolbar, LoadingState, Select, StatCard, useToast, type ActionsMenuItem } from '../../components/ui'
 import table from '../../components/ui/dataTable.module.css'
 import { useAuth, useCurrentMember } from '../auth'
 import { api, ApiRequestError } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
 import { queryKeys } from '../../lib/queryKeys'
-import { LABELS, type Member } from '../../shared/types'
+import { LABELS, MEMBER_ROLES, type Member } from '../../shared/types'
 import { EditMemberModal } from './EditMemberModal'
 import { InviteMemberModal } from './InviteMemberModal'
 import { LoginLinkModal } from './LoginLinkModal'
 import { RemoveMemberModal } from './RemoveMemberModal'
-import { formatCapacity, formatHours, memberStatus, REMOVAL_BLOCK_TEXT, removalBlock, skillsSummary, STATUS_LABELS, teamStats, translateMemberError, unavailableText } from './teamLogic'
+import { useMemberSignIn } from './useMemberSignIn'
+import { formatCapacity, formatHours, memberStatus, REMOVAL_BLOCK_TEXT, removalBlock, skillsSummary, STATUS_LABELS, teamStats, translateMemberError, unavailableText, withSignIn } from './teamLogic'
+import { activeTeamFilterCount, filterMembers, type RoleFilter, type TeamStatusFilter } from './teamFilters'
 import { useTeamMembers } from './useTeamMembers'
 import styles from './TeamPage.module.css'
 
@@ -30,16 +31,19 @@ export function TeamPage() {
   const queryClient = useQueryClient()
   const toast = useToast()
 
-  const [showRemoved, setShowRemoved] = useState(false)
+  const [query, setQuery] = useState('')
+  const [role, setRole] = useState<RoleFilter>('')
+  const [statusFilter, setStatusFilter] = useState<TeamStatusFilter>('')
   const [inviting, setInviting] = useState(false)
   const [editing, setEditing] = useState<Member | null>(null)
   const [removing, setRemoving] = useState<Member | null>(null)
   const [link, setLink] = useState<{ name: string; link: string } | null>(null)
   const [pendingId, setPendingId] = useState<string | null>(null)
 
-  const members = useMemo(() => data ?? [], [data])
+  const signIn = useMemberSignIn(organization?.id)
+  const members = useMemo(() => withSignIn(data ?? [], signIn.data), [data, signIn.data])
   const stats = useMemo(() => teamStats(members), [members])
-  const visible = useMemo(() => (showRemoved ? members : members.filter((m) => !m.removed_at)), [members, showRemoved])
+  const visible = useMemo(() => filterMembers(members, { query, role, status: statusFilter }), [members, query, role, statusFilter])
 
   async function newLink(target: Member) {
     if (pendingId) return
@@ -79,25 +83,48 @@ export function TeamPage() {
           <StatCard value={formatHours(stats.weeklyHours)} label="Capacité de l’équipe" hint="par semaine" />
         </div>
       ) : null}
-      <div className={table.toolbar}>
-        <label className={styles.checkbox}>
-          <input type="checkbox" checked={showRemoved} onChange={(e) => setShowRemoved(e.target.checked)} />
-          Afficher les membres retirés
-        </label>
-        <div className={table.toolbarEnd}>
-          <Button variant="primary" onClick={() => setInviting(true)} disabled={!orgId}>
-            <Icon src={plusIcon} />
-            Inviter un membre
-          </Button>
-        </div>
-      </div>
+      <ListToolbar
+        search={{ value: query, onChange: setQuery, label: 'Rechercher un membre', placeholder: 'Nom ou email' }}
+        activeFilterCount={activeTeamFilterCount({ role, status: statusFilter })}
+        onResetFilters={() => {
+          setRole('')
+          setStatusFilter('')
+        }}
+        onAdd={orgId ? () => setInviting(true) : undefined}
+        addLabel="Inviter un membre"
+        filters={
+          <>
+            <Field label="Rôle">
+              <Select value={role} onChange={(e) => setRole(e.target.value as RoleFilter)}>
+                <option value="">Tous les rôles</option>
+                {MEMBER_ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {LABELS.memberRole[r]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Statut">
+              <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as TeamStatusFilter)}>
+                <option value="">Actifs et invités</option>
+                <option value="active">Actifs</option>
+                <option value="invited">Invités</option>
+                <option value="removed">Retirés</option>
+              </Select>
+            </Field>
+          </>
+        }
+      />
 
       {isLoading || !orgId ? (
         <LoadingState label="Chargement de l’équipe…" />
       ) : isError ? (
         <ErrorState message="Impossible de charger l’équipe." onRetry={() => void refetch()} />
       ) : visible.length === 0 ? (
-        <EmptyState title="Aucun membre" text="Invite le premier membre de l’équipe." />
+        <EmptyState
+          title={members.length === 0 ? 'Aucun membre' : 'Aucun membre ne correspond.'}
+          text={members.length === 0 ? 'Invite le premier membre de l’équipe.' : 'Change la recherche ou les filtres.'}
+        />
       ) : (
         <table className={table.table}>
           <thead>

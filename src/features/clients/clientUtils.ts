@@ -135,3 +135,22 @@ export function clientStats(
   }
   return stats
 }
+
+/** Filtre « Projets » de la liste des clients. */
+export type ProjectsFilter = '' | 'active' | 'none'
+
+export const PROJECTS_FILTER_LABELS: Record<ProjectsFilter, string> = {
+  '': 'Tous les clients',
+  active: 'Avec un projet en cours',
+  none: 'Sans projet',
+}
+
+/** Vrai si le client passe le filtre (« en cours » = au moins un projet au statut in_progress). */
+export function matchesProjectsFilter(
+  client: { projects: readonly { count: number }[]; project_statuses: readonly { status: string }[] },
+  filter: ProjectsFilter,
+): boolean {
+  if (filter === 'none') return (client.projects[0]?.count ?? 0) === 0
+  if (filter === 'active') return client.project_statuses.some((p) => p.status === 'in_progress')
+  return true
+}

@@ -5,7 +5,7 @@ import { useAuth, useCurrentMember } from '../auth'
 import { supabase } from '../../lib/supabase'
 import { queryKeys } from '../../lib/queryKeys'
 import type { Organization } from '../../shared/types'
-import { buildPatch, LEGAL_FORMS, toForm, type SettingsErrors, type SettingsForm } from './settingsLogic'
+import { buildPatch, formatIban, isZeroVat, LEGAL_FORMS, toForm, type SettingsErrors, type SettingsForm } from './settingsLogic'
 import styles from './SettingsPage.module.css'
 
 function useOrganization(organizationId: string | undefined) {
@@ -153,6 +153,35 @@ function SettingsForm({ organization }: { organization: Organization }) {
           </Field>
           <Field label="Taux horaire par défaut (€ HT)" error={errors.hourlyRate}>
             <TextInput type="number" min={0} step={0.01} inputMode="decimal" value={form.hourlyRate} onChange={(e) => set('hourlyRate', e.target.value)} disabled={busy} />
+          </Field>
+        </div>
+        <div className={styles.pair}>
+          <Field
+            label="TVA par défaut des lignes (%)"
+            hint={isZeroVat(form.vatRate) ? 'À 0 %, remplis la mention TVA ci-dessus (« TVA non applicable, art. 293 B du CGI »).' : 'Par exemple 20 ; 0 en franchise de TVA.'}
+            error={errors.vatRate}
+          >
+            <TextInput inputMode="decimal" value={form.vatRate} onChange={(e) => set('vatRate', e.target.value)} disabled={busy} />
+          </Field>
+          <Field label="Délai de paiement (jours)" hint="0 à 60 jours (plafond légal) ; 0 = paiement à réception." error={errors.paymentTermsDays}>
+            <TextInput type="number" min={0} max={60} step={1} inputMode="numeric" value={form.paymentTermsDays} onChange={(e) => set('paymentTermsDays', e.target.value)} disabled={busy} />
+          </Field>
+        </div>
+        <Field label="Validité des devis (jours)" hint="De 1 à 365 jours." error={errors.quoteValidityDays}>
+          <TextInput type="number" min={1} max={365} step={1} inputMode="numeric" value={form.quoteValidityDays} onChange={(e) => set('quoteValidityDays', e.target.value)} disabled={busy} />
+        </Field>
+        <div className={styles.pair}>
+          <Field label="IBAN" hint="Affiché sur les factures." error={errors.iban}>
+            <TextInput
+              value={form.iban}
+              onChange={(e) => set('iban', e.target.value)}
+              onBlur={() => setForm((current) => ({ ...current, iban: formatIban(current.iban) }))}
+              autoComplete="off"
+              disabled={busy}
+            />
+          </Field>
+          <Field label="BIC" hint="8 ou 11 caractères." error={errors.bic}>
+            <TextInput value={form.bic} onChange={(e) => set('bic', e.target.value)} autoComplete="off" disabled={busy} />
           </Field>
         </div>
       </Card>

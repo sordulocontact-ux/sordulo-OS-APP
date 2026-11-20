@@ -1,0 +1,196 @@
+/* Écran : une feuille blanche posée sur fond gris. Impression : la feuille seule, noir sur blanc. */
+.wrapper {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--color-surface-muted);
+  overflow-x: auto;
+}
+
+.page {
+  flex: none;
+  box-sizing: border-box;
+  width: var(--size-print-page-width);
+  min-height: var(--size-print-page-min-height);
+  padding: var(--space-print-margin);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  background: var(--color-bg);
+  border: var(--size-border) solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
+
+.meta {
+  text-align: right;
+}
+
+.kind {
+  font-family: var(--font-display);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-regular);
+}
+
+.number {
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.partyName {
+  font-weight: var(--font-weight-semibold);
+}
+
+.sectionLabel {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.buyer {
+  align-self: flex-end;
+  min-width: 50%;
+  padding: var(--space-4);
+  border: var(--size-border) solid var(--color-border);
+}
+
+.subject {
+  font-weight: var(--font-weight-medium);
+}
+
+.lines {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.lines th,
+.lines td {
+  padding: var(--space-2);
+  border-bottom: var(--size-border) solid var(--color-border);
+  font-weight: var(--font-weight-regular);
+  text-align: left;
+  vertical-align: top;
+}
+
+.lines th {
+  border-bottom-color: var(--color-text);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.lines tr {
+  break-inside: avoid;
+}
+
+.lines .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lineLabel {
+  display: block;
+  font-weight: var(--font-weight-medium);
+}
+
+.lineDescription {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.totals {
+  align-self: flex-end;
+  width: 100%;
+  max-width: var(--size-totals-max);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  break-inside: avoid;
+}
+
+.totalRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.totalRow dd {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.grand {
+  padding-top: var(--space-2);
+  border-top: var(--size-border) solid var(--color-text);
+  font-weight: var(--font-weight-bold);
+}
+
+.notes {
+  white-space: pre-wrap;
+}
+
+.mentions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: auto;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  break-inside: avoid;
+}
+
+.signature {
+  height: var(--size-signature-height);
+  margin-top: var(--space-2);
+  border: var(--size-border) solid var(--color-border);
+}
+
+/* Les marges sont dans le padding de la feuille : @page n'accepte pas var(), et 0 masque aussi les en-têtes du navigateur. */
+@page {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+  /* Seule la feuille s'imprime : tout le reste de la page est masqué, la feuille passe en haut à gauche. */
+  :global(body) * {
+    visibility: hidden;
+  }
+
+  .wrapper,
+  .wrapper * {
+    visibility: visible;
+  }
+
+  .wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 0;
+    background: var(--color-bg);
+    overflow: visible;
+  }
+
+  .page {
+    border: 0;
+    box-shadow: none;
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+
+  .mentions,
+  .sectionLabel,
+  .lines th,
+  .lineDescription {
+    color: var(--color-text);
+  }
+}

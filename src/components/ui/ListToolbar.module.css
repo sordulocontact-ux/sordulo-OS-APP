@@ -1,0 +1,98 @@
+/* Une seule ligne, y compris sur mobile : la recherche rétrécit, les boutons carrés gardent leur taille. */
+.toolbar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.toolbar > .search {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.filterRoot {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+/* Pastille discrète sur l'angle du bouton filtre. */
+.badge {
+  position: absolute;
+  top: calc(var(--space-2) * -1);
+  right: calc(var(--space-2) * -1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--size-icon);
+  height: var(--size-icon);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* Ancré à droite du bouton ; ne dépasse jamais de l'écran. */
+.panel {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: calc(var(--size-menu-min) * 1.75);
+  max-width: calc(100vw - var(--space-8) - var(--size-control-md) - var(--space-3));
+  padding: var(--space-4);
+  border: var(--size-border) solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.panelTitle {
+  font-weight: var(--font-weight-semibold);
+}
+
+.reset {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.reset:hover:not(:disabled) {
+  color: var(--color-text);
+}
+
+.reset:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-disabled);
+}
+
+.reset:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* Champs empilés ; cases à cocher dans le même alignement. */
+.panelBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}

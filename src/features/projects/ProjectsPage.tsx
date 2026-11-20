@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ActionsMenu, Avatar, Icon, Button, EmptyState, ErrorState, LoadingState, SearchField, Select, StatCard } from '../../components/ui'
+import { ActionsMenu, Avatar, Icon, Button, EmptyState, ErrorState, Field, ListToolbar, LoadingState, Select, StatCard, type ActionsMenuItem } from '../../components/ui'
+import { PROJECT_ROLES, useHasRole } from '../auth/roles'
 import plusIcon from '../../assets/icons/plus.svg'
 import table from '../../components/ui/dataTable.module.css'
 import { formatDate } from '../tickets/format'
@@ -26,6 +27,8 @@ export function ProjectsPage() {
   const [query, setQuery] = useState('')
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<ProjectWithClient | null>(null)
+  // Finance lit la liste sans rien écrire ni ouvrir de projet (RLS et routes).
+  const canWrite = useHasRole(PROJECT_ROLES)
 
   const status = parseStatusParam(params.get('statut'))
   const client = params.get('client') ?? ''
@@ -46,6 +49,10 @@ export function ProjectsPage() {
   const projects = useMemo(() => filterProjects(data ?? [], { query, status, client }), [data, query, status, client])
   const clientOptions = useMemo(() => clientsInProjects(data ?? []), [data])
   const now = new Date()
+  const projectActions = (project: ProjectWithClient): ActionsMenuItem[] => [
+    { label: 'Modifier', onSelect: () => setEditing(project) },
+    { label: 'Ouvrir le projet', onSelect: () => void navigate(`/projects/${project.id}`) },
+  ]
   const stats = useMemo(() => projectStats(data ?? [], new Date()), [data])
 
   return (
@@ -59,40 +66,38 @@ export function ProjectsPage() {
           <StatCard value={stats.paid} label="Payés" to="?statut=paid" />
         </div>
       ) : null}
-      <div className={table.toolbar}>
-        <SearchField
-          className={table.search}
-          label="Rechercher un projet"
-          value={query} onChange={(e) => setQuery(e.target.value)}
-        />
-        <div className={styles.filter}>
-          <Select aria-label="Statut" value={status} onChange={(e) => setParam('statut', e.target.value)}>
-            <option value="">Tous les statuts actifs</option>
-            {PROJECT_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s === 'archived' ? 'Archivés' : LABELS.projectStatus[s]}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div className={styles.filter}>
-          <Select aria-label="Client" value={client} onChange={(e) => setParam('client', e.target.value)}>
-            <option value="">Tous les clients</option>
-            {clientOptions.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-            <option value={NO_CLIENT}>Sans client</option>
-          </Select>
-        </div>
-        <div className={table.toolbarEnd}>
-          <Button variant="primary" onClick={() => setCreating(true)}>
-            <Icon src={plusIcon} />
-            Nouveau projet
-          </Button>
-        </div>
-      </div>
+      <ListToolbar
+        search={{ value: query, onChange: setQuery, label: 'Rechercher un projet', placeholder: 'Nom du projet ou du client' }}
+        activeFilterCount={(status !== '' ? 1 : 0) + (client !== '' ? 1 : 0)}
+        onResetFilters={() => setParams(new URLSearchParams(), { replace: true })}
+        onAdd={canWrite ? () => setCreating(true) : undefined}
+        addLabel="Nouveau projet"
+        filters={
+          <>
+            <Field label="Statut">
+              <Select value={status} onChange={(e) => setParam('statut', e.target.value)}>
+                <option value="">Tous les statuts actifs</option>
+                {PROJECT_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s === 'archived' ? 'Archivés' : LABELS.projectStatus[s]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Client">
+              <Select value={client} onChange={(e) => setParam('client', e.target.value)}>
+                <option value="">Tous les clients</option>
+                {clientOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+                <option value={NO_CLIENT}>Sans client</option>
+              </Select>
+            </Field>
+          </>
+        }
+      />
 
       {isLoading ? (
         <LoadingState label="Chargement des projets…" />
@@ -101,12 +106,14 @@ export function ProjectsPage() {
       ) : !data || data.length === 0 ? (
         <EmptyState
           title="Aucun projet"
-          text="Crée le premier projet de l'organisation."
+          text={canWrite ? "Crée le premier projet de l'organisation." : undefined}
           action={
-            <Button variant="primary" onClick={() => setCreating(true)}>
-              <Icon src={plusIcon} />
-              Nouveau projet
-            </Button>
+            canWrite ? (
+              <Button variant="primary" onClick={() => setCreating(true)}>
+                <Icon src={plusIcon} />
+                Nouveau projet
+              </Button>
+            ) : undefined
           }
         />
       ) : projects.length === 0 ? (
@@ -127,9 +134,11 @@ export function ProjectsPage() {
               <th scope="col">Statut</th>
               <th scope="col">Échéance</th>
               <th scope="col">Créé le</th>
-              <th scope="col" className={table.actionsCell}>
-                Actions
-              </th>
+              {canWrite ? (
+                <th scope="col" className={table.actionsCell}>
+                  Actions
+                </th>
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -143,9 +152,13 @@ export function ProjectsPage() {
                       <span className={styles.logo} aria-hidden="true">
                         {projectInitials(project.name)}
                       </span>
-                      <Link to={`/projects/${project.id}`} className={table.rowLink}>
-                        {project.name}
-                      </Link>
+                      {canWrite ? (
+                        <Link to={`/projects/${project.id}`} className={table.rowLink}>
+                          {project.name}
+                        </Link>
+                      ) : (
+                        <span className={table.primary}>{project.name}</span>
+                      )}
                     </span>
                   </td>
                   <td>
@@ -172,15 +185,11 @@ export function ProjectsPage() {
                     ) : null}
                   </td>
                   <td>{formatDate(project.created_at)}</td>
-                  <td className={table.actionsCell}>
-                    <ActionsMenu
-                      label={`Actions pour ${project.name}`}
-                      items={[
-                        { label: 'Modifier', onSelect: () => setEditing(project) },
-                        { label: 'Ouvrir le projet', onSelect: () => void navigate(`/projects/${project.id}`) },
-                      ]}
-                    />
-                  </td>
+                  {canWrite ? (
+                    <td className={table.actionsCell}>
+                      <ActionsMenu label={`Actions pour ${project.name}`} items={projectActions(project)} />
+                    </td>
+                  ) : null}
                 </tr>
               )
             })}
@@ -188,13 +197,17 @@ export function ProjectsPage() {
         </table>
       )}
 
-      <ProjectFormModal
-        open={creating}
-        onClose={() => setCreating(false)}
-        defaultClientId={client && client !== NO_CLIENT ? client : null}
-        onSaved={(project) => void navigate(`/projects/${project.id}`)}
-      />
-      <ProjectFormModal open={editing !== null} onClose={() => setEditing(null)} project={editing} />
+      {canWrite ? (
+        <>
+          <ProjectFormModal
+            open={creating}
+            onClose={() => setCreating(false)}
+            defaultClientId={client && client !== NO_CLIENT ? client : null}
+            onSaved={(project) => void navigate(`/projects/${project.id}`)}
+          />
+          <ProjectFormModal open={editing !== null} onClose={() => setEditing(null)} project={editing} />
+        </>
+      ) : null}
     </section>
   )
 }

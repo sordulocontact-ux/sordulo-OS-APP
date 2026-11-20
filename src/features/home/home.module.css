@@ -1,0 +1,154 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  max-width: var(--size-content-max);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-heading);
+}
+
+.name {
+  color: var(--color-text-subtle);
+}
+
+.subtitle {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-subtle);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-home-card-min), 1fr));
+  gap: var(--space-5);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--size-border) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  min-width: 0;
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sentence {
+  margin: 0;
+  color: var(--color-text-subtle);
+  line-height: var(--line-height-normal);
+}
+
+.strong {
+  color: var(--color-text);
+}
+
+.status {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-sm);
+}
+
+.more {
+  margin-top: auto;
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+  width: fit-content;
+}
+
+.more:hover {
+  color: var(--color-text);
+}
+
+.more:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.chart {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  margin-top: auto;
+}
+
+.month {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+  height: var(--size-chart-height);
+}
+
+.bar {
+  width: var(--size-chart-bar);
+}
+
+.collected {
+  background: var(--color-text);
+}
+
+.invoiced {
+  background: var(--color-border);
+}
+
+.monthLabel {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.swatch {
+  width: var(--size-status-dot);
+  height: var(--size-status-dot);
+}

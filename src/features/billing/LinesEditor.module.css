@@ -1,0 +1,132 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  min-width: var(--size-lines-min);
+  border-collapse: collapse;
+  border: var(--size-border) solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.table th,
+.table td {
+  padding: var(--space-3);
+  border-bottom: var(--size-border) solid var(--color-border);
+  border-right: var(--size-border) solid var(--color-border-subtle);
+  font-weight: var(--font-weight-regular);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th:last-child,
+.table td:last-child {
+  border-right: 0;
+}
+
+.table th {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.colQuantity {
+  width: var(--size-col-quantity);
+}
+
+.colUnit {
+  width: var(--size-col-unit);
+}
+
+.colPrice {
+  width: var(--size-col-price);
+}
+
+.colVat {
+  width: var(--size-col-vat);
+}
+
+.colTotal {
+  width: var(--size-col-total);
+  text-align: right;
+}
+
+.colActions {
+  width: var(--size-col-actions);
+}
+
+.designation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.total {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding-top: var(--space-4);
+}
+
+.rowActions {
+  display: flex;
+  gap: var(--space-1);
+  justify-content: flex-end;
+}
+
+.empty {
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.error {
+  margin-top: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--color-danger);
+}
+
+.add {
+  display: flex;
+}
+
+.totals {
+  align-self: flex-end;
+  width: 100%;
+  max-width: var(--size-totals-max);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.totalRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.totalRow dd {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.base {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+}
+
+.grand {
+  padding-top: var(--space-2);
+  border-top: var(--size-border) solid var(--color-border);
+  font-weight: var(--font-weight-semibold);
+}

@@ -115,6 +115,23 @@
   --size-search-max: 34rem;
   --size-menu-min: 12rem;
   --size-stat-card-min: 13rem;
+  /* Devis et factures (V0.3) : colonnes de l'éditeur de lignes et page A4 imprimable */
+  --size-lines-min: 52rem;
+  --size-col-quantity: 6rem;
+  --size-col-unit: 7.5rem;
+  --size-col-price: 8.5rem;
+  --size-col-vat: 6rem;
+  --size-col-total: 8.5rem;
+  --size-col-actions: 8rem;
+  --size-totals-max: 22rem;
+  --size-print-page-width: 210mm;
+  --size-print-page-min-height: 297mm;
+  --space-print-margin: 15mm;
+  --size-signature-height: 6rem;
+  /* Accueil (V0.3) : largeur mini d'une carte, graphique en barres */
+  --size-home-card-min: 16rem;
+  --size-chart-height: 4rem;
+  --size-chart-bar: 0.5rem;
 
   /* Radii */
   /* Figma : champs, boutons et cartes à angles droits ; seuls la navigation et les pastilles sont arrondies. */

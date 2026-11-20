@@ -20,11 +20,6 @@
   letter-spacing: normal;
 }
 
-/* Filtre de la barre d'outils : largeur du contenu, le Select prend 100% de ce bloc. */
-.filter {
-  flex: 0 0 auto;
-}
-
 /* Lien du client, au-dessus de l'overlay de ligne (élément positionné plus tard dans l'ordre du DOM). */
 .clientLink {
   position: relative;

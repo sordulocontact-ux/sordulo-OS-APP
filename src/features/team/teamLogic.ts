@@ -2,11 +2,33 @@ import { LABELS, SKILL_LEVEL_MAX, SKILL_LEVEL_MIN, SKILLS, WEEKDAYS, type Member
 
 export type MemberStatus = 'active' | 'invited' | 'removed'
 
-/** Retiré, invité (invité par un admin, jamais relié à un compte) ou actif. */
-export function memberStatus(member: Pick<Member, 'removed_at' | 'invited_at' | 'user_id'>): MemberStatus {
+/** Membre avec, si on le connaît (RPC `member_sign_in_status`, admins seulement), le fait qu'il s'est déjà connecté. */
+export type StatusMember = Pick<Member, 'removed_at' | 'invited_at' | 'user_id'> & { signed_in?: boolean }
+
+/**
+ * Retiré, invité (invité par un admin, jamais connecté) ou actif. L'invitation relie le compte tout de
+ * suite (`user_id`) : seul `signed_in` dit si l'invité s'est connecté ; sans lui, on retombe sur `user_id`.
+ */
+export function memberStatus(member: StatusMember): MemberStatus {
   if (member.removed_at) return 'removed'
-  if (member.invited_at && !member.user_id) return 'invited'
+  if (member.invited_at && (member.signed_in === undefined ? !member.user_id : !member.signed_in)) return 'invited'
   return 'active'
+}
+
+/** Réponse de la RPC `member_sign_in_status` → id du membre → déjà connecté. */
+export function signInMap(rows: unknown): Map<string, boolean> {
+  const map = new Map<string, boolean>()
+  if (!Array.isArray(rows)) return map
+  for (const row of rows as { member_id?: unknown; signed_in?: unknown }[]) {
+    if (typeof row.member_id === 'string' && typeof row.signed_in === 'boolean') map.set(row.member_id, row.signed_in)
+  }
+  return map
+}
+
+/** Ajoute `signed_in` aux membres (statuts absents = membres inchangés). */
+export function withSignIn<T extends { id: string }>(members: readonly T[], signedIn: ReadonlyMap<string, boolean> | undefined): (T & { signed_in?: boolean })[] {
+  if (!signedIn) return [...members]
+  return members.map((m) => (signedIn.has(m.id) ? { ...m, signed_in: signedIn.get(m.id) } : m))
 }
 
 export const STATUS_LABELS: Record<MemberStatus, string> = {
@@ -99,7 +121,7 @@ export const ROLE_HELP: Record<MemberRole, string> = {
   admin: 'Admin : voit et modifie tout, y compris l’Équipe et les Paramètres.',
   membre: 'Membre : travaille sur les clients, les projets, les entrées et les tâches.',
   prospection: 'Prospection : voit l’Accueil et la Prospection (prospects, conversion en client), rien d’autre.',
-  finance: 'Finance : devis, factures et chiffres ; lit les clients et les projets sans les modifier.',
+  finance: 'Finance : voit l’Accueil, les Devis, les Factures, et lit les Clients et les Projets sans les modifier.',
 }
 
 
@@ -116,7 +138,7 @@ export interface TeamStats {
 }
 
 /** Chiffres de l'équipe : les retirés n'y comptent pas ; les invités comptent à part, sans capacité. */
-export function teamStats(members: readonly Pick<Member, 'removed_at' | 'invited_at' | 'user_id' | 'weekly_capacity_hours'>[]): TeamStats {
+export function teamStats(members: readonly (StatusMember & Pick<Member, 'weekly_capacity_hours'>)[]): TeamStats {
   const stats: TeamStats = { active: 0, invited: 0, weeklyHours: 0 }
   for (const m of members) {
     const status = memberStatus(m)
