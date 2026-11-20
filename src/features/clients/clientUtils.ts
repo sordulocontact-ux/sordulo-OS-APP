@@ -102,3 +102,36 @@ export function matchesQuery(
   if (haystack.some((text) => text.includes(q))) return true
   return /^\d+$/.test(digits) && client.siret !== null && normalizeSiret(client.siret).includes(digits)
 }
+
+/** Fiche à compléter pour les devis : SIRET absent ou adresse de facturation (rue, code postal, ville) incomplète. */
+export function needsCompletion(client: Pick<Client, 'siret' | 'billing_street' | 'billing_postal_code' | 'billing_city'>): boolean {
+  const missing = (value: string | null) => value === null || value.trim() === ''
+  return (
+    missing(client.siret) || missing(client.billing_street) || missing(client.billing_postal_code) || missing(client.billing_city)
+  )
+}
+
+export interface ClientStats {
+  active: number
+  withOngoingProject: number
+  withoutPrimaryContact: number
+  toComplete: number
+}
+
+/** Chiffres des clients non archivés. `projectStatuses` : statuts des projets du client. */
+export function clientStats(
+  clients: readonly (Pick<Client, 'archived_at' | 'siret' | 'billing_street' | 'billing_postal_code' | 'billing_city'> & {
+    contacts: readonly Pick<ClientContact, 'is_primary'>[]
+    project_statuses: readonly { status: string }[]
+  })[],
+): ClientStats {
+  const stats: ClientStats = { active: 0, withOngoingProject: 0, withoutPrimaryContact: 0, toComplete: 0 }
+  for (const c of clients) {
+    if (c.archived_at) continue
+    stats.active += 1
+    if (c.project_statuses.some((p) => p.status === 'in_progress')) stats.withOngoingProject += 1
+    if (!c.contacts.some((contact) => contact.is_primary)) stats.withoutPrimaryContact += 1
+    if (needsCompletion(c)) stats.toComplete += 1
+  }
+  return stats
+}

@@ -101,3 +101,28 @@ export const ROLE_HELP: Record<MemberRole, string> = {
   prospection: 'Prospection : ne voit ni les clients, ni les projets, ni l’Équipe, ni les Paramètres (son espace arrive plus tard).',
 }
 
+
+/** « 70 h » (virgule décimale). */
+export function formatHours(hours: number): string {
+  return `${String(Math.round(hours * 100) / 100).replace('.', ',')} h`
+}
+
+export interface TeamStats {
+  active: number
+  invited: number
+  /** Somme des heures hebdomadaires des membres actifs. */
+  weeklyHours: number
+}
+
+/** Chiffres de l'équipe : les retirés n'y comptent pas ; les invités comptent à part, sans capacité. */
+export function teamStats(members: readonly Pick<Member, 'removed_at' | 'invited_at' | 'user_id' | 'weekly_capacity_hours'>[]): TeamStats {
+  const stats: TeamStats = { active: 0, invited: 0, weeklyHours: 0 }
+  for (const m of members) {
+    const status = memberStatus(m)
+    if (status === 'active') {
+      stats.active += 1
+      stats.weeklyHours += m.weekly_capacity_hours
+    } else if (status === 'invited') stats.invited += 1
+  }
+  return stats
+}

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Avatar, Badge, Button, EmptyState, ErrorState, LoadingState, useToast } from '../../components/ui'
+import { ActionsMenu, Avatar, Badge, Button, EmptyState, ErrorState, LoadingState, StatCard, useToast, type ActionsMenuItem } from '../../components/ui'
+import plusIcon from '../../assets/icons/plus.svg'
 import table from '../../components/ui/dataTable.module.css'
 import { useAuth, useCurrentMember } from '../auth'
 import { api, ApiRequestError } from '../../lib/api'
@@ -11,7 +12,7 @@ import { EditMemberModal } from './EditMemberModal'
 import { InviteMemberModal } from './InviteMemberModal'
 import { LoginLinkModal } from './LoginLinkModal'
 import { RemoveMemberModal } from './RemoveMemberModal'
-import { formatCapacity, memberStatus, REMOVAL_BLOCK_TEXT, removalBlock, skillsSummary, STATUS_LABELS, translateMemberError, unavailableText } from './teamLogic'
+import { formatCapacity, formatHours, memberStatus, REMOVAL_BLOCK_TEXT, removalBlock, skillsSummary, STATUS_LABELS, teamStats, translateMemberError, unavailableText } from './teamLogic'
 import { useTeamMembers } from './useTeamMembers'
 import styles from './TeamPage.module.css'
 
@@ -37,6 +38,7 @@ export function TeamPage() {
   const [pendingId, setPendingId] = useState<string | null>(null)
 
   const members = useMemo(() => data ?? [], [data])
+  const stats = useMemo(() => teamStats(members), [members])
   const visible = useMemo(() => (showRemoved ? members : members.filter((m) => !m.removed_at)), [members, showRemoved])
 
   async function newLink(target: Member) {
@@ -70,14 +72,24 @@ export function TeamPage() {
   return (
     <section className={table.page} aria-labelledby="team-title">
       <h1 id="team-title">Équipe</h1>
+      {members.length > 0 ? (
+        <div className={table.stats}>
+          <StatCard value={stats.active} label="Membres actifs" />
+          <StatCard value={stats.invited} label="Invités en attente" />
+          <StatCard value={formatHours(stats.weeklyHours)} label="Capacité de l’équipe" hint="par semaine" />
+        </div>
+      ) : null}
       <div className={table.toolbar}>
         <label className={styles.checkbox}>
           <input type="checkbox" checked={showRemoved} onChange={(e) => setShowRemoved(e.target.checked)} />
           Afficher les membres retirés
         </label>
-        <Button variant="primary" onClick={() => setInviting(true)} disabled={!orgId}>
-          Inviter un membre
-        </Button>
+        <div className={table.toolbarEnd}>
+          <Button variant="primary" onClick={() => setInviting(true)} disabled={!orgId}>
+            <img src={plusIcon} alt="" width={20} height={20} />
+            Inviter un membre
+          </Button>
+        </div>
       </div>
 
       {isLoading || !orgId ? (
@@ -95,7 +107,9 @@ export function TeamPage() {
               <th scope="col">Compétences</th>
               <th scope="col">Capacité</th>
               <th scope="col">Statut</th>
-              <th scope="col">Actions</th>
+              <th scope="col" className={table.actionsCell}>
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -104,15 +118,29 @@ export function TeamPage() {
               const skills = skillsSummary(member.skills)
               const unavailable = unavailableText(member.unavailable_weekdays)
               const block = removalBlock(member, me?.id, members)
-              const busy = pendingId === member.id
-              const reasonId = `remove-reason-${member.id}`
+              const items: ActionsMenuItem[] =
+                status === 'removed'
+                  ? [{ label: 'Réintégrer', onSelect: () => void restore(member), disabled: pendingId !== null }]
+                  : [
+                      { label: 'Modifier', onSelect: () => setEditing(member) },
+                      ...(status === 'invited'
+                        ? [{ label: 'Nouveau lien', onSelect: () => void newLink(member), disabled: pendingId !== null }]
+                        : []),
+                      {
+                        label: 'Retirer',
+                        tone: 'danger' as const,
+                        disabled: block !== null,
+                        hint: block ? REMOVAL_BLOCK_TEXT[block] : undefined,
+                        onSelect: () => setRemoving(member),
+                      },
+                    ]
               return (
                 <tr key={member.id} className={[table.row, status === 'removed' ? table.inactive : ''].filter(Boolean).join(' ')}>
                   <td>
                     <span className={[styles.member, status === 'removed' ? styles.removed : ''].filter(Boolean).join(' ')}>
                       <Avatar name={member.name} />
                       <span className={styles.identity}>
-                        <span>
+                        <span className={table.primary}>
                           {member.name}
                           {member.id === me?.id ? <span className={styles.self}> (toi)</span> : null}
                         </span>
@@ -143,41 +171,8 @@ export function TeamPage() {
                   <td>
                     <Badge tone={STATUS_TONE[status]}>{STATUS_LABELS[status]}</Badge>
                   </td>
-                  <td>
-                    <span className={styles.actions}>
-                      {status === 'removed' ? (
-                        <Button variant="ghost" size="sm" loading={busy} onClick={() => void restore(member)}>
-                          Réintégrer
-                        </Button>
-                      ) : (
-                        <>
-                          <Button variant="ghost" size="sm" onClick={() => setEditing(member)}>
-                            Modifier
-                          </Button>
-                          {status === 'invited' ? (
-                            <Button variant="ghost" size="sm" loading={busy} onClick={() => void newLink(member)}>
-                              Nouveau lien
-                            </Button>
-                          ) : null}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={styles.danger}
-                            disabled={block !== null}
-                            title={block ? REMOVAL_BLOCK_TEXT[block] : undefined}
-                            aria-describedby={block ? reasonId : undefined}
-                            onClick={() => setRemoving(member)}
-                          >
-                            Retirer
-                          </Button>
-                          {block ? (
-                            <span id={reasonId} className="visually-hidden">
-                              {REMOVAL_BLOCK_TEXT[block]}
-                            </span>
-                          ) : null}
-                        </>
-                      )}
-                    </span>
+                  <td className={table.actionsCell}>
+                    <ActionsMenu label={`Actions pour ${member.name}`} items={items} />
                   </td>
                 </tr>
               )

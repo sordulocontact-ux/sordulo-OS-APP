@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  clientStats,
   emailError,
   findDuplicate,
   formatSiret,
   matchesQuery,
+  needsCompletion,
   normalizeName,
   normalizeWebsite,
   safeHref,
@@ -95,5 +97,28 @@ describe('matchesQuery', () => {
     expect(matchesQuery(client, contacts, '732 829')).toBe(true)
     expect(matchesQuery(client, contacts, 'paris')).toBe(false)
     expect(matchesQuery(client, contacts, '')).toBe(true)
+  })
+})
+
+describe('needsCompletion', () => {
+  const full = { siret: '73282932000074', billing_street: '1 rue A', billing_postal_code: '75001', billing_city: 'Paris' }
+  it('accepte une fiche complète', () => expect(needsCompletion(full)).toBe(false))
+  it('signale un SIRET ou un champ d\'adresse manquant ou vide', () => {
+    expect(needsCompletion({ ...full, siret: null })).toBe(true)
+    expect(needsCompletion({ ...full, billing_street: null })).toBe(true)
+    expect(needsCompletion({ ...full, billing_postal_code: '  ' })).toBe(true)
+    expect(needsCompletion({ ...full, billing_city: null })).toBe(true)
+  })
+})
+
+describe('clientStats', () => {
+  const full = { siret: '73282932000074', billing_street: '1 rue A', billing_postal_code: '75001', billing_city: 'Paris', archived_at: null }
+  it('ne compte que les clients non archivés', () => {
+    const stats = clientStats([
+      { ...full, contacts: [{ is_primary: true }], project_statuses: [{ status: 'in_progress' }, { status: 'in_progress' }] },
+      { ...full, siret: null, contacts: [], project_statuses: [{ status: 'paid' }] },
+      { ...full, archived_at: '2026-01-01', siret: null, contacts: [], project_statuses: [{ status: 'in_progress' }] },
+    ])
+    expect(stats).toEqual({ active: 2, withOngoingProject: 1, withoutPrimaryContact: 1, toComplete: 1 })
   })
 })

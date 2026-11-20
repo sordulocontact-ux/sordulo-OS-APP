@@ -7,6 +7,8 @@ import type { Client, ClientContact, Project } from '../../shared/types'
 export type ClientListItem = Client & {
   contacts: ClientContact[]
   projects: { count: number }[]
+  /** Statut de chaque projet du client (pour « avec un projet en cours »). */
+  project_statuses: { status: string }[]
 }
 
 /** Message d'erreur affichable pour une erreur Supabase ou autre. */
@@ -28,7 +30,7 @@ export function useClients() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('clients')
-        .select('*, contacts:client_contacts(*), projects(count)')
+        .select('*, contacts:client_contacts(*), projects(count), project_statuses:projects(status)')
         .order('name')
         .overrideTypes<ClientListItem[], { merge: false }>()
       if (error) throw error
@@ -153,6 +155,22 @@ export function useUpdateClient(clientId: string) {
       if (error) throw error
     },
     onSettled: () => invalidate(clientId),
+  })
+}
+
+/** Archive ou désarchive un client choisi au moment de l'appel (listes : un seul hook pour toutes les lignes). */
+export function useToggleClientArchived() {
+  const invalidate = useInvalidateClients()
+  return useMutation({
+    mutationFn: async ({ clientId, archived }: { clientId: string; archived: boolean }) => {
+      const now = new Date().toISOString()
+      const { error } = await supabase
+        .from('clients')
+        .update({ archived_at: archived ? now : null, updated_at: now })
+        .eq('id', clientId)
+      if (error) throw error
+    },
+    onSettled: (_data, _error, variables) => invalidate(variables.clientId),
   })
 }
 

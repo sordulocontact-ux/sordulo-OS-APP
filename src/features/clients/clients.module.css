@@ -188,3 +188,11 @@
 .hint {
   color: var(--color-text-muted);
 }
+
+/* Avatar + nom dans la cellule d'un tableau. */
+.nameCell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}

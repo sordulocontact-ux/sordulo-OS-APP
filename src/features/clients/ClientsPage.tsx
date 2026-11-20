@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Badge, Button, EmptyState, ErrorState, LoadingState, SearchField } from '../../components/ui'
+import { ActionsMenu, Avatar, Badge, Button, EmptyState, ErrorState, LoadingState, SearchField, StatCard, useToast } from '../../components/ui'
+import plusIcon from '../../assets/icons/plus.svg'
 import { formatDate } from '../tickets/format'
+import { ArchiveClientModal } from './ArchiveClientModal'
 import { ClientFormModal } from './ClientFormModal'
-import { matchesQuery, primaryContact } from './clientUtils'
-import { useClients } from './useClients'
+import { clientStats, matchesQuery, primaryContact } from './clientUtils'
+import { errorText, useClients, useToggleClientArchived, type ClientListItem } from './useClients'
 import table from '../../components/ui/dataTable.module.css'
 import styles from './clients.module.css'
 
@@ -14,15 +16,30 @@ export function ClientsPage() {
   const [query, setQuery] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [editing, setEditing] = useState<ClientListItem | null>(null)
+  const [archiving, setArchiving] = useState<ClientListItem | null>(null)
+  const toast = useToast()
+  const toggleArchived = useToggleClientArchived()
 
   const visible = useMemo(
     () => (data ?? []).filter((c) => (showArchived || !c.archived_at) && matchesQuery(c, c.contacts, query)),
     [data, query, showArchived],
   )
+  const stats = useMemo(() => clientStats(data ?? []), [data])
   const hasActive = (data ?? []).some((c) => !c.archived_at)
+
+  async function unarchive(client: ClientListItem) {
+    try {
+      await toggleArchived.mutateAsync({ clientId: client.id, archived: false })
+      toast.success('Client désarchivé')
+    } catch (e) {
+      toast.error(errorText(e))
+    }
+  }
 
   const newButton = (
     <Button variant="primary" onClick={() => setCreating(true)}>
+      <img src={plusIcon} alt="" width={20} height={20} />
       Nouveau client
     </Button>
   )
@@ -30,8 +47,17 @@ export function ClientsPage() {
   return (
     <section className={table.page} aria-labelledby="clients-title">
       <h1 id="clients-title">Clients</h1>
+      {data && data.length > 0 ? (
+        <div className={table.stats}>
+          <StatCard value={stats.active} label="Clients actifs" />
+          <StatCard value={stats.withOngoingProject} label="Avec un projet en cours" />
+          <StatCard value={stats.withoutPrimaryContact} label="Sans contact principal" />
+          <StatCard value={stats.toComplete} label="Fiches à compléter" hint="SIRET ou adresse manquants" />
+        </div>
+      ) : null}
       <div className={table.toolbar}>
         <SearchField
+          className={table.search}
           label="Rechercher un client"
           placeholder="Nom, ville, SIRET, contact"
           value={query}
@@ -41,7 +67,7 @@ export function ClientsPage() {
           <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
           Afficher les archivés
         </label>
-        {newButton}
+        <div className={table.toolbarEnd}>{newButton}</div>
       </div>
       {isLoading ? (
         <LoadingState label="Chargement des clients…" />
@@ -68,6 +94,9 @@ export function ClientsPage() {
               <th scope="col">Ville</th>
               <th scope="col">Projets</th>
               <th scope="col">Créé le</th>
+              <th scope="col" className={table.actionsCell}>
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -76,15 +105,13 @@ export function ClientsPage() {
               return (
                 <tr key={client.id} className={[table.row, client.archived_at ? table.inactive : ''].join(' ')}>
                   <td>
-                    <Link to={`/clients/${client.id}`} className={table.rowLink}>
-                      {client.name}
-                    </Link>
-                    {client.archived_at ? (
-                      <>
-                        {' '}
-                        <Badge>Archivé</Badge>
-                      </>
-                    ) : null}
+                    <span className={styles.nameCell}>
+                      <Avatar name={client.name} size="sm" />
+                      <Link to={`/clients/${client.id}`} className={table.rowLink}>
+                        {client.name}
+                      </Link>
+                      {client.archived_at ? <Badge>Archivé</Badge> : null}
+                    </span>
                   </td>
                   <td>
                     {contact ? (
@@ -99,12 +126,25 @@ export function ClientsPage() {
                   <td>{client.billing_city ?? <span className={table.muted}>Non renseignée</span>}</td>
                   <td>{client.projects[0]?.count ?? 0}</td>
                   <td>{formatDate(client.created_at)}</td>
+                  <td className={table.actionsCell}>
+                    <ActionsMenu
+                      label={`Actions pour ${client.name}`}
+                      items={[
+                        { label: 'Modifier', onSelect: () => setEditing(client) },
+                        client.archived_at
+                          ? { label: 'Désarchiver', onSelect: () => void unarchive(client), disabled: toggleArchived.isPending }
+                          : { label: 'Archiver', onSelect: () => setArchiving(client) },
+                      ]}
+                    />
+                  </td>
                 </tr>
               )
             })}
           </tbody>
         </table>
       )}
+      <ClientFormModal open={editing !== null} onClose={() => setEditing(null)} client={editing} />
+      {archiving ? <ArchiveClientModal client={archiving} onClose={() => setArchiving(null)} /> : null}
       <ClientFormModal
         open={creating}
         onClose={() => setCreating(false)}

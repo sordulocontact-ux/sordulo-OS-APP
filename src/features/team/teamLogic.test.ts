@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  buildSkills, formatCapacity, levelFromSelect, levelToSelect, memberStatus, parseCapacity, removalBlock,
+  buildSkills, formatCapacity, formatHours, teamStats, levelFromSelect, levelToSelect, memberStatus, parseCapacity, removalBlock,
   skillsSummary, translateMemberError, unavailableText,
 } from './teamLogic'
 
@@ -73,5 +73,23 @@ describe('translateMemberError', () => {
     expect(translateMemberError({ message: "L'organisation doit garder au moins un admin actif" })).toMatch(/au moins un admin/)
     expect(translateMemberError({ message: "Tu ne peux pas te retirer toi-même de l'organisation" })).toMatch(/toi-même/)
     expect(translateMemberError({ message: "Réservé aux admins de l'organisation" })).toMatch(/Seuls les admins/)
+  })
+})
+
+describe('teamStats', () => {
+  it('compte actifs, invités et la capacité des actifs seulement', () => {
+    const base = { removed_at: null, invited_at: null, user_id: 'u' as string | null }
+    expect(
+      teamStats([
+        { ...base, weekly_capacity_hours: 35 },
+        { ...base, weekly_capacity_hours: 17.5 },
+        { ...base, invited_at: '2026-01-01', user_id: null, weekly_capacity_hours: 35 },
+        { ...base, removed_at: '2026-01-02', weekly_capacity_hours: 35 },
+      ]),
+    ).toEqual({ active: 2, invited: 1, weeklyHours: 52.5 })
+  })
+  it('formate les heures', () => {
+    expect(formatHours(70)).toBe('70 h')
+    expect(formatHours(52.5)).toBe('52,5 h')
   })
 })

@@ -12,3 +12,9 @@
   font-weight: var(--font-weight-regular);
   line-height: var(--line-height-tight);
 }
+
+.sm {
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  font-size: var(--font-size-xs);
+}

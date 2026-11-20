@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Button, EmptyState, ErrorState, LoadingState, SearchField, Select } from '../../components/ui'
+import { ActionsMenu, Avatar, Button, EmptyState, ErrorState, LoadingState, SearchField, Select, StatCard } from '../../components/ui'
+import plusIcon from '../../assets/icons/plus.svg'
 import table from '../../components/ui/dataTable.module.css'
 import { formatDate } from '../tickets/format'
 import { LABELS, PROJECT_STATUSES } from '../../shared/types'
+import type { ProjectWithClient } from './types'
 import { ProjectFormModal } from './ProjectFormModal'
 import { ProjectStatus } from './ProjectStatus'
-import { clientsInProjects, filterProjects, formatDay, NO_CLIENT, parseStatusParam } from './projectLogic'
+import { clientsInProjects, filterProjects, formatDay, NO_CLIENT, overdueHint, parseStatusParam, projectStats, relativeDue } from './projectLogic'
 import { useProjects } from './useProjects'
 import styles from './ProjectsPage.module.css'
 
@@ -23,6 +25,7 @@ export function ProjectsPage() {
   const [params, setParams] = useSearchParams()
   const [query, setQuery] = useState('')
   const [creating, setCreating] = useState(false)
+  const [editing, setEditing] = useState<ProjectWithClient | null>(null)
 
   const status = parseStatusParam(params.get('statut'))
   const client = params.get('client') ?? ''
@@ -42,12 +45,26 @@ export function ProjectsPage() {
 
   const projects = useMemo(() => filterProjects(data ?? [], { query, status, client }), [data, query, status, client])
   const clientOptions = useMemo(() => clientsInProjects(data ?? []), [data])
+  const now = new Date()
+  const stats = useMemo(() => projectStats(data ?? [], new Date()), [data])
 
   return (
     <section className={table.page} aria-labelledby="projects-title">
       <h1 id="projects-title">Projets</h1>
+      {data && data.length > 0 ? (
+        <div className={table.stats}>
+          <StatCard value={stats.inProgress} label="En cours" hint={overdueHint(stats.overdue)} to="?statut=in_progress" />
+          <StatCard value={stats.quoteSent} label="Devis envoyés" to="?statut=quote_sent" />
+          <StatCard value={stats.delivered} label="Livrés, à encaisser" to="?statut=delivered" />
+          <StatCard value={stats.paid} label="Payés" to="?statut=paid" />
+        </div>
+      ) : null}
       <div className={table.toolbar}>
-        <SearchField label="Rechercher un projet" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <SearchField
+          className={table.search}
+          label="Rechercher un projet"
+          value={query} onChange={(e) => setQuery(e.target.value)}
+        />
         <div className={styles.filter}>
           <Select aria-label="Statut" value={status} onChange={(e) => setParam('statut', e.target.value)}>
             <option value="">Tous les statuts actifs</option>
@@ -69,9 +86,12 @@ export function ProjectsPage() {
             <option value={NO_CLIENT}>Sans client</option>
           </Select>
         </div>
-        <Button variant="primary" onClick={() => setCreating(true)}>
-          Nouveau projet
-        </Button>
+        <div className={table.toolbarEnd}>
+          <Button variant="primary" onClick={() => setCreating(true)}>
+            <img src={plusIcon} alt="" width={20} height={20} />
+            Nouveau projet
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -84,6 +104,7 @@ export function ProjectsPage() {
           text="Crée le premier projet de l'organisation."
           action={
             <Button variant="primary" onClick={() => setCreating(true)}>
+              <img src={plusIcon} alt="" width={20} height={20} />
               Nouveau projet
             </Button>
           }
@@ -106,11 +127,15 @@ export function ProjectsPage() {
               <th scope="col">Statut</th>
               <th scope="col">Échéance</th>
               <th scope="col">Créé le</th>
+              <th scope="col" className={table.actionsCell}>
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
             {projects.map((project) => {
               const due = formatDay(project.due_date)
+              const relative = relativeDue(project, now)
               return (
                 <tr key={project.id} className={table.row}>
                   <td>
@@ -125,9 +150,12 @@ export function ProjectsPage() {
                   </td>
                   <td>
                     {project.client ? (
-                      <Link to={`/clients/${project.client.id}`} className={styles.clientLink}>
-                        {project.client.name}
-                      </Link>
+                      <span className={styles.project}>
+                        <Avatar name={project.client.name} size="sm" />
+                        <Link to={`/clients/${project.client.id}`} className={styles.clientLink}>
+                          {project.client.name}
+                        </Link>
+                      </span>
                     ) : (
                       <span className={table.inactive}>Sans client</span>
                     )}
@@ -135,8 +163,24 @@ export function ProjectsPage() {
                   <td>
                     <ProjectStatus status={project.status} />
                   </td>
-                  <td>{due ?? <span className={table.inactive}>Non définie</span>}</td>
+                  <td>
+                    {due ?? <span className={table.inactive}>Non définie</span>}
+                    {relative ? (
+                      <span className={[table.secondLine, relative.overdue ? table.danger : ''].filter(Boolean).join(' ')}>
+                        {relative.text}
+                      </span>
+                    ) : null}
+                  </td>
                   <td>{formatDate(project.created_at)}</td>
+                  <td className={table.actionsCell}>
+                    <ActionsMenu
+                      label={`Actions pour ${project.name}`}
+                      items={[
+                        { label: 'Modifier', onSelect: () => setEditing(project) },
+                        { label: 'Ouvrir le projet', onSelect: () => void navigate(`/projects/${project.id}`) },
+                      ]}
+                    />
+                  </td>
                 </tr>
               )
             })}
@@ -150,6 +194,7 @@ export function ProjectsPage() {
         defaultClientId={client && client !== NO_CLIENT ? client : null}
         onSaved={(project) => void navigate(`/projects/${project.id}`)}
       />
+      <ProjectFormModal open={editing !== null} onClose={() => setEditing(null)} project={editing} />
     </section>
   )
 }

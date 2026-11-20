@@ -45,9 +45,6 @@
   --color-info-soft: #ebf8ff;
   --color-info-pill: rgb(32 89 202 / 0.18);
   --color-info-dot: #a2ccff;
-  /* Pastilles de statut de projet (V0.2) : même clarté que --color-info-dot. Absentes du Figma, à valider par Sacha. */
-  --color-success-dot: #9fdf9c;
-  --color-warning-dot: #f2c98c;
 
   /* Color — statut « pas commencé » (colonnes et pastilles) */
   --color-idle: #828282;
@@ -114,6 +111,10 @@
   --size-narrow-max: 28rem;
   --size-modal-max: 40rem;
   --size-kanban-column: 19.375rem;
+  /* Pages de liste (V0.2, inspiration Midday / Figma « Contrats ») */
+  --size-search-max: 34rem;
+  --size-menu-min: 12rem;
+  --size-stat-card-min: 13rem;
 
   /* Radii */
   /* Figma : champs, boutons et cartes à angles droits ; seuls la navigation et les pastilles sont arrondies. */

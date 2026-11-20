@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { ProjectWithClient } from './types'
-import { diffMembers, filterProjects, formatDay, NO_CLIENT, parseStatusParam, validateDates } from './projectLogic'
+import {
+  daysUntil, diffMembers, filterProjects, formatDay, NO_CLIENT, overdueHint, parseStatusParam, projectStats, relativeDue, validateDates,
+} from './projectLogic'
 
 function p(over: Partial<ProjectWithClient>): ProjectWithClient {
   return {
@@ -59,5 +61,66 @@ describe('formatDay', () => {
   it('formate en français sans décalage', () => {
     expect(formatDay('2026-12-01')).toBe('1 décembre 2026')
     expect(formatDay(null)).toBeNull()
+  })
+})
+
+describe('daysUntil', () => {
+  const now = new Date(2026, 10, 20, 23, 30)
+  it('compte en jours calendaires locaux', () => {
+    expect(daysUntil('2026-11-20', now)).toBe(0)
+    expect(daysUntil('2026-11-21', now)).toBe(1)
+    expect(daysUntil('2026-11-17', now)).toBe(-3)
+    expect(daysUntil('2026-12-20', now)).toBe(30)
+  })
+  it('traverse le changement d\'heure sans décalage', () => {
+    expect(daysUntil('2027-03-29', new Date(2027, 2, 27, 12))).toBe(2)
+  })
+  it('renvoie null sans date valide', () => {
+    expect(daysUntil(null, now)).toBeNull()
+    expect(daysUntil('n/a', now)).toBeNull()
+  })
+})
+
+describe('relativeDue', () => {
+  const now = new Date(2026, 10, 20, 9)
+  const due = (due_date: string | null, status: ProjectWithClient['status'] = 'in_progress') => relativeDue({ due_date, status }, now)
+  it('formule les échéances à venir', () => {
+    expect(due('2026-11-20')).toEqual({ text: "aujourd'hui", overdue: false })
+    expect(due('2026-11-21')).toEqual({ text: 'demain', overdue: false })
+    expect(due('2026-12-02')).toEqual({ text: 'dans 12 jours', overdue: false })
+  })
+  it('signale le retard', () => {
+    expect(due('2026-11-17')).toEqual({ text: 'en retard de 3 jours', overdue: true })
+    expect(due('2026-11-19')).toEqual({ text: 'en retard de 1 jour', overdue: true })
+  })
+  it('ignore les projets terminés ou sans échéance', () => {
+    expect(due('2026-11-01', 'delivered')).toBeNull()
+    expect(due('2026-11-01', 'paid')).toBeNull()
+    expect(due('2026-11-01', 'archived')).toBeNull()
+    expect(due(null)).toBeNull()
+  })
+})
+
+describe('projectStats', () => {
+  const now = new Date(2026, 10, 20)
+  it('compte par statut et les retards des projets en cours', () => {
+    const stats = projectStats(
+      [
+        { status: 'in_progress', due_date: '2026-11-01' },
+        { status: 'in_progress', due_date: '2026-11-20' },
+        { status: 'in_progress', due_date: null },
+        { status: 'quote_sent', due_date: '2026-01-01' },
+        { status: 'delivered', due_date: null },
+        { status: 'paid', due_date: null },
+        { status: 'paid', due_date: null },
+        { status: 'archived', due_date: null },
+      ],
+      now,
+    )
+    expect(stats).toEqual({ inProgress: 3, overdue: 1, quoteSent: 1, delivered: 1, paid: 2 })
+  })
+  it('formule le sous-texte des retards', () => {
+    expect(overdueHint(0)).toBe('Aucun en retard')
+    expect(overdueHint(2)).toBe('2 en retard')
   })
 })

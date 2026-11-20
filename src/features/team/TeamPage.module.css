@@ -43,12 +43,6 @@
   gap: var(--space-1);
 }
 
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-}
-
 .removed {
   opacity: var(--opacity-disabled);
 }
@@ -134,9 +128,4 @@
 .copied {
   color: var(--color-success);
   font-size: var(--font-size-sm);
-}
-
-/* Action destructive en bouton discret : le texte prend la couleur de danger. */
-.danger {
-  color: var(--color-danger);
 }
