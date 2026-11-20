@@ -92,6 +92,7 @@ pub fn run() {
             commands::set_focus_mode,
             commands::claude_get_connection,
             commands::claude_answer,
+            commands::claude_open_session,
             commands::save_dropped_file,
             commands::copy_text,
         ])

@@ -188,7 +188,7 @@ fn process_path(pid: i32) -> Option<String> {
 }
 
 /// Bundle `.app` le plus extérieur d'un chemin d'exécutable (les helpers sont dans `Contents/Frameworks`).
-fn outer_app_bundle(path: &str) -> Option<&str> {
+pub(super) fn outer_app_bundle(path: &str) -> Option<&str> {
     path.find(".app/").map(|end| &path[..end + 4])
 }
 

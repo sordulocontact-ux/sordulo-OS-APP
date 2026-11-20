@@ -94,6 +94,8 @@ export interface IslandProps {
   onStopRecording: () => void
   /** « Répondre » sur une session en attente dans multiOpen. */
   onAnswerSession: (sessionId: string) => void
+  /** Clic sur une session (agentOpen, multiOpen) : sa fenêtre VS Code. */
+  onOpenSession: (sessionId: string) => void
   /**
    * Zones cliquables (forme + bulle), au plus toutes les ~50 ms pendant une animation et une dernière fois
    * au repos. Union de la taille courante et de la cible pendant une transition.

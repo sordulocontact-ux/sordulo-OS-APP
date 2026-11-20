@@ -250,6 +250,8 @@ export const DESKTOP_COMMANDS = {
   claudeGetConnection: 'claude_get_connection',
   /** ({ requestId: string, decision: ClaudeDecision }) => void — answers a pending PermissionRequest. */
   claudeAnswer: 'claude_answer',
+  /** Île : met au premier plan la fenêtre VS Code (ou l'app) d'une session Claude, sur son dossier. */
+  claudeOpenSession: 'claude_open_session',
   /**
    * Raw body = file bytes, header `x-file-name` = original file name (URI-encoded) => string, the absolute path
    * of a copy saved in the app's drop folder. Island window only. Used by the « Claude Code » drop zone, because

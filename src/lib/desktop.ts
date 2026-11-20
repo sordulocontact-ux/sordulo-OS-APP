@@ -97,6 +97,10 @@ export const claudeGetConnection = () => call<ClaudeConnection>(DESKTOP_COMMANDS
 export const claudeAnswer = (args: { requestId: string; decision: ClaudeDecision }) =>
   call<void>(DESKTOP_COMMANDS.claudeAnswer, args)
 
+/** Brings the VS Code window (or app) running this Claude session to the front, on its folder. */
+export const claudeOpenSession = (args: { sessionId: string }) =>
+  call<void>(DESKTOP_COMMANDS.claudeOpenSession, args)
+
 /**
  * Island window: saves a copy of a dropped file in the app's drop folder (50 MB max) and returns its absolute path.
  * The bytes travel as the raw IPC body, the original name in the `x-file-name` header (URI-encoded).

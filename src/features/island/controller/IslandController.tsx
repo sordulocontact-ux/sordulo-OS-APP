@@ -177,6 +177,7 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
         onProjectChange={runtime.gestures.onProjectChange}
         onStopRecording={runtime.gestures.onStopRecording}
         onAnswerSession={runtime.gestures.onAnswerSession}
+        onOpenSession={runtime.gestures.onOpenSession}
         onHitRectsChange={onHitRectsChange}
       />
     </div>

@@ -152,6 +152,7 @@ export default function IslandLab() {
             onProjectChange={runtime.changeCallProject}
             onStopRecording={runtime.stopRecording}
             onAnswerSession={runtime.answerSession}
+            onOpenSession={(sessionId) => console.info('[labo] ouvrir la session', sessionId)}
             onHitRectsChange={NO_HIT_RECTS}
           />
         </div>

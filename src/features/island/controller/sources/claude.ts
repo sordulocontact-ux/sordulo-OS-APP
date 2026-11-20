@@ -12,11 +12,14 @@
  *   au terminal tout de suite (la session reste « à autoriser » jusqu'à ce que Claude Code reprenne).
  * - Geste « Répondre » (multiOpen) : montre la demande ouverte de cette session, devant les autres ; si elle
  *   a déjà été rendue au terminal, une notification le dit (« réponds dans le terminal »).
- * - Action `showSessions` (« Voir », « Ouvrir » des notifications Claude) : le rendu n'a pas de prop pour
+ * - Clic sur une session (agentOpen, multiOpen) ou sur une notification Claude (`openSession`) : la fenêtre
+ *   VS Code (ou l'app) de la session passe au premier plan, sur son dossier (commande Rust
+ *   `claude_open_session`, qui connaît le dossier et l'éditeur de chaque session).
+ * - Action `showSessions` (« Voir » du conflit) : le rendu n'a pas de prop pour
  *   ouvrir agentOpen / multiOpen sans survol, donc on épingle l'activité Claude quand elle est dans la bulle
  *   (elle passe dans l'île) ; si elle est déjà dans l'île, la fermeture de la notification suffit à la montrer.
  */
-import { claudeAnswer, onClaude } from '../../../../lib/desktop'
+import { claudeAnswer, claudeOpenSession, onClaude } from '../../../../lib/desktop'
 import {
   CLAUDE_PERMISSION_TIMEOUT_MS,
   type ClaudeDecision,
@@ -50,6 +53,7 @@ export const CLAUDE_TICK_MS = 30_000
 export interface ClaudeSourceDeps {
   onClaude: (handler: (event: ClaudeRelayEvent) => void) => Promise<() => void>
   claudeAnswer: (args: { requestId: string; decision: ClaudeDecision }) => Promise<void>
+  claudeOpenSession: (args: { sessionId: string }) => Promise<void>
 }
 
 function syncActivity(ctx: IslandSourceContext, sessions: readonly ClaudeSession[]): void {
@@ -118,6 +122,7 @@ export function createClaudeSource(deps: ClaudeSourceDeps): IslandSource {
             const notification = createNotification(effect.kind, {
               projectName: effect.projectName,
               detail: effect.detail,
+              sessionId: effect.sessionId,
             })
             ctx.coordinator.notify(effect.subtitle ? { ...notification, subtitle: effect.subtitle } : notification)
             break
@@ -141,6 +146,11 @@ export function createClaudeSource(deps: ClaudeSourceDeps): IslandSource {
         publish()
         for (const effect of transition.effects) apply(effect)
         scheduleTick()
+      }
+
+      /** Fenêtre VS Code (ou app) de la session au premier plan, sur son dossier. */
+      function openSession(sessionId: string): void {
+        deps.claudeOpenSession({ sessionId }).catch((e: unknown) => console.warn('[île] ouverture de la session :', e))
       }
 
       /** Montre la demande ouverte de cette session devant les autres demandes en attente. */
@@ -174,12 +184,18 @@ export function createClaudeSource(deps: ClaudeSourceDeps): IslandSource {
           tickTimer = null
         },
         actions: {
+          openSession(action) {
+            openSession(action.sessionId)
+          },
           showSessions() {
             const { secondary } = ctx.coordinator.getSnapshot()
             if (secondary?.id === AGENT_ACTIVITY_ID || secondary?.id === MULTI_ACTIVITY_ID) ctx.coordinator.pinSecondary()
           },
         },
         gestures: {
+          onOpenSession(sessionId) {
+            openSession(sessionId)
+          },
           onAskDecision(decision, ask) {
             deps
               .claudeAnswer({ requestId: ask.id, decision })
@@ -198,6 +214,7 @@ export function createClaudeSource(deps: ClaudeSourceDeps): IslandSource {
               createNotification('claudeStop', {
                 projectName: record.session.projectName,
                 detail: 'réponds dans le terminal',
+                sessionId,
               }),
             )
           },
@@ -208,4 +225,4 @@ export function createClaudeSource(deps: ClaudeSourceDeps): IslandSource {
 }
 
 /** Source branchée sur Tauri (enregistrée par l'orchestrateur dans ./index.ts). */
-export const claudeSource: IslandSource = createClaudeSource({ onClaude, claudeAnswer })
+export const claudeSource: IslandSource = createClaudeSource({ onClaude, claudeAnswer, claudeOpenSession })

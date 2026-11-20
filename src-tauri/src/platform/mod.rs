@@ -246,6 +246,32 @@ pub fn make_executable(path: &Path) -> std::io::Result<()> {
     }
 }
 
+/// App d'où vient une session Claude Code (transmise par le relais `sordulo-hook`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct EditorHost {
+    /// Exécutable de l'éditeur (VS Code, Cursor…) quand la session tourne dans son terminal.
+    pub exe: Option<String>,
+    /// Bundle id de l'app (macOS).
+    pub bundle_id: Option<String>,
+}
+
+/// Met au premier plan la fenêtre de l'éditeur ouverte sur `folder` (ou l'ouvre). Bloquant (~100 ms).
+pub fn open_in_editor(editor: &EditorHost, folder: &Path) -> anyhow::Result<()> {
+    #[cfg(windows)]
+    {
+        windows::open_in_editor(editor, folder)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        macos::open_in_editor(editor, folder)
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        let _ = (editor, folder);
+        anyhow::bail!("Ouverture de l'éditeur non disponible sur ce système")
+    }
+}
+
 /// Copie `text` dans le presse-papiers du système (chemin d'un fichier déposé sur « Claude Code »).
 pub fn copy_text(text: &str) -> anyhow::Result<()> {
     #[cfg(windows)]

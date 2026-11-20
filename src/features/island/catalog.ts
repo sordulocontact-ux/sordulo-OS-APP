@@ -31,6 +31,8 @@ export interface ClaudeNotificationParams {
   projectName: string
   /** « 4 fichiers modifiés », « Commande refusée : npm run build »… Vide : le projet seul. */
   detail: string
+  /** Session concernée : un clic sur la notification ouvre sa fenêtre VS Code. */
+  sessionId?: string
 }
 
 /** Paramètres de chaque sorte de notification. */
@@ -129,6 +131,11 @@ export function formatEuros(amount: number): string {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   }).format(amount)
+}
+
+/** Clic sur une notification Claude : la fenêtre de la session si on la connaît, sinon la liste. */
+function openSessionOr(p: ClaudeNotificationParams): NotificationAction {
+  return p.sessionId ? { type: 'openSession', sessionId: p.sessionId } : showSessions
 }
 
 function projectDetail({ projectName, detail }: ClaudeNotificationParams): string {
@@ -230,9 +237,9 @@ export const notificationCatalog: { [K in NotificationKind]: (params: Notificati
       tone: 'claude',
       title: 'Claude a terminé',
       subtitle: projectDetail(p),
-      // Pas de bouton : la session ne travaille plus, l'île n'a plus rien à en montrer.
+      // Pas de bouton : un clic sur la notification ouvre la fenêtre VS Code de la session.
       button: null,
-      action: showSessions,
+      action: openSessionOr(p),
     }),
   claudeStop: (p) =>
     make('claudeStop', {
@@ -240,9 +247,9 @@ export const notificationCatalog: { [K in NotificationKind]: (params: Notificati
       tone: 'claude',
       title: 'Claude attend tes consignes',
       subtitle: projectDetail(p),
-      // Pas de bouton : la session ne travaille plus, l'île n'a plus rien à en montrer.
+      // Pas de bouton : un clic sur la notification ouvre la fenêtre VS Code de la session.
       button: null,
-      action: showSessions,
+      action: openSessionOr(p),
     }),
   multiDone: (p) =>
     make('multiDone', {
@@ -250,9 +257,9 @@ export const notificationCatalog: { [K in NotificationKind]: (params: Notificati
       tone: 'claude',
       title: 'Une session a terminé',
       subtitle: projectDetail(p),
-      // Pas de bouton : la session ne travaille plus, l'île n'a plus rien à en montrer.
+      // Pas de bouton : un clic sur la notification ouvre la fenêtre VS Code de la session.
       button: null,
-      action: showSessions,
+      action: openSessionOr(p),
     }),
   conflict: (p) =>
     make('conflict', {

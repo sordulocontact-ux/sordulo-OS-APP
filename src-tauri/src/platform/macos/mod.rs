@@ -2,6 +2,7 @@
 //! - `island.rs` : curseur, encoche, niveau de la fenêtre de l'île.
 //! - `audio.rs` : apps qui utilisent le micro ou jouent du son (processus Core Audio, macOS 14+).
 //! - `pages.rs` : titres des onglets des navigateurs (AppleScript), pour reconnaître Meet, Discord…
+//! - `editor.rs` : rouvrir la fenêtre VS Code (ou l'app) d'une session Claude Code.
 //! - Presse-papiers par `pbcopy`.
 //!
 //! - `capture.rs` : capture du micro et du son de l'ordinateur (process tap, macOS 14.2+).
@@ -14,6 +15,7 @@
 
 mod audio;
 mod capture;
+mod editor;
 mod island;
 mod pages;
 
@@ -32,6 +34,7 @@ mod timeline;
 /// Enregistreur Mac : capture Core Audio + chaîne partagée (MP3 mono 16 kHz 32 kb/s).
 pub use recorder::WasapiRecorder as CoreAudioRecorder;
 
+pub use editor::open_in_editor;
 pub use island::{cursor_state, primary_notch, raise_island_window};
 pub use pages::browser_page_titles;
 

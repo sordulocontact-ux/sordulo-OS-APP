@@ -43,6 +43,7 @@ export interface ActivityLayersProps {
     onStopRecording: () => void
     onAskDecision: (decision: PermissionDecision, ask: PermissionAsk) => void
     onAnswerSession: (sessionId: string) => void
+    onOpenSession: (sessionId: string) => void
     onNotificationAction: (notification: IslandNotification) => void
   }
 }
@@ -79,7 +80,12 @@ export function ActivityLayers({
         open={open && state === 'meet'} onStopRecording={handlers.onStopRecording} />
       <MusicLayer {...base} eqBarRef={refs.eqBarRef} />
       <ProgressLayer {...base} progress={progress} ringRef={refs.ringRef} />
-      <AgentLayer {...base} session={agentSession} open={open && state === 'agent'} />
+      <AgentLayer
+        {...base}
+        session={agentSession}
+        open={open && state === 'agent'}
+        onOpenSession={handlers.onOpenSession}
+      />
       <DragWakeLayer {...base} />
       <DragOverLayer {...base} drop={drop} hotZone={hotZone} />
       <MultiLayer
@@ -87,6 +93,7 @@ export function ActivityLayers({
         sessions={sessions}
         open={open && state === 'multi'}
         onAnswerSession={handlers.onAnswerSession}
+        onOpenSession={handlers.onOpenSession}
         elapsedRef={refs.rowElapsedRef}
       />
       <AskLayer

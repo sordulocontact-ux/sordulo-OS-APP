@@ -185,6 +185,8 @@ export type NotificationAction =
   | { type: 'retryAnalysis'; inputId: string }
   /** Ouvre l'île sur la liste des sessions Claude Code. */
   | { type: 'showSessions' }
+  /** Met au premier plan la fenêtre VS Code (ou l'app) de cette session Claude Code. */
+  | { type: 'openSession'; sessionId: string }
   /** Prévu (rappel de call) : rejoindre l'appel. */
   | { type: 'openUrl'; url: string }
 

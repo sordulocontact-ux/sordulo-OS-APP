@@ -29,6 +29,7 @@ mod event;
 mod server;
 mod settings;
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -62,6 +63,89 @@ struct Inner {
     busy: bool,
     /// Dernier échec de Connecter / Déconnecter, affiché dans le menu jusqu'au prochain essai.
     last_error: Option<String>,
+    /// Dossier et app de chaque session (clic sur une session ou une notification de l'île).
+    sessions: HashMap<String, SessionHost>,
+}
+
+/// Où rouvrir une session : son dossier, dans l'app qui l'a lancée.
+#[derive(Debug, Clone)]
+struct SessionHost {
+    cwd: String,
+    editor: crate::platform::EditorHost,
+    seen_at: u64,
+}
+
+/// Sessions gardées au plus (les plus anciennes sont oubliées).
+const MAX_SESSIONS: usize = 64;
+
+/// App d'origine envoyée par le relais (`sordulo_host`, voir `src/bin/sordulo-hook.rs`).
+fn editor_host(input: &Value) -> crate::platform::EditorHost {
+    let host = input.get("sordulo_host");
+    let field = |key: &str| {
+        host.and_then(|h| h.get(key))
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+    };
+    crate::platform::EditorHost {
+        exe: field("editor_exe"),
+        bundle_id: field("bundle_id"),
+    }
+}
+
+/// Retient (ou oublie, en fin de session) le dossier et l'app d'une session.
+fn remember_session(inner: &mut Inner, event: ClaudeHookEventName, input: &Value, at: u64) {
+    let Some(id) = input.get("session_id").and_then(Value::as_str).filter(|s| !s.is_empty()) else {
+        return;
+    };
+    if event == ClaudeHookEventName::SessionEnd {
+        inner.sessions.remove(id);
+        return;
+    }
+    let Some(cwd) = input.get("cwd").and_then(Value::as_str).filter(|s| !s.is_empty()) else {
+        return;
+    };
+    let editor = editor_host(input);
+    let entry = inner.sessions.entry(id.to_owned()).or_insert_with(|| SessionHost {
+        cwd: cwd.to_owned(),
+        editor: editor.clone(),
+        seen_at: at,
+    });
+    entry.cwd = cwd.to_owned();
+    // Un ancien relais n'envoie pas l'app : on garde celle déjà connue.
+    if editor != crate::platform::EditorHost::default() {
+        entry.editor = editor;
+    }
+    entry.seen_at = at;
+    if inner.sessions.len() > MAX_SESSIONS {
+        if let Some(oldest) = inner
+            .sessions
+            .iter()
+            .min_by_key(|(_, s)| s.seen_at)
+            .map(|(k, _)| k.clone())
+        {
+            inner.sessions.remove(&oldest);
+        }
+    }
+}
+
+/// Met au premier plan la fenêtre (VS Code…) où tourne la session `session_id`, sur son dossier.
+pub fn open_session(app: &AppHandle, session_id: &str) -> Result<(), String> {
+    let host = app
+        .state::<ClaudeState>()
+        .data()
+        .sessions
+        .get(session_id)
+        .cloned()
+        .ok_or("Session inconnue : son dossier n'a pas encore été reçu.")?;
+    let folder = PathBuf::from(&host.cwd);
+    if !folder.is_absolute() || !folder.is_dir() {
+        return Err(format!("Dossier introuvable : {}", host.cwd));
+    }
+    crate::platform::open_in_editor(&host.editor, &folder).map_err(|e| format!("{e:#}"))?;
+    log::info!("session Claude {session_id} ouverte dans son éditeur");
+    Ok(())
 }
 
 /// État du relais (géré par Tauri).
@@ -247,6 +331,7 @@ fn on_hook(app: &AppHandle, event: ClaudeHookEventName, input: &Value, request_i
     let state = app.state::<ClaudeState>();
     let emit = {
         let mut inner = state.data();
+        remember_session(&mut inner, event, input, at);
         inner.last_event_at = Some(at);
         inner.last_event_clock = Some(local_clock());
         let due = at.saturating_sub(inner.last_emit_at) >= CONNECTION_THROTTLE_MS;
