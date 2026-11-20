@@ -48,7 +48,7 @@ npm test           # inclut les tests RLS (supabase/tests, Postgres PGlite en m�
 npm run build
 ```
 
-Migrations : une nouvelle migration `supabase/migrations/000N_*.sql` est appliquée en production par l'éditeur SQL Supabase **avant** de pousser le code qui en dépend.
+Migrations : une nouvelle migration `supabase/migrations/000N_*.sql` est appliquée en production **avant** de pousser le code qui en dépend, par `npm run db:migrate` (`SUPABASE_DB_URL` = URI « Session pooler » dans `.env.local`, les migrations déjà passées sont sautées) ou par l'éditeur SQL Supabase. Pour tester sur une base jetable : un Supabase local (`supabase start`, ports libres) et un fichier `.env.<mode>.local` lu par `npx vite --mode <mode>` (jamais le `.env.local` de production).
 
 ## Organisation du code
 
@@ -56,12 +56,20 @@ Migrations : une nouvelle migration `supabase/migrations/000N_*.sql` est appliqu
 src/styles/tokens.css    TOUTES les valeurs de style. C'est ici que se branche le design system
 src/styles/global.css    Reset, typo de base (h1-h3), focus, classe .visually-hidden
 src/components/ui/       Kit UI maison : Avatar, Badge, Button, Card, EmptyState, ErrorState,
-                         Field, LoadingState, Modal, Select, Spinner, Tabs, Textarea,
-                         TextInput, Toast (export dans index.ts) ; dataTable.module.css = styles
-                         partagés des pages de liste (barre d'outils, tableau, ligne cliquable)
+                         Field, Icon, IconButton, ListToolbar, LoadingState, Modal, Select, Spinner,
+                         StatCard, ActionsMenu, Tabs, Textarea, TextInput, Toast (export dans index.ts) ;
+                         dataTable.module.css = styles partagés des pages de liste (tableau dans
+                         .scroll, ligne cliquable). Toute liste utilise ListToolbar : recherche pleine
+                         largeur + bouton filtre (panneau) + bouton « + » (Figma « Contrats » 61:2989)
 src/app/                 Shell : routes, AppLayout (header), page 404
 src/features/            Un dossier par fonctionnalité, chacun avec ses composants et leurs .module.css
-  auth/                  Connexion, garde d'accès, rôles (roles.ts : PROJECT_ROLES, ADMIN_ROLES ; RequireRole)
+  auth/                  Connexion, garde d'accès, rôles (roles.ts : ALL, PROJECT, CLIENT_READ, FINANCE,
+                         PROSPECT, ADMIN ; RequireRole)
+  home/                  Accueil : cartes selon le rôle (devis, factures, finance 6 mois, prospection, travail, équipe)
+  quotes/                Devis : liste, édition, envoi / acceptation, duplication, facture et acompte, aperçu A4
+  invoices/              Factures : brouillon, émission (numéro définitif), paiement, avoir, export CSV, aperçu A4
+  billing/               Commun devis / factures : LinesEditor, DocumentPreview (A4 imprimable), PrintBar
+  prospects/             Prospection : liste, étapes, prochaine action, conversion en client
   projects/              Liste des projets (filtres dans l'URL), page projet avec onglets, ProjectFormModal,
                          ProjectStatus (pastille de statut)
   clients/               Liste des clients, fiche client (infos, contacts, projets), formulaires
@@ -85,7 +93,11 @@ src-tauri/               App de bureau en Rust (ne pas toucher pour le design)
 | Route | Écran | Fichiers |
 |---|---|---|
 | `/login` | Connexion (email, puis lien ou code) | `features/auth/LoginPage.tsx` |
-| `/` | Liste des projets : recherche, filtres statut et client (`?statut=&client=`), « Nouveau projet » | `features/projects/ProjectsPage.tsx` |
+| `/` | Accueil (cartes selon le rôle) | `features/home/HomePage.tsx` |
+| `/projects` | Liste des projets : recherche, filtres statut et client (`?statut=&client=`), « + » | `features/projects/ProjectsPage.tsx` |
+| `/quotes`, `/quotes/:id`, `/quotes/:id/print` | Devis (admin, finance) ; aperçu A4 hors barre latérale | `features/quotes/` |
+| `/invoices`, `/invoices/:id`, `/invoices/:id/print` | Factures (admin, finance) | `features/invoices/` |
+| `/prospects`, `/prospects/:id` | Prospection (admin, prospection) | `features/prospects/` |
 | `/clients` | Liste des clients, archivés masqués par défaut | `features/clients/ClientsPage.tsx` |
 | `/clients/:id` | Fiche client : infos, contacts (un seul principal), projets, archivage | `features/clients/ClientPage.tsx` |
 | `/team` | Équipe (admins seulement) | `features/team/TeamPage.tsx` |
@@ -103,11 +115,18 @@ La fenêtre `/desktop/prompt` est petite : elle doit rester lisible à taille r�
 
 ## Rôles et droits
 
-- **admin** : tout, y compris Équipe et Paramètres. **membre** : clients, projets, entrées, tâches. **prospection** : ne voit aucune page pour l'instant (son espace viendra plus tard).
-- La RLS est la protection principale (migration `0003`) : écriture des membres et de l'organisation réservée aux admins actifs, par colonne ; clients, contacts, projets et membres de projet en écriture pour admin et membre. L'interface masque en plus les pages (`RequireRole`, barre latérale filtrée).
+- **admin** : tout. **membre** : clients, projets, entrées, tâches. **finance** : Accueil, Devis, Factures ; lit clients et projets sans les modifier, ni tâches ni entrées. **prospection** : Accueil et Prospection seulement.
+- La RLS est la protection principale (migrations `0003` et `0004`) : écriture des membres et de l'organisation réservée aux admins actifs, par colonne ; clients, contacts, projets et membres de projet en écriture pour admin et membre ; devis et factures pour admin et finance ; prospects pour admin et prospection. L'interface masque en plus les pages (`RequireRole`, barre latérale filtrée).
 - Retirer un membre = `supabase.rpc('remove_member')` : retrait doux (`members.removed_at`), il ne voit plus rien, ses tâches non terminées passent en « non attribuée ». `restore_member` le réintègre. Jamais de suppression de membre.
-- Inviter = `/api/members/invite` (clé service) : crée le membre et son compte, renvoie un lien de connexion à usage unique à envoyer soi-même (pas d'email). `/api/members/link` régénère le lien d'un invité jamais connecté. Les origines de retour autorisées sont dans `api/_lib/members.ts` (+ `APP_URL`) et doivent figurer dans Supabase > Auth > Redirect URLs.
-- Attribution automatique : membres actifs hors prospection, limités aux membres du projet s'il en a (`project_members`). La capacité et les jours indisponibles sont stockés, pas encore utilisés.
+- Inviter = `/api/members/invite` (clé service) : crée le membre et son compte (relié tout de suite), renvoie un lien de connexion à usage unique à envoyer soi-même (pas d'email). `/api/members/link` régénère le lien. « Invité, jamais connecté » vient de la RPC `member_sign_in_status` (admins). Les origines de retour autorisées sont dans `api/_lib/members.ts` (+ `APP_URL`) et doivent figurer dans Supabase > Auth > Redirect URLs.
+- Attribution automatique : membres actifs admin ou membre, limités aux membres du projet s'il en a (`project_members`) ; charge relative à la capacité hebdo, capacité 0 = jamais, indisponible aujourd'hui (Paris) = en dernier.
+
+## Facturation (migration 0004)
+
+- Montants en centimes, lignes en jsonb, totaux calculés par la base (trigger) avec la même règle que `src/shared/billing.ts` (arrondi par taux de TVA). Le front n'envoie jamais numéro, totaux ni horodatages.
+- Devis `D-AAAA-NNN` à la création. Factures et acomptes `F-AAAA-NNNN`, avoirs `A-AAAA-NNNN`, attribués par `issue_invoice` / `create_credit_note` : séries continues, facture figée après émission (correction = avoir), vendeur et acheteur copiés à l'émission.
+- Statut du projet automatique, seulement vers l'avant : devis envoyé → « devis envoyé », accepté → « en cours », factures payées → « payé ».
+- PDF = aperçu A4 + impression du navigateur. Export CSV comptable depuis la liste des factures.
 
 ## Règles de design (obligatoires)
 
@@ -141,4 +160,4 @@ Si un lien Figma est donné, le lire avec le MCP Figma avant de coder : variable
 
 ## Hors périmètre pour le moment
 
-Devis, factures, contrats, prospection, tableau de bord, réorganisation automatique des tâches. Ils sont dans la roadmap mais pas encore codés : pas besoin de les designer dans l'app tant qu'ils n'ont pas de ticket.
+Contrats, dépenses (carte « Sortie » de l'Accueil), barre de chat de l'Accueil, envoi des devis et factures par email, notifications, réorganisation automatique des tâches. Ils sont dans la roadmap mais pas encore codés : pas besoin de les designer dans l'app tant qu'ils n'ont pas de ticket.
