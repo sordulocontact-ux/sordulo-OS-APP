@@ -3,6 +3,18 @@
 <plist version="1.0">
 <dict>
 	<!-- Fusionné par Tauri dans l'Info.plist du bundle macOS. -->
+	<!-- Lien de connexion par email : sordulo://auth (voir src/auth_link.rs). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.sordulo.os</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>sordulo</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Sordulo OS enregistre votre micro pendant les appels que vous choisissez de transcrire.</string>
 	<key>NSAudioCaptureUsageDescription</key>

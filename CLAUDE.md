@@ -157,6 +157,7 @@ Si un lien Figma est donné, le lire avec le MCP Figma avant de coder : variable
 - TypeScript strict, pas de `any`.
 - Réutiliser avant de créer, et rester dans le périmètre demandé.
 - Git : chacun sur sa branche, jamais de push direct sur `main` sans prévenir l'autre. Ne pas modifier les fichiers de l'autre chantier (pages annexes d'un côté, `src-tauri/` et `src/features/desktop/` de l'autre) sans le signaler.
+- **App de bureau : toute fonctionnalité se code pour Windows ET macOS, dans le même travail.** Rien n'est livré pour un seul système avec un stub ou un « lot à venir » pour l'autre. Concrètement : chaque fonction de `src-tauri/src/platform/mod.rs` a une implémentation dans `platform/windows/` et dans `platform/macos/` ; le code sans appel système (calculs, mix, formats) est écrit une seule fois et partagé ; le front tient compte des deux (variante `win` / `mac` de l'île). On ne compile qu'un système à la fois : dire clairement lequel a été compilé et testé, et demander à l'autre de compiler le sien (Windows chez Maël, macOS chez Sacha) avant de fusionner.
 - Pour un ticket complet, utiliser le skill `/ticket`. Les tickets vivent dans `.tickets/`, et le ticket archivé du MVP (`.tickets/archive/2026-11-18-mvp-sordulo-os/TICKET.md`) contient toutes les décisions prises.
 
 ## Hors périmètre pour le moment

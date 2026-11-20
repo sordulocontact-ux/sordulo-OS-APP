@@ -264,7 +264,7 @@ pub fn copy_text(text: &str) -> anyhow::Result<()> {
 }
 
 /// Associe le schéma d'URL `scheme://` à l'exécutable courant (retour du lien de connexion par email).
-/// macOS : se déclare dans l'Info.plist du bundle (lot L13), rien à faire à l'exécution.
+/// macOS : déclaré dans `Info.plist` (CFBundleURLTypes) et reçu par `RunEvent::Opened`, rien à faire ici.
 pub fn register_url_scheme(scheme: &str) -> anyhow::Result<()> {
     #[cfg(windows)]
     {

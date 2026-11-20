@@ -2,7 +2,9 @@
 //!
 //! Le front demande à Supabase de rediriger vers `sordulo://auth`. Windows lance alors l'exécutable
 //! avec l'URL en argument : soit au démarrage (app fermée), soit dans un second lancement que le plugin
-//! single-instance renvoie à l'instance ouverte. L'URL est gardée dans l'état ; la fenêtre principale
+//! single-instance renvoie à l'instance ouverte. macOS envoie l'URL à l'app (lancée ou déjà ouverte) par
+//! un événement « ouvrir l'URL » (`RunEvent::Opened`, voir `lib.rs` et `from_opened`) ; le schéma est
+//! déclaré dans `Info.plist` (CFBundleURLTypes), donc seulement pour l'app empaquetée (.app), pas en dev. L'URL est gardée dans l'état ; la fenêtre principale
 //! est prévenue par `desktop://auth-callback` et la lit une seule fois avec `take_auth_callback`.
 
 use tauri::{AppHandle, Emitter, Manager};
@@ -27,6 +29,13 @@ pub fn find_in_args<S: AsRef<str>>(args: &[S]) -> Option<String> {
         .map(|a| a.as_ref().trim().trim_matches('"'))
         .find(|a| a.len() > prefix.len() && a[..prefix.len()].eq_ignore_ascii_case(&prefix))
         .map(str::to_owned)
+}
+
+/// Premier lien `sordulo://` parmi les URL ouvertes par macOS.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn from_opened(urls: &[tauri::Url]) -> Option<String> {
+    let urls: Vec<&str> = urls.iter().map(tauri::Url::as_str).collect();
+    find_in_args(&urls)
 }
 
 /// Garde l'URL pour la fenêtre principale, la prévient, et la montre.

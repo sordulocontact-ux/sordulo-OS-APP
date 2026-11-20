@@ -459,9 +459,36 @@ fn local_clock() -> String {
     format!("{:02}:{:02}", time.wHour, time.wMinute)
 }
 
-/// Heure `HH:MM` (UTC faute de fuseau sans dépendance ; macOS : lot à venir).
+/// Heure locale `HH:MM` (macOS, Linux) par `localtime_r` ; UTC si l'heure locale est illisible.
 #[cfg(not(windows))]
 fn local_clock() -> String {
+    /// `struct tm` de la libc (macOS, Linux 64 bits).
+    #[repr(C)]
+    struct Tm {
+        sec: i32,
+        min: i32,
+        hour: i32,
+        mday: i32,
+        mon: i32,
+        year: i32,
+        wday: i32,
+        yday: i32,
+        isdst: i32,
+        gmtoff: std::ffi::c_long,
+        zone: *const std::ffi::c_char,
+    }
+    extern "C" {
+        fn localtime_r(time: *const i64, out: *mut Tm) -> *mut Tm;
+    }
+    let seconds = (now_ms() / 1000) as i64;
+    let mut tm = std::mem::MaybeUninit::<Tm>::uninit();
+    // SAFETY : localtime_r remplit `tm` (réentrant) et rend NULL en cas d'échec.
+    let ok = unsafe { !localtime_r(&seconds, tm.as_mut_ptr()).is_null() };
+    if ok {
+        // SAFETY : initialisée par localtime_r ci-dessus.
+        let tm = unsafe { tm.assume_init() };
+        return format!("{:02}:{:02}", tm.hour, tm.min);
+    }
     let minutes = (now_ms() / 60_000) % (24 * 60);
     format!("{:02}:{:02} UTC", minutes / 60, minutes % 60)
 }
