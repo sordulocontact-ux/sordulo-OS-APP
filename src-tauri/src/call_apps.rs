@@ -63,6 +63,95 @@ pub fn is_call_title(title: &str) -> bool {
         .any(|word| CALL_TITLE_WORDS.contains(&word))
 }
 
+/// Service d'appel reconnu (même liste que `CallService` de `src/shared/desktop-contract.ts`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CallService {
+    Meet,
+    Teams,
+    Zoom,
+    Discord,
+    Slack,
+    Whatsapp,
+    Webex,
+    Skype,
+    Signal,
+    Telegram,
+    Facetime,
+    Whereby,
+    Jitsi,
+}
+
+impl CallService {
+    /// Nom humain affiché dans l'île.
+    pub fn display_name(self) -> &'static str {
+        match self {
+            Self::Meet => "Google Meet",
+            Self::Teams => "Microsoft Teams",
+            Self::Zoom => "Zoom",
+            Self::Discord => "Discord",
+            Self::Slack => "Slack",
+            Self::Whatsapp => "WhatsApp",
+            Self::Webex => "Webex",
+            Self::Skype => "Skype",
+            Self::Signal => "Signal",
+            Self::Telegram => "Telegram",
+            Self::Facetime => "FaceTime",
+            Self::Whereby => "Whereby",
+            Self::Jitsi => "Jitsi",
+        }
+    }
+}
+
+/// Mot (en minuscules) → service. Pour un identifiant d'app, le mot peut être n'importe où dans la chaîne ;
+/// pour un titre de fenêtre, il doit être un mot entier (« Meeting notes » n'est pas « Meet »).
+const SERVICE_WORDS: &[(&str, CallService)] = &[
+    ("meet", CallService::Meet),
+    ("teams", CallService::Teams),
+    ("zoom", CallService::Zoom),
+    ("discord", CallService::Discord),
+    ("slack", CallService::Slack),
+    ("whatsapp", CallService::Whatsapp),
+    ("webex", CallService::Webex),
+    ("skype", CallService::Skype),
+    ("signal", CallService::Signal),
+    ("telegram", CallService::Telegram),
+    ("facetime", CallService::Facetime),
+    ("whereby", CallService::Whereby),
+    ("jitsi", CallService::Jitsi),
+];
+
+/// Service d'une app d'appel dédiée, d'après son identifiant. `meet` est exclu : un id contenant « meet »
+/// n'est pas une app Meet (Meet vit dans un navigateur).
+pub fn service_from_id(id: &str) -> Option<CallService> {
+    let lower = id.to_ascii_lowercase();
+    SERVICE_WORDS
+        .iter()
+        .filter(|(word, _)| *word != "meet" && *word != "whereby" && *word != "jitsi")
+        .find(|(word, _)| lower.contains(word))
+        .map(|(_, service)| *service)
+}
+
+/// Service indiqué par un titre de fenêtre (mot entier).
+pub fn service_from_title(title: &str) -> Option<CallService> {
+    let lower = title.to_lowercase();
+    lower.split(|c: char| !c.is_alphanumeric()).find_map(|word| {
+        SERVICE_WORDS
+            .iter()
+            .find(|(w, _)| *w == word)
+            .map(|(_, service)| *service)
+    })
+}
+
+/// Service reconnu pour une app qui utilise le micro : depuis son identifiant (app dédiée), ou, pour un
+/// navigateur, depuis le premier titre de fenêtre visible qui en désigne un. Rien : `None`.
+pub fn recognize_service(id: &str, titles: &[String]) -> Option<CallService> {
+    match classify(id)? {
+        CallApp::Dedicated => service_from_id(id),
+        CallApp::Browser => titles.iter().find_map(|t| service_from_title(t)),
+    }
+}
+
 /// Signe qu'un navigateur est en appel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BrowserSignal {
@@ -149,5 +238,41 @@ mod tests {
             browser_signal(chrome, &none, &["Meet – abc - Google Chrome".into()]),
             Some(BrowserSignal::Title)
         );
+    }
+
+    #[test]
+    fn recognizes_services() {
+        let none: Vec<String> = vec![];
+        for (id, service) in [
+            ("C:#Users#me#AppData#Local#Discord#app-1.0.9#Discord.exe", CallService::Discord),
+            ("MSTeams_8wekyb3d8bbwe", CallService::Teams),
+            ("C:#Users#me#AppData#Roaming#Zoom#bin#Zoom.exe", CallService::Zoom),
+            ("5319275A.WhatsAppDesktop_cv1g1gvanyjgm", CallService::Whatsapp),
+            ("us.zoom.xos", CallService::Zoom),
+        ] {
+            assert_eq!(recognize_service(id, &none), Some(service), "{id}");
+        }
+        let chrome = "C:#Program Files#Google#Chrome#Application#chrome.exe";
+        assert_eq!(
+            recognize_service(chrome, &["Meet – abc-defg-hij - Google Chrome".into()]),
+            Some(CallService::Meet)
+        );
+        assert_eq!(
+            recognize_service(chrome, &["Claude".into(), "Réunion | Microsoft Teams".into()]),
+            Some(CallService::Teams)
+        );
+        // Navigateur sans titre d'appel, app non reconnue : rien.
+        assert_eq!(recognize_service(chrome, &["Meeting notes".into()]), None);
+        assert_eq!(recognize_service(chrome, &none), None);
+        assert_eq!(recognize_service("C:#tools#claude.exe", &["Meet – x".into()]), None);
+    }
+
+    #[test]
+    fn service_names_and_serialization() {
+        assert_eq!(CallService::Meet.display_name(), "Google Meet");
+        assert_eq!(CallService::Teams.display_name(), "Microsoft Teams");
+        assert_eq!(CallService::Discord.display_name(), "Discord");
+        assert_eq!(serde_json::to_value(CallService::Whatsapp).unwrap(), "whatsapp");
+        assert_eq!(serde_json::to_value(CallService::Facetime).unwrap(), "facetime");
     }
 }

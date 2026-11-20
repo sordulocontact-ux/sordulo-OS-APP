@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { LoginPage } from '../features/auth/LoginPage'
 import { MemberGate } from '../features/auth/MemberGate'
@@ -39,6 +40,9 @@ function Guard({ roles }: { roles: readonly MemberRole[] }) {
   )
 }
 
+/** Labo de l'île : développement seulement (la condition est remplacée à la compilation, le code n'entre pas dans le build). */
+const IslandLab = import.meta.env.DEV ? lazy(() => import('../features/island/lab/IslandLab')) : null
+
 export function AppRoutes() {
   return (
     <Routes>
@@ -57,6 +61,16 @@ export function AppRoutes() {
         <Route path="/quotes/:quoteId/print" element={<QuotePrintPage />} />
         <Route path="/invoices/:invoiceId/print" element={<InvoicePrintPage />} />
       </Route>
+      {IslandLab && (
+        <Route
+          path="/desktop/ile-labo"
+          element={
+            <Suspense fallback={null}>
+              <IslandLab />
+            </Suspense>
+          }
+        />
+      )}
       <Route
         element={
           <RequireAuth>

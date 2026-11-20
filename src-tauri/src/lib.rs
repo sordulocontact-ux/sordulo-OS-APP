@@ -1,10 +1,14 @@
-//! Coque Tauri 2 de Sordulo OS : fenêtres, zone de notification, détection du micro, commandes IPC.
+//! Coque Tauri 2 de Sordulo OS : fenêtres (dont l'île), zone de notification, détection du micro,
+//! relais Claude Code (`claude/`), commandes IPC.
 //! Contrat avec le front : `src/shared/desktop-contract.ts`. Fonctions système : `platform/` uniquement.
 
 mod auth_link;
 mod call_apps;
+mod claude;
 mod commands;
+mod dropped;
 mod events;
+mod island_window;
 mod logging;
 mod monitor;
 mod platform;
@@ -35,7 +39,6 @@ pub fn run() {
                 }
             },
         ))
-        .plugin(tauri_plugin_positioner::init())
         .manage(DesktopState::new())
         .setup(|app| {
             let handle = app.handle().clone();
@@ -45,24 +48,31 @@ pub fn run() {
             if let Some(url) = auth_link::find_in_args(&args) {
                 handle.state::<DesktopState>().shared().pending_auth_url = Some(url);
             }
-            windows_mgmt::create_prompt_window(&handle)?;
+            island_window::create(&handle)?;
+            claude::start(&handle);
             tray::create(&handle)?;
             match recording::recordings_dir(&handle) {
                 Ok(dir) => log::info!("dossier des enregistrements : {}", dir.display()),
                 Err(e) => log::warn!("{e}"),
             }
+            island_window::spawn_pointer_loop(handle.clone());
             monitor::spawn_mic_loop(handle.clone());
             monitor::spawn_recording_ticker(handle);
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Fermer une fenêtre la cache : l'app reste dans la zone de notification.
+            // Fermer la fenêtre principale la cache : l'app reste dans la zone de notification.
+            // L'île ne se ferme ni ne se cache jamais (Alt+F4 compris).
             if let WindowEvent::CloseRequested { api, .. } = event {
-                if matches!(window.label(), WINDOW_MAIN | WINDOW_PROMPT) {
-                    api.prevent_close();
-                    if let Err(e) = window.hide() {
-                        log::warn!("impossible de cacher la fenêtre {} : {e}", window.label());
+                match window.label() {
+                    WINDOW_MAIN => {
+                        api.prevent_close();
+                        if let Err(e) = window.hide() {
+                            log::warn!("impossible de cacher la fenêtre {WINDOW_MAIN} : {e}");
+                        }
                     }
+                    WINDOW_PROMPT => api.prevent_close(),
+                    _ => {}
                 }
             }
         })
@@ -76,6 +86,14 @@ pub fn run() {
             commands::show_main_window,
             commands::open_prompt,
             commands::take_auth_callback,
+            commands::island_set_hit_rects,
+            commands::open_main_at,
+            commands::get_focus_mode,
+            commands::set_focus_mode,
+            commands::claude_get_connection,
+            commands::claude_answer,
+            commands::save_dropped_file,
+            commands::copy_text,
         ])
         .build(tauri::generate_context!())
         .expect("erreur au démarrage de Sordulo OS");
@@ -84,6 +102,7 @@ pub fn run() {
         if let tauri::RunEvent::Exit = event {
             // Filet de sécurité (ex. arrêt de session Windows) : ne pas perdre un appel en cours.
             recording::stop_before_exit(app);
+            claude::shutdown(app);
             log::info!("Sordulo OS s'arrête");
         }
     });

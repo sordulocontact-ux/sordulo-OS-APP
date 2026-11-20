@@ -11,7 +11,7 @@
 //! devient du silence.
 
 use super::capture::{self, Ready};
-use super::dsp::{to_dbfs, TARGET_RATE};
+use super::dsp::{to_dbfs, LIVE_LEVELS, TARGET_RATE};
 use super::encoder::Mp3Writer;
 use super::mixer::{LevelStats, Mixer, Source};
 use super::timeline::Chunk;
@@ -53,6 +53,12 @@ struct MixOutcome {
 impl WasapiRecorder {
     pub fn new() -> Self {
         Self { session: None }
+    }
+
+    /// Niveau sonore de l'enregistrement en cours (RMS linéaire, le plus fort des deux sources),
+    /// `None` hors enregistrement. Sans verrou ni instance : lisible à haute fréquence.
+    pub fn live_level() -> Option<f32> {
+        LIVE_LEVELS.current()
     }
 }
 
@@ -151,6 +157,7 @@ impl Recorder for WasapiRecorder {
             bail!("{}", errors.join(" ; "));
         }
 
+        LIVE_LEVELS.set_active(true);
         log::info!("Enregistrement démarré : {}", output.display());
         self.session = Some(session);
         Ok(())
@@ -162,6 +169,7 @@ impl Recorder for WasapiRecorder {
             .take()
             .ok_or_else(|| anyhow!("Aucun enregistrement en cours"))?;
         let path = session.path.clone();
+        LIVE_LEVELS.set_active(false);
         let outcome = session.finish()?;
         let size_bytes = std::fs::metadata(&path)
             .map(|m| m.len())
@@ -189,6 +197,10 @@ impl Recorder for WasapiRecorder {
         self.session
             .as_ref()
             .map_or(0.0, |s| s.t0.elapsed().as_secs_f64())
+    }
+
+    fn audio_level(&self) -> Option<f32> {
+        Self::live_level()
     }
 }
 

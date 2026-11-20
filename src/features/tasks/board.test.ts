@@ -18,6 +18,8 @@ function task(id: string, over: Partial<BoardTask> = {}): BoardTask {
     organization_id: 'o',
     project_id: 'p',
     ticket_id: 't',
+    assigned_by_member_id: null,
+    assigned_at: null,
     title: `Tâche ${id}`,
     skill: 'dev',
     estimate_hours: 1,

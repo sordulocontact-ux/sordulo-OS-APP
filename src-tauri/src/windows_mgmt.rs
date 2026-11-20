@@ -1,36 +1,11 @@
-//! Fenêtres : `main` (déclarée dans tauri.conf.json) et `prompt` (créée ici, cachée, au démarrage).
+//! Fenêtres : `main` (déclarée dans tauri.conf.json) et `prompt`, l'île (créée et surveillée par
+//! `island_window`, toujours visible).
 
-use tauri::{
-    AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
-    Wry,
-};
-use tauri_plugin_positioner::{Position, WindowExt};
+use tauri::{AppHandle, Emitter, Manager};
 
-use crate::events::{EVENT_PROMPT, PROMPT_ROUTE, WINDOW_MAIN, WINDOW_PROMPT};
-use crate::state::{DesktopState, PromptReason};
-
-/// Taille de la fenêtre prompt (pixels logiques) : une barre horizontale, sans défilement.
-const PROMPT_WIDTH: f64 = 620.0;
-const PROMPT_HEIGHT: f64 = 64.0;
-/// Marge avec le haut de l'écran.
-const SCREEN_MARGIN: i32 = 12;
-
-/// Crée la fenêtre prompt, cachée. Appelé une fois dans `setup`.
-pub fn create_prompt_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
-    WebviewWindowBuilder::new(app, WINDOW_PROMPT, WebviewUrl::App(PROMPT_ROUTE.into()))
-        .title("Sordulo OS")
-        .inner_size(PROMPT_WIDTH, PROMPT_HEIGHT)
-        .resizable(false)
-        .maximizable(false)
-        .minimizable(false)
-        .decorations(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .visible(false)
-        .focused(false)
-        .shadow(true)
-        .build()
-}
+use crate::events::{EVENT_NAVIGATE, EVENT_PROMPT, WINDOW_MAIN, WINDOW_PROMPT};
+use crate::island_window;
+use crate::state::{DesktopState, NavigatePayload, PromptReason};
 
 /// Montre et focalise la fenêtre principale.
 pub fn show_main(app: &AppHandle) {
@@ -47,63 +22,41 @@ pub fn show_main(app: &AppHandle) {
     }
 }
 
-/// Cache la fenêtre prompt.
-pub fn hide_prompt(app: &AppHandle) -> tauri::Result<()> {
-    match app.get_webview_window(WINDOW_PROMPT) {
-        Some(window) => window.hide(),
-        None => Ok(()),
+/// Montre et focalise la fenêtre principale, puis lui demande d'aller à `route` (`desktop://navigate`).
+pub fn open_main_at(app: &AppHandle, route: String) -> Result<(), String> {
+    if !route.starts_with('/') {
+        return Err(format!(
+            "Route « {route} » refusée : elle doit commencer par « / »."
+        ));
     }
+    show_main(app);
+    log::info!("fenêtre principale ouverte sur {route}");
+    app.emit_to(WINDOW_MAIN, EVENT_NAVIGATE, NavigatePayload { route })
+        .map_err(|e| format!("Impossible d'ouvrir la page demandée : {e}"))
 }
 
-/// Émet `desktop://prompt` vers la fenêtre prompt, la place près de la zone de notification et la montre.
+/// Ne fait plus rien : l'île est toujours présente, elle n'est plus jamais cachée par l'app.
+/// Gardée pour les appelants existants ; c'est le front qui ramène l'île au repos.
+#[allow(dead_code)]
+pub fn hide_prompt(app: &AppHandle) -> tauri::Result<()> {
+    let _ = app;
+    Ok(())
+}
+
+/// Émet `desktop://prompt` vers l'île et s'assure qu'elle est visible, sans la déplacer ni prendre le focus.
 ///
-/// `focus = false` : la fenêtre apparaît sans prendre le focus (l'utilisateur est dans son appel).
+/// `focus` est ignoré : l'île ne vole jamais le focus (l'utilisateur est peut-être dans son appel) ;
+/// un clic dans l'île lui donne le clavier.
 pub fn show_prompt(app: &AppHandle, reason: PromptReason, focus: bool) {
+    let _ = focus;
     let Some(window) = app.get_webview_window(WINDOW_PROMPT) else {
         log::warn!("fenêtre {WINDOW_PROMPT} introuvable");
         return;
     };
     let payload = app.state::<DesktopState>().prompt_payload(reason);
-    if let Err(e) = app.emit_to(WINDOW_PROMPT, EVENT_PROMPT, &payload) {
-        log::warn!("émission de {EVENT_PROMPT} impossible : {e}");
+    match app.emit_to(WINDOW_PROMPT, EVENT_PROMPT, &payload) {
+        Ok(()) => log::info!("proposition envoyée à l'île (raison {})", reason.as_str()),
+        Err(e) => log::warn!("émission de {EVENT_PROMPT} impossible : {e}"),
     }
-    place_top_center(&window);
-
-    let shown = if focus {
-        window.show().and_then(|_| window.set_focus())
-    } else {
-        // Le temps de l'affichage, la fenêtre n'est pas activable (WS_EX_NOACTIVATE sous Windows) :
-        // elle apparaît au-dessus sans voler le focus, puis redevient cliquable normalement.
-        let _ = window.set_focusable(false);
-        let shown = window.show();
-        let _ = window.set_focusable(true);
-        shown
-    };
-    match shown {
-        Ok(()) => log::info!("fenêtre prompt affichée (raison {})", reason.as_str()),
-        Err(e) => log::warn!("impossible d'afficher la fenêtre prompt : {e}"),
-    }
-}
-
-/// En haut au centre de la zone de travail de l'écran principal (hors barre des tâches).
-fn place_top_center(window: &WebviewWindow<Wry>) {
-    if let Err(e) = place_top_center_of_work_area(window) {
-        log::debug!("position en haut au centre impossible ({e}), repli du positioner");
-        if let Err(e) = window.move_window(Position::TopCenter) {
-            log::warn!("impossible de placer la fenêtre prompt : {e}");
-        }
-    }
-}
-
-fn place_top_center_of_work_area(window: &WebviewWindow<Wry>) -> tauri::Result<()> {
-    let monitor = window
-        .primary_monitor()?
-        .or(window.current_monitor()?)
-        .ok_or_else(|| tauri::Error::Io(std::io::Error::other("aucun écran détecté")))?;
-    let area = monitor.work_area();
-    let size = window.outer_size()?;
-    let margin = (f64::from(SCREEN_MARGIN) * monitor.scale_factor()).round() as i32;
-    let x = area.position.x + (area.size.width as i32 - size.width as i32) / 2;
-    let y = area.position.y + margin;
-    window.set_position(PhysicalPosition::new(x, y))
+    island_window::ensure_visible(&window);
 }

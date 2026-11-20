@@ -1,0 +1,39 @@
+/*
+ * Claude de l'île : silhouette, yeux et paupières repris du jardin (Garden.module.css), couleur Claude.
+ * Les gestes et clignements sont joués par ClaudeMascot.tsx (API Web Animations, valeurs dans mascot.ts).
+ */
+
+.mascot {
+  --garden-color: var(--island-claude);
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.figure,
+.face {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 80%;
+}
+
+.body {
+  composes: body from '../garden/Garden.module.css';
+}
+
+.eye {
+  composes: eye from '../garden/Garden.module.css';
+}
+
+.lid {
+  composes: lid from '../garden/Garden.module.css';
+}
+
+.left {
+  composes: left from '../garden/Garden.module.css';
+}
+
+.right {
+  composes: right from '../garden/Garden.module.css';
+}

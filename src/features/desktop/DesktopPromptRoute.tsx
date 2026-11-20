@@ -1,65 +1,32 @@
-import { useEffect, type ReactNode } from 'react'
+import { useLayoutEffect } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Button, LoadingState } from '../../components/ui'
-import { isDesktop, showMainWindow } from '../../lib/desktop'
-import { supabase } from '../../lib/supabase'
-import { useAuth } from '../auth/useAuth'
-import { MemberGate } from '../auth/MemberGate'
-import { DesktopPromptPage } from './DesktopPromptPage'
-import styles from './DesktopPromptPage.module.css'
+import { isDesktop } from '../../lib/desktop'
+import { IslandController } from '../island/controller'
+import { useSessionSync } from './useSessionSync'
+import './IslandWindow.module.css'
 
-/** Re-reads the shared session when the window becomes visible or focused (login done in the main window). */
-function useSessionSync(): void {
-  useEffect(() => {
-    function sync() {
-      if (document.visibilityState === 'hidden') return
-      void supabase.auth.getSession().then(({ data }) => {
-        const session = data.session
-        if (session) {
-          // Notifies the AuthProvider of this window when the session was created elsewhere.
-          void supabase.auth.setSession({ access_token: session.access_token, refresh_token: session.refresh_token })
-        }
-      })
-    }
-    window.addEventListener('focus', sync)
-    document.addEventListener('visibilitychange', sync)
-    return () => {
-      window.removeEventListener('focus', sync)
-      document.removeEventListener('visibilitychange', sync)
-    }
+const WINDOW_CLASS = 'islandWindow'
+
+/** Rend le document transparent tant que la route est affichée (la fenêtre est une île sans fond). */
+function useTransparentWindow(): void {
+  useLayoutEffect(() => {
+    const html = document.documentElement
+    html.classList.add(WINDOW_CLASS)
+    return () => html.classList.remove(WINDOW_CLASS)
   }, [])
 }
 
-function DesktopAuthGate({ children }: { children: ReactNode }) {
-  const { session, loading } = useAuth()
+function IslandWindow() {
+  useTransparentWindow()
   useSessionSync()
-  if (loading) return <LoadingState label="Connexion en cours…" />
-  if (!session) {
-    return (
-      <main className={styles.page}>
-        <h1 className={styles.title}>Connexion requise</h1>
-        <p className={styles.text} role="status">
-          Connecte-toi dans la fenêtre principale de Sordulo OS.
-        </p>
-        <div className={styles.actions}>
-          <Button variant="primary" onClick={() => void showMainWindow()}>
-            Ouvrir Sordulo OS
-          </Button>
-        </div>
-      </main>
-    )
-  }
-  return children
+  return <IslandController />
 }
 
-/** /desktop/prompt: only inside Tauri, behind the session (no redirect to /login in the small window). */
+/**
+ * /desktop/prompt : l'île de l'app de bureau, seulement dans Tauri. Pas d'écran de connexion ici : sans
+ * session (ou sans membre), l'île reste au repos et un appel détecté propose d'ouvrir Sordulo OS.
+ */
 export function DesktopPromptRoute() {
   if (!isDesktop()) return <Navigate to="/" replace />
-  return (
-    <DesktopAuthGate>
-      <MemberGate>
-        <DesktopPromptPage />
-      </MemberGate>
-    </DesktopAuthGate>
-  )
+  return <IslandWindow />
 }

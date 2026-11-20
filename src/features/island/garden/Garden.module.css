@@ -1,0 +1,306 @@
+/*
+ * Jardin des Claude (prototype design/prototypes/ile-sordulo-os.html, lignes 174-240 : .garden, .mascot,
+ * .fig, .body, .eye, .lid, .bubble, .spark, .fx, .g-notch).
+ * Couleurs, tailles des effets, polices et durées : tokens --island-garden-* de src/styles/tokens.css.
+ * Tailles des personnages, positions et mouvements : écrits à chaque image par renderer.ts (constants.ts).
+ * Variables posées par le moteur de rendu : --garden-color (corps), --garden-dx / --garden-dy (étoiles).
+ */
+
+.garden {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+}
+
+/* Personnage : silhouette de l'icône Claude en masque, colorée, avec un contour noir de 1 px */
+.mascot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  opacity: 0;
+  transform-origin: 50% 81%;
+  will-change: transform, opacity;
+}
+
+.fig {
+  position: absolute;
+  inset: 0;
+  filter: var(--island-garden-outline-filter);
+}
+
+.body {
+  position: absolute;
+  inset: 0;
+  background: var(--garden-color);
+  /* Silhouette tirée de l'icône fournie (grille 16 × 16), copie du masque CC_MASK du prototype */
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2016%2016%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%2212%22%20height%3D%221%22/%3E%3Crect%20x%3D%222%22%20y%3D%224%22%20width%3D%2212%22%20height%3D%221%22/%3E%3Crect%20x%3D%222%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22/%3E%3Crect%20x%3D%225%22%20y%3D%225%22%20width%3D%226%22%20height%3D%221%22/%3E%3Crect%20x%3D%2212%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22/%3E%3Crect%20x%3D%222%22%20y%3D%226%22%20width%3D%222%22%20height%3D%221%22/%3E%3Crect%20x%3D%225%22%20y%3D%226%22%20width%3D%226%22%20height%3D%221%22/%3E%3Crect%20x%3D%2212%22%20y%3D%226%22%20width%3D%222%22%20height%3D%221%22/%3E%3Crect%20x%3D%220%22%20y%3D%227%22%20width%3D%2216%22%20height%3D%221%22/%3E%3Crect%20x%3D%220%22%20y%3D%228%22%20width%3D%2216%22%20height%3D%221%22/%3E%3Crect%20x%3D%222%22%20y%3D%229%22%20width%3D%2212%22%20height%3D%221%22/%3E%3Crect%20x%3D%222%22%20y%3D%2210%22%20width%3D%2212%22%20height%3D%221%22/%3E%3Crect%20x%3D%223%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22/%3E%3Crect%20x%3D%225%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22/%3E%3Crect%20x%3D%2210%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22/%3E%3Crect%20x%3D%2212%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22/%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22/%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22/%3E%3Crect%20x%3D%2210%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22/%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22/%3E%3C/svg%3E")
+    center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2016%2016%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%2212%22%20height%3D%221%22/%3E%3Crect%20x%3D%222%22%20y%3D%224%22%20width%3D%2212%22%20height%3D%221%22/%3E%3Crect%20x%3D%222%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22/%3E%3Crect%20x%3D%225%22%20y%3D%225%22%20width%3D%226%22%20height%3D%221%22/%3E%3Crect%20x%3D%2212%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22/%3E%3Crect%20x%3D%222%22%20y%3D%226%22%20width%3D%222%22%20height%3D%221%22/%3E%3Crect%20x%3D%225%22%20y%3D%226%22%20width%3D%226%22%20height%3D%221%22/%3E%3Crect%20x%3D%2212%22%20y%3D%226%22%20width%3D%222%22%20height%3D%221%22/%3E%3Crect%20x%3D%220%22%20y%3D%227%22%20width%3D%2216%22%20height%3D%221%22/%3E%3Crect%20x%3D%220%22%20y%3D%228%22%20width%3D%2216%22%20height%3D%221%22/%3E%3Crect%20x%3D%222%22%20y%3D%229%22%20width%3D%2212%22%20height%3D%221%22/%3E%3Crect%20x%3D%222%22%20y%3D%2210%22%20width%3D%2212%22%20height%3D%221%22/%3E%3Crect%20x%3D%223%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22/%3E%3Crect%20x%3D%225%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22/%3E%3Crect%20x%3D%2210%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22/%3E%3Crect%20x%3D%2212%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22/%3E%3Crect%20x%3D%223%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22/%3E%3Crect%20x%3D%225%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22/%3E%3Crect%20x%3D%2210%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22/%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%221%22%20height%3D%221%22/%3E%3C/svg%3E")
+    center / 100% 100% no-repeat;
+}
+
+/* Yeux et paupières : une case de la grille de 16 (6,25 %), à la place des trous du masque */
+.eye,
+.lid {
+  position: absolute;
+  top: 31.25%;
+  width: 6.25%;
+}
+
+.eye {
+  height: 12.5%;
+  background: var(--island-garden-eye);
+}
+
+.lid {
+  height: 0;
+  background: var(--garden-color);
+}
+
+.left {
+  left: 25%;
+}
+
+.right {
+  left: 68.75%;
+}
+
+/* Bulle au-dessus de la tête : attend (blanche, rebondit), terminé (verte), bloqué (orange) */
+.bubble {
+  position: absolute;
+  left: 50%;
+  bottom: 88%;
+  display: none;
+  min-width: var(--island-garden-bubble-size);
+  height: var(--island-garden-bubble-size);
+  padding: 0 var(--island-garden-bubble-pad);
+  border-radius: var(--island-garden-radius);
+  font-size: var(--island-garden-text-8);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--island-garden-bubble-size);
+  text-align: center;
+  transform: translateX(-50%);
+}
+
+.bubble.wait {
+  display: block;
+  background: var(--island-garden-light);
+  color: var(--island-garden-ink);
+  animation: bob var(--island-garden-duration-bob) ease-in-out infinite;
+}
+
+.bubble.done {
+  display: block;
+  background: var(--island-garden-done);
+  color: var(--island-garden-ink);
+}
+
+.bubble.err {
+  display: block;
+  background: var(--island-garden-err);
+  color: var(--island-garden-ink);
+}
+
+@keyframes bob {
+  50% {
+    transform: translate(-50%, var(--island-garden-bob));
+  }
+}
+
+/* Encoche du Mac : les Claude passent derrière (lot macOS, inactif) */
+.notch {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  z-index: 2;
+  width: var(--island-garden-notch-width);
+  background: var(--island-bg);
+  transform: translateX(-50%);
+}
+
+/* Effets : paroles, cœurs, vapeur, étoiles, nuage de bagarre, feuille, « z », notes, étincelle */
+.fx {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.say {
+  z-index: 4;
+  padding: 0 var(--island-garden-say-pad);
+  border-radius: var(--island-garden-radius);
+  background: var(--island-garden-light);
+  color: var(--island-garden-ink);
+  font-size: var(--island-garden-text-8);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--island-garden-text-10);
+  animation: say var(--island-garden-duration-say) ease-out forwards;
+}
+
+.say::after {
+  content: '';
+  position: absolute;
+  left: var(--island-garden-tail);
+  bottom: var(--island-garden-tail-offset);
+  width: var(--island-garden-tail);
+  height: var(--island-garden-tail);
+  background: inherit;
+}
+
+.say.red {
+  background: var(--island-garden-angry);
+  color: var(--island-garden-light);
+}
+
+.say.grey {
+  background: var(--island-garden-grey);
+  color: var(--island-garden-ink);
+}
+
+.say.small {
+  font-size: var(--island-garden-text-7);
+  line-height: var(--island-garden-text-9);
+}
+
+@keyframes say {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) translateY(var(--island-garden-say-rise-start));
+  }
+  15% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(var(--island-garden-say-rise-end));
+  }
+}
+
+.heart {
+  color: var(--island-garden-heart);
+  font-size: var(--island-garden-text-10);
+  line-height: var(--island-garden-text-10);
+  animation: floatUp var(--island-garden-duration-heart) ease-out forwards;
+}
+
+.heart.small {
+  font-size: var(--island-garden-text-8);
+}
+
+.steam {
+  color: var(--island-garden-steam);
+  font-size: var(--island-garden-text-9);
+  line-height: var(--island-garden-text-9);
+  animation: floatUp var(--island-garden-duration-steam) ease-out forwards;
+}
+
+.z {
+  color: var(--island-garden-z);
+  font-size: var(--island-garden-text-8);
+  line-height: var(--island-garden-text-8);
+  animation: floatUp var(--island-garden-duration-z) ease-out forwards;
+}
+
+.note {
+  color: var(--island-garden-light);
+  font-size: var(--island-garden-text-9);
+  line-height: var(--island-garden-text-9);
+  animation: floatUp var(--island-garden-duration-note) ease-out forwards;
+}
+
+@keyframes floatUp {
+  0% {
+    opacity: 0;
+    transform: translateY(var(--island-garden-rise-start)) scale(0.5);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(var(--island-garden-rise-end)) scale(0.9);
+  }
+}
+
+.star {
+  color: var(--island-garden-light);
+  font-size: var(--island-garden-text-7);
+  line-height: var(--island-garden-text-7);
+  animation: burst var(--island-garden-duration-star) ease-out forwards;
+}
+
+@keyframes burst {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--garden-dx), var(--garden-dy));
+  }
+}
+
+.cloud {
+  width: var(--island-garden-cloud-width);
+  height: var(--island-garden-cloud-height);
+  border-radius: var(--island-garden-cloud-radius);
+  background: var(--island-garden-cloud);
+  box-shadow: var(--island-garden-cloud-puffs);
+}
+
+.paper {
+  width: var(--island-garden-paper-width);
+  height: var(--island-garden-paper-height);
+  border-radius: 1px;
+  background: var(--island-garden-light);
+}
+
+.spark {
+  width: var(--island-garden-spark-size);
+  height: var(--island-garden-spark-size);
+  color: var(--island-garden-light);
+  font-size: var(--island-garden-text-10);
+  line-height: var(--island-garden-text-10);
+  animation: spark var(--island-garden-duration-spark) ease-out forwards;
+}
+
+@keyframes spark {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.4);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(var(--island-garden-spark-rise-mid)) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(var(--island-garden-spark-rise-end)) scale(0.8);
+  }
+}
+
+/* Animations réduites : la bulle d'attente ne rebondit plus (les effets ne sont plus créés) */
+.garden[data-reduced='true'] .bubble.wait {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble.wait {
+    animation: none;
+  }
+}

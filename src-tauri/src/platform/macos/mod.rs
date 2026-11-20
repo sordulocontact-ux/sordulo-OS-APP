@@ -8,7 +8,7 @@
 //! Obligations : conserver la mention de copyright MIT d'origine dans les fichiers portés ;
 //! ne pas reprendre les noms « Coucou », « Mochi » ni leurs sons.
 
-use super::{MicApp, MicMonitor, Recorder, RecordingInfo};
+use super::{CursorState, MicApp, MicMonitor, Recorder, RecordingInfo};
 use std::path::Path;
 
 pub struct CoreAudioMicMonitor;
@@ -42,4 +42,14 @@ impl Recorder for CoreAudioRecorder {
     fn elapsed_secs(&self) -> f64 {
         0.0
     }
+}
+
+/// Position du curseur : pas encore implémentée (lot L13). `None` = les clics traversent toujours l'île.
+pub fn cursor_state() -> Option<CursorState> {
+    None
+}
+
+/// Presse-papiers : pas encore implémenté (lot L13). Le front retombe sur `navigator.clipboard`.
+pub fn copy_text(_text: &str) -> anyhow::Result<()> {
+    anyhow::bail!("Copie dans le presse-papiers pas encore disponible sur macOS (lot L13)")
 }

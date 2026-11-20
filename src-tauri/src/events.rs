@@ -15,5 +15,19 @@ pub const EVENT_RECORDING_STATE: &str = "desktop://recording-state";
 pub const EVENT_PROMPT: &str = "desktop://prompt";
 /// `DESKTOP_EVENTS.authCallback` (sans payload) : un lien de connexion attend `take_auth_callback`.
 pub const EVENT_AUTH_CALLBACK: &str = "desktop://auth-callback";
+/// `DESKTOP_EVENTS.audioLevel` (payload `AudioLevel`), fenêtre de l'île, ~toutes les 90 ms pendant l'enregistrement.
+pub const EVENT_AUDIO_LEVEL: &str = "desktop://audio-level";
+/// `DESKTOP_EVENTS.islandPointer` (payload `IslandPointer`), fenêtre de l'île.
+pub const EVENT_ISLAND_POINTER: &str = "desktop://island-pointer";
+/// `DESKTOP_EVENTS.navigate` (payload `NavigatePayload`), fenêtre principale.
+pub const EVENT_NAVIGATE: &str = "desktop://navigate";
+/// `DESKTOP_EVENTS.focusMode` (payload `FocusModeState`), fenêtre de l'île.
+pub const EVENT_FOCUS_MODE: &str = "desktop://focus-mode";
+/// `DESKTOP_EVENTS.claude` (payload `ClaudeRelayEvent`), fenêtre de l'île.
+pub const EVENT_CLAUDE: &str = "desktop://claude";
+/// `DESKTOP_EVENTS.claudeConnection` (payload `ClaudeConnection`), fenêtre de l'île.
+pub const EVENT_CLAUDE_CONNECTION: &str = "desktop://claude-connection";
+/// `CLAUDE_PERMISSION_TIMEOUT_MS` : attente maximale d'une réponse de l'île à un PermissionRequest.
+pub const CLAUDE_PERMISSION_TIMEOUT_MS: u64 = 60_000;
 /// Schéma de `DESKTOP_AUTH_REDIRECT` (`sordulo://auth`).
 pub const URL_SCHEME: &str = "sordulo";

@@ -2,12 +2,13 @@
 //! Deux threads dédiés, lancés une fois dans `setup`.
 
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::call_apps;
-use crate::events::EVENT_MIC_STATE;
+use crate::events::{EVENT_AUDIO_LEVEL, EVENT_MIC_STATE, WINDOW_PROMPT};
 use crate::platform;
 use crate::recording;
 use crate::state::{DesktopState, MicState, PromptReason};
@@ -16,6 +17,84 @@ use crate::windows_mgmt;
 
 const MIC_POLL: Duration = Duration::from_secs(1);
 const RECORDING_TICK: Duration = Duration::from_secs(1);
+/// Période d'émission du niveau sonore vers l'île (l'onde défile toutes les ~90 ms).
+const LEVEL_TICK: Duration = Duration::from_millis(90);
+/// Niveau (dBFS) en dessous duquel l'onde reste à plat, et au-dessus duquel elle est au maximum.
+const LEVEL_FLOOR_DB: f32 = -55.0;
+const LEVEL_CEIL_DB: f32 = -12.0;
+/// Constante de temps de la retombée de l'onde (l'attaque est instantanée).
+const LEVEL_RELEASE_SECS: f32 = 0.15;
+
+/// Payload de `desktop://audio-level` (voir `AudioLevel` dans desktop-contract.ts).
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AudioLevel {
+    /// 0..1, déjà mis à l'échelle pour l'affichage.
+    level: f32,
+    /// Epoch en ms.
+    at: u64,
+}
+
+/// Niveau RMS linéaire → 0..1 pour l'affichage : -55 dBFS et moins → 0, -12 dBFS et plus → 1,
+/// courbe douce (smoothstep) entre les deux. Silence (ou valeur invalide) → 0.
+fn display_level(rms: f32) -> f32 {
+    if !rms.is_finite() || rms <= 1e-6 {
+        return 0.0;
+    }
+    let db = 20.0 * rms.log10();
+    let t = ((db - LEVEL_FLOOR_DB) / (LEVEL_CEIL_DB - LEVEL_FLOOR_DB)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+/// Lissage de l'onde : attaque immédiate, relâche exponentielle (~150 ms).
+#[derive(Debug, Default)]
+struct LevelSmoother {
+    value: f32,
+}
+
+impl LevelSmoother {
+    /// `target` : niveau d'affichage visé (0..1) ; `dt` : temps écoulé depuis le pas précédent.
+    fn step(&mut self, target: f32, dt: Duration) -> f32 {
+        let released = self.value * (-dt.as_secs_f32() / LEVEL_RELEASE_SECS).exp();
+        self.value = target.max(released);
+        if self.value < 0.01 {
+            self.value = 0.0;
+        }
+        self.value
+    }
+
+    fn reset(&mut self) {
+        self.value = 0.0;
+    }
+}
+
+fn spawn_level_ticker(app: AppHandle) {
+    let spawned = thread::Builder::new()
+        .name("audio-level".into())
+        .spawn(move || {
+            let mut smoother = LevelSmoother::default();
+            loop {
+                thread::sleep(LEVEL_TICK);
+                // Lecture sans verrou : rien n'est émis hors enregistrement.
+                let Some(raw) = platform::recording_level() else {
+                    smoother.reset();
+                    continue;
+                };
+                let level = smoother.step(display_level(raw), LEVEL_TICK);
+                let at = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map_or(0, |d| d.as_millis() as u64);
+                if let Err(e) =
+                    app.emit_to(WINDOW_PROMPT, EVENT_AUDIO_LEVEL, AudioLevel { level, at })
+                {
+                    log::debug!("émission de {EVENT_AUDIO_LEVEL} impossible : {e}");
+                }
+            }
+        });
+    if let Err(e) = spawned {
+        log::error!("impossible de lancer le ticker du niveau sonore : {e}");
+    }
+}
 /// Ce que la boucle doit faire après un changement d'état du micro.
 #[derive(Debug, PartialEq, Eq)]
 enum Action {
@@ -50,10 +129,18 @@ pub fn spawn_mic_loop(app: AppHandle) {
                 match monitor.active_apps() {
                     Ok(apps) => {
                         // Seules les apps d'appel et les navigateurs comptent (pas la dictée dans Claude, etc.).
-                        let apps = apps
+                        let apps: Vec<_> = apps
                             .into_iter()
-                            .filter(|a| call_apps::classify(&a.id).is_some());
-                        let mic = MicState::from_apps(apps.collect());
+                            .filter(|a| call_apps::classify(&a.id).is_some())
+                            .collect();
+                        // Les titres ne servent qu'à reconnaître le service d'un navigateur : fenêtres et pages de
+                        // ce navigateur seulement (une autre fenêtre « Meet » ne doit pas colorer un appel Discord).
+                        let titles: Vec<String> = apps
+                            .iter()
+                            .filter(|a| call_apps::classify(&a.id) == Some(call_apps::CallApp::Browser))
+                            .flat_map(|a| platform::browser_page_titles(&call_apps::short_name(&a.id)))
+                            .collect();
+                        let mic = MicState::from_apps_with_titles(apps, &titles);
                         let active = mic.active;
                         match on_poll(&app, mic) {
                             Some(PromptReason::MicActive) => {
@@ -186,6 +273,7 @@ fn on_poll(app: &AppHandle, mic: MicState) -> Option<PromptReason> {
 }
 
 pub fn spawn_recording_ticker(app: AppHandle) {
+    spawn_level_ticker(app.clone());
     let spawned = thread::Builder::new()
         .name("recording-ticker".into())
         .spawn(move || loop {
@@ -203,6 +291,53 @@ pub fn spawn_recording_ticker(app: AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn display_level_scale() {
+        assert_eq!(display_level(0.0), 0.0);
+        assert_eq!(display_level(f32::NAN), 0.0);
+        // -55 dBFS et moins : plat ; -12 dBFS et plus : plein.
+        assert_eq!(display_level(10f32.powf(-55.0 / 20.0)), 0.0);
+        assert_eq!(display_level(10f32.powf(-70.0 / 20.0)), 0.0);
+        assert!((display_level(10f32.powf(-12.0 / 20.0)) - 1.0).abs() < 1e-5);
+        assert_eq!(display_level(1.0), 1.0);
+        // Milieu de la plage (-33,5 dBFS) : milieu de l'échelle, et courbe croissante.
+        let mid = display_level(10f32.powf(-33.5 / 20.0));
+        assert!((mid - 0.5).abs() < 0.01, "{mid}");
+        let mut previous = 0.0;
+        for db in (-55..=-12).map(|d| d as f32) {
+            let v = display_level(10f32.powf(db / 20.0));
+            assert!(v >= previous, "{db} dB : {v} < {previous}");
+            previous = v;
+        }
+    }
+
+    #[test]
+    fn level_smoother_attacks_fast_and_releases_slowly() {
+        let dt = Duration::from_millis(90);
+        let mut s = LevelSmoother::default();
+        assert_eq!(s.step(0.8, dt), 0.8);
+        // Attaque immédiate même depuis une valeur haute vers une plus haute.
+        assert_eq!(s.step(1.0, dt), 1.0);
+        // Relâche : ~55 % par pas de 90 ms (constante de 150 ms), jamais en dessous de la cible.
+        let after = s.step(0.0, dt);
+        assert!((after - 0.549).abs() < 0.01, "{after}");
+        assert_eq!(s.step(0.9, dt), 0.9);
+        // Retombe complètement à zéro (seuil d'extinction) puis y reste.
+        for _ in 0..20 {
+            s.step(0.0, dt);
+        }
+        assert_eq!(s.step(0.0, dt), 0.0);
+        s.step(0.5, dt);
+        s.reset();
+        assert_eq!(s.step(0.0, dt), 0.0);
+    }
+
+    #[test]
+    fn audio_level_serializes_camel_case() {
+        let json = serde_json::to_value(AudioLevel { level: 0.5, at: 42 }).unwrap();
+        assert_eq!(json, serde_json::json!({ "level": 0.5, "at": 42 }));
+    }
 
     #[test]
     fn transitions() {
