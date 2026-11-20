@@ -15,6 +15,7 @@ import { ProspectsPage } from '../features/prospects/ProspectsPage'
 import { QuotePage } from '../features/quotes/QuotePage'
 import { QuotePrintPage } from '../features/quotes/QuotePrintPage'
 import { QuotesPage } from '../features/quotes/QuotesPage'
+import { CallsPage } from '../features/calls/CallsPage'
 import { ClientPage } from '../features/clients/ClientPage'
 import { ClientsPage } from '../features/clients/ClientsPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
@@ -95,6 +96,7 @@ export function AppRoutes() {
           </Route>
           <Route path="/projects/:projectId/inputs/:inputId" element={<InputDetailPage />} />
           <Route path="/projects/:projectId/inputs/:inputId/review" element={<ReviewPage />} />
+          <Route path="/calls" element={<CallsPage />} />
         </Route>
         <Route element={<Guard roles={FINANCE_ROLES} />}>
           <Route path="/quotes" element={<QuotesPage />} />

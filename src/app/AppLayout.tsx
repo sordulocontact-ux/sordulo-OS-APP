@@ -5,18 +5,18 @@ import briefcaseIcon from '../assets/icons/briefcase.svg'
 import fileTextIcon from '../assets/icons/file-text.svg'
 import handshakeIcon from '../assets/icons/handshake.svg'
 import homeIcon from '../assets/icons/home.svg'
+import phoneIcon from '../assets/icons/phone.svg'
 import receiptIcon from '../assets/icons/receipt.svg'
 import settingsIcon from '../assets/icons/settings.svg'
 import targetIcon from '../assets/icons/target.svg'
 import usersIcon from '../assets/icons/users.svg'
 import sidebarIcon from '../assets/icons/sidebar.svg'
 import { Avatar, Button } from '../components/ui'
-import { ADMIN_ROLES, ALL_ROLES, CLIENT_READ_ROLES, FINANCE_ROLES, PROSPECT_ROLES } from '../features/auth/roles'
+import { ADMIN_ROLES, ALL_ROLES, CLIENT_READ_ROLES, FINANCE_ROLES, PROJECT_ROLES, PROSPECT_ROLES } from '../features/auth/roles'
 import { SetPasswordButton } from '../features/auth/SetPasswordButton'
 import { useAuth } from '../features/auth/useAuth'
 import { useCurrentMember } from '../features/auth/useCurrentMember'
-import { DesktopRecordButton } from '../features/desktop/DesktopRecordButton'
-import { currentWindowLabel, isDesktop, onNavigate, useIsDesktop } from '../lib/desktop'
+import { currentWindowLabel, isDesktop, onNavigate } from '../lib/desktop'
 import { DESKTOP_WINDOWS } from '../shared/desktop-contract'
 import styles from './AppLayout.module.css'
 
@@ -25,6 +25,7 @@ const NAV = [
   { to: '/', label: 'Accueil', icon: homeIcon, roles: ALL_ROLES },
   { to: '/projects', label: 'Projets', icon: briefcaseIcon, roles: CLIENT_READ_ROLES },
   { to: '/clients', label: 'Clients', icon: handshakeIcon, roles: CLIENT_READ_ROLES },
+  { to: '/calls', label: 'Appels', icon: phoneIcon, roles: PROJECT_ROLES },
   { to: '/prospects', label: 'Prospection', icon: targetIcon, roles: PROSPECT_ROLES },
   { to: '/quotes', label: 'Devis', icon: fileTextIcon, roles: FINANCE_ROLES },
   { to: '/invoices', label: 'Factures', icon: receiptIcon, roles: FINANCE_ROLES },
@@ -59,7 +60,6 @@ function useDesktopNavigation(): void {
 export function AppLayout() {
   const { signOut } = useAuth()
   const { member, organization } = useCurrentMember()
-  const desktop = useIsDesktop()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   useDesktopNavigation()
@@ -101,7 +101,6 @@ export function AppLayout() {
                 <img src={item.icon} alt="" width={20} height={20} />
               </NavLink>
             ))}
-            {desktop ? <DesktopRecordButton variant="icon" /> : null}
           </nav>
         </div>
         <div className={styles.account} ref={menuRef}>
