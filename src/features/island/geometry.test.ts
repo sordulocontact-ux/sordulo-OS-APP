@@ -11,6 +11,8 @@ import {
   ringDashOffset,
   shapeGeometry,
   sharedPosition,
+  MEET_BACKGROUND,
+  islandSize,
   sizeKeyFor,
   waveBarHeight,
 } from './geometry'
@@ -173,5 +175,20 @@ describe('hitRectsFor', () => {
     // Île 213 px de large centrée sur 500, écart de 4 px, bulle 44 + 2 × 10 = 64 px, arrondie vers l'extérieur.
     expect(BUBBLE_GAP).toBe(4)
     expect(rects[1]).toEqual({ x: 610, y: 0, width: 65, height: 40 })
+  })
+})
+
+describe('islandSize', () => {
+  it('meetOpen grandit d’une ligne à la fois, 3 au plus, et tient dans la fenêtre de l’île', () => {
+    const base = ISLAND_SIZES.win.meetOpen
+    expect(islandSize('win', 'meetOpen', 0)).toEqual(base)
+    expect(islandSize('win', 'meetOpen', 1).h).toBe(base.h + MEET_BACKGROUND.win.gap + MEET_BACKGROUND.win.rowH)
+    expect(islandSize('win', 'meetOpen', 9)).toEqual(islandSize('win', 'meetOpen', MEET_BACKGROUND.maxRows))
+    expect(islandSize('mac', 'meetOpen', 9).h).toBeLessThanOrEqual(260)
+  })
+
+  it('les autres tailles ignorent les lignes', () => {
+    expect(islandSize('win', 'meet', 3)).toEqual(ISLAND_SIZES.win.meet)
+    expect(islandSize('win', 'agentOpen', 3)).toEqual(ISLAND_SIZES.win.agentOpen)
   })
 })

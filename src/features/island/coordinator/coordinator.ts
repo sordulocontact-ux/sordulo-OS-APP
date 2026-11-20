@@ -26,6 +26,9 @@
  *   contrôleur qui ajoute « Import de l'audio ».
  * - `pinSecondary()` : clic sur la bulle, la secondaire est épinglée et passe devant.
  * Ordre : épinglée, puis appel, progression, Claude (agent, multi), musique ; à rang égal, la plus récente.
+ * Pendant un enregistrement (écart au prototype, demande de Maël) : l'appel reste seul dans l'île, même si
+ * une autre activité est épinglée, et il n'y a pas de bulle. Les autres activités passent dans `background`,
+ * affichées sous l'appel au survol (meetOpen).
  *
  * Par-dessus la principale, une seule chose à la fois : notification, demande d'autorisation ou overlay.
  * - `notify(notification)` : en file. Interruptions (`notification.interrupt`, demandes d'autorisation)
@@ -116,6 +119,8 @@ function sameSnapshot(a: IslandSnapshot, b: IslandSnapshot): boolean {
     a.state === b.state &&
     a.primary === b.primary &&
     a.secondary === b.secondary &&
+    a.background.length === b.background.length &&
+    a.background.every((activity, i) => activity === b.background[i]) &&
     a.activityCount === b.activityCount &&
     a.pinnedId === b.pinnedId &&
     a.notification === b.notification &&
@@ -222,6 +227,7 @@ export class IslandCoordinator {
 
   /** Clic sur la bulle : épingle la secondaire, qui passe devant. Renvoie l'id épinglé (null sans bulle). */
   pinSecondary(): string | null {
+    if (this.hasMeet()) return null
     const secondary = this.sorted()[1]
     if (!secondary) return null
     this.pinnedId = secondary.id
@@ -458,7 +464,10 @@ export class IslandCoordinator {
 
   private buildSnapshot(): IslandSnapshot {
     const sorted = this.sorted()
-    const primary = sorted[0] ?? null
+    // Pendant un enregistrement, l'appel le plus récent passe devant tout, même une activité épinglée.
+    const meet = sorted.filter((activity) => activity.kind === 'meet').sort((a, b) => b.order - a.order)[0]
+    const primary = meet ?? sorted[0] ?? null
+    const others = sorted.filter((activity) => activity !== primary)
     const current = this.current
     let state: IslandState = stateOfActivity(primary)
     if (current?.type === 'notification') state = 'notif'
@@ -470,7 +479,8 @@ export class IslandCoordinator {
     return Object.freeze({
       state,
       primary,
-      secondary: sorted[1] ?? null,
+      secondary: meet ? null : (others[0] ?? null),
+      background: Object.freeze(meet ? others : []),
       activityCount: sorted.length,
       pinnedId: this.pinnedId,
       notification,

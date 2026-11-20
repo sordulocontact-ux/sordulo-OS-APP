@@ -7,7 +7,8 @@ import { MAX_SESSION_ROWS, WAVE, type SharedElementId } from '../geometry'
 import type { CallService } from '../../../shared/desktop-contract'
 import type { ClaudeSession, ClaudeSessionStatus } from '../types'
 import { cx } from './cx'
-import { CallIcon, ClaudeIcon, DropIcon } from './icons'
+import { ClaudeMascot } from './ClaudeMascot'
+import { CallIcon, DropIcon } from './icons'
 import styles from './Island.module.css'
 
 const SEG_IDS: SharedElementId[] = ['seg0', 'seg1', 'seg2', 'seg3', 'seg4']
@@ -29,9 +30,21 @@ export interface SharedElementsProps {
   timerRef: (el: HTMLElement | null) => void
   elapsedRef: (el: HTMLElement | null) => void
   waveBarRef: (index: number, el: HTMLElement | null) => void
+  /** La session Claude affichée travaille : le Claude de l'île s'anime. */
+  agentWorking: boolean
+  reduced: boolean
 }
 
-export function SharedElements({ sessions, callService = null, register, timerRef, elapsedRef, waveBarRef }: SharedElementsProps) {
+export function SharedElements({
+  sessions,
+  callService = null,
+  register,
+  timerRef,
+  elapsedRef,
+  waveBarRef,
+  agentWorking,
+  reduced,
+}: SharedElementsProps) {
   const segs = sessions.slice(0, MAX_SESSION_ROWS)
   return (
     <div className={styles.shared} aria-hidden="true">
@@ -50,10 +63,10 @@ export function SharedElements({ sessions, callService = null, register, timerRe
           timerRef(el)
         }}
       />
-      <span className={cx(styles.sh, styles.agentIcon, styles.live)} ref={(el) => register('agentIcon', el)}>
-        <ClaudeIcon />
+      <span className={cx(styles.sh, styles.agentIcon)} ref={(el) => register('agentIcon', el)}>
+        <ClaudeMascot working={agentWorking} reduced={reduced} />
       </span>
-      <span className={cx(styles.sh, styles.dots)} ref={(el) => register('dots', el)}>
+      <span className={cx(styles.sh, styles.dots, !agentWorking && styles.still)} ref={(el) => register('dots', el)}>
         <i />
         <i />
         <i />

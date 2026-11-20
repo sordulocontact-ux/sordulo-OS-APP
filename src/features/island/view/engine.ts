@@ -9,7 +9,7 @@ import {
   BUBBLE_MIN_OPACITY,
   BUBBLE_SIZES,
   GHOST,
-  ISLAND_SIZES,
+  islandSize,
   SHARED_ELEMENTS,
   SHARED_ELEMENT_IDS,
   SHARED_ICON_DEFAULT_SIZE,
@@ -42,6 +42,8 @@ export interface EngineTarget {
   reduced: boolean
   hasGarden: boolean
   sessionCount: number
+  /** Lignes « aussi en cours » sous l'appel (hauteur de meetOpen). */
+  meetRows: number
 }
 
 interface SharedItem {
@@ -76,7 +78,7 @@ export class IslandEngine {
     target: EngineTarget,
   ) {
     this.target = target
-    const size = ISLAND_SIZES[target.platform][target.key]
+    const size = islandSize(target.platform, target.key, target.meetRows)
     this.w = createSpring(size.w)
     this.h = createSpring(size.h)
     this.r = createSpring(size.r)
@@ -99,7 +101,7 @@ export class IslandEngine {
   retarget(target: EngineTarget): void {
     const platformChanged = target.platform !== this.target.platform
     this.target = target
-    const t = ISLAND_SIZES[target.platform][target.key]
+    const t = islandSize(target.platform, target.key, target.meetRows)
     this.w.t = t.w
     this.h.t = t.h
     this.r.t = t.r
@@ -256,11 +258,11 @@ export class IslandEngine {
 
   /** Zones cliquables : union de la taille courante et de la cible, forme et bulle. */
   hitRects(): IslandRect[] {
-    const { platform, key } = this.target
+    const { platform, key, meetRows } = this.target
     return hitRectsFor({
       rootWidth: this.rootWidth,
       platform,
-      island: { current: { w: this.w.x, h: this.h.x, r: this.r.x }, target: ISLAND_SIZES[platform][key] },
+      island: { current: { w: this.w.x, h: this.h.x, r: this.r.x }, target: islandSize(platform, key, meetRows) },
       bubble: this.bubbleShown
         ? { current: { w: this.bw.x, h: this.bh.x }, target: { w: this.bw.t, h: this.bh.t } }
         : null,
@@ -273,12 +275,12 @@ export class IslandEngine {
    */
   ghostPlacement(): { left: number; width: number; height: number; dx: number } | null {
     if (!this.bubbleShown || this.rootWidth <= 0) return null
-    const { platform, key } = this.target
+    const { platform, key, meetRows } = this.target
     const cx = this.rootWidth / 2
     const island = shapeGeometry(this.w.x, this.h.x, this.r.x, platform)
     const b = shapeGeometry(this.bw.x, this.bh.x, BUBBLE_SIZES[platform].r, platform)
     const left = cx + island.width / 2 + BUBBLE_GAP + b.edge
-    const arrival = cx - ISLAND_SIZES[platform][key].w / 2 + GHOST.inset
+    const arrival = cx - islandSize(platform, key, meetRows).w / 2 + GHOST.inset
     const dx = arrival - (left + (b.innerWidth - GHOST.iconSize) / 2)
     return { left, width: b.innerWidth, height: b.height, dx }
   }

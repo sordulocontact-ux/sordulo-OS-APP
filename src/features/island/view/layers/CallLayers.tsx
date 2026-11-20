@@ -3,12 +3,14 @@
  * L'icône, l'onde et le minuteur de l'enregistrement sont des éléments partagés (SharedElements).
  */
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { islandSize } from '../../geometry'
 import type { IslandPlatform, IslandState, MeetActivity } from '../../types'
 import { useLastNonNull } from '../hooks'
 import { CallIcon } from '../icons'
 import styles from '../Island.module.css'
 import { Layer } from '../Layer'
 import { cx } from '../cx'
+import type { BackgroundRow } from '../labels'
 import type { IslandCallPrompt, IslandProjectOption } from '../types'
 
 export interface BaseLayerProps {
@@ -239,20 +241,37 @@ export function AppelLayer({
   )
 }
 
+const ROW_TONE_CLASS: Record<BackgroundRow['tone'], string | undefined> = {
+  muted: undefined,
+  done: styles.stDone,
+  conflict: styles.stConflict,
+  error: styles.stError,
+  waiting: styles.stWaiting,
+}
+
 /**
- * Enregistrement. Au repos : icône + onde à gauche, minuteur à droite (éléments partagés).
- * Au survol (meetOpen, absent du prototype, composé comme agentOpen) : app, projet, bouton « Arrêter ».
+ * Enregistrement. Au repos : icône + onde à gauche, minuteur à droite (éléments partagés). Pas de bulle
+ * pendant l'enregistrement.
+ * Au survol (meetOpen, absent du prototype, composé comme agentOpen) : app, projet, bouton « Arrêter », puis
+ * ce qui tourne aussi (sessions Claude, progressions), une ligne chacun comme dans multiOpen.
  */
 export function MeetLayer({
   meet,
+  rows,
   open,
   onStopRecording,
   ...base
-}: BaseLayerProps & { meet: MeetActivity | null; open: boolean; onStopRecording: () => void }) {
+}: BaseLayerProps & {
+  meet: MeetActivity | null
+  rows: readonly BackgroundRow[]
+  open: boolean
+  onStopRecording: () => void
+}) {
   const shown = useLastNonNull(meet)
   const app = shown?.appName ?? 'l’app d’appel'
+  const height = islandSize(base.platform, 'meetOpen', rows.length).h
   return (
-    <Layer {...base} state="meet" open={open} label={`Appel ${app} en cours de transcription`}>
+    <Layer {...base} state="meet" open={open} label={`Appel ${app} en cours de transcription`} style={{ height }}>
       <div className={styles.detail}>
         <div className={cx(styles.headText, styles.headTextPlain)}>
           <strong>Enregistrement en cours</strong>
@@ -270,6 +289,17 @@ export function MeetLayer({
             Arrêter
           </button>
         </div>
+        {rows.length > 0 && (
+          <ul className={styles.meetBackground} aria-label="Aussi en cours">
+            {rows.map((row) => (
+              <li key={row.id} className={cx(styles.row, styles.meetBackgroundRow)}>
+                <b>{row.title}</b>
+                <span className={styles.task}>{row.detail}</span>
+                {row.status && <span className={cx(styles.st, ROW_TONE_CLASS[row.tone])}>{row.status}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </Layer>
   )

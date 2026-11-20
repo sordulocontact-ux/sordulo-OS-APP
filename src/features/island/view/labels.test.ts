@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { ClaudeSession, IslandNotification, IslandSnapshot } from '../types'
-import { formatElapsed, islandLabel, sessionsSummary, sessionsTitle } from './labels'
+import { MEET_BACKGROUND } from '../geometry'
+import { backgroundRows, formatElapsed, islandLabel, sessionsSummary, sessionsTitle } from './labels'
 
 const snap = (over: Partial<IslandSnapshot>): IslandSnapshot => ({
   state: 'repos',
   primary: null,
   secondary: null,
+  background: [],
   activityCount: 0,
   pinnedId: null,
   notification: null,
@@ -88,5 +90,53 @@ describe('islandLabel', () => {
       estimatedMs: 3200,
     }
     expect(islandLabel(snap({ state: 'progress', primary }), 0, null)).toBe('Import de l’audio')
+  })
+})
+
+describe('backgroundRows', () => {
+  const s = (id: string, status: ClaudeSession['status'], over: Partial<ClaudeSession> = {}): ClaudeSession => ({
+    ...session(status),
+    id,
+    step: `Étape ${id}`,
+    ...over,
+  })
+  const agent = { id: 'agent', kind: 'agent', sessionId: 'b', order: 1 } as const
+  const multi = { id: 'multi', kind: 'multi', order: 2 } as const
+  const upload = {
+    id: 'prog:upload',
+    kind: 'progress',
+    stage: 'upload',
+    label: 'Import de l’audio',
+    fraction: 0.42,
+    startedAt: 0,
+    estimatedMs: 1000,
+    order: 3,
+  } as const
+
+  it('une ligne par progression et par session, avec le statut', () => {
+    const rows = backgroundRows([upload, agent], [s('a', 'working'), s('b', 'waiting')])
+    expect(rows.map((r) => [r.title, r.detail, r.status, r.tone])).toEqual([
+      ['Import de l’audio', '', '42 %', 'muted'],
+      ['PDS OS', 'Étape b', 'Attend ta réponse', 'waiting'],
+    ])
+  })
+
+  it('multi : toutes les sessions, conflit et blocage signalés', () => {
+    const rows = backgroundRows([multi], [s('a', 'working', { conflict: true }), s('b', 'working', { error: true })])
+    expect(rows.map((r) => [r.status, r.tone])).toEqual([
+      ['Conflit', 'conflict'],
+      ['Bloquée', 'error'],
+    ])
+  })
+
+  it('au-delà de 3 lignes, la dernière résume le reste', () => {
+    const sessions = ['a', 'b', 'c', 'd'].map((id) => s(id, 'done'))
+    const rows = backgroundRows([upload, multi], sessions)
+    expect(rows).toHaveLength(MEET_BACKGROUND.maxRows)
+    expect(rows[2]?.title).toBe('3 autres activités')
+  })
+
+  it('aucune activité : aucune ligne', () => {
+    expect(backgroundRows([], [s('a', 'working')])).toEqual([])
   })
 })

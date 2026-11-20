@@ -271,25 +271,7 @@
   place-items: center;
 }
 
-.agentIcon img {
-  width: 100%;
-  height: 100%;
-}
-
-.live img {
-  animation: hop var(--island-duration-hop) ease-in-out infinite;
-}
-
-@keyframes hop {
-  0%,
-  60%,
-  100% {
-    transform: translateY(0);
-  }
-  30% {
-    transform: translateY(-8%);
-  }
-}
+/* Le Claude lui-même (gestes, clignements) : ClaudeMascot */
 
 .dots {
   display: flex;
@@ -311,6 +293,12 @@
 
 .dots i:nth-child(3) {
   animation-delay: calc(var(--island-delay-dots) * 2);
+}
+
+/* Session qui ne travaille pas (terminée, en pause, inactive) : pas de points */
+.dots.still i {
+  animation: none;
+  opacity: 0;
 }
 
 @keyframes dot {
@@ -588,6 +576,22 @@
 
 .stError {
   color: var(--island-alert);
+}
+
+.stWaiting {
+  color: var(--island-claude);
+}
+
+/* Aussi en cours, sous l'appel (meetOpen) : filet puis une ligne par activité (hauteur : MEET_BACKGROUND) */
+.meetBackground {
+  list-style: none;
+  margin: var(--island-space-7) 0 0;
+  padding: 0;
+  border-top: 1px solid var(--island-line);
+}
+
+.meetBackgroundRow {
+  padding-left: 0;
 }
 
 .rowBtn {
@@ -1048,8 +1052,7 @@
 .root[data-reduced='true'] .segWaiting,
 .root[data-reduced='true'] .layerNotif.on .check,
 .root[data-reduced='true'] .dots i,
-.root[data-reduced='true'] .spin,
-.root[data-reduced='true'] .live img {
+.root[data-reduced='true'] .spin {
   animation: none;
 }
 

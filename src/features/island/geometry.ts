@@ -69,6 +69,25 @@ export const ISLAND_SIZES: Record<IslandPlatform, Record<IslandSizeKey, IslandSh
 }
 
 /**
+ * Lignes « aussi en cours » sous l'appel dans meetOpen (ajout, absent du prototype) : une par activité ou
+ * session Claude, 3 au plus. Chaque ligne ajoute `rowH`, plus `gap` une fois (filet au-dessus des lignes).
+ */
+export const MEET_BACKGROUND = {
+  maxRows: 3,
+  win: { rowH: 30, gap: 8 },
+  mac: { rowH: 30, gap: 8 },
+} as const
+
+/** Dimensions d'une clé de taille ; meetOpen grandit avec les lignes « aussi en cours ». */
+export function islandSize(platform: IslandPlatform, key: IslandSizeKey, meetRows = 0): IslandShapeSize {
+  const size = ISLAND_SIZES[platform][key]
+  const rows = Math.min(Math.max(0, meetRows), MEET_BACKGROUND.maxRows)
+  if (key !== 'meetOpen' || rows === 0) return size
+  const { rowH, gap } = MEET_BACKGROUND[platform]
+  return { ...size, h: size.h + gap + rows * rowH }
+}
+
+/**
  * Clé de taille d'un état (prototype : currentKey et keyFor).
  * Survol : repos → peek, meet → meetOpen, agent → agentOpen, multi → multiOpen.
  * Pendant un appel : notif → notifCall, agentAsk → agentAskCall.

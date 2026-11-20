@@ -261,8 +261,10 @@ export interface IslandSnapshot {
   state: IslandState
   /** Activité principale (dans l'île) ; null au repos. */
   primary: Activity | null
-  /** Activité secondaire (dans la bulle à droite) ; null : pas de bulle. */
+  /** Activité secondaire (dans la bulle à droite) ; null : pas de bulle. Toujours null pendant un enregistrement. */
   secondary: Activity | null
+  /** Pendant un enregistrement : les autres activités, dans l'ordre, affichées sous l'appel au survol. Vide sinon. */
+  background: readonly Activity[]
   /** Nombre total d'activités ; badge « +N » de la bulle = activityCount - 2 quand > 2. */
   activityCount: number
   /** Activité épinglée par un clic sur la bulle. */

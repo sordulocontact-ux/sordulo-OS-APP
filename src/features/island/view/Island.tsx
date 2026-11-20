@@ -19,7 +19,7 @@ import { cx } from './cx'
 import { IslandEngine, type EngineTarget } from './engine'
 import { useLastNonNull, usePrefersReducedMotion } from './hooks'
 import styles from './Island.module.css'
-import { islandLabel } from './labels'
+import { backgroundRows, islandLabel } from './labels'
 import { ActivityLayers } from './layers'
 import { createIslandStage, startIslandLoop, type IslandLoop, type LiveData, type LiveElements } from './loop'
 import { SharedElements } from './SharedElements'
@@ -77,6 +77,8 @@ export function Island(props: IslandProps) {
     sessions.find((s) => s.id === agentActivity?.sessionId) ?? sessions[0] ?? null
   const askSession = snapshot.ask ? (sessions.find((s) => s.id === snapshot.ask?.sessionId) ?? null) : null
   const bubbleActivity = useLastNonNull(secondary)
+  // Pendant un enregistrement : ce qui tourne aussi, sous l'appel au survol (pas de bulle).
+  const meetRows = useMemo(() => backgroundRows(snapshot.background, sessions), [snapshot.background, sessions])
 
   // Service de l'appel (logo et couleur) : l'enregistrement en cours, sinon la proposition ; gardé le temps
   // du fondu de sortie pour que la couleur ne repasse pas au jaune avant la fin.
@@ -86,8 +88,15 @@ export function Island(props: IslandProps) {
   const callService = liveService === undefined ? keptService : liveService
 
   const target: EngineTarget = useMemo(
-    () => ({ key: sizeKeyFor(state, open, withCall), platform, reduced, hasGarden, sessionCount }),
-    [state, open, withCall, platform, reduced, hasGarden, sessionCount],
+    () => ({
+      key: sizeKeyFor(state, open, withCall),
+      platform,
+      reduced,
+      hasGarden,
+      sessionCount,
+      meetRows: meetRows.length,
+    }),
+    [state, open, withCall, platform, reduced, hasGarden, sessionCount, meetRows.length],
   )
 
   // Éléments du DOM pilotés hors de React
@@ -332,6 +341,7 @@ export function Island(props: IslandProps) {
             snapshot={snapshot}
             call={call}
             meet={meet}
+            meetRows={meetRows}
             progress={progress}
             agentSession={agentSession}
             sessions={sessions}
@@ -358,6 +368,8 @@ export function Island(props: IslandProps) {
             timerRef={timerRef}
             elapsedRef={elapsedRef}
             waveBarRef={waveBarRef}
+            agentWorking={agentSession?.status === 'working'}
+            reduced={reduced}
           />
         </div>
       </div>

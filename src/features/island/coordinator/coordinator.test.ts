@@ -47,8 +47,9 @@ describe('activités', () => {
     island.addActivity(agent)
     island.addActivity(upload)
     island.addActivity(meet)
-    expect(snap()).toMatchObject({ state: 'meet', activityCount: 4 })
-    expect(snap().secondary?.id).toBe('prog:upload')
+    expect(snap()).toMatchObject({ state: 'meet', activityCount: 4, secondary: null })
+    // Pendant l'appel, pas de bulle : le reste passe sous l'appel, dans l'ordre.
+    expect(snap().background.map((a) => a.id)).toEqual(['prog:upload', 'agent', 'music'])
     island.removeActivity('meet')
     island.removeActivity('prog:upload')
     island.addActivity(multi)
@@ -78,17 +79,31 @@ describe('activités', () => {
 
   it('épingle la secondaire, qui passe devant, puis la désépingle quand elle est retirée', () => {
     const { island, snap } = setup()
-    island.addActivity(meet)
+    island.addActivity(agent)
     island.addActivity(music)
     expect(island.pinSecondary()).toBe('music')
     expect(snap()).toMatchObject({ state: 'music', pinnedId: 'music' })
-    expect(snap().secondary?.id).toBe('meet')
+    expect(snap().secondary?.id).toBe('agent')
     island.addActivity(upload)
     expect(snap().primary?.id).toBe('music')
-    expect(snap().secondary?.id).toBe('meet')
-    island.removeActivity('music')
-    expect(snap()).toMatchObject({ state: 'meet', pinnedId: null })
     expect(snap().secondary?.id).toBe('prog:upload')
+    island.removeActivity('music')
+    expect(snap()).toMatchObject({ state: 'progress', pinnedId: null })
+    expect(snap().secondary?.id).toBe('agent')
+  })
+
+  it('pendant un appel : l’appel passe devant l’épinglée, sans bulle, et l’épingle revient après', () => {
+    const { island, snap } = setup()
+    island.addActivity(agent)
+    island.addActivity(music)
+    expect(island.pinSecondary()).toBe('music')
+    island.addActivity(meet)
+    expect(snap()).toMatchObject({ state: 'meet', secondary: null, pinnedId: 'music' })
+    expect(snap().background.map((a) => a.id)).toEqual(['music', 'agent'])
+    expect(island.pinSecondary()).toBeNull()
+    island.endMeet()
+    expect(snap()).toMatchObject({ state: 'music', background: [] })
+    expect(snap().secondary?.id).toBe('agent')
   })
 
   it('n’épingle rien sans bulle', () => {

@@ -9,6 +9,7 @@ import type {
   PermissionAsk,
   PermissionDecision,
 } from '../../types'
+import type { BackgroundRow } from '../labels'
 import type { ActivityOfKind, IslandCallPrompt, IslandDropInfo, IslandDropZone } from '../types'
 import { MusicLayer, ProgressLayer } from './ActivityLayers'
 import { AppelLayer, MeetLayer, type BaseLayerProps } from './CallLayers'
@@ -23,6 +24,8 @@ export interface ActivityLayersProps {
   snapshot: IslandSnapshot
   call: IslandCallPrompt | null
   meet: MeetActivity | null
+  /** Lignes « aussi en cours » sous l'appel au survol. */
+  meetRows: readonly BackgroundRow[]
   progress: ActivityOfKind<'progress'> | null
   agentSession: ClaudeSession | null
   sessions: readonly ClaudeSession[]
@@ -50,6 +53,7 @@ export function ActivityLayers({
   snapshot,
   call,
   meet,
+  meetRows,
   progress,
   agentSession,
   sessions,
@@ -68,7 +72,11 @@ export function ActivityLayers({
         onCallIgnore={handlers.onCallIgnore}
         onProjectChange={handlers.onProjectChange}
       />
-      <MeetLayer {...base} meet={meet} open={open && state === 'meet'} onStopRecording={handlers.onStopRecording} />
+      <MeetLayer
+        {...base}
+        meet={meet}
+        rows={meetRows}
+        open={open && state === 'meet'} onStopRecording={handlers.onStopRecording} />
       <MusicLayer {...base} eqBarRef={refs.eqBarRef} />
       <ProgressLayer {...base} progress={progress} ringRef={refs.ringRef} />
       <AgentLayer {...base} session={agentSession} open={open && state === 'agent'} />

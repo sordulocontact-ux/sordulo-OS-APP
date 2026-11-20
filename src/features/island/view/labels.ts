@@ -1,7 +1,8 @@
 /**
  * Textes calculés de l'île : annonce de l'état (prototype : label), résumé des sessions, minuteurs.
  */
-import type { ClaudeSession, IslandSnapshot } from '../types'
+import { MEET_BACKGROUND } from '../geometry'
+import type { Activity, ClaudeSession, IslandSnapshot } from '../types'
 
 /** mm:ss d'une durée en ms (prototype : mmss). */
 export function formatElapsed(ms: number): string {
@@ -32,6 +33,77 @@ export function sessionsSummary(sessions: readonly ClaudeSession[]): string {
 /** Titre de multi : « 5 sessions Claude Code ». */
 export function sessionsTitle(count: number): string {
   return `${count} ${count > 1 ? 'sessions' : 'session'} Claude Code`
+}
+
+/** Ligne « aussi en cours » sous l'appel (meetOpen). */
+export interface BackgroundRow {
+  id: string
+  title: string
+  detail: string
+  status: string
+  /** Couleur du statut : neutre, terminé, conflit, bloquée ou en attente de réponse. */
+  tone: 'muted' | 'done' | 'conflict' | 'error' | 'waiting'
+}
+
+function sessionStatus(session: ClaudeSession): Pick<BackgroundRow, 'status' | 'tone'> {
+  if (session.status === 'working' && session.conflict) return { status: 'Conflit', tone: 'conflict' }
+  if (session.status === 'working' && session.error) return { status: 'Bloquée', tone: 'error' }
+  if (session.status === 'working') return { status: 'En cours', tone: 'muted' }
+  if (session.status === 'waiting') return { status: 'Attend ta réponse', tone: 'waiting' }
+  if (session.status === 'done') return { status: 'Terminé', tone: 'done' }
+  if (session.status === 'idle') return { status: 'En pause', tone: 'muted' }
+  return { status: 'Inactive', tone: 'muted' }
+}
+
+/**
+ * Lignes « aussi en cours » sous l'appel : une par progression, une par session Claude (agent : sa session,
+ * multi : toutes), dans l'ordre des activités. Au-delà de MEET_BACKGROUND.maxRows, la dernière ligne
+ * devient « N autres activités ».
+ */
+export function backgroundRows(background: readonly Activity[], sessions: readonly ClaudeSession[]): BackgroundRow[] {
+  const rows: BackgroundRow[] = []
+  const seen = new Set<string>()
+  const addSession = (session: ClaudeSession | undefined) => {
+    if (!session || seen.has(session.id)) return
+    seen.add(session.id)
+    rows.push({
+      id: `claude:${session.id}`,
+      title: session.projectName,
+      detail: session.step ?? session.task ?? '',
+      ...sessionStatus(session),
+    })
+  }
+  for (const activity of background) {
+    switch (activity.kind) {
+      case 'progress':
+        rows.push({
+          id: activity.id,
+          title: activity.label,
+          detail: '',
+          status: activity.fraction === null ? 'En cours' : `${Math.round(activity.fraction * 100)} %`,
+          tone: 'muted',
+        })
+        break
+      case 'agent':
+        addSession(sessions.find((s) => s.id === activity.sessionId) ?? sessions[0])
+        break
+      case 'multi':
+        sessions.forEach(addSession)
+        break
+      case 'music':
+        rows.push({ id: activity.id, title: 'Musique', detail: '', status: '', tone: 'muted' })
+        break
+      case 'meet':
+        break
+    }
+  }
+  const max = MEET_BACKGROUND.maxRows
+  if (rows.length <= max) return rows
+  const rest = rows.length - (max - 1)
+  return [
+    ...rows.slice(0, max - 1),
+    { id: 'more', title: `${rest} autres activités`, detail: '', status: '', tone: 'muted' },
+  ]
 }
 
 const STATE_LABELS = {

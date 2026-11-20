@@ -302,8 +302,7 @@
   --island-easing-ghost: cubic-bezier(0.3, 0.8, 0.3, 1);
   /* Barre de temps d'une notification sans durée fournie (--nd) */
   --island-duration-notif: 4500ms;
-  /* Boucles : saut de l'icône Claude, points, roue, pastilles */
-  --island-duration-hop: 1400ms;
+  /* Boucles : points, roue, pastilles (le Claude de l'île : view/mascot.ts) */
   --island-duration-dots: 1200ms;
   --island-delay-dots: 150ms;
   --island-duration-spin: 800ms;

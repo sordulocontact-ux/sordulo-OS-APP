@@ -78,13 +78,15 @@ describe('scénarios de priorité', () => {
     clock.advanceTo(1500)
     island.addActivity(agent)
     expect(snap().primary?.id).toBe('meet')
-    expect(snap().secondary?.id).toBe('agent')
+    // Écart au prototype (demande de Maël) : pas de bulle pendant l'appel, le reste passe sous l'appel.
+    expect(snap().secondary).toBeNull()
+    expect(snap().background.map((a) => a.id)).toEqual(['agent'])
 
     clock.advanceTo(4000)
     island.addActivity(progress('deploy', 'Déploiement en cours', 4000))
     expect(snap()).toMatchObject({ state: 'meet', activityCount: 3 })
     expect(snap().primary?.id).toBe('meet')
-    expect(snap().secondary?.id).toBe('prog:deploy')
+    expect(snap().background.map((a) => a.id)).toEqual(['prog:deploy', 'agent'])
 
     clock.advanceTo(7000)
     const request = ask('ask-1', 7000)
@@ -97,8 +99,8 @@ describe('scénarios de priorité', () => {
     island.removeActivity('prog:deploy')
     const deployed = createNotification('deployed', { projectName: 'PDS OS', url: 'https://pds.example' })
     island.notify(deployed)
-    expect(snap()).toMatchObject({ state: 'agentAsk', notification: null, askPosition: null })
-    expect(snap().secondary?.id).toBe('agent')
+    expect(snap()).toMatchObject({ state: 'agentAsk', notification: null, askPosition: null, secondary: null })
+    expect(snap().background.map((a) => a.id)).toEqual(['agent'])
 
     // « Autoriser »
     clock.advanceTo(10_680)
@@ -207,24 +209,24 @@ describe('scénarios de priorité', () => {
     expect(snap()).toMatchObject({ state: 'progress', notification: null })
   })
 
-  it('D : on épingle les sessions Claude, l’appel passe dans la bulle, puis on revient', () => {
+  it('D : pendant l’appel, les sessions Claude restent sous l’appel, sans bulle à épingler', () => {
+    // Écart au prototype (demande de Maël) : le prototype montrait multi dans la bulle et permettait de
+    // l'épingler ; l'appel reste seul dans l'île et les sessions s'affichent sous l'appel au survol.
     const { clock, island, snap } = setup()
     island.addActivity(meet)
 
     clock.advanceTo(800)
     island.addActivity(multi)
-    expect(snap()).toMatchObject({ state: 'meet', pinnedId: null, activityCount: 2 })
-    expect(snap().secondary?.id).toBe('multi')
+    expect(snap()).toMatchObject({ state: 'meet', pinnedId: null, activityCount: 2, secondary: null })
+    expect(snap().background.map((a) => a.id)).toEqual(['multi'])
 
     clock.advanceTo(3000)
-    expect(island.pinSecondary()).toBe('multi')
-    expect(snap()).toMatchObject({ state: 'multi', pinnedId: 'multi' })
-    expect(snap().secondary?.id).toBe('meet')
+    expect(island.pinSecondary()).toBeNull()
+    expect(snap()).toMatchObject({ state: 'meet', pinnedId: null })
 
     clock.advanceTo(11_000)
-    expect(island.pinSecondary()).toBe('meet')
-    expect(snap()).toMatchObject({ state: 'meet', pinnedId: 'meet' })
-    expect(snap().secondary?.id).toBe('multi')
+    island.endMeet()
+    expect(snap()).toMatchObject({ state: 'multi', secondary: null, background: [] })
   })
 
   it('E : la musique cède la place au jardin', () => {

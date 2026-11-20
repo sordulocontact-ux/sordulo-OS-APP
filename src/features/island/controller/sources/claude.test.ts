@@ -179,13 +179,34 @@ describe('source « Claude Code »', () => {
   it('« Voir » : l’activité Claude dans la bulle est épinglée', async () => {
     const t = setup()
     await flush()
-    t.coordinator.addActivity({ id: 'meet', kind: 'meet', appName: 'Discord', service: null, projectId: null, projectName: null, startedAt: 0 })
+    t.coordinator.addActivity({
+      id: 'prog:upload',
+      kind: 'progress',
+      stage: 'upload',
+      label: 'Import de l’audio',
+      fraction: null,
+      startedAt: 0,
+      estimatedMs: 10_000,
+    })
     t.emit('UserPromptSubmit', { message: 'x' })
     t.emit('Stop')
     expect(t.snap().secondary?.id).toBe(AGENT_ACTIVITY_ID)
     t.runtime.runAction(t.snap().notification!)
     expect(t.snap().pinnedId).toBe(AGENT_ACTIVITY_ID)
     expect(t.snap().primary?.id).toBe(AGENT_ACTIVITY_ID)
+  })
+
+  it('« Voir » pendant un appel : l’appel reste seul dans l’île, Claude reste sous l’appel', async () => {
+    const t = setup()
+    await flush()
+    t.coordinator.addActivity({ id: 'meet', kind: 'meet', appName: 'Discord', service: null, projectId: null, projectName: null, startedAt: 0 })
+    t.emit('UserPromptSubmit', { message: 'x' })
+    t.emit('Stop')
+    expect(t.snap().secondary).toBeNull()
+    t.runtime.runAction(t.snap().notification!)
+    expect(t.snap().pinnedId).toBeNull()
+    expect(t.snap().primary?.id).toBe('meet')
+    expect(t.snap().background.map((a) => a.id)).toEqual([AGENT_ACTIVITY_ID])
   })
 
   it('session inactive après 15 min : l’île se repose, puis se réveille au prochain hook', async () => {
