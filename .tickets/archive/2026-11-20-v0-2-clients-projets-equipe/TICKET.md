@@ -37,15 +37,24 @@ Existant réutilisé :
 Devis, factures, catalogue, prospection (espace du rôle), tableau de bord, notifications, app de bureau macOS, version release Windows, prise en compte de la capacité dans l'attribution, envoi d'emails.
 
 ## Critères d'acceptation
-- [ ] Créer un nouveau client avec deux contacts, puis un projet pour ce client, sans toucher à la base.
-- [ ] Une entrée (texte ou réunion) fonctionne sur ce nouveau projet comme sur « App Ibé ».
-- [ ] Ibé et « App Ibé » existent toujours, avec leur contact repris dans la nouvelle table et le statut « en cours ».
-- [ ] Inviter un membre génère un lien qui le connecte directement, et il voit les données de Sordulo selon son rôle.
-- [ ] Un non-admin ne peut pas modifier l'équipe ni les paramètres, même en appelant Supabase directement (test RLS).
-- [ ] Retirer un membre laisse ses tâches en « non attribuée ».
-- [ ] Le tone of voice d'un projet est bien pris en compte par l'analyse.
+- [x] Créer un nouveau client avec deux contacts, puis un projet pour ce client, sans toucher à la base.
+  Preuve (Chrome, Supabase local, 20/11 14:40) : « Test V0.2 Atelier » (SIRET, adresse, Alice Test principale + Bruno Test), puis projet « Test V0.2 Site vitrine » depuis la fiche client.
+- [x] Une entrée (texte ou réunion) fonctionne sur ce nouveau projet comme sur « App Ibé ».
+  Preuve : retour écrit analysé (Claude) en quelques secondes, 1 ticket proposé, validé, tâche dans le kanban.
+- [x] Ibé et « App Ibé » existent toujours, avec leur contact repris dans la nouvelle table et le statut « en cours ».
+  Preuve : base locale remplie comme la prod avant la 0003 (Ibé avec `contact_name`/`contact_email`, App Ibé `active`), puis 0003 : contact repris en principal, App Ibé `in_progress`. À revérifier en prod après application.
+- [x] Inviter un membre génère un lien qui le connecte directement, et il voit les données de Sordulo selon son rôle.
+  Preuve : invitation « Test V0.2 Invité » (membre) → lien → connecté sur `/`, barre latérale Projets + Clients seulement. Réserve : l'invité apparaissait « Actif » avant sa connexion (corrigé en V0.3, RPC `member_sign_in_status`).
+- [x] Un non-admin ne peut pas modifier l'équipe ni les paramètres, même en appelant Supabase directement (test RLS).
+  Preuve : tests RLS + appels REST avec la session du membre invité : PATCH organizations et members → 0 ligne modifiée, `remove_member` → 403 « Réservé aux admins de l'organisation ».
+- [x] Retirer un membre laisse ses tâches en « non attribuée ».
+  Preuve : tâche attribuée à « Test V0.2 Membre », retrait depuis l'Équipe → kanban « Non attribuée ».
+- [x] Le tone of voice d'un projet est bien pris en compte par l'analyse.
+  Preuve : ton « Formel » + règle « chaque titre commence par Atelier : » → ticket « Atelier : Corriger le bouton Contact… ».
 - [ ] Tests RLS de la migration 0003, typecheck, lint, tests et build passent. Déployé sur Vercel.
-- [ ] Toutes les valeurs de style viennent des tokens. Vérifié dans le navigateur sur chaque nouvel écran, états vides et erreurs compris.
+  Tests, typecheck, lint, build : OK (216 tests dont 20 RLS). Non coché : migration 0003 pas encore appliquée en production et déploiement fait par Sacha (push).
+- [x] Toutes les valeurs de style viennent des tokens. Vérifié dans le navigateur sur chaque nouvel écran, états vides et erreurs compris.
+  Preuve : Projets, Clients, fiche client, Équipe, invitation, retrait, page projet vus dans Chrome. Réserve : tableaux écrasés sous ~500 px de large (corrigé en V0.3 : défilement horizontal).
 
 ## Lots
 | Lot | Objectif | Fichiers possédés | Dépend de | Modèle / effort | Statut |
@@ -57,7 +66,7 @@ Devis, factures, catalogue, prospection (espace du rôle), tableau de bord, noti
 | L4 | Projets : filtres, nouveau projet, formulaire (statut, dates, membres, tone of voice), modifier depuis la page projet | src/features/projects/ | L0 | sonnet / medium | validé (code) |
 | L5 | Équipe et Paramètres : liste, invitation, modification, retrait/réintégration, lien ; paramètres de l'organisation | src/features/team/, src/features/settings/ | L0, L2 (client API) | sonnet / medium | validé (code) |
 | L7 | Pages de liste façon Midday / Figma « Contrats » : cartes de chiffres, barre d'outils compacte, pastilles, avatar, échéance relative, menu « … » | src/components/ui/, src/features/projects/, clients/, team/ | L3–L5 | sonnet / medium | validé (code) |
-| L6 | Intégration : membres retirés hors des listes d'attribution (kanban, validation), vérification navigateur, corrections | src/features/tasks/, src/features/review/, src/features/inputs/ + corrections ciblées | L1–L5 | orchestrateur | à faire |
+| L6 | Intégration : membres retirés hors des listes d'attribution (kanban, validation), vérification navigateur, corrections | src/features/tasks/, src/features/review/, src/features/inputs/ + corrections ciblées | L1–L5 | orchestrateur | validé |
 
 ## Journal
 - 12:30 Exploration, questions, branche créée. L0 : types, contrat API membres, `src/shared/siret.ts` (+ 5 tests).
@@ -75,3 +84,22 @@ Devis, factures, catalogue, prospection (espace du rôle), tableau de bord, noti
 - 13:45 Demande de Sacha : s'inspirer de l'écran « Invoices » de Midday pour les listes. Repris : cartes de chiffres, recherche compacte, pastilles de statut, avatar client, échéance relative, menu « … ». Écarté : cases à cocher (aucune action groupée), icône réglages (rien à régler), filtres cachés derrière l'entonnoir (2 filtres seulement, mieux visibles), « + » sans libellé (le ticket demande « Nouveau projet »). Tokens ajoutés : `--size-search-max`, `--size-menu-min` (remplace le `12rem` en dur du menu du compte), `--size-stat-card-min` ; icône `more.svg`. L7 lancé.
 - 13:45 Migration 0003 pas encore en production ; `SUPABASE_DB_URL` à remplir dans `.env.local` pour `npm run db:migrate`.
 - 13:55 L7 rendu : `StatCard`, `ActionsMenu` (clavier complet), `Avatar size="sm"`, statuts de projet en `Badge`, cartes sur Projets (cliquables, filtrent par statut), Clients (dont « Fiches à compléter » pour les futurs devis) et Équipe (capacité totale), échéance relative, menu « … ». Orchestrateur : tokens `--color-success-dot` / `--color-warning-dot` retirés (plus utilisés). Typecheck, lint, 216 tests, build OK.
+- 14:30 Vérification sur un Supabase local (Docker, ports 565xx) : 0001 + 0002, données comme la prod, puis 0003 (reprise OK). Worktree de la branche sur le port 5180.
+- 14:45 Chrome : client à deux contacts, projet avec ton de voix, entrée analysée, invitation + connexion par le lien, droits refusés en REST, retrait → tâche non attribuée. Bug : invité affiché « Actif » (le compte est relié dès l'invitation) → corrigé en V0.3.
+- 15:40 Clôture : critères cochés, rapport, archivage. Suite dans `.tickets/2026-11-20-v0-3-devis-factures-accueil/`.
+
+## Rapport
+
+**Fait** : clients (liste, fiche, contacts avec un seul principal, archivage, doublons, SIRET Luhn), projets (statuts, dates, membres, ton de voix avec modèles, filtres dans l'URL, création depuis la fiche client et la liste, modification depuis la page projet), Équipe (invitation avec lien à usage unique via `/api/members/invite`, régénération, modification, retrait doux, réintégration), Paramètres de l'organisation, rôles dans la navigation et la RLS, attribution sans prospection ni membres retirés, ton de voix dans l'analyse. Pages de liste façon Midday / Figma.
+
+**Fichiers** : `supabase/migrations/0003_clients_projects_team.sql` + `supabase/tests/rls.test.ts`, `api/members/*`, `api/_lib/{auth,members,pipeline,analysis}.ts`, `src/features/{clients,projects,team,settings}/`, `src/components/ui/` (StatCard, ActionsMenu, dataTable), `src/shared/{types,siret,api-contract,assignment}.ts`, `src/app/`, `CLAUDE.md`.
+
+**Vérifications** : typecheck, lint, 216 tests (dont 20 RLS PGlite), build ; parcours complets dans Chrome sur un Supabase local (voir critères).
+
+**Décisions prises sans demander** : invitation d'un email déjà connecté = membre ajouté sans lien ; tokens `--size-search-max`, `--size-menu-min`, `--size-stat-card-min` ; engrenage Paramètres dessiné (à valider par Sacha).
+
+**Reste à faire** :
+- Appliquer la 0003 en production (`npm run db:migrate` avec `SUPABASE_DB_URL`, ou éditeur SQL), PUIS pousser. Ajouter l'URL de l'app dans Supabase > Auth > Redirect URLs et `APP_URL` sur Vercel.
+- Corrigés dans la V0.3 (même lot de push) : statut « invité » avant la première connexion, tableaux sur écran étroit.
+
+**Idées non retenues** : cases à cocher et actions groupées dans les listes (aucune action groupée utile pour l'instant).
