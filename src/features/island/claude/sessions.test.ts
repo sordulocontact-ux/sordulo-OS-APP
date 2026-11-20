@@ -95,7 +95,9 @@ describe('sessions Claude Code', () => {
       ev('Stop'),
     ])
     expect(sessions[0]).toMatchObject({ status: 'done', step: null })
-    expect(notifs(effects)).toEqual([{ type: 'notify', kind: 'claudeDone', projectName: 'sordulo-OS', detail: '2 fichiers modifiés' }])
+    expect(notifs(effects)).toEqual([
+      { type: 'notify', kind: 'claudeDone', sessionId: 's-1', projectName: 'sordulo-OS', detail: '2 fichiers modifiés' },
+    ])
   })
 
   it('Stop parmi plusieurs sessions : « Une session a terminé » avec la tâche', () => {
@@ -104,7 +106,9 @@ describe('sessions Claude Code', () => {
       ev('UserPromptSubmit', { sessionId: 's-2', cwd: OTHER_CWD, message: 'Page d’accueil' }),
       ev('Stop', { sessionId: 's-2', cwd: OTHER_CWD }),
     ])
-    expect(notifs(effects)).toEqual([{ type: 'notify', kind: 'multiDone', projectName: 'app-ibe', detail: 'Page d’accueil' }])
+    expect(notifs(effects)).toEqual([
+      { type: 'notify', kind: 'multiDone', sessionId: 's-2', projectName: 'app-ibe', detail: 'Page d’accueil' },
+    ])
   })
 
   it('sous-agents comptés', () => {
@@ -126,7 +130,7 @@ describe('sessions Claude Code', () => {
       ev('Notification', { message: 'Claude is waiting for your input' }),
     ])
     expect(notifs(effects).filter((e) => e.kind === 'claudeStop')).toEqual([
-      { type: 'notify', kind: 'claudeStop', projectName: 'sordulo-OS', detail: '' },
+      { type: 'notify', kind: 'claudeStop', sessionId: 's-1', projectName: 'sordulo-OS', detail: '' },
     ])
   })
 
@@ -181,6 +185,7 @@ describe('demandes d’autorisation', () => {
       {
         type: 'notify',
         kind: 'claudeStop',
+        sessionId: 's-1',
         projectName: 'sordulo-OS',
         detail: 'Commande refusée : npm run build',
         subtitle: 'Commande refusée : npm run build',
@@ -241,7 +246,13 @@ describe('conflits', () => {
     ])
     expect(sessions.map((s) => s.conflict)).toEqual([true, true])
     expect(notifs(effects)).toEqual([
-      { type: 'notify', kind: 'conflict', projectName: 'sordulo-OS', detail: 'Island.tsx modifié par les sessions 1 et 2' },
+      {
+        type: 'notify',
+        kind: 'conflict',
+        sessionId: 's-1',
+        projectName: 'sordulo-OS',
+        detail: 'Island.tsx modifié par les sessions 1 et 2',
+      },
     ])
     // Encore une modification : pas de nouvelle notification.
     expect(notifs(run([editA('s-1', 'src\\Island.tsx')], state).effects)).toEqual([])

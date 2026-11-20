@@ -3,7 +3,7 @@
  * Couleurs, police, tailles de texte, rayons de contrôle et durées : tokens `--island-*` de src/styles/tokens.css.
  * Tailles par état, positions des éléments partagés et ressort : src/features/island/geometry.ts.
  * Les petites dimensions internes (marges, barres de 2 px…) restent ici en px, comme dans le prototype.
- * Variante Mac (lot macOS, inactive) : sélecteurs [data-platform='mac'].
+ * Variante Mac (autour de l'encoche) : sélecteurs [data-platform='mac'].
  */
 
 /* Racine : toute la fenêtre transparente, aucun fond, les clics passent hors de la forme et de la bulle. */
@@ -543,6 +543,62 @@
   padding-left: var(--island-space-14);
   font-size: var(--island-font-size-md);
   min-width: 0;
+}
+
+/* Nom + tâche d'une session : bouton qui ouvre sa fenêtre VS Code (pas d'animation : geste fréquent) */
+.rowOpen {
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-8);
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  margin-left: calc(-1 * var(--island-space-8));
+  padding: 0 var(--island-space-8);
+  border: 0;
+  border-radius: var(--island-radius-control);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Session seule (agentOpen) et notification Claude : toute la zone ouvre la fenêtre de la session */
+.openArea,
+.notifOpen {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.openArea {
+  display: block;
+  width: 100%;
+}
+
+.notifOpen {
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-12);
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .rowOpen:hover {
+    background: var(--island-ghost);
+  }
+
+  .notifOpen:hover .notifText strong,
+  .openArea:hover .headText strong {
+    text-decoration: underline;
+    text-underline-offset: var(--island-outline-offset);
+  }
 }
 
 .row b {

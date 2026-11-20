@@ -24,7 +24,13 @@ export const EMPTY_VIEW_DATA: IslandViewData = {
 /** Gestes de l'île qu'une source peut prendre en charge (les autres sont gérés par le contrôleur). */
 export type IslandGestures = Pick<
   IslandProps,
-  'onCallAccept' | 'onCallIgnore' | 'onProjectChange' | 'onStopRecording' | 'onAskDecision' | 'onAnswerSession'
+  | 'onCallAccept'
+  | 'onCallIgnore'
+  | 'onProjectChange'
+  | 'onStopRecording'
+  | 'onAskDecision'
+  | 'onAnswerSession'
+  | 'onOpenSession'
 >
 
 export type IslandGestureName = keyof IslandGestures

@@ -157,7 +157,7 @@ pub fn spawn_mic_loop(app: AppHandle) {
                             if !still_promptable(&app) {
                                 pending = false;
                             } else {
-                                let signal = call_signal(&app);
+                                let signal = call_signal(&app, &titles);
                                 if confirm_call(signal, &mut sound_hits) {
                                     log::info!("appel détecté ({signal:?})");
                                     pending = false;
@@ -193,7 +193,9 @@ enum CallSignal {
     Browser(call_apps::BrowserSignal),
 }
 
-fn call_signal(app: &AppHandle) -> CallSignal {
+/// `page_titles` : titres des fenêtres et onglets des navigateurs qui tiennent le micro (lus par la boucle),
+/// ajoutés aux titres des fenêtres visibles (seule source sur Mac, où ceux-ci sont indisponibles).
+fn call_signal(app: &AppHandle, page_titles: &[String]) -> CallSignal {
     let apps = app.state::<DesktopState>().shared().mic.apps.clone();
     if apps
         .iter()
@@ -202,7 +204,8 @@ fn call_signal(app: &AppHandle) -> CallSignal {
         return CallSignal::Dedicated;
     }
     let playing = platform::processes_playing_audio();
-    let titles = platform::visible_window_titles();
+    let mut titles = platform::visible_window_titles();
+    titles.extend(page_titles.iter().cloned());
     let signals: Vec<_> = apps
         .iter()
         .filter_map(|a| call_apps::browser_signal(&a.id, &playing, &titles))

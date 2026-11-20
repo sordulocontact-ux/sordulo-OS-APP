@@ -7,7 +7,7 @@
 
 import type { CallService } from '../../shared/desktop-contract'
 
-/** Variante de forme : Windows (bord haut de l'écran) ou Mac (autour de l'encoche, lot macOS, inactive). */
+/** Variante de forme : Windows (bord haut de l'écran) ou Mac (autour de l'encoche de la caméra). */
 export type IslandPlatform = 'win' | 'mac'
 
 /** État affiché dans l'île (prototype : variable `state`). */
@@ -185,6 +185,8 @@ export type NotificationAction =
   | { type: 'retryAnalysis'; inputId: string }
   /** Ouvre l'île sur la liste des sessions Claude Code. */
   | { type: 'showSessions' }
+  /** Met au premier plan la fenêtre VS Code (ou l'app) de cette session Claude Code. */
+  | { type: 'openSession'; sessionId: string }
   /** Prévu (rappel de call) : rejoindre l'appel. */
   | { type: 'openUrl'; url: string }
 

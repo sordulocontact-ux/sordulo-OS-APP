@@ -235,9 +235,15 @@ pub fn written_file(tool: &str, input: &Value, cwd: Option<&str>) -> Option<Stri
     }
 }
 
-/// Absolu au sens Windows (`C:\…`, `\\serveur\…`) ou à la Git Bash / Unix (`/c/…`).
+/// Absolu au sens Windows (`C:\…`, `\\serveur\…`) ou à la Git Bash / Unix (`/c/…`), quel que soit le
+/// système qui exécute (les tests tournent sur Windows et sur macOS).
 fn is_absolute(path: &str) -> bool {
-    Path::new(path).is_absolute() || path.starts_with('/') || path.starts_with('\\')
+    let bytes = path.as_bytes();
+    let drive = bytes.len() >= 3
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && matches!(bytes[2], b'\\' | b'/');
+    drive || Path::new(path).is_absolute() || path.starts_with('/') || path.starts_with('\\')
 }
 
 /// Chemin relatif au dossier de la session s'il est dedans (avec des `/`), sinon tel quel.

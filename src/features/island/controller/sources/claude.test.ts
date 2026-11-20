@@ -12,6 +12,7 @@ function setup(options: { projects?: { id: string; name: string }[] } = {}) {
   const deps = {
     onClaude: claude.subscribe,
     claudeAnswer: vi.fn(async (_args: { requestId: string; decision: ClaudeDecision }) => {}),
+    claudeOpenSession: vi.fn(async (_args: { sessionId: string }) => {}),
   } satisfies ClaudeSourceDeps
   const env = setupRuntime({ sources: [createClaudeSource(deps)], projects: options.projects })
   const emit = (name: ClaudeHookEventName, fields: Partial<Omit<ClaudeRelayEvent, 'event'>> = {}) =>
@@ -91,7 +92,7 @@ describe('source « Claude Code »', () => {
       kind: 'claudeStop',
       title: 'Claude attend tes consignes',
       subtitle: 'Commande refusée : npm run build',
-      action: { type: 'showSessions' },
+      action: { type: 'openSession', sessionId: 's-1' },
     })
   })
 
@@ -198,9 +199,24 @@ describe('source « Claude Code »', () => {
     t.emit('UserPromptSubmit', { sessionId: 's-2', message: 'y' })
     t.emit('Stop', { sessionId: 's-2' })
     expect(t.snap().secondary?.id).toBe(MULTI_ACTIVITY_ID)
-    t.runtime.runAction(t.snap().notification!)
+    const done = t.snap().notification!
+    t.runtime.runAction({ ...done, action: { type: 'showSessions' } })
     expect(t.snap().pinnedId).toBe(MULTI_ACTIVITY_ID)
     expect(t.snap().primary?.id).toBe(MULTI_ACTIVITY_ID)
+  })
+
+  it('clic sur « Une session a terminé » ou sur une session : sa fenêtre VS Code', async () => {
+    const t = setup()
+    await flush()
+    t.emit('UserPromptSubmit', { message: 'x' })
+    t.emit('UserPromptSubmit', { sessionId: 's-2', message: 'y' })
+    t.emit('Stop', { sessionId: 's-2' })
+    const done = t.snap().notification!
+    expect(done).toMatchObject({ kind: 'multiDone', action: { type: 'openSession', sessionId: 's-2' } })
+    t.runtime.runAction(done)
+    expect(t.deps.claudeOpenSession).toHaveBeenCalledWith({ sessionId: 's-2' })
+    t.runtime.gestures.onOpenSession('s-1')
+    expect(t.deps.claudeOpenSession).toHaveBeenLastCalledWith({ sessionId: 's-1' })
   })
 
   it('pendant un appel : Claude au travail reste sous l’appel, sans bulle', async () => {

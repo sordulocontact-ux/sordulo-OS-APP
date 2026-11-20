@@ -92,18 +92,28 @@ pub fn run() {
             commands::set_focus_mode,
             commands::claude_get_connection,
             commands::claude_answer,
+            commands::claude_open_session,
             commands::save_dropped_file,
             commands::copy_text,
         ])
         .build(tauri::generate_context!())
         .expect("erreur au démarrage de Sordulo OS");
 
-    app.run(|app, event| {
-        if let tauri::RunEvent::Exit = event {
+    app.run(|app, event| match event {
+        tauri::RunEvent::Exit => {
             // Filet de sécurité (ex. arrêt de session Windows) : ne pas perdre un appel en cours.
             recording::stop_before_exit(app);
             claude::shutdown(app);
             log::info!("Sordulo OS s'arrête");
         }
+        // macOS : le lien de connexion arrive par un événement, pas en argument (voir auth_link).
+        // Seule exception à « pas de cfg hors de platform/ » : la variante n'existe que sur macOS.
+        #[cfg(target_os = "macos")]
+        tauri::RunEvent::Opened { urls } => {
+            if let Some(url) = auth_link::from_opened(&urls) {
+                auth_link::deliver(app, url);
+            }
+        }
+        _ => {}
     });
 }

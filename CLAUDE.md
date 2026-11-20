@@ -14,7 +14,7 @@ Premier client de test : **Ibé** (projet « App Ibé »).
 
 L'app existe en deux versions avec le même code :
 - **Web**, déployée sur Vercel (production = chaque push sur `main` du dépôt `sordulocontact-ux/sordulo-OS-APP`).
-- **Bureau** (Tauri 2) : la même interface, plus une icône soleil dans la zone de notification, la détection du micro (« Transcrire cet appel ? ») et l'enregistrement des appels. Windows marche, macOS est prévu juste après.
+- **Bureau** (Tauri 2) : la même interface, plus une icône soleil dans la zone de notification, la détection du micro (« Transcrire cet appel ? ») et l'enregistrement des appels. Windows marche. Sur macOS, l'île marche (collée à l'encoche de la caméra, variante `mac` du front choisie par Rust via `?platform=mac`, au-dessus de la barre des menus) ainsi que le relais Claude Code et la détection des appels : apps au micro et apps qui jouent du son par les processus Core Audio (macOS 14+, sans autorisation, chaque helper rattaché à son app), titre de l'onglet des navigateurs par AppleScript (une autorisation « Automatisation » par navigateur, refus = détection au son seulement). Enregistrement des appels sur Mac : micro par défaut + son de l'ordinateur par un « process tap » Core Audio (macOS 14.2+) dans un agrégé privé, seule la capture est propre au Mac (`platform/macos/capture.rs`) ; mix, MP3 et orchestration sont les modules purs de `platform/windows/` inclus par `#[path]` (les modifier vaut pour les deux systèmes). Autorisations micro et « Enregistrement audio du système » demandées au premier appel (textes dans `src-tauri/Info.plist`).
 
 Le design suit le Figma « SORDULO-OS », déjà appliqué via les tokens. Toute nouvelle page reprend ce design : mêmes tokens, mêmes composants, même structure que les écrans existants (par exemple le tableau de la page Projets).
 
@@ -157,6 +157,7 @@ Si un lien Figma est donné, le lire avec le MCP Figma avant de coder : variable
 - TypeScript strict, pas de `any`.
 - Réutiliser avant de créer, et rester dans le périmètre demandé.
 - Git : chacun sur sa branche, jamais de push direct sur `main` sans prévenir l'autre. Ne pas modifier les fichiers de l'autre chantier (pages annexes d'un côté, `src-tauri/` et `src/features/desktop/` de l'autre) sans le signaler.
+- **App de bureau : toute fonctionnalité se code pour Windows ET macOS, dans le même travail.** Rien n'est livré pour un seul système avec un stub ou un « lot à venir » pour l'autre. Concrètement : chaque fonction de `src-tauri/src/platform/mod.rs` a une implémentation dans `platform/windows/` et dans `platform/macos/` ; le code sans appel système (calculs, mix, formats) est écrit une seule fois et partagé ; le front tient compte des deux (variante `win` / `mac` de l'île). On ne compile qu'un système à la fois : dire clairement lequel a été compilé et testé, et demander à l'autre de compiler le sien (Windows chez Maël, macOS chez Sacha) avant de fusionner.
 - Pour un ticket complet, utiliser le skill `/ticket`. Les tickets vivent dans `.tickets/`, et le ticket archivé du MVP (`.tickets/archive/2026-11-18-mvp-sordulo-os/TICKET.md`) contient toutes les décisions prises.
 
 ## Hors périmètre pour le moment

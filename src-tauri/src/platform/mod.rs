@@ -2,7 +2,8 @@
 //!
 //! Une implémentation par système d'exploitation :
 //! - `windows/` : ce soir (registre CapabilityAccessManager + WASAPI + MP3).
-//! - `macos/`   : lot à venir (Core Audio : détection du micro + process tap), voir TICKET.md (L13).
+//! - `macos/`   : île (curseur, encoche, niveau de fenêtre), détection du micro et des appels (processus
+//!   Core Audio, onglets par AppleScript), enregistrement (micro + process tap), presse-papiers.
 //!
 //! Le reste de l'app (tray, commandes Tauri, boucle de détection) ne dépend QUE de ce module :
 //! jamais de `cfg(windows)` en dehors de `platform/`.
@@ -66,6 +67,13 @@ pub struct CursorState {
     pub primary_down: bool,
 }
 
+/// Encoche de la caméra en haut de l'écran principal (Mac), en points (px logiques).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Notch {
+    pub width: f64,
+    pub height: f64,
+}
+
 /// Extension du fichier produit par `Recorder` (sans point).
 pub const RECORDING_EXTENSION: &str = "mp3";
 
@@ -113,13 +121,18 @@ pub fn recording_level() -> Option<f32> {
     {
         windows::WasapiRecorder::live_level()
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        macos::CoreAudioRecorder::live_level()
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         None
     }
 }
 
-/// Exécutables (minuscules, sans `.exe`) qui jouent du son en ce moment. Vide si non disponible.
+/// Apps qui jouent du son en ce moment, en noms courts (`call_apps::short_name` : exécutable en minuscules
+/// sans `.exe` sous Windows, `arc`, `chrome`… sur Mac). Vide si non disponible.
 pub fn processes_playing_audio() -> Vec<String> {
     #[cfg(windows)]
     {
@@ -128,13 +141,18 @@ pub fn processes_playing_audio() -> Vec<String> {
             Vec::new()
         })
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        macos::processes_playing_audio()
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         Vec::new()
     }
 }
 
-/// Titres des fenêtres visibles. Vide si non disponible.
+/// Titres des fenêtres visibles. Vide si non disponible (Mac : il faudrait l'autorisation
+/// d'enregistrement de l'écran ; on lit plutôt les onglets des navigateurs, voir `browser_page_titles`).
 pub fn visible_window_titles() -> Vec<String> {
     #[cfg(windows)]
     {
@@ -153,7 +171,11 @@ pub fn browser_page_titles(browser: &str) -> Vec<String> {
     {
         windows::browser_page_titles(browser)
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        macos::browser_page_titles(browser)
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = browser;
         Vec::new()
@@ -176,6 +198,80 @@ pub fn cursor_state() -> Option<CursorState> {
     }
 }
 
+/// Encoche de l'écran principal, `None` sans encoche (Windows, Mac sans encoche, écran externe en
+/// principal). À appeler sur le thread principal.
+pub fn primary_notch() -> Option<Notch> {
+    #[cfg(target_os = "macos")]
+    {
+        macos::primary_notch()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        None
+    }
+}
+
+/// Réglages système de la fenêtre de l'île après sa création (Mac : au-dessus de la barre des menus).
+/// À appeler sur le thread principal.
+pub fn prepare_island_window(window: &tauri::WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    {
+        match window.ns_window() {
+            Ok(ns_window) => macos::raise_island_window(ns_window),
+            Err(e) => log::warn!("fenêtre native de l'île introuvable : {e}"),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = window;
+    }
+}
+
+/// Rend `path` exécutable (relais Claude Code copié par l'app). Sans effet sous Windows.
+pub fn make_executable(path: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = std::fs::metadata(path)?.permissions();
+        if permissions.mode() & 0o111 != 0o111 {
+            permissions.set_mode(permissions.mode() | 0o755);
+            std::fs::set_permissions(path, permissions)?;
+        }
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        Ok(())
+    }
+}
+
+/// App d'où vient une session Claude Code (transmise par le relais `sordulo-hook`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct EditorHost {
+    /// Exécutable de l'éditeur (VS Code, Cursor…) quand la session tourne dans son terminal.
+    pub exe: Option<String>,
+    /// Bundle id de l'app (macOS).
+    pub bundle_id: Option<String>,
+}
+
+/// Met au premier plan la fenêtre de l'éditeur ouverte sur `folder` (ou l'ouvre). Bloquant (~100 ms).
+pub fn open_in_editor(editor: &EditorHost, folder: &Path) -> anyhow::Result<()> {
+    #[cfg(windows)]
+    {
+        windows::open_in_editor(editor, folder)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        macos::open_in_editor(editor, folder)
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        let _ = (editor, folder);
+        anyhow::bail!("Ouverture de l'éditeur non disponible sur ce système")
+    }
+}
+
 /// Copie `text` dans le presse-papiers du système (chemin d'un fichier déposé sur « Claude Code »).
 pub fn copy_text(text: &str) -> anyhow::Result<()> {
     #[cfg(windows)]
@@ -194,7 +290,7 @@ pub fn copy_text(text: &str) -> anyhow::Result<()> {
 }
 
 /// Associe le schéma d'URL `scheme://` à l'exécutable courant (retour du lien de connexion par email).
-/// macOS : se déclare dans l'Info.plist du bundle (lot L13), rien à faire à l'exécution.
+/// macOS : déclaré dans `Info.plist` (CFBundleURLTypes) et reçu par `RunEvent::Opened`, rien à faire ici.
 pub fn register_url_scheme(scheme: &str) -> anyhow::Result<()> {
     #[cfg(windows)]
     {

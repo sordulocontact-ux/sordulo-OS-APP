@@ -164,10 +164,26 @@ fn parse_relay(bytes: &[u8]) -> Option<Relay> {
     })
 }
 
+/// Clé ajoutée à l'entrée du hook : l'app d'où vient la session (pour rouvrir la bonne fenêtre).
+const HOST_KEY: &str = "sordulo_host";
+
+/// App qui a lancé Claude Code, d'après l'environnement hérité : chemin de l'éditeur (VS Code, Cursor :
+/// `VSCODE_GIT_ASKPASS_NODE`, posé dans leurs terminaux sous Windows comme sous macOS), bundle id de l'app
+/// sous macOS (`__CFBundleIdentifier`), `TERM_PROGRAM`.
+fn host_info() -> Value {
+    let var = |key: &str| std::env::var(key).ok().filter(|v| !v.trim().is_empty());
+    json!({
+        "editor_exe": var("VSCODE_GIT_ASKPASS_NODE"),
+        "bundle_id": var("__CFBundleIdentifier"),
+        "term_program": var("TERM_PROGRAM"),
+    })
+}
+
 /// Corps envoyé à l'app : la sortie des outils est retirée, les chaînes sont plafonnées.
 fn request_body(event: &str, mut input: Value) -> Vec<u8> {
     if let Some(object) = input.as_object_mut() {
         object.remove("tool_response");
+        object.insert(HOST_KEY.into(), host_info());
     }
     cap_strings(&mut input);
     serde_json::to_vec(&json!({ "event": event, "input": input })).unwrap_or_default()

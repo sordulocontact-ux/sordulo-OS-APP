@@ -56,6 +56,7 @@ export function Island(props: IslandProps) {
     onProjectChange,
     onStopRecording,
     onAnswerSession,
+    onOpenSession,
     onHitRectsChange,
   } = props
 
@@ -355,6 +356,7 @@ export function Island(props: IslandProps) {
               onStopRecording,
               onAskDecision,
               onAnswerSession,
+              onOpenSession,
               onNotificationAction,
             }}
           />

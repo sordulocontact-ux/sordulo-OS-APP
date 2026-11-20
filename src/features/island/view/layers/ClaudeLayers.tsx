@@ -32,20 +32,36 @@ function projectLine(session: ClaudeSession | null): string {
   return session.branch ? `${session.projectName}, branche ${session.branch}` : session.projectName
 }
 
-export function AgentLayer({ session, open, ...base }: BaseLayerProps & { session: ClaudeSession | null; open: boolean }) {
+/** Nom accessible d'un clic qui ouvre la fenêtre VS Code d'une session. */
+function openLabel(session: ClaudeSession): string {
+  return `Ouvrir ${session.projectName} dans son éditeur`
+}
+
+export function AgentLayer({
+  session,
+  open,
+  onOpenSession,
+  ...base
+}: BaseLayerProps & { session: ClaudeSession | null; open: boolean; onOpenSession: (sessionId: string) => void }) {
   const shown = useLastNonNull(session)
   return (
     <Layer {...base} state="agent" open={open} label="Session Claude en cours">
-      <div className={styles.detail}>
-        <div className={styles.headText}>
+      {/* Toute la session est cliquable : sa fenêtre VS Code passe au premier plan. */}
+      <button
+        type="button"
+        className={cx(styles.detail, styles.openArea)}
+        onClick={() => shown && onOpenSession(shown.id)}
+        aria-label={shown ? openLabel(shown) : undefined}
+      >
+        <span className={styles.headText}>
           <strong>{agentTitle(shown)}</strong>
           <small>{projectLine(shown)}</small>
-        </div>
-        <div className={styles.step}>
+        </span>
+        <span className={styles.step}>
           {shown?.status === 'working' ? <i className={styles.spin} aria-hidden="true" /> : null}
           <span>{shown?.step ?? shown?.task ?? 'Session en cours'}</span>
-        </div>
-      </div>
+        </span>
+      </button>
     </Layer>
   )
 }
@@ -142,12 +158,14 @@ export function MultiLayer({
   sessions,
   open,
   onAnswerSession,
+  onOpenSession,
   elapsedRef,
   ...base
 }: BaseLayerProps & {
   sessions: readonly ClaudeSession[]
   open: boolean
   onAnswerSession: (sessionId: string) => void
+  onOpenSession: (sessionId: string) => void
   elapsedRef: (sessionId: string, el: HTMLElement | null) => void
 }) {
   const title = sessionsTitle(sessions.length)
@@ -161,8 +179,11 @@ export function MultiLayer({
         <div className={styles.rows}>
           {sessions.slice(0, MAX_SESSION_ROWS).map((s) => (
             <div key={s.id} className={styles.row}>
-              <b>{s.projectName}</b>
-              <span className={styles.task}>{s.task ?? s.step ?? ''}</span>
+              {/* Nom et tâche : ouvrent la fenêtre VS Code de la session (« Répondre » reste à part). */}
+              <button type="button" className={styles.rowOpen} onClick={() => onOpenSession(s.id)} aria-label={openLabel(s)}>
+                <b>{s.projectName}</b>
+                <span className={styles.task}>{s.task ?? s.step ?? ''}</span>
+              </button>
               <SessionStatus session={s} onAnswerSession={onAnswerSession} elapsedRef={elapsedRef} />
             </div>
           ))}

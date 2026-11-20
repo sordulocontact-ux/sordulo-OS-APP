@@ -335,6 +335,9 @@ pub fn install_relay(source_dir: &Path, dest_dir: &Path, now_ms: u64) -> Result<
         ));
     };
     if std::fs::read(&dest).is_ok_and(|current| current == bytes) {
+        // Copie d'une version qui oubliait le droit d'exécution (macOS : « Permission denied »).
+        crate::platform::make_executable(&dest)
+            .map_err(|e| format!("Relais non exécutable ({}) : {e}", dest.display()))?;
         return Ok(dest);
     }
     std::fs::create_dir_all(dest_dir)
@@ -342,6 +345,8 @@ pub fn install_relay(source_dir: &Path, dest_dir: &Path, now_ms: u64) -> Result<
     let tmp = sibling(&dest, "new");
     std::fs::write(&tmp, &bytes)
         .map_err(|e| format!("Copie du relais impossible ({}) : {e}", tmp.display()))?;
+    crate::platform::make_executable(&tmp)
+        .map_err(|e| format!("Relais non exécutable ({}) : {e}", tmp.display()))?;
     if dest.exists() && std::fs::remove_file(&dest).is_err() {
         // Windows : un exécutable lancé ne se supprime pas, mais se renomme.
         let old = sibling(&dest, &format!("old-{}", file_timestamp(now_ms)));

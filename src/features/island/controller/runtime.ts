@@ -196,6 +196,7 @@ export function startIslandRuntime(options: IslandRuntimeOptions): IslandRuntime
     onStopRecording: gesture('onStopRecording'),
     onAskDecision: gesture('onAskDecision'),
     onAnswerSession: gesture('onAnswerSession'),
+    onOpenSession: gesture('onOpenSession'),
   }
 
   return {

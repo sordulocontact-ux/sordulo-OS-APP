@@ -107,6 +107,8 @@ export type ClaudeEffect =
   | {
       type: 'notify'
       kind: ClaudeNotificationKind
+      /** Session concernée (clic : sa fenêtre VS Code). */
+      sessionId: string
       projectName: string
       detail: string
       /** Remplace le sous-titre « projet : détail » du catalogue (refus : « Commande refusée : … »). */
@@ -333,7 +335,13 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
 
     case 'Notification':
       if (isWaitingForInput(event.message) && !record.idleNotified) {
-        effects.push({ type: 'notify', kind: 'claudeStop', projectName: record.session.projectName, detail: '' })
+        effects.push({
+          type: 'notify',
+          kind: 'claudeStop',
+          sessionId: record.session.id,
+          projectName: record.session.projectName,
+          detail: '',
+        })
         record = { ...record, idleNotified: true }
       }
       break
@@ -351,10 +359,17 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
       const filesDetail = files > 0 ? filesModifiedLabel(files) : ''
       effects.push(
         alone
-          ? { type: 'notify', kind: 'claudeDone', projectName: record.session.projectName, detail: filesDetail }
+          ? {
+              type: 'notify',
+              kind: 'claudeDone',
+              sessionId: record.session.id,
+              projectName: record.session.projectName,
+              detail: filesDetail,
+            }
           : {
               type: 'notify',
               kind: 'multiDone',
+              sessionId: record.session.id,
               projectName: record.session.projectName,
               detail: record.session.task ?? filesDetail,
             },
@@ -410,6 +425,7 @@ function onDecision(
         effects.push({
           type: 'notify',
           kind: 'claudeStop',
+          sessionId: record.session.id,
           projectName: record.session.projectName,
           detail: refusal,
           subtitle: refusal,
@@ -477,6 +493,7 @@ function updateConflicts(state: ClaudeState, effects: ClaudeEffect[]): ClaudeSta
         effects.push({
           type: 'notify',
           kind: 'conflict',
+          sessionId: a.session.id,
           projectName: a.session.projectName,
           detail: `${fileName(path)} modifié par les sessions ${i + 1} et ${j + 1}`,
         })

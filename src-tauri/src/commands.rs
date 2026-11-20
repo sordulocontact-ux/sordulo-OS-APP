@@ -180,6 +180,21 @@ pub fn claude_get_connection(app: AppHandle) -> ClaudeConnection {
     claude::connection(&app)
 }
 
+/// Clic sur une session Claude ou sa notification dans l'île : met au premier plan la fenêtre VS Code
+/// (ou l'app) où elle tourne, sur son dossier. Réservé à la fenêtre de l'île. Asynchrone : le lancement
+/// de l'éditeur ne bloque pas le thread principal.
+#[tauri::command]
+pub async fn claude_open_session(
+    window: tauri::WebviewWindow,
+    app: AppHandle,
+    session_id: String,
+) -> Result<(), String> {
+    if window.label() != WINDOW_PROMPT {
+        return Err("Seule l'île peut ouvrir une session.".into());
+    }
+    claude::open_session(&app, &session_id)
+}
+
 /// Réponse de l'île à un PermissionRequest en attente. Réservé à la fenêtre de l'île.
 #[tauri::command]
 pub fn claude_answer(

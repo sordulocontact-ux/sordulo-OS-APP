@@ -52,11 +52,29 @@ export function NotifLayer({
       {shown && (
         // La clé relance la coche et la barre de temps à chaque nouvelle notification.
         <Fragment key={shown.id}>
-          <NotifVisual notification={shown} />
-          <span className={styles.notifText}>
-            <strong>{shown.title}</strong>
-            <small>{shown.subtitle}</small>
-          </span>
+          {shown.action.type === 'openSession' && !shown.button ? (
+            // Notification Claude : un clic ouvre la fenêtre VS Code de la session.
+            <button
+              type="button"
+              className={styles.notifOpen}
+              onClick={() => onNotificationAction(shown)}
+              aria-label={`${shown.title}, ${shown.subtitle} : ouvrir dans l'éditeur`}
+            >
+              <NotifVisual notification={shown} />
+              <span className={styles.notifText}>
+                <strong>{shown.title}</strong>
+                <small>{shown.subtitle}</small>
+              </span>
+            </button>
+          ) : (
+            <>
+              <NotifVisual notification={shown} />
+              <span className={styles.notifText}>
+                <strong>{shown.title}</strong>
+                <small>{shown.subtitle}</small>
+              </span>
+            </>
+          )}
           {shown.button && (
             <button
               type="button"
