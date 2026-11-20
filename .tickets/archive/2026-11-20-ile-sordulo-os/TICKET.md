@@ -55,7 +55,7 @@ Contrats écrits par l'orchestrateur avant les lots : `src/features/island/types
 | L5 | Parcours d'appel dans l'île : contrôleur Tauri ⇄ coordinateur, `appel` / `meet` / arrêt au survol / `progress` sur les vrais statuts / « N tickets à valider » / erreurs + Réessayer / appel non envoyé au démarrage / connexion requise ; remplace la barre ; navigation de la fenêtre principale | `src/features/desktop/**`, `src/features/island/controller/**`, `src/features/island/catalog.ts`, `src/features/island/view/layers/CallLayers.tsx`, `src/app/AppLayout.tsx` | L1, L2, L3 | opus / high | validé |
 | L11 | Labo de l'île `/desktop/ile-labo` (navigateur, hors app) : chaque état, survol, plateforme, scénarios A à F, ressort | `src/features/island/lab/**`, `src/app/routes.tsx` | L2, L3 | sonnet / medium | validé |
 | L12 | Conformité `CLAUDE.md` : aucune valeur `px`/`rem` dans les `.module.css` de l'île et du labo (tokens `--island-*`), pas de `letter-spacing` en dur | `src/features/island/view/Island.module.css`, `src/features/island/lab/IslandLab.module.css`, `src/styles/tokens.css` (section Île) | L5 | sonnet / medium | validé |
-| L6 | Notification d'attribution : migration 0003 appliquée, abonnement Realtime, notification « X t'a assigné une tâche » qui ouvre la tâche | `supabase/migrations/0003_*.sql`, `src/features/island/controller/sources/assignments*` (nouveau ; enregistré par l'orchestrateur dans `sources/index.ts`), `src/shared/types.ts` | L5 | sonnet / medium | validé (migration non appliquée) |
+| L6 | Notification d'attribution : migration 0003 appliquée, abonnement Realtime, notification « X t'a assigné une tâche » qui ouvre la tâche | `supabase/migrations/0003_*.sql`, `src/features/island/controller/sources/assignments*` (nouveau ; enregistré par l'orchestrateur dans `sources/index.ts`), `src/shared/types.ts` | L5 | sonnet / medium | validé |
 | L7 | Relais Claude Code en Rust : binaire `sordulo-hook`, serveur local 127.0.0.1 + jeton, attente 60 s max sur PermissionRequest, jamais bloquant ; Connecter / Déconnecter (fusion + sauvegarde de `~/.claude/settings.json`) ; état de connexion dans le menu du soleil ; événements vers l'île | `src-tauri/src/claude/**`, `src-tauri/src/bin/**`, `src-tauri/src/lib.rs`, `src-tauri/src/tray.rs`, `src-tauri/src/commands.rs`, `src-tauri/src/state.rs`, `src-tauri/Cargo.toml` | L1 | opus / high | validé |
 | L8 | Claude Code dans l'île : sessions, `agent` (projet, branche, étape), `agentAsk` (réponse renvoyée), `multi`, conflits, notifications Claude | `src/features/island/claude/**`, `controller/sources/claude*` (enregistré par l'orchestrateur), `view/layers/ClaudeLayers.tsx` | L5, L7 | opus / high | validé |
 | L9 | Glisser-déposer : réveil à 24 px, zones, « Transcrire » (audio → entrée réunion), « Claude Code » (chemin copié), « Fichiers » masquée | `src/features/island/drop/**`, `controller/sources/drop*`, `view/layers/DragLayers.tsx`, `src-tauri/src/dropped.rs`, commandes Rust + presse-papiers | L5 (sessions lues dans la vue, pas de dépendance au code de L8) | sonnet / medium | validé |
@@ -132,7 +132,7 @@ Phases et commits : P1 = L1, L2, L3, L11 · P2 = L4, L5 · P3 = L6 · P4 = L7, L
 - `--island-letter-spacing: normal` annule le letter-spacing global du body, seul écart assumé à la règle 7.
 
 ### À faire par l'utilisateur
-1. **Migration 0003 non appliquée** : `SUPABASE_DB_URL` est vide dans `.env.local`. La renseigner (URI Session pooler), puis `npm run db:migrate`. Sans ça, la notification d'attribution ne se déclenche pas.
+1. ~~Migration 0003~~ : appliquée le 20/11 par l'orchestrateur via le SQL Editor du dashboard Supabase (projet sordulo-os), dans une transaction. Contrôle en lecture OK : colonnes, trigger `tasks_20_track_assignment`, `tasks` dans `supabase_realtime`. Note : la table de suivi `sordulo_meta.migrations` n'existe pas en base (les migrations 0001-0002 ont été appliquées hors `db:migrate`) ; elle n'a pas été créée, pour ne pas faire rejouer 0001-0002 au prochain `db:migrate`.
 2. Arrêter l'instance `tauri dev` en cours puis relancer `npm run tauri dev`, pour que le nouveau Rust (île, relais, dépôt) soit actif.
 3. Tests réels :
    - clics à travers l'île au repos ;
@@ -165,3 +165,7 @@ Phases et commits : P1 = L1, L2, L3, L11 · P2 = L4, L5 · P3 = L6 · P4 = L7, L
 
 ### Idées non retenues ou hors périmètre
 - Musique, déploiements Vercel, devis, paiements, échéances, rappels de call, fichiers de projet (déclarés au catalogue, non branchés), macOS (tailles prévues dans `geometry.ts`, lot L13).
+
+## Après clôture
+- 20/11 Migration 0003 appliquée via le SQL Editor de Supabase (l'URL de connexion contient le mot de passe de la base, non manipulé). Vérifiée en lecture.
+- 20/11 `tauri dev` de l'utilisateur en échec : `cl.exe` absent du PATH de son PowerShell (les builds des lots ont été faits avec l'environnement MSVC portable `%LOCALAPPDATA%\msvc`, ce qui fait rejouer les scripts de build de `mp3lame-sys` / `vswhom-sys`). Solution : charger `env.ps1` avant `npm run tauri dev`.
