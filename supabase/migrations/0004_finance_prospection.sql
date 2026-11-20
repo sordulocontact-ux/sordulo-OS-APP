@@ -254,7 +254,7 @@ grant execute on function private.current_member_id(uuid) to authenticated, serv
 -- Contrôle les lignes (tableau jsonb) et calcule les totaux en centimes.
 -- Chaque ligne : label (texte non vide), description (texte ou null, facultative),
 -- quantity (> 0), unit (day, hour, flat, unit), unit_price_cents (entier, >= 0 sauf
--- si p_allow_negative), vat_rate (0 à 100).
+-- si p_allow_negative : avoir, ou facture de solde qui déduit ses acomptes), vat_rate (0 à 100).
 -- Conditions imbriquées : PL/pgSQL n'évalue pas OR / AND en court-circuit, un cast
 -- ne doit jamais voir une valeur qui n'est pas un nombre.
 create or replace function private.document_totals(
@@ -647,7 +647,13 @@ begin
     end if;
   end if;
 
-  select * into v_totals from private.document_totals(new.lines, new.kind = 'credit_note');
+  -- Prix négatifs : permis sur un avoir, et sur une facture (déduction des acomptes d'une
+  -- facture de solde) tant que son total reste positif ou nul ; jamais sur un acompte.
+  -- Même règle dans src/shared/billing.ts (validateInvoiceLines).
+  select * into v_totals from private.document_totals(new.lines, new.kind in ('credit_note', 'invoice'));
+  if new.kind = 'invoice' and (v_totals.total_ht_cents < 0 or v_totals.total_ttc_cents < 0) then
+    raise exception 'Le total d''une facture ne peut pas être négatif : crée un avoir.' using errcode = '23514';
+  end if;
   new.total_ht_cents  := v_totals.total_ht_cents;
   new.total_vat_cents := v_totals.total_vat_cents;
   new.total_ttc_cents := v_totals.total_ttc_cents;

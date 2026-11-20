@@ -58,7 +58,7 @@ Ajouter un test à chaque nouvelle politique, colonne protégée ou RPC.
 
 ## Devis, factures, prospection (`0004`)
 
-- Lignes (`lines`, tableau jsonb) contrôlées en base : `label` non vide, `quantity` > 0, `unit` parmi `day` / `hour` / `flat` / `unit`, `unit_price_cents` entier (négatif seulement sur un avoir), `vat_rate` de 0 à 100. Erreur `23514` « Ligne N : … ».
+- Lignes (`lines`, tableau jsonb) contrôlées en base : `label` non vide, `quantity` > 0, `unit` parmi `day` / `hour` / `flat` / `unit`, `unit_price_cents` entier, `vat_rate` de 0 à 100. Erreur `23514` « Ligne N : … ». Prix négatif : permis sur un avoir, et sur une facture (`kind = 'invoice'`, lignes de déduction des acomptes d'une facture de solde) tant que son total HT et TTC reste positif ou nul (sinon `23514` « Le total d'une facture ne peut pas être négatif : crée un avoir. ») ; jamais sur un acompte.
 - Totaux (`total_ht_cents`, `total_vat_cents`, `total_ttc_cents`) recalculés par trigger à chaque écriture : HT ligne = `round(quantité × prix)`, TVA = somme par taux de `round(HT du taux × taux / 100)`, TTC = HT + TVA. Ce que le client envoie est ignoré.
 - `organization_id` d'un devis ou d'une facture vient du client ; projet, devis et facture d'origine doivent être de la même organisation.
 - Devis : numéro `D-AAAA-NNN` à la création (année de `issue_date`), `valid_until` par défaut = `issue_date` + `quote_validity_days`, `sent_at` / `accepted_at` / `refused_at` posés au changement de statut. Accepté ou refusé : plus rien ne change. Suppression des brouillons seulement.

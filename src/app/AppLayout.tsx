@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
+import appsIcon from '../assets/icons/apps.svg'
 import briefcaseIcon from '../assets/icons/briefcase.svg'
 import fileTextIcon from '../assets/icons/file-text.svg'
 import handshakeIcon from '../assets/icons/handshake.svg'
@@ -27,6 +28,7 @@ const NAV = [
   { to: '/quotes', label: 'Devis', icon: fileTextIcon, roles: FINANCE_ROLES },
   { to: '/invoices', label: 'Factures', icon: receiptIcon, roles: FINANCE_ROLES },
   { to: '/team', label: 'Équipe', icon: usersIcon, roles: ADMIN_ROLES },
+  { to: '/connectors', label: 'Connecteurs', icon: appsIcon, roles: ADMIN_ROLES },
   { to: '/settings', label: 'Paramètres', icon: settingsIcon, roles: ADMIN_ROLES },
 ] as const
 

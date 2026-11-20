@@ -13,7 +13,15 @@ import {
   TextInput,
   useToast,
 } from '../../components/ui'
-import { formatDate, formatMoney, hasLineErrors, todayIso, validateLines, daysLate } from '../../shared/billing'
+import {
+  daysLate,
+  formatDate,
+  formatMoney,
+  hasLineErrors,
+  invoiceAllowsNegativeLines,
+  todayIso,
+  validateInvoiceLines,
+} from '../../shared/billing'
 import { LABELS, type Client, type DocumentLine, type Invoice, type Organization } from '../../shared/types'
 import { ADMIN_ROLES, PROJECT_ROLES, useHasRole } from '../auth/roles'
 import { useCurrentMember } from '../auth/useCurrentMember'
@@ -101,8 +109,10 @@ function InvoiceView({ invoice, client, organization }: InvoiceViewProps) {
   const status = invoiceDisplayStatus(invoice, today)
   const isCredit = invoice.kind === 'credit_note'
   const project = projects.data?.find((p) => p.id === invoice.project_id)
-  const lineErrors = validateLines(lines, { allowNegative: isCredit })
-  const check = issueCheck({ lines, lineErrors, client, organization })
+  // Prix négatifs : avoir, et facture (déduction des acomptes d'une facture de solde) si le total reste positif ou nul.
+  const allowNegative = invoiceAllowsNegativeLines(invoice.kind)
+  const { lineErrors, totalError } = validateInvoiceLines(invoice.kind, lines)
+  const check = issueCheck({ lines, lineErrors, totalError, client, organization })
   const titleError = title.trim() === '' ? 'Indique un titre.' : null
   const dirty =
     title !== invoice.title || notes !== (invoice.notes ?? '') || JSON.stringify(lines) !== JSON.stringify(invoice.lines)
@@ -112,7 +122,7 @@ function InvoiceView({ invoice, client, organization }: InvoiceViewProps) {
   async function saveDraft(): Promise<boolean> {
     setAttempted(true)
     setError(null)
-    if (titleError || hasLineErrors(lineErrors)) return false
+    if (titleError || hasLineErrors(lineErrors) || totalError) return false
     try {
       await save.mutateAsync(fields())
       return true
@@ -386,7 +396,7 @@ function InvoiceView({ invoice, client, organization }: InvoiceViewProps) {
               <TextInput value={title} onChange={(e) => setTitle(e.target.value)} />
             </Field>
             {organization ? (
-              <LinesEditor lines={lines} onChange={setLines} org={organization} showErrors={attempted} allowNegative={isCredit} />
+              <LinesEditor lines={lines} onChange={setLines} org={organization} showErrors={attempted} allowNegative={allowNegative} />
             ) : null}
             <Field label="Notes">
               <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
@@ -399,7 +409,7 @@ function InvoiceView({ invoice, client, organization }: InvoiceViewProps) {
             Lignes
           </h2>
           {organization ? (
-            <LinesEditor lines={invoice.lines} onChange={() => undefined} org={organization} readOnly allowNegative={isCredit} />
+            <LinesEditor lines={invoice.lines} onChange={() => undefined} org={organization} readOnly allowNegative={allowNegative} />
           ) : null}
           {invoice.notes ? <p className={styles.multiline}>{invoice.notes}</p> : null}
         </section>

@@ -134,6 +134,8 @@
   --size-home-card-min: 16rem;
   --size-chart-height: 4rem;
   --size-chart-bar: 0.5rem;
+  /* Connecteurs (V0.3) : logo d'une carte (maquette 28 px) */
+  --size-connector-logo: 1.75rem;
 
   /* Radii */
   /* Figma : champs, boutons et cartes à angles droits ; seuls la navigation et les pastilles sont arrondies. */

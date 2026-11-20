@@ -8,6 +8,7 @@ import {
   lineHtCents,
 } from '../../shared/billing'
 import { LABELS, type DocumentLine, type DocumentTotals, type InvoiceBuyer, type InvoiceKind, type InvoiceSeller } from '../../shared/types'
+import { formatIban, formatSiret, frenchVatNumber, sellerDisplayName } from '../../shared/vat'
 import styles from './DocumentPreview.module.css'
 
 export interface DocumentPreviewProps {
@@ -63,7 +64,10 @@ export function DocumentPreview({
   const computed = computeTotals(lines)
   const shown = totals ?? computed
   const mentions = legalMentions({ kind, seller, dueDate, issueDate, validUntil, vatTotal: shown.total_vat_cents })
-  const sellerName = seller.legal_name ?? seller.name
+  const sellerName = sellerDisplayName(seller)
+  const withVat = shown.total_vat_cents !== 0
+  const sellerVat = withVat ? frenchVatNumber(seller.siret) : null
+  const buyerVat = withVat ? frenchVatNumber(buyer.siret) : null
   const sellerAddress = addressLines({
     street: seller.address_street,
     postal: seller.address_postal_code,
@@ -82,14 +86,12 @@ export function DocumentPreview({
       <article className={styles.page} aria-label={`${KIND_TITLE[kind]} ${number ?? 'brouillon'}`}>
         <header className={styles.header}>
           <div className={styles.party}>
-            <p className={styles.partyName}>
-              {sellerName}
-              {seller.legal_form ? ` ${seller.legal_form}` : ''}
-            </p>
+            <p className={styles.partyName}>{sellerName}</p>
             {sellerAddress.map((l) => (
               <p key={l}>{l}</p>
             ))}
-            {seller.siret ? <p>SIRET : {seller.siret}</p> : null}
+            {seller.siret ? <p>SIRET : {formatSiret(seller.siret)}</p> : null}
+            {sellerVat ? <p>N° TVA : {sellerVat}</p> : null}
           </div>
           <div className={styles.meta}>
             <h2 className={styles.kind}>{KIND_TITLE[kind]}</h2>
@@ -106,7 +108,8 @@ export function DocumentPreview({
           {buyerAddress.map((l) => (
             <p key={l}>{l}</p>
           ))}
-          {buyer.siret ? <p>SIRET : {buyer.siret}</p> : null}
+          {buyer.siret ? <p>SIRET : {formatSiret(buyer.siret)}</p> : null}
+          {buyerVat ? <p>N° TVA : {buyerVat}</p> : null}
           {buyer.contact_name ? <p>À l’attention de {buyer.contact_name}</p> : null}
         </section>
 
@@ -169,7 +172,7 @@ export function DocumentPreview({
 
         <footer className={styles.mentions}>
           {mentions.map((m) => (
-            <p key={m}>{m}</p>
+            <p key={m}>{m.startsWith('IBAN : ') ? `IBAN : ${formatIban(m.slice('IBAN : '.length))}` : m}</p>
           ))}
           {kind === 'quote' ? <div className={styles.signature} aria-hidden="true" /> : null}
         </footer>

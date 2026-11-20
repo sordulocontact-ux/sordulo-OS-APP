@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { queryKeys } from '../../lib/queryKeys'
 import { duplicateQuote, invoiceFromQuote } from '../../shared/billing'
 import type { Client, ClientContact, DocumentLine, Invoice, Project, Quote } from '../../shared/types'
-import type { QuoteWithLinks } from './quoteLogic'
+import { splitQuoteDeposits, type QuoteDeposit, type QuoteWithLinks } from './quoteLogic'
 
 const WITH_LINKS = '*, client:clients(id, name), project:projects(id, name)'
 
@@ -189,6 +189,35 @@ export function useDuplicateQuote() {
   })
 }
 
+const DEPOSIT_COLUMNS = 'id, number, status, lines, created_at'
+
+/** Factures d'acompte d'un devis, hors annulées (lues à la demande : la liste peut avoir changé ailleurs). */
+async function fetchQuoteDeposits(quoteId: string): Promise<QuoteDeposit[]> {
+  const { data, error } = await supabase
+    .from('invoices')
+    .select(DEPOSIT_COLUMNS)
+    .eq('quote_id', quoteId)
+    .eq('kind', 'deposit')
+    .in('status', ['draft', 'issued', 'paid'])
+    .overrideTypes<QuoteDeposit[], { merge: false }>()
+  if (error) throw error
+  return data
+}
+
+/** Acomptes du devis : à déduire (émis ou payés) et brouillons (non déduits, à signaler). */
+export function useQuoteDeposits(quoteId: string, enabled = true) {
+  return useQuery({
+    // Sous la clé des factures : émettre ou créer une facture rafraîchit ce bloc.
+    queryKey: [...queryKeys.invoices(), 'deposits-of-quote', quoteId] as const,
+    enabled,
+    queryFn: async () => splitQuoteDeposits(await fetchQuoteDeposits(quoteId)),
+  })
+}
+
+/**
+ * Facture depuis un devis. `invoice` : relit les acomptes émis ou payés du devis juste avant de créer la facture,
+ * pour qu'elle les déduise (facture de solde).
+ */
 export function useCreateInvoiceFromQuote() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -205,7 +234,10 @@ export function useCreateInvoiceFromQuote() {
       kind: 'invoice' | 'deposit'
       percent?: number
     }) => {
-      const draft = invoiceFromQuote(quote, { kind, percent })
+      const draft =
+        kind === 'invoice'
+          ? invoiceFromQuote(quote, { kind, deposits: splitQuoteDeposits(await fetchQuoteDeposits(quote.id)).deducted })
+          : invoiceFromQuote(quote, { kind, percent })
       const { data, error } = await supabase
         .from('invoices')
         .insert({ ...draft, organization_id: organizationId, status: 'draft', created_by: memberId })

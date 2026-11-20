@@ -1,6 +1,6 @@
 import type { BadgeTone } from '../../components/ui'
 import { isValidDepositPercent, quoteDisplayStatus, validateLines, hasLineErrors, type QuoteDisplayStatus } from '../../shared/billing'
-import type { DocumentLine, Quote, QuoteStatus } from '../../shared/types'
+import type { DocumentLine, Invoice, Quote, QuoteStatus } from '../../shared/types'
 
 /** Devis de la liste ou de la fiche, avec le client et le projet liés. */
 export type QuoteWithLinks = Quote & {
@@ -195,6 +195,31 @@ export function parseDepositPercent(raw: string): number | null {
   if (!/^\d+(\.\d+)?$/.test(normalized)) return null
   const value = Number(normalized)
   return isValidDepositPercent(value) ? value : null
+}
+
+/* ---------- Facture de solde ---------- */
+
+export type QuoteDeposit = Pick<Invoice, 'id' | 'number' | 'status' | 'lines' | 'created_at'>
+
+export const DRAFT_DEPOSIT_WARNING = 'L’acompte en brouillon n’est pas déduit : émets-le d’abord.'
+
+/**
+ * Acomptes d'un devis : `deducted` = émis ou payés (déduits de la facture de solde, par numéro croissant),
+ * `drafts` = brouillons (non déduits, à signaler). Les annulés (par un avoir) sont ignorés.
+ */
+export function splitQuoteDeposits<T extends Pick<Invoice, 'number' | 'status'>>(
+  deposits: readonly T[],
+): { deducted: T[]; drafts: T[] } {
+  const deducted = deposits
+    .filter((d) => d.status === 'issued' || d.status === 'paid')
+    .sort((a, b) => (a.number ?? '').localeCompare(b.number ?? ''))
+  const drafts = deposits.filter((d) => d.status === 'draft')
+  return { deducted, drafts }
+}
+
+/** Libellé du bouton de facturation d'un devis accepté. */
+export function finalInvoiceLabel(deductedCount: number): string {
+  return deductedCount > 0 ? 'Créer la facture de solde' : 'Créer la facture'
 }
 
 /* ---------- Erreurs ---------- */

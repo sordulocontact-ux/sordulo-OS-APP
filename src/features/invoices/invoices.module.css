@@ -137,3 +137,12 @@
 .multiline {
   white-space: pre-line;
 }
+
+/* Titre de la liste, avec l'export CSV à droite (même marge basse que les autres listes). */
+.listHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}

@@ -18,7 +18,9 @@ import { LinesEditor } from '../billing'
 import { useCurrentMember } from '../auth/useCurrentMember'
 import {
   canTransition,
+  DRAFT_DEPOSIT_WARNING,
   fieldsOf,
+  finalInvoiceLabel,
   hasUnsavedChanges,
   isQuoteLocked,
   parseDepositPercent,
@@ -30,7 +32,7 @@ import {
   type QuoteDraftFields,
   type QuoteWithLinks,
 } from './quoteLogic'
-import { useCreateInvoiceFromQuote, useDuplicateQuote, useQuote, useUpdateQuote } from './useQuotes'
+import { useCreateInvoiceFromQuote, useDuplicateQuote, useQuote, useQuoteDeposits, useUpdateQuote } from './useQuotes'
 import styles from './quotes.module.css'
 
 /** Prévient avant de quitter la page avec des modifications non enregistrées (rechargement, fermeture, liens internes). */
@@ -81,6 +83,9 @@ function QuoteEditor({ quote }: { quote: QuoteWithLinks }) {
   const update = useUpdateQuote(quote)
   const duplicate = useDuplicateQuote()
   const createInvoice = useCreateInvoiceFromQuote()
+  const deposits = useQuoteDeposits(quote.id, quote.status === 'accepted')
+  const deductedCount = deposits.data?.deducted.length ?? 0
+  const hasDraftDeposit = (deposits.data?.drafts.length ?? 0) > 0
   const saved = fieldsOf(quote)
   const [draft, setDraft] = useState<QuoteDraftFields>(saved)
   const [showErrors, setShowErrors] = useState(false)
@@ -154,7 +159,7 @@ function QuoteEditor({ quote }: { quote: QuoteWithLinks }) {
     return run(async () => {
       if (!organization) return
       const created = await createInvoice.mutateAsync({ quote, organizationId: organization.id, memberId: member?.id ?? null, kind, percent })
-      toast.success(kind === 'deposit' ? 'Facture d’acompte créée' : 'Facture créée')
+      toast.success(kind === 'deposit' ? 'Facture d’acompte créée' : deductedCount > 0 ? 'Facture de solde créée' : 'Facture créée')
       void navigate(`/invoices/${created.id}`)
     })
   }
@@ -187,7 +192,7 @@ function QuoteEditor({ quote }: { quote: QuoteWithLinks }) {
                   Facture d’acompte
                 </Button>
                 <Button variant="primary" onClick={() => void invoice('invoice')} loading={createInvoice.isPending} disabled={busy}>
-                  Créer la facture
+                  {finalInvoiceLabel(deductedCount)}
                 </Button>
               </>
             ) : null}
@@ -226,6 +231,7 @@ function QuoteEditor({ quote }: { quote: QuoteWithLinks }) {
             {error}
           </p>
         ) : null}
+        {quote.status === 'accepted' && hasDraftDeposit ? <p className={styles.notice}>{DRAFT_DEPOSIT_WARNING}</p> : null}
         <dl className={styles.meta}>
           <dt>Client</dt>
           <dd>

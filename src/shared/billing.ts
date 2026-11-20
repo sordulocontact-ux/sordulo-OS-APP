@@ -218,6 +218,30 @@ export function hasLineErrors(errors: readonly LineErrors[]): boolean {
   return errors.some((e) => Object.keys(e).length > 0)
 }
 
+/**
+ * Prix unitaire négatif permis selon le type de facture (même règle que le trigger SQL) :
+ * avoir oui ; facture oui (lignes de déduction d'acompte d'une facture de solde) ; acompte jamais.
+ */
+export function invoiceAllowsNegativeLines(kind: InvoiceKind): boolean {
+  return kind !== 'deposit'
+}
+
+export const NEGATIVE_INVOICE_TOTAL_ERROR = 'Le total d’une facture ne peut pas être négatif : crée un avoir.'
+
+/** Validation des lignes d'une facture : erreurs par ligne, et total HT ou TTC négatif refusé sur une facture. */
+export function validateInvoiceLines(
+  kind: InvoiceKind,
+  lines: readonly DocumentLine[],
+): { lineErrors: LineErrors[]; totalError: string | null } {
+  const lineErrors = validateLines(lines, { allowNegative: invoiceAllowsNegativeLines(kind) })
+  let totalError: string | null = null
+  if (kind === 'invoice' && !hasLineErrors(lineErrors)) {
+    const totals = computeTotals(lines)
+    if (totals.total_ht_cents < 0 || totals.total_ttc_cents < 0) totalError = NEGATIVE_INVOICE_TOTAL_ERROR
+  }
+  return { lineErrors, totalError }
+}
+
 /* ---------- Statuts calculés ---------- */
 
 export type QuoteDisplayStatus = 'draft' | 'sent' | 'expired' | 'accepted' | 'refused'
@@ -254,17 +278,52 @@ export function isValidDepositPercent(percent: number): boolean {
   return Number.isFinite(percent) && percent >= 1 && percent <= 100
 }
 
+/** Facture d'acompte à déduire d'une facture de solde : émise ou payée, non annulée, du même devis. */
+export type DepositToDeduct = Pick<Invoice, 'number' | 'lines'>
+
+export type InvoiceFromQuoteOptions =
+  | { kind: 'invoice'; deposits?: readonly DepositToDeduct[] }
+  | { kind: 'deposit'; percent?: number }
+
+/** Lignes de déduction : une par acompte et par taux de TVA présent dans cet acompte, au HT de ce taux, en négatif. */
+export function depositDeductionLines(deposits: readonly DepositToDeduct[]): DocumentLine[] {
+  return deposits.flatMap((deposit) =>
+    computeTotals(deposit.lines)
+      .vatByRate.filter((r) => r.base_cents !== 0)
+      .map(
+        (r): DocumentLine => ({
+          label: `Acompte ${deposit.number ?? ''} déjà facturé`.replace('  ', ' '),
+          description: `Déduction de l’acompte, TVA ${formatRate(r.rate)}`,
+          quantity: 1,
+          unit: 'flat',
+          unit_price_cents: -r.base_cents,
+          vat_rate: r.rate,
+        }),
+      ),
+  )
+}
+
 /**
- * Facture depuis un devis. `invoice` : toutes les lignes du devis. `deposit` : une ligne forfaitaire par taux
- * de TVA présent, au prorata (« Acompte de 30 % sur le devis D-2026-001 »), montants arrondis comme les totaux.
+ * Facture depuis un devis.
+ * `invoice` : toutes les lignes du devis ; avec des acomptes (`deposits`), c'est une facture de solde : les lignes du
+ * devis, puis la déduction de chaque acompte par taux de TVA (« Acompte F-2026-0001 déjà facturé »), titre « Solde : … ».
+ * `deposit` : une ligne forfaitaire par taux de TVA présent, au prorata (« Acompte de 30 % sur le devis D-2026-001 »),
+ * montants arrondis comme les totaux.
  */
 export function invoiceFromQuote(
   quote: Pick<Quote, 'client_id' | 'project_id' | 'id' | 'number' | 'title' | 'lines' | 'notes'>,
-  options: { kind: 'invoice' | 'deposit'; percent?: number },
+  options: InvoiceFromQuoteOptions,
 ): InvoiceDraft {
   const base = { client_id: quote.client_id, project_id: quote.project_id, quote_id: quote.id, notes: quote.notes }
   if (options.kind === 'invoice') {
-    return { ...base, kind: 'invoice', title: quote.title, lines: quote.lines.map((l) => ({ ...l })), deposit_percent: null }
+    const deductions = depositDeductionLines(options.deposits ?? [])
+    return {
+      ...base,
+      kind: 'invoice',
+      title: deductions.length > 0 ? `Solde : ${quote.title}` : quote.title,
+      lines: [...quote.lines.map((l) => ({ ...l })), ...deductions],
+      deposit_percent: null,
+    }
   }
   const percent = options.percent
   if (percent === undefined || !isValidDepositPercent(percent)) {

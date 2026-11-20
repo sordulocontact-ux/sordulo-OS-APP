@@ -19,6 +19,7 @@ import {
   parseVatRate,
   quoteDisplayStatus,
   roundHalfAwayFromZero,
+  validateInvoiceLines,
   validateLines,
 } from './billing.js'
 import type { DocumentLine, Invoice, Quote } from './types.js'
@@ -123,6 +124,31 @@ describe('validateLines', () => {
   })
 })
 
+describe('validateInvoiceLines (même règle que la base)', () => {
+  const deduction = line({ label: 'Acompte F-2026-0001 déjà facturé', unit: 'flat', unit_price_cents: -3000 })
+  it('facture : ligne négative permise tant que le total reste positif ou nul', () => {
+    expect(validateInvoiceLines('invoice', [line(), deduction])).toEqual({ lineErrors: [{}, {}], totalError: null })
+    expect(validateInvoiceLines('invoice', [line(), line({ unit_price_cents: -10000 })]).totalError).toBeNull() // total 0
+  })
+  it('facture : total négatif refusé', () => {
+    expect(validateInvoiceLines('invoice', [line(), line({ unit_price_cents: -10001 })]).totalError).toBe(
+      'Le total d’une facture ne peut pas être négatif : crée un avoir.',
+    )
+    // HT positif mais TTC négatif (taux différents) : refusé aussi.
+    const ttcNegative = [line({ unit_price_cents: 1000, vat_rate: 0 }), line({ unit_price_cents: -900, vat_rate: 20 })]
+    expect(computeTotals(ttcNegative)).toMatchObject({ total_ht_cents: 100, total_ttc_cents: -80 })
+    expect(validateInvoiceLines('invoice', ttcNegative).totalError).not.toBeNull()
+  })
+  it('acompte : jamais de prix négatif', () => {
+    const { lineErrors, totalError } = validateInvoiceLines('deposit', [line(), deduction])
+    expect(lineErrors[1]).toEqual({ unit_price: 'Le prix ne peut pas être négatif.' })
+    expect(totalError).toBeNull()
+  })
+  it('avoir : prix et total négatifs permis', () => {
+    expect(validateInvoiceLines('credit_note', [line({ unit_price_cents: -500 })])).toEqual({ lineErrors: [{}], totalError: null })
+  })
+})
+
 describe('defaultLine', () => {
   const org = { default_daily_rate: 450, default_hourly_rate: 60.5, default_vat_rate: 20 }
   it('reprend le taux journalier ou horaire en centimes', () => {
@@ -190,6 +216,83 @@ describe('brouillons dérivés', () => {
     expect(() => invoiceFromQuote(quote, { kind: 'deposit' })).toThrow(RangeError)
     expect(invoiceFromQuote(quote, { kind: 'deposit', percent: 100 }).lines[1]?.unit_price_cents).toBe(120000)
   })
+  describe('facture de solde', () => {
+    // Exemple constaté : devis de 2 226,95 € TTC, acompte de 30 % F-2026-0001 de 668,09 € TTC.
+    const ibe = {
+      ...quote,
+      title: 'App Ibé',
+      lines: [
+        line({ label: 'Développement', quantity: 3.5, unit: 'day', unit_price_cents: 50000, vat_rate: 20 }), // 175 000
+        line({ label: 'Livret', quantity: 1, unit: 'flat', unit_price_cents: 12033, vat_rate: 5.5 }), // 12 033
+      ],
+    }
+    const deposit = { number: 'F-2026-0001', lines: invoiceFromQuote(ibe, { kind: 'deposit', percent: 30 }).lines }
+
+    it('les montants de départ sont ceux constatés', () => {
+      expect(computeTotals(ibe.lines).total_ttc_cents).toBe(222695)
+      // Acompte : 3 609,9 → 3 610 à 5,5 % ; 52 500 à 20 %. TVA 198,55 → 199 et 10 500.
+      expect(deposit.lines.map((l) => [l.unit_price_cents, l.vat_rate])).toEqual([
+        [3610, 5.5],
+        [52500, 20],
+      ])
+      expect(computeTotals(deposit.lines).total_ttc_cents).toBe(66809)
+    })
+
+    it('reprend le devis puis déduit l’acompte par taux, au centime près', () => {
+      const d = invoiceFromQuote(ibe, { kind: 'invoice', deposits: [deposit] })
+      expect(d.title).toBe('Solde : App Ibé')
+      expect(d.kind).toBe('invoice')
+      expect(d.lines.slice(0, 2)).toEqual(ibe.lines)
+      expect(d.lines.slice(2)).toEqual([
+        {
+          label: 'Acompte F-2026-0001 déjà facturé',
+          description: 'Déduction de l’acompte, TVA 5,5 %',
+          quantity: 1,
+          unit: 'flat',
+          unit_price_cents: -3610,
+          vat_rate: 5.5,
+        },
+        {
+          label: 'Acompte F-2026-0001 déjà facturé',
+          description: 'Déduction de l’acompte, TVA 20 %',
+          quantity: 1,
+          unit: 'flat',
+          unit_price_cents: -52500,
+          vat_rate: 20,
+        },
+      ])
+      const t = computeTotals(d.lines)
+      // 5,5 % : 12 033 - 3 610 = 8 423, TVA 463,265 → 463 ; 20 % : 122 500, TVA 24 500.
+      expect(t.vatByRate).toEqual([
+        { rate: 5.5, base_cents: 8423, vat_cents: 463 },
+        { rate: 20, base_cents: 122500, vat_cents: 24500 },
+      ])
+      expect(t.total_ttc_cents).toBe(155886) // 1 558,86 €
+      expect(t.total_ttc_cents).toBe(222695 - 66809)
+      expect(validateInvoiceLines('invoice', d.lines)).toEqual({ lineErrors: [{}, {}, {}, {}], totalError: null })
+    })
+
+    it('déduit chaque acompte, dans l’ordre donné', () => {
+      const second = { number: 'F-2026-0004', lines: invoiceFromQuote(ibe, { kind: 'deposit', percent: 20 }).lines }
+      const d = invoiceFromQuote(ibe, { kind: 'invoice', deposits: [deposit, second] })
+      expect(d.lines.map((l) => l.label)).toEqual([
+        'Développement',
+        'Livret',
+        'Acompte F-2026-0001 déjà facturé',
+        'Acompte F-2026-0001 déjà facturé',
+        'Acompte F-2026-0004 déjà facturé',
+        'Acompte F-2026-0004 déjà facturé',
+      ])
+      expect(computeTotals(d.lines).total_ht_cents).toBe(187033 - 56110 - 37407)
+    })
+
+    it('sans acompte : facture complète, titre du devis', () => {
+      const d = invoiceFromQuote(ibe, { kind: 'invoice', deposits: [] })
+      expect(d.title).toBe('App Ibé')
+      expect(d.lines).toEqual(ibe.lines)
+    })
+  })
+
   it('duplique un devis en brouillon sans numéro', () => {
     const d = duplicateQuote(quote)
     expect(d.title).toBe('Refonte du site (copie)')

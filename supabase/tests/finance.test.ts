@@ -415,8 +415,60 @@ describe('0004 : factures', () => {
       q(FIN_A, `insert into public.invoices (client_id, title, kind) values ($1, 'X', 'credit_note')`, [CLIENT_A_FULL]),
       'P0001',
     )
-    await expectCode(newInvoice(null, 'invoice', [line('X', 1, 'day', -100, 20)]), '23514')
+    await expectCode(newInvoice(null, 'invoice', [line('X', 1, 'day', -100, 20)]), '23514', /ne peut pas être négatif/)
     expect(await q(FIN_A, `delete from public.invoices where id = $1 returning id`, [draft.id])).toHaveLength(1)
+  })
+
+  it('facture de solde : déduction des acomptes en lignes négatives, total jamais négatif', async () => {
+    // Exemple constaté : devis 2 226,95 € TTC, acompte de 30 % F-…-0001 de 668,09 € TTC.
+    const quoteLines = [line('Développement', 3.5, 'day', 50000, 20), line('Livret', 1, 'flat', 12033, 5.5)]
+    const deposit = await issue(
+      (await newInvoice(null, 'deposit', [line('Acompte de 30 %', 1, 'flat', 3610, 5.5), line('Acompte de 30 %', 1, 'flat', 52500, 20)])).id,
+    )
+    expect(deposit.total_ttc_cents).toBe(66809)
+
+    const balance = await newInvoice(null, 'invoice', [
+      ...quoteLines,
+      line(`Acompte ${deposit.number} déjà facturé`, 1, 'flat', -3610, 5.5),
+      line(`Acompte ${deposit.number} déjà facturé`, 1, 'flat', -52500, 20),
+    ])
+    // 5,5 % : 8 423, TVA 463,265 → 463 ; 20 % : 122 500, TVA 24 500.
+    expect(balance).toMatchObject({ total_ht_cents: 130923, total_vat_cents: 24963, total_ttc_cents: 155886 })
+    expect(balance.total_ttc_cents).toBe(222695 - 66809)
+    const issued = await issue(balance.id)
+    expect(issued).toMatchObject({ status: 'issued', total_ttc_cents: 155886 })
+
+    // Total à zéro : permis. Total HT (ou TTC) négatif : refusé, à la création comme en modification.
+    await newInvoice(null, 'invoice', [line('Forfait', 1, 'flat', 1000, 20), line('Déduction', 1, 'flat', -1000, 20)])
+    const negative = [line('Forfait', 1, 'flat', 1000, 20), line('Déduction', 1, 'flat', -1001, 20)]
+    await expectCode(newInvoice(null, 'invoice', negative), '23514', /Le total d'une facture ne peut pas être négatif : crée un avoir\./)
+    await expectCode(
+      newInvoice(null, 'invoice', [line('Sans TVA', 1, 'flat', 1000, 0), line('Déduction', 1, 'flat', -900, 20)]), // HT 1 €, TTC -0,80 €
+      '23514',
+      /ne peut pas être négatif/,
+    )
+    const draft = await newInvoice()
+    await expectCode(
+      q(FIN_A, `update public.invoices set lines = $2::jsonb where id = $1`, [draft.id, JSON.stringify(negative)]),
+      '23514',
+      /ne peut pas être négatif/,
+    )
+
+    // Acompte : jamais de prix négatif, même avec un total positif.
+    await expectCode(
+      newInvoice(null, 'deposit', [line('Acompte', 1, 'flat', 5000, 20), line('Déduction', 1, 'flat', -100, 20)]),
+      '23514',
+      /Ligne 2 : le prix unitaire ne peut pas être négatif/,
+    )
+
+    // L'avoir d'une facture de solde inverse aussi les déductions.
+    const [credit] = await q<Doc & { lines: { unit_price_cents: number }[] }>(
+      FIN_A,
+      `select * from public.create_credit_note($1)`,
+      [balance.id],
+    )
+    expect(credit?.lines.map((l) => l.unit_price_cents)).toEqual([-50000, -12033, 3610, 52500])
+    expect(credit?.total_ttc_cents).toBe(-155886)
   })
 
   it('une facture émise est figée, mais passe de émise à payée et retour', async () => {
@@ -495,6 +547,26 @@ describe('0004 : statut automatique du projet', () => {
     await q(FIN_A, `update public.invoices set status = 'paid' where id = $1`, [a.id])
     expect(await projectStatus(project)).toBe('delivered')
     await q(FIN_A, `update public.invoices set status = 'paid' where id = $1`, [b.id])
+    expect(await projectStatus(project)).toBe('paid')
+  })
+
+  it('payé avec acompte puis facture de solde : seulement quand le solde est payé', async () => {
+    const project = await newProject('in_progress')
+    const deposit = await issue((await newInvoice(project, 'deposit', [line('Acompte', 1, 'flat', 30000, 20)])).id)
+    await q(FIN_A, `update public.invoices set status = 'paid' where id = $1`, [deposit.id])
+    expect(await projectStatus(project)).toBe('in_progress')
+
+    const balance = await issue(
+      (
+        await newInvoice(project, 'invoice', [
+          line('Prestation', 1, 'flat', 100000, 20),
+          line(`Acompte ${deposit.number} déjà facturé`, 1, 'flat', -30000, 20),
+        ])
+      ).id,
+    )
+    expect(balance.total_ttc_cents).toBe(84000)
+    expect(await projectStatus(project)).toBe('in_progress')
+    await q(FIN_A, `update public.invoices set status = 'paid' where id = $1`, [balance.id])
     expect(await projectStatus(project)).toBe('paid')
   })
 

@@ -5,6 +5,7 @@ import {
   canDeleteQuote,
   canTransition,
   filterQuotes,
+  finalInvoiceLabel,
   hasUnsavedChanges,
   isQuoteLocked,
   parseDepositPercent,
@@ -12,6 +13,7 @@ import {
   quoteErrorText,
   quoteStats,
   sortQuotes,
+  splitQuoteDeposits,
   transitionPatch,
   validateQuoteFields,
   type QuoteWithLinks,
@@ -145,5 +147,23 @@ describe('quoteErrorText', () => {
   })
   it('garde un message générique', () => {
     expect(quoteErrorText(null)).toBe('Une erreur est survenue. Réessaie.')
+  })
+})
+
+describe('facture de solde', () => {
+  const dep = (number: string | null, status: 'draft' | 'issued' | 'paid' | 'cancelled') => ({ number, status })
+  it('déduit les acomptes émis ou payés, signale les brouillons, ignore les annulés', () => {
+    const { deducted, drafts } = splitQuoteDeposits([
+      dep('F-2026-0007', 'paid'),
+      dep(null, 'draft'),
+      dep('F-2026-0002', 'issued'),
+      dep('F-2026-0003', 'cancelled'),
+    ])
+    expect(deducted.map((d) => d.number)).toEqual(['F-2026-0002', 'F-2026-0007'])
+    expect(drafts).toHaveLength(1)
+  })
+  it('change le libellé du bouton dès qu’un acompte est déduit', () => {
+    expect(finalInvoiceLabel(0)).toBe('Créer la facture')
+    expect(finalInvoiceLabel(2)).toBe('Créer la facture de solde')
   })
 })

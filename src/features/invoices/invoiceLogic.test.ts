@@ -10,6 +10,7 @@ import {
   hasBillingAddress,
   invoiceDisplayStatus,
   invoiceErrorText,
+  invoiceSecondLine,
   invoiceStats,
   issueCheck,
   matchesInvoice,
@@ -132,6 +133,10 @@ describe('émission', () => {
     expect(issueCheck({ lines: [], lineErrors: [], client: okClient, organization: okOrg }).blockers[0]?.code).toBe('empty')
     expect(hasBillingAddress({ billing_street: ' ', billing_postal_code: '1', billing_city: 'x' })).toBe(false)
   })
+  it('bloque sur un total négatif (facture de solde qui déduit trop)', () => {
+    const r = issueCheck({ lines: [line], lineErrors: [{}], totalError: 'Total négatif', client: okClient, organization: okOrg })
+    expect(r.blockers).toEqual([{ code: 'total', message: 'Total négatif' }])
+  })
   it('avertit sans bloquer quand SIRET ou raison sociale manquent', () => {
     const r = issueCheck({ lines: [line], lineErrors: [{}], client: okClient, organization: { siret: null, legal_name: 'X' } })
     expect(r.blockers).toEqual([])
@@ -147,11 +152,22 @@ describe('erreurs et fichier', () => {
     expect(invoiceErrorText({ code: 'P0001', message: 'Une facture émise ne peut plus être modifiée : crée un avoir pour la corriger' })).toBe(
       'Une facture émise ne peut plus être modifiée : crée un avoir.',
     )
+    expect(invoiceErrorText({ code: '23514', message: "Le total d'une facture ne peut pas être négatif : crée un avoir." })).toBe(
+      'Le total d’une facture ne peut pas être négatif : crée un avoir.',
+    )
     expect(invoiceErrorText({ message: 'boom' })).toBe('Une erreur est survenue : boom')
     expect(invoiceErrorText(null)).toBe('Une erreur est survenue. Réessaie.')
   })
   it('nomme le CSV et écarte les brouillons', () => {
     expect(csvFileName('2026-11-20')).toBe('factures-2026-11-20.csv')
     expect(exportableInvoices([inv({ status: 'draft' }), inv()])).toHaveLength(1)
+  })
+})
+
+describe('seconde ligne', () => {
+  it('ajoute le type, sauf si le titre le contient déjà en tête', () => {
+    expect(invoiceSecondLine({ kind: 'invoice', title: 'Site vitrine' })).toBe('Facture : Site vitrine')
+    expect(invoiceSecondLine({ kind: 'credit_note', title: 'Avoir sur F-2026-0002' })).toBe('Avoir sur F-2026-0002')
+    expect(invoiceSecondLine({ kind: 'deposit', title: 'acompte 30 %' })).toBe('acompte 30 %')
   })
 })

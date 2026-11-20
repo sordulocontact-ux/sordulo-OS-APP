@@ -87,6 +87,13 @@
   font-size: var(--font-size-sm);
 }
 
+.notice {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: var(--size-border) solid var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
 .hint {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);

@@ -1,5 +1,5 @@
 /** Logique pure des écrans Factures : filtres, cartes de chiffres, statut affiché, conditions d'émission, erreurs. */
-import { daysLate, isOverdue, type LineErrors } from '../../shared/billing'
+import { daysLate, isOverdue, NEGATIVE_INVOICE_TOTAL_ERROR, type LineErrors } from '../../shared/billing'
 import {
   INVOICE_KINDS,
   LABELS,
@@ -47,6 +47,14 @@ export function statusBadgeLabel(invoice: Pick<Invoice, 'status' | 'due_date'>, 
 /** Numéro, ou « Brouillon » tant que la facture n'est pas émise. */
 export function invoiceNumberLabel(invoice: Pick<Invoice, 'number'>): string {
   return invoice.number ?? 'Brouillon'
+}
+
+/** Seconde ligne d'une facture : « Acompte : Site vitrine », sans doubler le type s'il ouvre déjà le titre (« Avoir sur F-2026-0002 »). */
+export function invoiceSecondLine(invoice: Pick<Invoice, 'kind' | 'title'>): string {
+  const label = LABELS.invoiceKind[invoice.kind]
+  const title = invoice.title.trim()
+  if (title.toLocaleLowerCase('fr').startsWith(label.toLocaleLowerCase('fr'))) return title
+  return `${label} : ${title}`
 }
 
 /* ---------- Filtres (dans l'URL) ---------- */
@@ -179,14 +187,16 @@ export function hasBillingAddress(
 
 export interface IssueCheck {
   /** Bloquants : l'émission est refusée. */
-  blockers: { code: 'lines' | 'empty' | 'address'; message: string }[]
+  blockers: { code: 'lines' | 'empty' | 'total' | 'address'; message: string }[]
   /** Avertissements : l'émission reste possible. */
   warnings: { code: 'legal'; message: string }[]
 }
 
+/** `totalError` : total négatif d'une facture (`validateInvoiceLines`, même règle que la base). */
 export function issueCheck(input: {
   lines: readonly unknown[]
   lineErrors: readonly LineErrors[]
+  totalError?: string | null
   client: Pick<Client, 'billing_street' | 'billing_postal_code' | 'billing_city'> | null
   organization: Pick<Organization, 'siret' | 'legal_name'> | null
 }): IssueCheck {
@@ -195,6 +205,8 @@ export function issueCheck(input: {
   if (input.lines.length === 0) blockers.push({ code: 'empty', message: 'Ajoute au moins une ligne avant d’émettre la facture.' })
   else if (input.lineErrors.some((e) => Object.keys(e).length > 0)) {
     blockers.push({ code: 'lines', message: 'Corrige les lignes en erreur avant d’émettre la facture.' })
+  } else if (input.totalError) {
+    blockers.push({ code: 'total', message: input.totalError })
   }
   if (!input.client || !hasBillingAddress(input.client)) {
     blockers.push({ code: 'address', message: 'Le client n’a pas d’adresse de facturation complète (rue, code postal, ville).' })
@@ -225,6 +237,7 @@ export function invoiceErrorText(error: unknown): string {
   if (/ne peut plus être modifiée/i.test(message)) return 'Une facture émise ne peut plus être modifiée : crée un avoir.'
   if (/seule une facture en brouillon/i.test(message)) return 'Seul un brouillon peut être supprimé : pour annuler une facture émise, crée un avoir.'
   if (/annulée ne peut plus/i.test(message)) return 'Une facture annulée ne peut plus changer de statut.'
+  if (/total d.une facture ne peut pas être négatif/i.test(message)) return NEGATIVE_INVOICE_TOTAL_ERROR
   if (/adresse de facturation/i.test(message)) return 'Le client n’a pas d’adresse de facturation : complète sa fiche.'
   return message ? `Une erreur est survenue : ${message}` : 'Une erreur est survenue. Réessaie.'
 }

@@ -7,6 +7,7 @@ import {
   EmptyState,
   ErrorState,
   Field,
+  IconButton,
   ListToolbar,
   LoadingState,
   Modal,
@@ -14,6 +15,7 @@ import {
   StatCard,
   useToast,
 } from '../../components/ui'
+import downloadIcon from '../../assets/icons/download.svg'
 import { formatDate, formatMoney, invoicesCsv, todayIso } from '../../shared/billing'
 import { INVOICE_KINDS, LABELS } from '../../shared/types'
 import {
@@ -30,6 +32,7 @@ import {
   invoiceDisplayStatus,
   invoiceErrorText,
   invoiceNumberLabel,
+  invoiceSecondLine,
   invoiceStats,
   matchesInvoice,
   sortInvoices,
@@ -130,7 +133,10 @@ export function InvoicesPage() {
 
   return (
     <section className={table.page} aria-labelledby="invoices-title">
-      <h1 id="invoices-title">Factures</h1>
+      <div className={styles.listHeader}>
+        <h1 id="invoices-title">Factures</h1>
+        <IconButton icon={downloadIcon} label="Exporter en CSV" onClick={exportCsv} disabled={exportable.length === 0} />
+      </div>
       {all.length > 0 ? (
         <div className={table.stats}>
           <StatCard value={formatMoney(stats.toCollectCents)} label="À encaisser" hint={countLabel(stats.toCollectCount)} />
@@ -192,11 +198,6 @@ export function InvoicesPage() {
           </>
         }
       />
-      <div className={table.toolbarEnd}>
-        <Button onClick={exportCsv} disabled={exportable.length === 0}>
-          Exporter en CSV
-        </Button>
-      </div>
       {isLoading ? (
         <LoadingState label="Chargement des factures…" />
       ) : isError ? (
@@ -234,7 +235,7 @@ export function InvoicesPage() {
                           {invoiceNumberLabel(invoice)}
                         </Link>
                         <span className={table.secondLine}>
-                          {LABELS.invoiceKind[invoice.kind]} : {invoice.title}
+                          {invoiceSecondLine(invoice)}
                         </span>
                       </span>
                     </td>

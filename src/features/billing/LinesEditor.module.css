@@ -130,3 +130,25 @@
   border-top: var(--size-border) solid var(--color-border);
   font-weight: var(--font-weight-semibold);
 }
+
+/* Lecture seule : tableau de texte, nombres alignés à droite. */
+.right {
+  text-align: right;
+}
+
+.readLabel {
+  display: block;
+  font-weight: var(--font-weight-semibold);
+}
+
+.readDescription {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.readNumber {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

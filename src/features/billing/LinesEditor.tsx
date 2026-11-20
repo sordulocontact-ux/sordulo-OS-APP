@@ -111,16 +111,16 @@ export function LinesEditor({ lines, onChange, org, readOnly = false, allowNegat
           <thead>
             <tr>
               <th scope="col">Désignation</th>
-              <th scope="col" className={styles.colQuantity}>
+              <th scope="col" className={[styles.colQuantity, readOnly ? styles.right : ''].join(' ')}>
                 Quantité
               </th>
               <th scope="col" className={styles.colUnit}>
                 Unité
               </th>
-              <th scope="col" className={styles.colPrice}>
+              <th scope="col" className={[styles.colPrice, readOnly ? styles.right : ''].join(' ')}>
                 PU HT
               </th>
-              <th scope="col" className={styles.colVat}>
+              <th scope="col" className={[styles.colVat, readOnly ? styles.right : ''].join(' ')}>
                 TVA
               </th>
               <th scope="col" className={styles.colTotal}>
@@ -146,6 +146,21 @@ export function LinesEditor({ lines, onChange, org, readOnly = false, allowNegat
               const labelError = showErrors ? e.label : undefined
               const labelErrorId = `${labelErrorBase}-${index}`
               const n = index + 1
+              if (readOnly) {
+                return (
+                  <tr key={index}>
+                    <td>
+                      <span className={styles.readLabel}>{line.label}</span>
+                      {line.description ? <span className={styles.readDescription}>{line.description}</span> : null}
+                    </td>
+                    <td className={styles.readNumber}>{formatQuantity(line.quantity)}</td>
+                    <td>{LABELS.lineUnit[line.unit]}</td>
+                    <td className={styles.readNumber}>{formatMoney(line.unit_price_cents)}</td>
+                    <td className={styles.readNumber}>{formatRate(line.vat_rate)}</td>
+                    <td className={styles.readNumber}>{formatMoney(lineHtCents(line))}</td>
+                  </tr>
+                )
+              }
               return (
                 <tr key={index}>
                   <td>

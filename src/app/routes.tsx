@@ -4,6 +4,7 @@ import { MemberGate } from '../features/auth/MemberGate'
 import { RequireAuth } from '../features/auth/RequireAuth'
 import { RequireRole } from '../features/auth/RequireRole'
 import { ADMIN_ROLES, CLIENT_READ_ROLES, FINANCE_ROLES, PROJECT_ROLES, PROSPECT_ROLES } from '../features/auth/roles'
+import { ConnectorsPage } from '../features/connectors/ConnectorsPage'
 import { HomePage } from '../features/home/HomePage'
 import { InvoicePage } from '../features/invoices/InvoicePage'
 import { InvoicePrintPage } from '../features/invoices/InvoicePrintPage'
@@ -94,6 +95,7 @@ export function AppRoutes() {
         <Route element={<Guard roles={ADMIN_ROLES} />}>
           <Route path="/team" element={<TeamPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/connectors" element={<ConnectorsPage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>
