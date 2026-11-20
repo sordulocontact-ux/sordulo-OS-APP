@@ -4,7 +4,7 @@
  * - Une fois connecté, abonnement Supabase Realtime (postgres_changes) sur public.tasks, INSERT et UPDATE,
  *   filtré sur `assignee_member_id=eq.<mon membre>`. La RLS s'applique aux événements. La reconnexion du
  *   canal est gérée par supabase-js.
- * - La base remplit `assigned_by_member_id` et `assigned_at` (migration 0003) : on notifie seulement si
+ * - La base remplit `assigned_by_member_id` et `assigned_at` (migration 0006) : on notifie seulement si
  *   l'auteur existe et n'est pas moi. Le couple (tâche, assigned_at) n'est notifié qu'une fois : une mise à
  *   jour de statut ne renotifie pas.
  * - Attributions du même auteur en moins de BATCH_MS (validation d'un lot de tickets) : une seule

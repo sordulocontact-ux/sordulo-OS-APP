@@ -1,5 +1,5 @@
 -- =============================================================================
--- Sordulo OS : 0003_task_assigned_by
+-- Sordulo OS : 0006_task_assigned_by
 -- Garde qui a attribué une tâche et quand, pour la notification « X t'a assigné une
 -- tâche » de l'île de l'app de bureau, et publie public.tasks sur Supabase Realtime.
 --
