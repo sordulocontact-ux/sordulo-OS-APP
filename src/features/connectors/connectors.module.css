@@ -90,6 +90,11 @@
   object-fit: contain;
 }
 
+/* Logo image (Figma) : pas de tuile grise derrière. */
+img.logo {
+  background: none;
+}
+
 .titleRow {
   display: flex;
   flex-wrap: wrap;

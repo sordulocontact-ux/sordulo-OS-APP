@@ -1,3 +1,9 @@
+// Logos exportés du Figma « SORDULO-OS » (écran « Connector », node 11:1106), réduits à 112 px.
+import claudeLogo from '../../assets/connectors/claude.png'
+import gmailLogo from '../../assets/connectors/gmail.png'
+import notionLogo from '../../assets/connectors/notion.png'
+import stripeLogo from '../../assets/connectors/stripe.png'
+
 export type ConnectorCategory = 'Communication' | 'Agenda' | 'Documents' | 'Design' | 'Paiement' | 'Comptabilité' | 'IA' | 'Infrastructure'
 
 export type ConnectorStatus = 'connected' | 'soon'
@@ -20,6 +26,7 @@ export interface Connector {
 export const CONNECTORS: Connector[] = [
   {
     id: 'claude',
+    logo: claudeLogo,
     name: 'Claude',
     category: 'IA',
     description: 'Analyse les entrées et rédige les tickets.',
@@ -52,6 +59,7 @@ export const CONNECTORS: Connector[] = [
   },
   {
     id: 'gmail',
+    logo: gmailLogo,
     name: 'Gmail',
     category: 'Communication',
     description: 'Transformer un email client en entrée, sans copier-coller.',
@@ -80,6 +88,7 @@ export const CONNECTORS: Connector[] = [
   },
   {
     id: 'notion',
+    logo: notionLogo,
     name: 'Notion',
     category: 'Documents',
     description: 'Exporter les tickets d’un projet vers une page Notion.',
@@ -94,6 +103,7 @@ export const CONNECTORS: Connector[] = [
   },
   {
     id: 'stripe',
+    logo: stripeLogo,
     name: 'Stripe',
     category: 'Paiement',
     description: 'Ajouter un lien de paiement sur les factures.',
