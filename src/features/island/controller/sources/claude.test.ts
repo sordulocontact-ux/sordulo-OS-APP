@@ -184,11 +184,12 @@ describe('source « Claude Code »', () => {
   it('action showSessions (« Voir » d’un conflit) : l’activité Claude dans la bulle est épinglée', async () => {
     const t = setup()
     await flush()
+    // Une progression non exclusive (déploiement, prévu) : la bulle reste possible.
     t.coordinator.addActivity({
-      id: 'prog:upload',
+      id: 'prog:deploy',
       kind: 'progress',
-      stage: 'upload',
-      label: 'Import de l’audio',
+      stage: 'deploy',
+      label: 'Déploiement en cours',
       fraction: null,
       startedAt: 0,
       estimatedMs: 10_000,

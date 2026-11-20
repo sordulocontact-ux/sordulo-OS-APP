@@ -25,6 +25,8 @@ const upload: ActivityInput = {
   startedAt: 0,
   estimatedMs: 3000,
 }
+/** Progression prévue (déploiement) : n'est pas exclusive, la bulle reste possible. */
+const deploy: ActivityInput = { ...upload, id: 'prog:deploy', stage: 'deploy', label: 'Déploiement en cours' }
 
 let n = 0
 function note(title = `Note ${++n}`) {
@@ -84,11 +86,25 @@ describe('activités', () => {
     expect(island.pinSecondary()).toBe('music')
     expect(snap()).toMatchObject({ state: 'music', pinnedId: 'music' })
     expect(snap().secondary?.id).toBe('agent')
-    island.addActivity(upload)
+    island.addActivity(deploy)
     expect(snap().primary?.id).toBe('music')
-    expect(snap().secondary?.id).toBe('prog:upload')
+    expect(snap().secondary?.id).toBe('prog:deploy')
     island.removeActivity('music')
     expect(snap()).toMatchObject({ state: 'progress', pinnedId: null })
+    expect(snap().secondary?.id).toBe('agent')
+  })
+
+  it('import ou analyse : seule dans l’île, devant l’épinglée, sans bulle', () => {
+    const { island, snap } = setup()
+    island.addActivity(agent)
+    island.addActivity(music)
+    expect(island.pinSecondary()).toBe('music')
+    island.addActivity(upload)
+    expect(snap()).toMatchObject({ state: 'progress', secondary: null, pinnedId: 'music' })
+    expect(snap().background.map((a) => a.id)).toEqual(['music', 'agent'])
+    expect(island.pinSecondary()).toBeNull()
+    island.removeActivity('prog:upload')
+    expect(snap()).toMatchObject({ state: 'music', background: [] })
     expect(snap().secondary?.id).toBe('agent')
   })
 

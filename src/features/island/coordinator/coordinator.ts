@@ -26,9 +26,10 @@
  *   contrôleur qui ajoute « Import de l'audio ».
  * - `pinSecondary()` : clic sur la bulle, la secondaire est épinglée et passe devant.
  * Ordre : épinglée, puis appel, progression, Claude (agent, multi), musique ; à rang égal, la plus récente.
- * Pendant un enregistrement (écart au prototype, demande de Maël) : l'appel reste seul dans l'île, même si
- * une autre activité est épinglée, et il n'y a pas de bulle. Les autres activités passent dans `background`,
- * affichées sous l'appel au survol (meetOpen).
+ * Pendant un enregistrement, puis pendant l'import et l'analyse qui le suivent (écart au prototype, demande
+ * de Maël) : l'appel, puis sa progression, reste seul dans l'île, même si une autre activité est épinglée,
+ * et il n'y a pas de bulle. Les autres activités passent dans `background` (affichées sous l'appel au
+ * survol, meetOpen ; la progression n'a pas de survol).
  *
  * Par-dessus la principale, une seule chose à la fois : notification, demande d'autorisation ou overlay.
  * - `notify(notification)` : en file. Interruptions (`notification.interrupt`, demandes d'autorisation)
@@ -112,6 +113,26 @@ function isInterrupt(entry: QueueEntry): boolean {
 
 function notificationEntry(notification: IslandNotification): NotificationEntry {
   return { type: 'notification', notification, sources: [notification.title] }
+}
+
+/**
+ * Activité qui reste seule dans l'île, sans bulle : l'appel le plus récent, sinon l'import ou l'analyse la
+ * plus récente (après l'appel, ou après un dépôt). Null : règle normale (principale + bulle).
+ */
+function exclusiveActivity(activities: Iterable<Activity>): Activity | null {
+  let meet: Activity | null = null
+  let progress: Activity | null = null
+  for (const activity of activities) {
+    if (activity.kind === 'meet' && (!meet || activity.order > meet.order)) meet = activity
+    if (
+      activity.kind === 'progress' &&
+      (activity.stage === 'upload' || activity.stage === 'analyse') &&
+      (!progress || activity.order > progress.order)
+    ) {
+      progress = activity
+    }
+  }
+  return meet ?? progress
 }
 
 function sameSnapshot(a: IslandSnapshot, b: IslandSnapshot): boolean {
@@ -227,7 +248,7 @@ export class IslandCoordinator {
 
   /** Clic sur la bulle : épingle la secondaire, qui passe devant. Renvoie l'id épinglé (null sans bulle). */
   pinSecondary(): string | null {
-    if (this.hasMeet()) return null
+    if (exclusiveActivity(this.activities.values())) return null
     const secondary = this.sorted()[1]
     if (!secondary) return null
     this.pinnedId = secondary.id
@@ -464,9 +485,9 @@ export class IslandCoordinator {
 
   private buildSnapshot(): IslandSnapshot {
     const sorted = this.sorted()
-    // Pendant un enregistrement, l'appel le plus récent passe devant tout, même une activité épinglée.
-    const meet = sorted.filter((activity) => activity.kind === 'meet').sort((a, b) => b.order - a.order)[0]
-    const primary = meet ?? sorted[0] ?? null
+    // Appel en cours, ou import / analyse : seul dans l'île, devant tout, même une activité épinglée.
+    const exclusive = exclusiveActivity(sorted)
+    const primary = exclusive ?? sorted[0] ?? null
     const others = sorted.filter((activity) => activity !== primary)
     const current = this.current
     let state: IslandState = stateOfActivity(primary)
@@ -479,8 +500,8 @@ export class IslandCoordinator {
     return Object.freeze({
       state,
       primary,
-      secondary: meet ? null : (others[0] ?? null),
-      background: Object.freeze(meet ? others : []),
+      secondary: exclusive ? null : (others[0] ?? null),
+      background: Object.freeze(exclusive ? others : []),
       activityCount: sorted.length,
       pinnedId: this.pinnedId,
       notification,

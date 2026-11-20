@@ -118,13 +118,14 @@ describe('scénarios de priorité', () => {
     clock.advanceTo(15_630)
     expect(snap()).toMatchObject({ state: 'meet', notification: null })
 
-    // Fin de l'appel : le contrôleur ajoute l'analyse, qui passe devant Claude.
+    // Fin de l'appel : le contrôleur ajoute l'analyse, qui passe devant Claude. Écart au prototype (demande
+    // de Maël) : pas de bulle pendant l'import et l'analyse non plus.
     clock.advanceTo(17_500)
     island.endMeet()
     island.addActivity(progress('analyse', "Analyse de l'appel", 17_500))
-    expect(snap()).toMatchObject({ state: 'progress', activityCount: 2, notification: null })
+    expect(snap()).toMatchObject({ state: 'progress', activityCount: 2, notification: null, secondary: null })
     expect(snap().primary?.id).toBe('prog:analyse')
-    expect(snap().secondary?.id).toBe('agent')
+    expect(snap().background.map((a) => a.id)).toEqual(['agent'])
 
     // Analyse terminée : « 6 tickets à valider » pendant 7 s, puis Claude.
     clock.advanceTo(26_850)
