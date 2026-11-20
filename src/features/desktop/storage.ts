@@ -2,12 +2,13 @@
  * Ce que l'île garde dans le stockage local (localStorage, partagé par les fenêtres de l'app de bureau) :
  * dernier projet choisi, enregistrements arrêtés mais pas encore envoyés, entrées dont on suit l'analyse.
  */
-import type { RecordingResult } from '../../shared/desktop-contract'
+import type { CallService, RecordingResult } from '../../shared/desktop-contract'
 
 const LAST_PROJECT_KEY = 'sordulo.desktop.lastProjectId'
 /** Ancienne clé : un seul enregistrement en attente (lue pour reprise, puis remplacée par la file). */
 const LEGACY_PENDING_KEY = 'sordulo.desktop.pendingRecording'
 const PENDING_KEY = 'sordulo.desktop.pendingRecordings'
+const RECORDING_CALL_KEY = 'sordulo.desktop.recordingCall'
 const TRACKED_KEY = 'sordulo.desktop.trackedInputs'
 
 function readJson(key: string): unknown {
@@ -42,6 +43,25 @@ export function writeLastProjectId(projectId: string): void {
   } catch {
     // Stockage indisponible : le projet par défaut ne sera simplement pas retenu.
   }
+}
+
+/** App d'appel de l'enregistrement en cours : permet à l'île de retrouver son logo si la page redémarre. */
+export interface RecordingCall {
+  appName: string
+  service: CallService | null
+}
+
+export function readRecordingCall(): RecordingCall | null {
+  const v = readJson(RECORDING_CALL_KEY)
+  if (!v || typeof v !== 'object') return null
+  const { appName, service } = v as Partial<Record<keyof RecordingCall, unknown>>
+  if (typeof appName !== 'string' || !appName) return null
+  return { appName, service: typeof service === 'string' ? (service as CallService) : null }
+}
+
+/** `null` : l'enregistrement est terminé, on oublie l'app. */
+export function writeRecordingCall(call: RecordingCall | null): void {
+  writeJson(RECORDING_CALL_KEY, call)
 }
 
 function isRecordingResult(value: unknown): value is RecordingResult {

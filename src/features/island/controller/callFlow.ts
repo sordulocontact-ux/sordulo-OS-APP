@@ -2,7 +2,7 @@
  * Logique pure du parcours d'appel : niveaux de l'onde, progressions (import, analyse), statut d'une entrée
  * → notification, nom du fichier envoyé, projet par défaut. Ni React ni Tauri : testée dans callFlow.test.ts.
  */
-import type { MicState, RecordingResult } from '../../../shared/desktop-contract'
+import type { CallService, MicApp, MicState, RecordingResult } from '../../../shared/desktop-contract'
 import type { Input, InputStatus } from '../../../shared/types'
 import { inputTitle, reviewPath } from '../../inputs/inputUtils'
 import { createNotification } from '../catalog'
@@ -45,10 +45,21 @@ export class LevelBuffer {
 /** Nom affiché quand aucune app d'appel n'est connue (enregistrement lancé à la main). */
 export const FALLBACK_APP_NAME = 'Appel'
 
+/** App retenue pour l'île : la première dont on reconnaît le service, sinon la première tout court. */
+function mainMicApp(mic: MicState | null | undefined): MicApp | null {
+  if (!mic) return null
+  return mic.apps.find((a) => a.service) ?? mic.apps[0] ?? null
+}
+
 /** Première app d'appel qui utilise le micro (« Discord », « Google Meet »…), null si aucune. */
 export function micAppName(mic: MicState | null | undefined): string | null {
-  const name = mic?.apps[0]?.displayName?.trim()
+  const name = mainMicApp(mic)?.displayName?.trim()
   return name ? name : null
+}
+
+/** Service d'appel reconnu de l'app qui utilise le micro (logo et couleur de l'île), null si inconnu. */
+export function micService(mic: MicState | null | undefined): CallService | null {
+  return mainMicApp(mic)?.service ?? null
 }
 
 /** Projet proposé par défaut : le dernier utilisé s'il est encore visible, sinon le premier de la liste. */

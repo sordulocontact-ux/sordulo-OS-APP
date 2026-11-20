@@ -140,7 +140,7 @@
   width: var(--island-size-16);
   height: var(--island-size-16);
   flex: none;
-  fill: var(--island-call);
+  fill: var(--island-call-tone);
 }
 
 .scrollWave {
@@ -154,14 +154,14 @@
   display: block;
   width: var(--island-size-2);
   border-radius: 1px;
-  background: var(--island-call);
+  background: var(--island-call-tone);
   transition: height var(--island-duration-wave) linear;
 }
 
 .timer {
   font-size: var(--island-font-size-xs);
   font-weight: var(--font-weight-semibold);
-  color: var(--island-call);
+  color: var(--island-call-tone);
   font-variant-numeric: tabular-nums;
 }
 
@@ -768,21 +768,35 @@
   top: var(--island-space-70);
 }
 
+/*
+ * Fond et bordure dans ::before (inset: 0) : au survol il déborde de la même valeur sur les quatre côtés
+ * sans décaler les zones voisines ni grossir proportionnellement (le contenu reste au-dessus).
+ */
 .zone {
+  position: relative;
+  isolation: isolate;
   flex: 1;
-  border-radius: var(--island-radius-14);
-  border: 1px dashed var(--island-zone-border);
-  background: var(--island-zone-bg);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--island-space-3);
   min-width: 0;
+}
+
+.zone::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: var(--island-radius-14);
+  border: 1px dashed var(--island-zone-border);
+  background: var(--island-zone-bg);
+  pointer-events: none;
   transition:
     background var(--island-duration-zone) ease,
     border-color var(--island-duration-zone) ease,
-    transform var(--island-duration-zone-scale) var(--island-easing-zone);
+    inset var(--island-duration-zone-scale) var(--island-easing-zone);
 }
 
 .zone svg,
@@ -802,10 +816,10 @@
   color: var(--island-muted);
 }
 
-.zoneHot {
+.zoneHot::before {
+  inset: calc(-1 * var(--island-zone-grow));
   background: var(--island-zone-hot-bg);
   border: 1px solid var(--island-text);
-  transform: scale(1.04);
 }
 
 .zonesEmpty {
@@ -832,7 +846,7 @@
   height: var(--island-size-28);
   padding: var(--island-space-6);
   border-radius: var(--island-radius-control);
-  background: color-mix(in srgb, var(--island-call) var(--island-tint-call), transparent);
+  background: color-mix(in srgb, var(--island-call-tone) var(--island-tint-call), transparent);
 }
 
 .appelRow {
@@ -1015,7 +1029,7 @@
 .root[data-reduced='true'] .open .detail,
 .root[data-reduced='true'] .garden,
 .root[data-reduced='true'] .garden.on,
-.root[data-reduced='true'] .zone,
+.root[data-reduced='true'] .zone::before,
 .root[data-reduced='true'] .btn,
 .root[data-reduced='true'] .scrollWave i {
   transition: none;
@@ -1039,9 +1053,12 @@
   animation: none;
 }
 
-.root[data-reduced='true'] .btn:active,
-.root[data-reduced='true'] .zoneHot {
+.root[data-reduced='true'] .btn:active {
   transform: none;
+}
+
+.root[data-reduced='true'] .zoneHot::before {
+  inset: 0;
 }
 
 /*

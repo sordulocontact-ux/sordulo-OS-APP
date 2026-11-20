@@ -18,7 +18,7 @@ export function BubbleContent({
   if (!activity) return null
   switch (activity.kind) {
     case 'meet':
-      return <CallIcon />
+      return <CallIcon service={activity.service} />
     case 'music':
       return <span className={styles.cover} />
     case 'agent':

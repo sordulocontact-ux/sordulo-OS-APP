@@ -3,6 +3,8 @@
  * sessions, appel détecté, glisser-déposer, fin des progressions, décisions des boutons. Pas de React ici :
  * le composant lit `getSnapshot()` avec useSyncExternalStore.
  */
+import type { CallService } from '../../../shared/desktop-contract'
+import { callBrand } from '../brands'
 import { IslandCoordinator, systemClock, type TimerId } from '../coordinator'
 import type { ClaudeSession, IslandNotification, IslandSnapshot, PermissionDecision, ProgressStage } from '../types'
 import type { IslandCallPrompt, IslandDropInfo, IslandDropZone } from '../view'
@@ -63,6 +65,8 @@ export class LabRuntime {
   private dropOptions: DropOptions = { files: false, claude: true }
   private hotZone: IslandDropZone | null = null
   private focusMode = false
+  /** Service d'appel simulé (logo et couleur) ; null : inconnu. */
+  private callService: CallService | null = 'meet'
   private forcedHover = false
   private realHover = false
   private log: string[] = []
@@ -184,8 +188,21 @@ export class LabRuntime {
     this.emit()
   }
 
+  /** Nom de l'app d'appel simulée : le libellé du service, ou celui par défaut du labo. */
+  private callAppName(): string {
+    return this.callService ? callBrand(this.callService).label : LAB_CALL_APP
+  }
+
+  /** Choisit le service simulé (logo et couleur) et met à jour l'appel affiché, détecté ou en cours. */
+  setCallService = (service: CallService | null): void => {
+    this.callService = service
+    if (this.call) this.call = { ...this.call, appName: this.callAppName(), service }
+    this.coordinator.updateActivity('meet', { appName: this.callAppName(), service })
+    this.emit()
+  }
+
   detectCall(): void {
-    this.call = { appName: LAB_CALL_APP, projects: LAB_PROJECTS, selectedProjectId: LAB_PROJECTS[0]?.id ?? null }
+    this.call = { appName: this.callAppName(), service: this.callService, projects: LAB_PROJECTS, selectedProjectId: LAB_PROJECTS[0]?.id ?? null }
     this.coordinator.showOverlay('appel')
     this.emit()
   }
@@ -195,7 +212,8 @@ export class LabRuntime {
     this.coordinator.addActivity({
       id: 'meet',
       kind: 'meet',
-      appName: LAB_CALL_APP,
+      appName: this.callAppName(),
+      service: this.callService,
       projectId: project?.id ?? null,
       projectName: project?.name ?? null,
       startedAt: systemClock.now(),
@@ -431,7 +449,8 @@ export class LabRuntime {
     this.coordinator.addActivity({
       id: 'meet',
       kind: 'meet',
-      appName: LAB_CALL_APP,
+      appName: this.callAppName(),
+      service: this.callService,
       projectId: project?.id ?? null,
       projectName: project?.name ?? null,
       startedAt: systemClock.now(),

@@ -14,6 +14,7 @@ import {
   extensionOf,
   inputPhase,
   micAppName,
+  micService,
   pendingDetail,
   pickDefaultProject,
   recordingFileName,
@@ -111,9 +112,21 @@ describe('progressions', () => {
 
 describe('appel détecté', () => {
   it('nomme la première app d’appel', () => {
-    expect(micAppName({ active: true, apps: [{ id: 'discord', displayName: 'Discord' }] })).toBe('Discord')
+    expect(micAppName({ active: true, apps: [{ id: 'discord', displayName: 'Discord', service: 'discord' }] })).toBe('Discord')
     expect(micAppName({ active: false, apps: [] })).toBeNull()
     expect(micAppName(null)).toBeNull()
+  })
+
+  it('donne le service de l’app d’appel, null si inconnu', () => {
+    const chrome = { id: 'chrome', displayName: 'chrome.exe', service: null }
+    const meet = { id: 'edge', displayName: 'Google Meet', service: 'meet' as const }
+    expect(micService({ active: true, apps: [meet] })).toBe('meet')
+    expect(micService({ active: true, apps: [chrome] })).toBeNull()
+    // L'app dont le service est reconnu passe devant, pour le nom comme pour le logo.
+    expect(micService({ active: true, apps: [chrome, meet] })).toBe('meet')
+    expect(micAppName({ active: true, apps: [chrome, meet] })).toBe('Google Meet')
+    expect(micService({ active: false, apps: [] })).toBeNull()
+    expect(micService(null)).toBeNull()
   })
 
   it('propose le dernier projet utilisé s’il est encore visible, sinon le premier', () => {

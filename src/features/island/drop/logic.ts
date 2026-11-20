@@ -2,6 +2,7 @@
  * Logique pure du glisser-déposer : type du fichier, zones proposées, géométrie du curseur.
  * Ni React ni Tauri : testée dans logic.test.ts, utilisée par controller/sources/drop.ts.
  */
+import { documentKind } from '../../inputs/documentText'
 import type { ClaudeSession, ClaudeSessionStatus } from '../types'
 import type { IslandDropInfo, IslandDropZone } from '../view/types'
 
@@ -72,22 +73,76 @@ export function hasActiveClaudeSession(sessions: readonly ClaudeSession[]): bool
  * active, Fichiers jamais (les fichiers de projet n'existent pas encore : zone masquée, pas seulement
  * inactive).
  */
-export function zonesFor(path: string, sessions: readonly ClaudeSession[]): IslandDropInfo['zones'] {
-  return { transcribe: isAudioPath(path), files: false, claude: hasActiveClaudeSession(sessions) }
+export function zonesFor(audio: boolean, sessions: readonly ClaudeSession[], document = false): IslandDropInfo['zones'] {
+  return { transcribe: audio, analyse: document, files: false, claude: hasActiveClaudeSession(sessions) }
 }
 
-export function dropInfoFor(params: {
-  path: string
+/** Types MIME de documents hors `text/*` et PDF (le reste est décidé par `documentKind`). */
+const DOCUMENT_MIME = [
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/rtf',
+  'application/json',
+  'message/rfc822',
+]
+
+/** Le type MIME annonce un document que « Analyser » sait lire (PDF, Word .docx, texte). */
+export function isDocumentMime(mimeType: string): boolean {
+  const type = mimeType.toLowerCase()
+  return documentKind('', type) !== null || DOCUMENT_MIME.includes(type)
+}
+
+/** Le fichier déposé est un document lisible : par son nom (extension), à défaut par son type MIME. */
+export function isDocumentFile(file: { name: string; type: string }): boolean {
+  return documentKind(file.name, file.type.toLowerCase()) !== null
+}
+
+/** Ce qu'on sait du fichier pendant le glissement : seulement son type MIME (le nom n'est lu qu'au dépôt). */
+export interface DragSubject {
+  /** Type MIME du premier élément glissé (`dataTransfer.items[0].type`), vide s'il est inconnu. */
+  mimeType: string
+}
+
+/** Conteneurs vidéo acceptés comme audio (voir AUDIO_MIME : mp4, webm). */
+const AUDIO_CONTAINER_MIME = ['video/mp4', 'video/webm']
+
+/** Le type MIME annonce un audio (audio/*, ou un conteneur mp4 / webm). */
+export function isAudioMime(mimeType: string): boolean {
+  const type = mimeType.toLowerCase()
+  return type.startsWith('audio/') || AUDIO_CONTAINER_MIME.includes(type)
+}
+
+/** Libellé provisoire du fichier glissé (prototype : `describe`), le vrai nom n'étant connu qu'au dépôt. */
+export function dragLabel(mimeType: string): string {
+  if (isAudioMime(mimeType)) return 'Fichier audio'
+  if (mimeType.toLowerCase().startsWith('image/')) return 'Image'
+  if (mimeType !== '') return 'Document'
+  return 'Fichier'
+}
+
+export function dropInfoForDrag(params: {
+  subject: DragSubject
   sessions: readonly ClaudeSession[]
   projectName: string | null
 }): IslandDropInfo {
-  return { fileName: fileNameOf(params.path), projectName: params.projectName, zones: zonesFor(params.path, params.sessions) }
+  return {
+    fileName: dragLabel(params.subject.mimeType),
+    projectName: params.projectName,
+    zones: zonesFor(isAudioMime(params.subject.mimeType), params.sessions, isDocumentMime(params.subject.mimeType)),
+  }
+}
+
+/** Le fichier déposé est un audio : par son extension, à défaut par son type MIME. Renvoie le type à envoyer. */
+export function audioMimeOfFile(file: { name: string; type: string }): string | null {
+  return audioMimeOf(file.name) ?? (isAudioMime(file.type) ? file.type : null)
 }
 
 /** Une zone peut recevoir le fichier : proposée ET survolée valide. Null : le dépôt est annulé. */
-export function actionableZone(zone: IslandDropZone | null, info: IslandDropInfo | null): 'transcribe' | 'claude' | null {
+export function actionableZone(
+  zone: IslandDropZone | null,
+  info: IslandDropInfo | null,
+): 'transcribe' | 'analyse' | 'claude' | null {
   if (!zone || !info?.zones[zone]) return null
-  return zone === 'transcribe' || zone === 'claude' ? zone : null
+  return zone === 'transcribe' || zone === 'analyse' || zone === 'claude' ? zone : null
 }
 
 // ---------------------------------------------------------------------------
@@ -114,10 +169,4 @@ export function inRect(rect: DropRect, margin: number, x: number, y: number): bo
 
 export function inAnyRect(rects: readonly DropRect[], margin: number, x: number, y: number): boolean {
   return rects.some((rect) => inRect(rect, margin, x, y))
-}
-
-/** Position physique (px de l'écran, relative à la webview) → px CSS. Un ratio invalide vaut 1. */
-export function toCssPoint(position: { x: number; y: number }, devicePixelRatio: number): { x: number; y: number } {
-  const ratio = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1
-  return { x: position.x / ratio, y: position.y / ratio }
 }

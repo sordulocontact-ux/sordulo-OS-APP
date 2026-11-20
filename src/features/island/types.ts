@@ -5,6 +5,8 @@
  * le contrôleur Tauri (controller/), le labo (lab/) et le jardin (garden/).
  */
 
+import type { CallService } from '../../shared/desktop-contract'
+
 /** Variante de forme : Windows (bord haut de l'écran) ou Mac (autour de l'encoche, lot macOS, inactive). */
 export type IslandPlatform = 'win' | 'mac'
 
@@ -62,6 +64,8 @@ export interface MeetActivity {
   kind: 'meet'
   /** Nom de l'app d'appel détectée (« Discord », « Google Meet »…). */
   appName: string
+  /** Service reconnu (logo et couleur de l'appel) ; null : inconnu, icône et couleur génériques. */
+  service: CallService | null
   projectId: string | null
   projectName: string | null
   /** Début de l'enregistrement, epoch ms (le minuteur part de là). */

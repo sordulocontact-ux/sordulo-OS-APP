@@ -12,7 +12,7 @@ function setup(focusMode = false) {
   return { clock, island, snap: () => island.getSnapshot() }
 }
 
-const meet: ActivityInput = { id: 'meet', kind: 'meet', appName: 'Discord', projectId: null, projectName: null, startedAt: 0 }
+const meet: ActivityInput = { id: 'meet', kind: 'meet', appName: 'Discord', service: null, projectId: null, projectName: null, startedAt: 0 }
 const agent: ActivityInput = { id: 'agent', kind: 'agent', sessionId: 's-1' }
 const multi: ActivityInput = { id: 'multi', kind: 'multi' }
 const music: ActivityInput = { id: 'music', kind: 'music' }

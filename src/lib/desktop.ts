@@ -97,8 +97,14 @@ export const claudeGetConnection = () => call<ClaudeConnection>(DESKTOP_COMMANDS
 export const claudeAnswer = (args: { requestId: string; decision: ClaudeDecision }) =>
   call<void>(DESKTOP_COMMANDS.claudeAnswer, args)
 
-/** Bytes of an audio file dropped on the island (audio extensions only). */
-export const readDroppedAudio = (path: string) => callBytes(DESKTOP_COMMANDS.readDroppedAudio, { path })
+/**
+ * Island window: saves a copy of a dropped file in the app's drop folder (50 MB max) and returns its absolute path.
+ * The bytes travel as the raw IPC body, the original name in the `x-file-name` header (URI-encoded).
+ */
+export async function saveDroppedFile(file: File | Blob, name: string): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  return invoke<string>(DESKTOP_COMMANDS.saveDroppedFile, bytes, { headers: { 'x-file-name': encodeURIComponent(name) } })
+}
 
 /** Island window: copies text to the system clipboard (no focus or user gesture needed). */
 export const copyText = (text: string) => call<void>(DESKTOP_COMMANDS.copyText, { text })

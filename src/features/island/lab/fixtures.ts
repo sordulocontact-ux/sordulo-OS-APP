@@ -179,6 +179,6 @@ export function makeDrop(file: DropFile, options: DropOptions): IslandDropInfo {
   return {
     fileName: file === 'audio' ? 'Appel Ibé.m4a' : 'Cahier des charges.pdf',
     projectName: 'PDS OS',
-    zones: { transcribe: file === 'audio', files: options.files, claude: options.claude },
+    zones: { transcribe: file === 'audio', analyse: file === 'document', files: options.files, claude: options.claude },
   }
 }

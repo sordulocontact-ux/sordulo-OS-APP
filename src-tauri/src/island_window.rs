@@ -58,6 +58,9 @@ pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             // Cachée le temps d'être placée, puis montrée par `place` sans activation.
             .visible(false)
             .focused(false)
+            // Dépôt de fichiers géré par WebView2 (événements HTML5) : le gestionnaire natif de Tauri ne
+            // reçoit jamais le dépôt sur cette fenêtre transparente aux clics.
+            .disable_drag_drop_handler()
             .build()?;
 
     // Par défaut la souris traverse : tant que le front n'a rien envoyé, rien n'est cliquable.
@@ -272,6 +275,10 @@ pub fn spawn_pointer_loop(app: AppHandle) {
                     None => PointerDecision::default(),
                 };
                 if decision.capture != last.capture {
+                    if decision.capture && !decision.inside {
+                        // Seul cas où l'on capte hors des formes : bouton enfoncé dans la marge (glisser).
+                        log::debug!("île : souris captée dans la marge (glisser en cours ?)");
+                    }
                     if let Err(e) = window.set_ignore_cursor_events(!decision.capture) {
                         log::warn!("clics de l'île : {e}");
                     }

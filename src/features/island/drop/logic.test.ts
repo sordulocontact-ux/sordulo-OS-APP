@@ -4,15 +4,19 @@ import {
   AUDIO_EXTENSIONS,
   actionableZone,
   audioMimeOf,
-  dropInfoFor,
+  dragLabel,
+  dropInfoForDrag,
   extensionOf,
   fileNameOf,
   hasActiveClaudeSession,
+  isDocumentFile,
+  isDocumentMime,
+  audioMimeOfFile,
+  isAudioMime,
   inAnyRect,
   inRect,
   isAudioPath,
   titleOf,
-  toCssPoint,
   zonesFor,
 } from './logic'
 
@@ -74,23 +78,58 @@ describe('zones', () => {
   })
 
   it('Transcrire pour l’audio seulement, Claude Code avec une session, Fichiers jamais', () => {
-    expect(zonesFor('a.mp3', [])).toEqual({ transcribe: true, files: false, claude: false })
-    expect(zonesFor('a.pdf', [session('working')])).toEqual({ transcribe: false, files: false, claude: true })
-    expect(zonesFor('a.pdf', [])).toEqual({ transcribe: false, files: false, claude: false })
+    expect(zonesFor(true, [])).toEqual({ transcribe: true, analyse: false, files: false, claude: false })
+    expect(zonesFor(false, [session('working')])).toEqual({ transcribe: false, analyse: false, files: false, claude: true })
+    expect(zonesFor(false, [])).toEqual({ transcribe: false, analyse: false, files: false, claude: false })
+    expect(zonesFor(false, [], true)).toEqual({ transcribe: false, analyse: true, files: false, claude: false })
   })
 
-  it('infos du rendu', () => {
-    expect(dropInfoFor({ path: 'C:\\a\\appel.mp3', sessions: [], projectName: 'App Ibé' })).toEqual({
-      fileName: 'appel.mp3',
+  it('infos du rendu pendant le glissement (nom provisoire)', () => {
+    expect(dropInfoForDrag({ subject: { mimeType: 'audio/mpeg' }, sessions: [], projectName: 'App Ibé' })).toEqual({
+      fileName: 'Fichier audio',
       projectName: 'App Ibé',
-      zones: { transcribe: true, files: false, claude: false },
+      zones: { transcribe: true, analyse: false, files: false, claude: false },
+    })
+  })
+
+  it('libellé provisoire selon le type MIME', () => {
+    expect(dragLabel('audio/x-m4a')).toBe('Fichier audio')
+    expect(dragLabel('video/mp4')).toBe('Fichier audio')
+    expect(dragLabel('image/png')).toBe('Image')
+    expect(dragLabel('application/pdf')).toBe('Document')
+    expect(dragLabel('')).toBe('Fichier')
+    expect(isAudioMime('AUDIO/WAV')).toBe(true)
+    expect(isAudioMime('video/quicktime')).toBe(false)
+  })
+
+  it('type du fichier déposé : extension d’abord, sinon type MIME', () => {
+    expect(audioMimeOfFile({ name: 'a.m4a', type: '' })).toBe('audio/mp4')
+    expect(audioMimeOfFile({ name: 'a.bin', type: 'audio/x-weird' })).toBe('audio/x-weird')
+    expect(audioMimeOfFile({ name: 'a.pdf', type: 'application/pdf' })).toBeNull()
+  })
+
+  it('documents reconnus par le type MIME (Analyser), jamais l’audio', () => {
+    expect(isDocumentMime('application/pdf')).toBe(true)
+    expect(isDocumentMime('application/vnd.openxmlformats-officedocument.wordprocessingml.document')).toBe(true)
+    expect(isDocumentMime('text/plain')).toBe(true)
+    expect(isDocumentMime('audio/mpeg')).toBe(false)
+    expect(isDocumentMime('image/png')).toBe(false)
+    expect(isDocumentMime('')).toBe(false)
+    expect(isDocumentFile({ name: 'Retours.docx', type: '' })).toBe(true)
+    expect(isDocumentFile({ name: 'photo.png', type: 'image/png' })).toBe(false)
+    expect(dropInfoForDrag({ subject: { mimeType: 'application/pdf' }, sessions: [], projectName: 'App Ibé' }).zones).toEqual({
+      transcribe: false,
+      analyse: true,
+      files: false,
+      claude: false,
     })
   })
 
   it('une zone non proposée annule le dépôt', () => {
-    const info = dropInfoFor({ path: 'a.pdf', sessions: [session('working')], projectName: null })
+    const info = dropInfoForDrag({ subject: { mimeType: 'application/pdf' }, sessions: [session('working')], projectName: null })
     expect(actionableZone('claude', info)).toBe('claude')
     expect(actionableZone('transcribe', info)).toBeNull()
+    expect(actionableZone('analyse', info)).toBe('analyse')
     expect(actionableZone('files', info)).toBeNull()
     expect(actionableZone(null, info)).toBeNull()
     expect(actionableZone('claude', null)).toBeNull()
@@ -108,11 +147,5 @@ describe('géométrie', () => {
     expect(inRect(rect, 24, 150, 65)).toBe(false)
     expect(inAnyRect([], 24, 150, 20)).toBe(false)
     expect(inAnyRect([rect, { left: 300, top: 0, right: 340, bottom: 30 }], 0, 320, 10)).toBe(true)
-  })
-
-  it('pixels physiques → CSS', () => {
-    expect(toCssPoint({ x: 300, y: 150 }, 1.5)).toEqual({ x: 200, y: 100 })
-    expect(toCssPoint({ x: 300, y: 150 }, 0)).toEqual({ x: 300, y: 150 })
-    expect(toCssPoint({ x: 300, y: 150 }, Number.NaN)).toEqual({ x: 300, y: 150 })
   })
 })

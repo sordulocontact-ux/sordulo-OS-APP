@@ -201,7 +201,7 @@ export function AppelLayer({
       label={manual ? 'Enregistrer un appel' : 'Appel détecté'}
     >
       <div className={styles.head}>
-        <CallIcon className={styles.appelIcon} />
+        <CallIcon className={styles.appelIcon} service={manual ? null : (shown?.service ?? null)} />
         <div>
           {manual ? (
             <>

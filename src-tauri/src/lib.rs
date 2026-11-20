@@ -92,7 +92,7 @@ pub fn run() {
             commands::set_focus_mode,
             commands::claude_get_connection,
             commands::claude_answer,
-            commands::read_dropped_audio,
+            commands::save_dropped_file,
             commands::copy_text,
         ])
         .build(tauri::generate_context!())

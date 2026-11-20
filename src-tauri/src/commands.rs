@@ -2,7 +2,7 @@
 //! convertis par Tauri en snake_case ici). Toutes les erreurs remontent en `String`, en français.
 
 use tauri::ipc::Response;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::claude::{self, ClaudeConnection, ClaudeDecision};
 use crate::dropped;
@@ -112,18 +112,33 @@ pub fn island_set_hit_rects(
     Ok(())
 }
 
-/// Octets d'un fichier audio déposé sur l'île (voir `dropped.rs` : extension audio, 500 Mo maximum).
-/// Réservé à la fenêtre de l'île.
+/// Copie dans `app_local_data_dir()/drops` le fichier déposé sur l'île et renvoie son chemin absolu (voir
+/// `dropped.rs` : 50 Mo maximum, nom assaini, copies de plus de 7 jours supprimées). Corps brut = octets du
+/// fichier, en-tête `x-file-name` = nom d'origine encodé en URI. Réservé à la fenêtre de l'île.
 #[tauri::command]
-pub async fn read_dropped_audio(
+pub async fn save_dropped_file(
     window: tauri::WebviewWindow,
-    path: String,
-) -> Result<Response, String> {
+    app: AppHandle,
+    request: tauri::ipc::Request<'_>,
+) -> Result<String, String> {
     dropped::check_window(window.label())?;
-    let bytes = tauri::async_runtime::spawn_blocking(move || dropped::read_dropped_audio(&path))
-        .await
-        .map_err(|e| format!("Impossible de lire ce fichier : {e}"))??;
-    Ok(Response::new(bytes))
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("Le contenu du fichier est manquant.".into());
+    };
+    dropped::check_size(bytes.len())?;
+    let raw_name = request
+        .headers()
+        .get("x-file-name")
+        .and_then(|value| value.to_str().ok())
+        .map(dropped::decode_file_name)
+        .unwrap_or_default();
+    let dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| format!("Dossier de l'application introuvable : {e}"))?
+        .join("drops");
+    let path = dropped::save_dropped_file(&dir, &raw_name, bytes, std::time::SystemTime::now())?;
+    Ok(path.to_string_lossy().into_owned())
 }
 
 /// Texte maximal copiable : un chemin Windows tient dans 32 767 caractères.

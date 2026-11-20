@@ -12,6 +12,7 @@
  */
 import type {
   AudioLevel,
+  CallService,
   DesktopStatus,
   MicState,
   PromptPayload,
@@ -20,7 +21,16 @@ import type {
 } from '../../../../shared/desktop-contract'
 import { createNotification } from '../../catalog'
 import type { IslandNotification } from '../../types'
-import { FALLBACK_APP_NAME, LevelBuffer, errorMessage, micAppName, pickDefaultProject, projectNameOf } from '../callFlow'
+import { readRecordingCall, writeRecordingCall, type RecordingCall } from '../../../desktop/storage'
+import {
+  FALLBACK_APP_NAME,
+  LevelBuffer,
+  errorMessage,
+  micAppName,
+  micService,
+  pickDefaultProject,
+  projectNameOf,
+} from '../callFlow'
 import type { IslandSource } from '../source'
 import { listen } from './listen'
 
@@ -39,12 +49,17 @@ export interface CallSourceDeps {
   onAudioLevel: (handler: (level: AudioLevel) => void) => Promise<() => void>
   readLastProjectId: () => string | null
   writeLastProjectId: (projectId: string) => void
+  /** App de l'enregistrement en cours, gardée pour que le logo survive à un redémarrage de la page. */
+  readRecordingCall?: () => RecordingCall | null
+  writeRecordingCall?: (call: RecordingCall | null) => void
 }
 
 interface CallPrompt {
   /** mic : appel détecté ; manual : enregistrement lancé à la main. */
   origin: 'mic' | 'manual'
   appName: string | null
+  /** Service reconnu de l'app détectée ; null : inconnu (ou lancé à la main). */
+  service: CallService | null
   /** Projet choisi dans la liste ; null : projet par défaut. */
   selectedProjectId: string | null
 }
@@ -59,6 +74,8 @@ export function createCallSource(deps: CallSourceDeps): IslandSource {
     start(ctx) {
       const { coordinator } = ctx
       const levels = new LevelBuffer()
+      const readCall = deps.readRecordingCall ?? readRecordingCall
+      const writeCall = deps.writeRecordingCall ?? writeRecordingCall
       let prompt: CallPrompt | null = null
       let starting = false
       let stopping = false
@@ -90,6 +107,7 @@ export function createCallSource(deps: CallSourceDeps): IslandSource {
           call: {
             // Vide : la couche affiche « Enregistrer un appel » (lancé à la main), sans nom d'app.
             appName: prompt.origin === 'manual' ? '' : (prompt.appName ?? UNKNOWN_APP),
+            service: prompt.origin === 'manual' ? null : prompt.service,
             projects: ctx.projects.get(),
             selectedProjectId: selectedProject(),
           },
@@ -102,11 +120,13 @@ export function createCallSource(deps: CallSourceDeps): IslandSource {
         renderCall()
       }
 
-      function addMeet(appName: string, projectId: string | null, startedAt: number): void {
+      function addMeet(call: RecordingCall, projectId: string | null, startedAt: number): void {
+        writeCall(call)
         coordinator.addActivity({
           id: MEET_ID,
           kind: 'meet',
-          appName,
+          appName: call.appName,
+          service: call.service,
           projectId,
           projectName: projectNameOf(ctx.projects.get(), projectId),
           startedAt,
@@ -132,12 +152,18 @@ export function createCallSource(deps: CallSourceDeps): IslandSource {
         const meet = currentMeet()
         if (state.status === 'recording' && !meet) {
           const startedAt = state.startedAt ?? ctx.clock.now() - state.elapsedSecs * 1000
-          addMeet(micAppName(lastMic) ?? FALLBACK_APP_NAME, state.projectId, startedAt)
+          // Page rechargée : l'app vient de l'état du micro s'il tourne encore, sinon de ce qui a été gardé.
+          const known = micAppName(lastMic)
+          const call: RecordingCall = known
+            ? { appName: known, service: micService(lastMic) }
+            : (readCall() ?? { appName: FALLBACK_APP_NAME, service: null })
+          addMeet(call, state.projectId, startedAt)
           if (prompt) closePrompt()
         } else if (state.status === 'idle' && meet) {
           clearCallEnded()
           coordinator.endMeet()
           levels.reset()
+          writeCall(null)
         }
       }
 
@@ -149,7 +175,7 @@ export function createCallSource(deps: CallSourceDeps): IslandSource {
           coordinator.notify(createNotification('loginRequired', { appName: origin === 'mic' ? micAppName(mic) : null }))
           return
         }
-        prompt = { origin, appName: micAppName(mic), selectedProjectId: prompt?.selectedProjectId ?? null }
+        prompt = { origin, appName: micAppName(mic), service: micService(mic), selectedProjectId: prompt?.selectedProjectId ?? null }
         renderCall()
         coordinator.showOverlay('appel')
       }
@@ -159,17 +185,19 @@ export function createCallSource(deps: CallSourceDeps): IslandSource {
         const chosen = projectId ?? selectedProject()
         if (!chosen) return
         const appName = prompt.appName ?? micAppName(lastMic) ?? FALLBACK_APP_NAME
+        const service = prompt.origin === 'manual' ? null : (prompt.service ?? micService(lastMic))
         starting = true
         closePrompt()
         levels.reset()
         // L'île passe tout de suite en enregistrement ; le minuteur se recale sur l'heure de départ réelle.
-        addMeet(appName, chosen, ctx.clock.now())
+        addMeet({ appName, service }, chosen, ctx.clock.now())
         try {
           const state = await deps.startRecording({ projectId: chosen, title: null })
           deps.writeLastProjectId(chosen)
           recordingActive = state.status !== 'idle'
           if (state.startedAt) coordinator.updateActivity(MEET_ID, { startedAt: state.startedAt })
         } catch (e) {
+          writeCall(null)
           coordinator.removeActivity(MEET_ID)
           coordinator.notify(
             createNotification('recordError', {
@@ -200,6 +228,7 @@ export function createCallSource(deps: CallSourceDeps): IslandSource {
         try {
           const result = await deps.stopRecording()
           recordingActive = false
+          writeCall(null)
           ctx.bus.emit('recordingStopped', result)
         } catch (e) {
           const message = errorMessage(e, "Impossible d'arrêter l'enregistrement.")
@@ -261,8 +290,9 @@ export function createCallSource(deps: CallSourceDeps): IslandSource {
           return
         }
         const name = micAppName(mic)
-        if (name && name !== prompt.appName) {
-          prompt = { ...prompt, appName: name }
+        const service = micService(mic)
+        if (name && (name !== prompt.appName || service !== prompt.service)) {
+          prompt = { ...prompt, appName: name, service }
           renderCall()
         }
       }

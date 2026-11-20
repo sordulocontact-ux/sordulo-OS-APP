@@ -5,6 +5,8 @@
  */
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Button, Select } from '../../../components/ui'
+import type { CallService } from '../../../shared/desktop-contract'
+import { CALL_SERVICES, callBrand } from '../brands'
 import { Garden } from '../garden'
 import { ISLAND_SIZES, SPRING, WAVE, sizeKeyFor } from '../geometry'
 import type { IslandPlatform, NotificationKind } from '../types'
@@ -81,6 +83,7 @@ export default function IslandLab() {
 
   const [platform, setPlatform] = useState<IslandPlatform>('win')
   const [backdrop, setBackdrop] = useState<Backdrop>('light')
+  const [callService, setCallService] = useState<CallService | null>('meet')
   const [forcedHover, setForcedHover] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(false)
   const [simulatedWave, setSimulatedWave] = useState(false)
@@ -286,6 +289,7 @@ export default function IslandLab() {
               >
                 <option value="">Aucune</option>
                 <option value="transcribe">Transcrire</option>
+                <option value="analyse">Analyser</option>
                 <option value="files">Fichiers</option>
                 <option value="claude">Claude Code</option>
               </Select>
@@ -408,6 +412,24 @@ export default function IslandLab() {
               <Select value={platform} onChange={(e) => setPlatform(e.target.value as IslandPlatform)}>
                 <option value="win">Windows</option>
                 <option value="mac">Mac avec encoche</option>
+              </Select>
+            </label>
+            <label className={styles.inline}>
+              Service d’appel
+              <Select
+                value={callService ?? ''}
+                onChange={(e) => {
+                  const service = e.target.value === '' ? null : (e.target.value as CallService)
+                  setCallService(service)
+                  runtime.setCallService(service)
+                }}
+              >
+                <option value="">Inconnu (jaune)</option>
+                {CALL_SERVICES.map((service) => (
+                  <option key={service} value={service}>
+                    {callBrand(service).label}
+                  </option>
+                ))}
               </Select>
             </label>
             <label className={styles.inline}>

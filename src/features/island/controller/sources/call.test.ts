@@ -7,11 +7,13 @@ import type {
   RecordingResult,
   RecordingState,
 } from '../../../../shared/desktop-contract'
+import type { RecordingCall } from '../../../desktop/storage'
 import { fakeEvent, flush, setupRuntime } from '../testUtils'
 import { MEET_ID, createCallSource, type CallSourceDeps } from './call'
 
 const IDLE: RecordingState = { status: 'idle', projectId: null, title: null, startedAt: null, elapsedSecs: 0 }
-const DISCORD: MicState = { active: true, apps: [{ id: 'discord', displayName: 'Discord' }] }
+const DISCORD: MicState = { active: true, apps: [{ id: 'discord', displayName: 'Discord', service: 'discord' }] }
+const CHROME: MicState = { active: true, apps: [{ id: 'chrome', displayName: 'chrome.exe', service: null }] }
 const RESULT: RecordingResult = {
   path: 'C:/rec/appel.mp3',
   durationSecs: 600,
@@ -25,13 +27,21 @@ function recording(projectId: string, startedAt: number): RecordingState {
   return { status: 'recording', projectId, title: null, startedAt, elapsedSecs: 0 }
 }
 
-function setup(options: { signedIn?: boolean; status?: RecordingState; lastProject?: string | null } = {}) {
+function setup(
+  options: {
+    signedIn?: boolean
+    status?: RecordingState
+    lastProject?: string | null
+    mic?: MicState
+    storedCall?: RecordingCall | null
+  } = {},
+) {
   const prompt = fakeEvent<PromptPayload>()
   const recordingState = fakeEvent<RecordingState>()
   const mic = fakeEvent<MicState>()
   const level = fakeEvent<AudioLevel>()
   const deps = {
-    getStatus: vi.fn(async () => ({ mic: DISCORD, recording: options.status ?? IDLE })),
+    getStatus: vi.fn(async () => ({ mic: options.mic ?? DISCORD, recording: options.status ?? IDLE })),
     startRecording: vi.fn(async (args: { projectId: string }) => recording(args.projectId, 1_000_500)),
     stopRecording: vi.fn(async () => RESULT),
     dismissPrompt: vi.fn(async () => {}),
@@ -41,6 +51,8 @@ function setup(options: { signedIn?: boolean; status?: RecordingState; lastProje
     onAudioLevel: level.subscribe,
     readLastProjectId: vi.fn(() => options.lastProject ?? null),
     writeLastProjectId: vi.fn(),
+    readRecordingCall: vi.fn(() => options.storedCall ?? null),
+    writeRecordingCall: vi.fn(),
   } satisfies CallSourceDeps
   const env = setupRuntime({ sources: [createCallSource(deps)], signedIn: options.signedIn })
   const send = (reason: PromptReason, state: RecordingState = IDLE, micState: MicState = DISCORD) =>
@@ -56,7 +68,7 @@ describe('source « appel »', () => {
     t.send('mic-active')
     await flush()
     expect(t.snap().state).toBe('appel')
-    expect(t.call()).toMatchObject({ appName: 'Discord', selectedProjectId: 'p-2' })
+    expect(t.call()).toMatchObject({ appName: 'Discord', service: 'discord', selectedProjectId: 'p-2' })
     expect(t.call()?.projects).toHaveLength(2)
   })
 
@@ -75,6 +87,7 @@ describe('source « appel »', () => {
     expect(t.call()).toBeNull()
     expect(t.coordinator.getActivity(MEET_ID)).toMatchObject({
       appName: 'Discord',
+      service: 'discord',
       projectId: 'p-2',
       projectName: 'Site Sordulo',
       startedAt: 1_000_500,
@@ -98,6 +111,7 @@ describe('source « appel »', () => {
     await flush()
     expect(t.snap().state).toBe('appel')
     expect(t.call()?.appName).toBe('')
+    expect(t.call()?.service).toBeNull()
     t.runtime.gestures.onCallIgnore()
     expect(t.deps.dismissPrompt).not.toHaveBeenCalled()
   })
@@ -126,7 +140,54 @@ describe('source « appel »', () => {
     const t = setup({ status: recording('p-1', 999_000) })
     await flush()
     expect(t.snap().state).toBe('meet')
-    expect(t.coordinator.getActivity(MEET_ID)).toMatchObject({ appName: 'Discord', projectName: 'App Ibé', startedAt: 999_000 })
+    expect(t.coordinator.getActivity(MEET_ID)).toMatchObject({
+      appName: 'Discord',
+      service: 'discord',
+      projectName: 'App Ibé',
+      startedAt: 999_000,
+    })
+  })
+
+  it('app non reconnue : service inconnu, icône et couleur génériques', async () => {
+    const t = setup({ mic: CHROME })
+    await flush()
+    t.send('mic-active', IDLE, CHROME)
+    await flush()
+    expect(t.call()).toMatchObject({ appName: 'chrome.exe', service: null })
+    t.runtime.gestures.onCallAccept('p-1')
+    await flush()
+    expect(t.coordinator.getActivity(MEET_ID)).toMatchObject({ appName: 'chrome.exe', service: null })
+  })
+
+  it('enregistrement manuel : service inconnu même si une app d’appel tient le micro', async () => {
+    const t = setup()
+    await flush()
+    t.send('manual-start', IDLE, DISCORD)
+    await flush()
+    expect(t.call()).toMatchObject({ appName: '', service: null })
+    t.runtime.gestures.onCallAccept('p-1')
+    await flush()
+    expect(t.coordinator.getActivity(MEET_ID)).toMatchObject({ service: null })
+  })
+
+  it('garde l’app de l’appel pour retrouver son logo après un redémarrage de la page', async () => {
+    const t = setup({
+      status: recording('p-1', 999_000),
+      mic: { active: false, apps: [] },
+      storedCall: { appName: 'Zoom', service: 'zoom' },
+    })
+    await flush()
+    expect(t.coordinator.getActivity(MEET_ID)).toMatchObject({ appName: 'Zoom', service: 'zoom' })
+    const saved = setup()
+    await flush()
+    saved.send('mic-active')
+    await flush()
+    saved.runtime.gestures.onCallAccept('p-1')
+    await flush()
+    expect(saved.deps.writeRecordingCall).toHaveBeenCalledWith({ appName: 'Discord', service: 'discord' })
+    saved.runtime.gestures.onStopRecording()
+    await flush()
+    expect(saved.deps.writeRecordingCall).toHaveBeenLastCalledWith(null)
   })
 
   it('onde : garde les derniers niveaux reçus dans le tableau donné au rendu', async () => {

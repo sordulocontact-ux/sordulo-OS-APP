@@ -40,7 +40,8 @@ export interface NotificationParams {
   /** Analyse d'une entrée en erreur. */
   analysisError: { message: string; inputId: string }
   /** Envoi de l'audio en erreur (l'enregistrement reste en attente). */
-  uploadError: { message?: string }
+  /** `title` remplace « L'envoi de l'audio a échoué » (document, copie de chemin). */
+  uploadError: { message?: string; title?: string }
   /** Au démarrage : un enregistrement n'a pas été envoyé. */
   pendingUpload: { detail?: string }
   /** Appel détecté sans session Supabase. */
@@ -160,7 +161,7 @@ export const notificationCatalog: { [K in NotificationKind]: (params: Notificati
     make('uploadError', {
       visual: icon('upload'),
       tone: 'danger',
-      title: "L'envoi de l'audio a échoué",
+      title: p.title ?? "L'envoi de l'audio a échoué",
       subtitle: p.message || "L'enregistrement est gardé sur cet ordinateur",
       button: 'Réessayer',
       action: { type: 'retryUpload' },

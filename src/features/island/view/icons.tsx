@@ -2,6 +2,8 @@
  * Icônes de l'île : tracés de l'objet I du prototype (24 × 24, en trait), icône d'appel, icône Claude pixel.
  */
 import claudeCodeIcon from '../../../assets/island/claude-code.png'
+import type { CallService } from '../../../shared/desktop-contract'
+import { callBrand } from '../brands'
 import type { IslandIconName } from '../types'
 import styles from './Island.module.css'
 
@@ -72,10 +74,22 @@ export function IslandIcon({ name, className }: { name: IslandIconName; classNam
   )
 }
 
-/** Icône de l'app d'appel (caméra du prototype), remplie à la couleur d'appel. */
-export function CallIcon({ className }: { className?: string }) {
+/**
+ * Icône de l'app d'appel, remplie à la couleur d'appel (`--island-call-tone`) : logo de la marque quand il
+ * existe, sinon la caméra du prototype (service inconnu, ou marque sans logo libre).
+ */
+export function CallIcon({ className, service = null }: { className?: string; service?: CallService | null }) {
+  const brand = callBrand(service)
+  const classes = [styles.meetIcon, className].filter(Boolean).join(' ')
+  if (brand.iconPath) {
+    return (
+      <svg className={classes} viewBox={brand.iconViewBox} aria-hidden="true">
+        <path d={brand.iconPath} />
+      </svg>
+    )
+  }
   return (
-    <svg className={[styles.meetIcon, className].filter(Boolean).join(' ')} viewBox="0 0 16 16" aria-hidden="true">
+    <svg className={classes} viewBox={brand.iconViewBox} aria-hidden="true">
       <rect x="0" y="3" width="10.5" height="10" rx="2.2" />
       <path d="M11.5 7.2L15.2 4.6c.4-.3.8 0 .8.4v6c0 .4-.4.7-.8.4L11.5 8.8z" />
     </svg>
@@ -97,6 +111,16 @@ export function MicIcon() {
     <svg className={styles.ico} viewBox="0 0 24 24" aria-hidden="true">
       <rect x="9" y="3" width="6" height="11" rx="3" />
       <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
+    </svg>
+  )
+}
+
+/** Document avec lignes de texte (zone « Analyser »). */
+export function DocumentIcon() {
+  return (
+    <svg className={styles.ico} viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 3.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9.5A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5z" />
+      <path d="M14 3.5V8h4M8.5 12h7M8.5 15h7M8.5 18h4" />
     </svg>
   )
 }

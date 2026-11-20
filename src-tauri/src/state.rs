@@ -12,6 +12,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use serde::{Deserialize, Serialize};
 
+use crate::call_apps::{self, CallService};
 use crate::platform::{self, MicApp as PlatformMicApp, Recorder, RecordingInfo};
 use crate::time::now_ms;
 
@@ -24,15 +25,27 @@ use crate::time::now_ms;
 #[serde(rename_all = "camelCase")]
 pub struct MicApp {
     pub id: String,
+    /// Nom du service d'appel s'il est reconnu (« Discord », « Google Meet »), sinon nom de l'app.
     pub display_name: String,
+    /// Service d'appel reconnu (minuscules), `null` sinon : icône et couleur de l'île.
+    pub service: Option<CallService>,
+}
+
+impl MicApp {
+    /// `titles` : titres des fenêtres visibles, pour reconnaître le service d'un navigateur.
+    fn recognized(app: PlatformMicApp, titles: &[String]) -> Self {
+        let service = call_apps::recognize_service(&app.id, titles);
+        Self {
+            display_name: service.map_or(app.display_name, |s| s.display_name().to_owned()),
+            id: app.id,
+            service,
+        }
+    }
 }
 
 impl From<PlatformMicApp> for MicApp {
     fn from(app: PlatformMicApp) -> Self {
-        Self {
-            id: app.id,
-            display_name: app.display_name,
-        }
+        Self::recognized(app, &[])
     }
 }
 
@@ -45,8 +58,14 @@ pub struct MicState {
 
 impl MicState {
     /// État calculé à partir de la liste du détecteur (triée par id pour comparer sans faux changement).
+    #[cfg(test)]
     pub fn from_apps(apps: Vec<PlatformMicApp>) -> Self {
-        let mut apps: Vec<MicApp> = apps.into_iter().map(MicApp::from).collect();
+        Self::from_apps_with_titles(apps, &[])
+    }
+
+    /// Comme `from_apps`, avec les titres des fenêtres visibles pour reconnaître le service d'un navigateur.
+    pub fn from_apps_with_titles(apps: Vec<PlatformMicApp>, titles: &[String]) -> Self {
+        let mut apps: Vec<MicApp> = apps.into_iter().map(|a| MicApp::recognized(a, titles)).collect();
         apps.sort_by(|a, b| a.id.cmp(&b.id));
         apps.dedup_by(|a, b| a.id == b.id);
         Self {
@@ -316,6 +335,7 @@ mod tests {
         assert_eq!(json["reason"], "mic-active");
         assert_eq!(json["mic"]["active"], true);
         assert_eq!(json["mic"]["apps"][0]["displayName"], "chrome.exe");
+        assert!(json["mic"]["apps"][0]["service"].is_null());
         assert_eq!(json["recording"]["status"], "idle");
         assert!(json["recording"]["projectId"].is_null());
         assert!(json["recording"]["startedAt"].is_null());
@@ -403,5 +423,32 @@ mod tests {
         assert_eq!(a.app_names(), "A, B");
         assert!(a.active);
         assert!(!MicState::from_apps(vec![]).active);
+    }
+
+    #[test]
+    fn mic_apps_carry_the_recognized_service() {
+        let apps = || {
+            vec![
+                PlatformMicApp {
+                    id: "C:#Users#me#AppData#Local#Discord#Discord.exe".into(),
+                    display_name: "Discord.exe".into(),
+                },
+                PlatformMicApp {
+                    id: "C:#Program Files#Google#Chrome#Application#chrome.exe".into(),
+                    display_name: "chrome.exe".into(),
+                },
+            ]
+        };
+        let titles = vec!["Meet – abc-defg-hij - Google Chrome".to_string()];
+        let mic = MicState::from_apps_with_titles(apps(), &titles);
+        let json = serde_json::to_value(&mic).unwrap();
+        assert_eq!(json["apps"][0]["displayName"], "Google Meet");
+        assert_eq!(json["apps"][0]["service"], "meet");
+        assert_eq!(json["apps"][1]["displayName"], "Discord");
+        assert_eq!(json["apps"][1]["service"], "discord");
+        // Sans titre d'appel, le navigateur garde son nom.
+        let mic = MicState::from_apps(apps());
+        assert_eq!(mic.apps[0].display_name, "chrome.exe");
+        assert_eq!(mic.apps[0].service, None);
     }
 }

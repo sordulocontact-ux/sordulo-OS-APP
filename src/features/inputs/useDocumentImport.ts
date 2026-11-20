@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useToast } from '../../components/ui'
-import { api, ApiRequestError } from '../../lib/api'
+import { ApiRequestError } from '../../lib/api'
 import { queryKeys } from '../../lib/queryKeys'
-import { DocumentError, documentKind, extractDocumentText, titleFromFileName } from './documentText'
+import { createWrittenInputFromDocument } from './createDocumentInput'
+import { DocumentError, documentKind } from './documentText'
 
 export interface DocumentImportState {
   /** Files left to import in the current batch (0 = idle). */
@@ -35,8 +36,7 @@ export function useDocumentImport(projectId: string): DocumentImportState {
       let created = 0
       for (const file of supported) {
         try {
-          const rawText = await extractDocumentText(file)
-          await api.createInput({ projectId, kind: 'written', title: titleFromFileName(file.name), rawText })
+          await createWrittenInputFromDocument(file, projectId)
           created += 1
           void queryClient.invalidateQueries({ queryKey: queryKeys.inputs(projectId) })
         } catch (e) {

@@ -129,10 +129,20 @@ pub fn spawn_mic_loop(app: AppHandle) {
                 match monitor.active_apps() {
                     Ok(apps) => {
                         // Seules les apps d'appel et les navigateurs comptent (pas la dictée dans Claude, etc.).
-                        let apps = apps
+                        let apps: Vec<_> = apps
                             .into_iter()
-                            .filter(|a| call_apps::classify(&a.id).is_some());
-                        let mic = MicState::from_apps(apps.collect());
+                            .filter(|a| call_apps::classify(&a.id).is_some())
+                            .collect();
+                        // Les titres des fenêtres ne servent qu'à reconnaître le service d'un navigateur.
+                        let titles = if apps
+                            .iter()
+                            .any(|a| call_apps::classify(&a.id) == Some(call_apps::CallApp::Browser))
+                        {
+                            platform::visible_window_titles()
+                        } else {
+                            Vec::new()
+                        };
+                        let mic = MicState::from_apps_with_titles(apps, &titles);
                         let active = mic.active;
                         match on_poll(&app, mic) {
                             Some(PromptReason::MicActive) => {

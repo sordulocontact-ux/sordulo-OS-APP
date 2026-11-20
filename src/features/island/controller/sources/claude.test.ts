@@ -179,7 +179,7 @@ describe('source « Claude Code »', () => {
   it('« Voir » : l’activité Claude dans la bulle est épinglée', async () => {
     const t = setup()
     await flush()
-    t.coordinator.addActivity({ id: 'meet', kind: 'meet', appName: 'Discord', projectId: null, projectName: null, startedAt: 0 })
+    t.coordinator.addActivity({ id: 'meet', kind: 'meet', appName: 'Discord', service: null, projectId: null, projectName: null, startedAt: 0 })
     t.emit('UserPromptSubmit', { message: 'x' })
     t.emit('Stop')
     expect(t.snap().secondary?.id).toBe(AGENT_ACTIVITY_ID)

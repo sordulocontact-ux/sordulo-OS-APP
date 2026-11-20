@@ -1,11 +1,11 @@
 /**
  * Glisser-déposer : « Dépose ici » (dragWake), puis les zones (dragOver). La flèche est un élément partagé.
  * Chaque zone porte `data-zone` pour le test de position (controller/sources/drop.ts). Les zones non proposées
- * (`drop.zones`) ne sont pas rendues du tout ; « Transcrire » affiche le projet qui recevra l'entrée.
+ * (`drop.zones`) ne sont pas rendues du tout ; « Transcrire » et « Analyser » affichent le projet qui recevra l'entrée.
  */
 import { cx } from '../cx'
 import { useLastNonNull } from '../hooks'
-import { ClaudeIcon, IslandIcon, MicIcon } from '../icons'
+import { ClaudeIcon, DocumentIcon, IslandIcon, MicIcon } from '../icons'
 import styles from '../Island.module.css'
 import { Layer } from '../Layer'
 import type { IslandDropInfo, IslandDropZone } from '../types'
@@ -19,7 +19,7 @@ export function DragWakeLayer(base: BaseLayerProps) {
   )
 }
 
-const ZONE_ORDER: IslandDropZone[] = ['transcribe', 'files', 'claude']
+const ZONE_ORDER: IslandDropZone[] = ['transcribe', 'analyse', 'files', 'claude']
 
 function ZoneContent({ zone, projectName }: { zone: IslandDropZone; projectName: string | null }) {
   if (zone === 'transcribe') {
@@ -27,6 +27,15 @@ function ZoneContent({ zone, projectName }: { zone: IslandDropZone; projectName:
       <>
         <MicIcon />
         <b>Transcrire</b>
+        <small>{projectName ?? 'Nouvelle entrée'}</small>
+      </>
+    )
+  }
+  if (zone === 'analyse') {
+    return (
+      <>
+        <DocumentIcon />
+        <b>Analyser</b>
         <small>{projectName ?? 'Nouvelle entrée'}</small>
       </>
     )

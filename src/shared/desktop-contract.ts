@@ -25,10 +25,32 @@ export const DESKTOP_PROMPT_ROUTE = '/desktop/prompt'
  */
 export const DESKTOP_AUTH_REDIRECT = 'sordulo://auth'
 
+/**
+ * Call service recognised by the Rust detector, from the app id (Discord.exe, MSTeams…) or, for a browser,
+ * from the title of a visible window (« Meet – abc-defg-hij »). Drives the island's icon and colour.
+ */
+export type CallService =
+  | 'meet'
+  | 'teams'
+  | 'zoom'
+  | 'discord'
+  | 'slack'
+  | 'whatsapp'
+  | 'webex'
+  | 'skype'
+  | 'signal'
+  | 'telegram'
+  | 'facetime'
+  | 'whereby'
+  | 'jitsi'
+
 /** An app that currently uses the microphone (Sordulo OS itself excluded). */
 export interface MicApp {
   id: string
+  /** Human name: the call service when known (« Discord », « Google Meet »), else the app name. */
   displayName: string
+  /** Recognised call service, null when unknown (generic call icon and colour). */
+  service: CallService | null
 }
 
 export interface MicState {
@@ -228,8 +250,12 @@ export const DESKTOP_COMMANDS = {
   claudeGetConnection: 'claude_get_connection',
   /** ({ requestId: string, decision: ClaudeDecision }) => void — answers a pending PermissionRequest. */
   claudeAnswer: 'claude_answer',
-  /** ({ path: string }) => ArrayBuffer — bytes of an audio file dropped on the island (audio extensions only). */
-  readDroppedAudio: 'read_dropped_audio',
+  /**
+   * Raw body = file bytes, header `x-file-name` = original file name (URI-encoded) => string, the absolute path
+   * of a copy saved in the app's drop folder. Island window only. Used by the « Claude Code » drop zone, because
+   * an HTML5 drop gives the file contents but not its original path.
+   */
+  saveDroppedFile: 'save_dropped_file',
   /** ({ text: string }) => void — island window: copies text to the system clipboard (works without focus, unlike navigator.clipboard). */
   copyText: 'copy_text',
 } as const

@@ -4,6 +4,7 @@
  * le temps écoulé et la hauteur des barres de l'onde.
  */
 import { MAX_SESSION_ROWS, WAVE, type SharedElementId } from '../geometry'
+import type { CallService } from '../../../shared/desktop-contract'
 import type { ClaudeSession, ClaudeSessionStatus } from '../types'
 import { cx } from './cx'
 import { CallIcon, ClaudeIcon, DropIcon } from './icons'
@@ -22,18 +23,20 @@ const WAVE_INDEXES = Array.from({ length: WAVE.bars }, (_, i) => i)
 
 export interface SharedElementsProps {
   sessions: readonly ClaudeSession[]
+  /** Service de l'appel affiché (logo de l'icône partagée) ; null : icône générique. */
+  callService?: CallService | null
   register: (id: SharedElementId, el: HTMLElement | null) => void
   timerRef: (el: HTMLElement | null) => void
   elapsedRef: (el: HTMLElement | null) => void
   waveBarRef: (index: number, el: HTMLElement | null) => void
 }
 
-export function SharedElements({ sessions, register, timerRef, elapsedRef, waveBarRef }: SharedElementsProps) {
+export function SharedElements({ sessions, callService = null, register, timerRef, elapsedRef, waveBarRef }: SharedElementsProps) {
   const segs = sessions.slice(0, MAX_SESSION_ROWS)
   return (
     <div className={styles.shared} aria-hidden="true">
       <span className={cx(styles.sh, styles.meetGroup)} ref={(el) => register('meetGroup', el)}>
-        <CallIcon />
+        <CallIcon service={callService} />
         <span className={styles.scrollWave}>
           {WAVE_INDEXES.map((i) => (
             <i key={i} ref={(el) => waveBarRef(i, el)} />

@@ -11,6 +11,8 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react'
 import { GardenEnvContext, type GardenEnv } from '../garden/context'
 import { ACTIVE_PLATFORM, GHOST, sizeKeyFor, type SharedElementId } from '../geometry'
+import type { CallService } from '../../../shared/desktop-contract'
+import { callToneStyle } from '../brands'
 import type { Activity, ClaudeSession } from '../types'
 import { BubbleContent } from './BubbleContent'
 import { cx } from './cx'
@@ -75,6 +77,13 @@ export function Island(props: IslandProps) {
     sessions.find((s) => s.id === agentActivity?.sessionId) ?? sessions[0] ?? null
   const askSession = snapshot.ask ? (sessions.find((s) => s.id === snapshot.ask?.sessionId) ?? null) : null
   const bubbleActivity = useLastNonNull(secondary)
+
+  // Service de l'appel (logo et couleur) : l'enregistrement en cours, sinon la proposition ; gardé le temps
+  // du fondu de sortie pour que la couleur ne repasse pas au jaune avant la fin.
+  const liveService: CallService | null | undefined = meet ? meet.service : call ? call.service : undefined
+  const [keptService, setKeptService] = useState<CallService | null>(null)
+  if (liveService !== undefined && liveService !== keptService) setKeptService(liveService)
+  const callService = liveService === undefined ? keptService : liveService
 
   const target: EngineTarget = useMemo(
     () => ({ key: sizeKeyFor(state, open, withCall), platform, reduced, hasGarden, sessionCount }),
@@ -302,6 +311,7 @@ export function Island(props: IslandProps) {
       data-hover={open ? 'true' : 'false'}
       data-reduced={reduced ? 'true' : 'false'}
       data-state={state}
+      style={callToneStyle(callService)}
       onFocus={handleFocus}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
@@ -343,6 +353,7 @@ export function Island(props: IslandProps) {
           </div>
           <SharedElements
             sessions={sessions}
+            callService={callService}
             register={registerShared}
             timerRef={timerRef}
             elapsedRef={elapsedRef}

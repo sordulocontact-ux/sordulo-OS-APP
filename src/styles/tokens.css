@@ -167,6 +167,25 @@
   --island-avatar: #2f7d6b;
   /* Accents : appel, musique, Claude, succès, alerte, danger, info, analyse */
   --island-call: #ffcc00;
+  /* Couleur de l'appel en cours : la couleur de la marque (--island-brand-*), posée par le rendu de l'île ;
+     --island-call quand le service est inconnu. Utilisée par l'icône, l'onde, le minuteur et la bulle. */
+  --island-call-tone: var(--island-call);
+  /* Marques des services d'appel : couleur officielle, éclaircie quand elle serait illisible sur le fond noir
+     de l'île (Zoom, Signal, Jitsi, Teams) ; Slack prend le cyan de son logo (l'aubergine serait invisible),
+     Webex le cyan Cisco (simple-icons donne du noir), Whereby une valeur approchée. */
+  --island-brand-meet: #00ac47;
+  --island-brand-teams: #7b83eb;
+  --island-brand-zoom: #2d8cff;
+  --island-brand-discord: #5865f2;
+  --island-brand-slack: #36c5f0;
+  --island-brand-whatsapp: #25d366;
+  --island-brand-webex: #00bceb;
+  --island-brand-skype: #00aff0;
+  --island-brand-signal: #6f77ff;
+  --island-brand-telegram: #26a5e4;
+  --island-brand-facetime: #34c759;
+  --island-brand-whereby: #8b7cf6;
+  --island-brand-jitsi: #3c95e0;
   --island-music: #ff5b14;
   --island-claude: #d97757;
   --island-claude-track: rgb(217 119 87 / 0.3);
@@ -196,6 +215,8 @@
   --island-zone-border: rgb(255 255 255 / 0.2);
   --island-zone-bg: rgb(255 255 255 / 0.04);
   --island-zone-hot-bg: rgb(255 255 255 / 0.14);
+  /* Débordement fixe, identique sur les quatre côtés, d'une zone survolée. */
+  --island-zone-grow: var(--island-space-3);
   --island-pulse: rgb(255 255 255 / 0.55);
   /* Mise en page interne (rendu, lot L12) : échelle en px, le nombre du nom est la valeur */
   /* Espacements : paddings, marges, gaps, décalages et positions (3 à 16 : interne ; 32 à 70 : zones et lignes de l'île) */

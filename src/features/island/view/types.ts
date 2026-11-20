@@ -3,7 +3,7 @@
  * fournies par le contrôleur, et remonte les gestes par des callbacks.
  */
 import type { ReactNode } from 'react'
-import type { IslandRect } from '../../../shared/desktop-contract'
+import type { CallService, IslandRect } from '../../../shared/desktop-contract'
 import type {
   Activity,
   ActivityKind,
@@ -30,13 +30,15 @@ export interface IslandProjectOption {
 export interface IslandCallPrompt {
   /** Nom de l'app d'appel détectée. */
   appName: string
+  /** Service reconnu (logo et couleur) ; null : inconnu, icône et couleur génériques. */
+  service: CallService | null
   /** Projets proposés dans la liste. */
   projects: readonly IslandProjectOption[]
   /** Projet choisi ; null : aucun. */
   selectedProjectId: string | null
 }
 
-export type IslandDropZone = 'transcribe' | 'files' | 'claude'
+export type IslandDropZone = 'transcribe' | 'analyse' | 'files' | 'claude'
 
 /** Données des états `dragWake` / `dragOver`. */
 export interface IslandDropInfo {
@@ -45,7 +47,7 @@ export interface IslandDropInfo {
   /** Projet de destination, affiché sous la zone « Fichiers ». */
   projectName: string | null
   /**
-   * Zones affichées : transcribe seulement pour l'audio, claude seulement si une session est active,
+   * Zones affichées : transcribe seulement pour l'audio, analyse seulement pour un document, claude seulement si une session est active,
    * files masquée tant que les fichiers de projet n'existent pas. Chaque zone porte `data-zone`.
    */
   zones: Readonly<Record<IslandDropZone, boolean>>

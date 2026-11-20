@@ -21,6 +21,7 @@ const meet: ActivityInput = {
   id: 'meet',
   kind: 'meet',
   appName: 'Google Meet',
+  service: null,
   projectId: 'p-1',
   projectName: 'PDS OS',
   startedAt: 0,
