@@ -6,13 +6,15 @@ import {
   canBeAutoAssigned,
   emptyWorkload,
   pickAssignee,
+  parisWeekday,
   pickTicketAssignee,
   skillLevel,
   ticketHours,
 } from './assignment.js'
+import type { Weekday } from './types.js'
 
-const mael = { id: 'm-1', name: 'Maël', skills: { dev: 5, design: 2 } }
-const sacha = { id: 's-1', name: 'Sacha', skills: { design: 5, dev: 1 } }
+const mael = { id: 'm-1', name: 'Maël', skills: { dev: 5, design: 2 }, weekly_capacity_hours: 35, unavailable_weekdays: [] as Weekday[] }
+const sacha = { id: 's-1', name: 'Sacha', skills: { design: 5, dev: 1 }, weekly_capacity_hours: 35, unavailable_weekdays: [] as Weekday[] }
 
 describe('pickAssignee', () => {
   it('donne le design à Sacha et le dev à Maël', () => {
@@ -95,6 +97,7 @@ describe('assignmentCandidates', () => {
   const admin = { ...base, id: 'a', role: 'admin' as const }
   const membre = { ...base, id: 'b', role: 'membre' as const }
   const prospection = { ...base, id: 'c', role: 'prospection' as const }
+  const finance = { ...base, id: 'f', role: 'finance' }
   const retire = { id: 'd', role: 'membre' as const, removed_at: '2026-11-20T10:00:00Z' }
   const team = [admin, membre, prospection, retire]
 
@@ -103,6 +106,7 @@ describe('assignmentCandidates', () => {
     expect(canBeAutoAssigned(prospection)).toBe(false)
     expect(canBeAutoAssigned(retire)).toBe(false)
     expect(canBeAutoAssigned(admin)).toBe(true)
+    expect(canBeAutoAssigned(finance)).toBe(false)
   })
 
   it('se limite aux membres du projet, toujours actifs et hors prospection', () => {
@@ -118,7 +122,100 @@ describe('assignmentCandidates', () => {
   it('renvoie une liste vide sans membre attribuable : le ticket reste sans personne', () => {
     const candidates = assignmentCandidates([prospection, retire], ['c'])
     expect(candidates).toEqual([])
-    const named = candidates.map((m) => ({ ...m, name: m.id, skills: {} }))
+    const named = candidates.map((m) => ({ ...m, name: m.id, skills: {}, weekly_capacity_hours: 35 }))
     expect(pickTicketAssignee(named, { area: null }, emptyWorkload())).toBeNull()
+  })
+})
+
+describe('pickTicketAssignee : charge relative, capacité et disponibilité', () => {
+  const MONDAY = 1 as Weekday
+  const half = { id: 'h', name: 'Hugo', skills: {}, weekly_capacity_hours: 17.5, unavailable_weekdays: [] as Weekday[] }
+  const full = { id: 'f', name: 'Zoé', skills: {}, weekly_capacity_hours: 35, unavailable_weekdays: [] as Weekday[] }
+
+  it('compare la charge rapportée à la capacité, pas les heures brutes', () => {
+    const load = emptyWorkload()
+    addToWorkload(load, 'f', 20, null) // 20 / 35 = 0,57
+    addToWorkload(load, 'h', 8, null) // 8 / 17,5 = 0,46 : moins d'heures ET moins chargé
+    expect(pickTicketAssignee([full, half], { area: null }, load, { weekday: MONDAY })?.member.id).toBe('h')
+    // 12 h sur 17,5 h = 0,69 > 0,57 : Hugo a moins d'heures mais est plus chargé en relatif.
+    addToWorkload(load, 'h', 4, null)
+    expect(pickTicketAssignee([full, half], { area: null }, load, { weekday: MONDAY })?.member.id).toBe('f')
+  })
+
+  it('compte les heures du ticket dans la charge relative', () => {
+    const load = emptyWorkload()
+    addToWorkload(load, 'f', 10, null) // (10 + 10) / 35 = 0,57
+    addToWorkload(load, 'h', 4, null) // (4 + 10) / 17,5 = 0,8
+    expect(pickTicketAssignee([full, half], { area: null, hours: 10 }, load, { weekday: MONDAY })?.member.id).toBe('f')
+  })
+
+  it('garde le bonus d’habitude (en heures, plafonné) dans la charge relative', () => {
+    const load = emptyWorkload()
+    addToWorkload(load, 'f', 10, null)
+    addToWorkload(load, 'h', 4, null)
+    for (let i = 0; i < 5; i += 1) addToWorkload(load, 'f', 0, 'Finance')
+    // Sans habitude Hugo gagne (0,23 < 0,29) ; avec 3 tickets Finance, Zoé passe à (10 - 9) / 35 = 0,03.
+    expect(pickTicketAssignee([full, half], { area: null }, load, { weekday: MONDAY })?.member.id).toBe('h')
+    const picked = pickTicketAssignee([full, half], { area: 'Finance' }, load, { weekday: MONDAY })
+    expect(picked?.member.id).toBe('f')
+    expect(picked?.note).toContain('a déjà travaillé sur « Finance » (5 tickets)')
+  })
+
+  it('départage une égalité exacte par le nom puis l’id', () => {
+    const load = emptyWorkload()
+    addToWorkload(load, 'f', 20, null)
+    addToWorkload(load, 'h', 10, null) // 20/35 = 10/17,5
+    expect(pickTicketAssignee([full, half], { area: null }, load, { weekday: MONDAY })?.member.id).toBe('h')
+    expect(pickTicketAssignee([half, full], { area: null }, load, { weekday: MONDAY })?.member.id).toBe('h')
+  })
+
+  it('n’attribue jamais à une capacité 0, absente ou non finie', () => {
+    const zero = { ...half, id: 'z0', name: 'Aaron', weekly_capacity_hours: 0 }
+    const none = { id: 'n', name: 'Abel', skills: {} }
+    const nan = { ...half, id: 'nan', name: 'Alice', weekly_capacity_hours: Number.NaN }
+    expect(pickTicketAssignee([zero, none, nan, full], { area: null }, emptyWorkload(), { weekday: MONDAY })?.member.id).toBe('f')
+    expect(pickTicketAssignee([zero, none, nan], { area: null }, emptyWorkload(), { weekday: MONDAY })).toBeNull()
+  })
+
+  it('relègue un membre indisponible aujourd’hui, même s’il est le moins chargé', () => {
+    const away = { ...half, id: 'a', name: 'Aline', unavailable_weekdays: [MONDAY] }
+    const load = emptyWorkload()
+    addToWorkload(load, 'f', 30, null)
+    expect(pickTicketAssignee([away, full], { area: null }, load, { weekday: MONDAY })?.member.id).toBe('f')
+    // Un autre jour, elle est disponible et gagne.
+    expect(pickTicketAssignee([away, full], { area: null }, load, { weekday: 2 })?.member.id).toBe('a')
+  })
+
+  it('choisit le moins chargé quand tous les candidats sont indisponibles aujourd’hui', () => {
+    const a = { ...half, id: 'a', name: 'Aline', unavailable_weekdays: [MONDAY] }
+    const b = { ...full, unavailable_weekdays: [MONDAY, 2 as Weekday] }
+    const load = emptyWorkload()
+    addToWorkload(load, 'f', 5, null)
+    addToWorkload(load, 'a', 10, null)
+    const picked = pickTicketAssignee([a, b], { area: null }, load, { weekday: MONDAY })
+    expect(picked?.member.id).toBe('f')
+    expect(picked?.note).toContain('tout le monde')
+  })
+
+  it('lit le jour dans la date injectée, à l’heure de Paris', () => {
+    const away = { ...half, id: 'a', name: 'Aline', unavailable_weekdays: [1 as Weekday] }
+    // Dimanche 22/11/2026 23:30 UTC = lundi 23/11 00:30 à Paris.
+    const monday = new Date('2026-11-22T23:30:00Z')
+    expect(pickTicketAssignee([away, full], { area: null }, emptyWorkload(), { today: monday })?.member.id).toBe('f')
+  })
+})
+
+describe('parisWeekday', () => {
+  it('donne 1 = lundi … 7 = dimanche', () => {
+    expect(parisWeekday(new Date('2026-11-20T12:00:00Z'))).toBe(5) // vendredi
+    expect(parisWeekday(new Date('2026-11-22T12:00:00Z'))).toBe(7) // dimanche
+    expect(parisWeekday(new Date('2026-11-23T12:00:00Z'))).toBe(1) // lundi
+  })
+
+  it('bascule à minuit heure de Paris, pas à minuit UTC', () => {
+    expect(parisWeekday(new Date('2026-11-22T22:59:59Z'))).toBe(7) // 23:59:59 à Paris (UTC+1)
+    expect(parisWeekday(new Date('2026-11-22T23:00:00Z'))).toBe(1) // 00:00 lundi à Paris
+    expect(parisWeekday(new Date('2026-07-12T21:59:59Z'))).toBe(7) // été (UTC+2) : 23:59:59
+    expect(parisWeekday(new Date('2026-07-12T22:00:00Z'))).toBe(1)
   })
 })

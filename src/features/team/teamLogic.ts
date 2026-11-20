@@ -98,7 +98,8 @@ export function translateMemberError(error: unknown, fallback = 'Une erreur est 
 export const ROLE_HELP: Record<MemberRole, string> = {
   admin: 'Admin : voit et modifie tout, y compris l’Équipe et les Paramètres.',
   membre: 'Membre : travaille sur les clients, les projets, les entrées et les tâches.',
-  prospection: 'Prospection : ne voit ni les clients, ni les projets, ni l’Équipe, ni les Paramètres (son espace arrive plus tard).',
+  prospection: 'Prospection : voit l’Accueil et la Prospection (prospects, conversion en client), rien d’autre.',
+  finance: 'Finance : devis, factures et chiffres ; lit les clients et les projets sans les modifier.',
 }
 
 

@@ -3,7 +3,16 @@ import { LoginPage } from '../features/auth/LoginPage'
 import { MemberGate } from '../features/auth/MemberGate'
 import { RequireAuth } from '../features/auth/RequireAuth'
 import { RequireRole } from '../features/auth/RequireRole'
-import { ADMIN_ROLES, PROJECT_ROLES } from '../features/auth/roles'
+import { ADMIN_ROLES, CLIENT_READ_ROLES, FINANCE_ROLES, PROJECT_ROLES, PROSPECT_ROLES } from '../features/auth/roles'
+import { HomePage } from '../features/home/HomePage'
+import { InvoicePage } from '../features/invoices/InvoicePage'
+import { InvoicePrintPage } from '../features/invoices/InvoicePrintPage'
+import { InvoicesPage } from '../features/invoices/InvoicesPage'
+import { ProspectPage } from '../features/prospects/ProspectPage'
+import { ProspectsPage } from '../features/prospects/ProspectsPage'
+import { QuotePage } from '../features/quotes/QuotePage'
+import { QuotePrintPage } from '../features/quotes/QuotePrintPage'
+import { QuotesPage } from '../features/quotes/QuotesPage'
 import { ClientPage } from '../features/clients/ClientPage'
 import { ClientsPage } from '../features/clients/ClientsPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
@@ -16,14 +25,37 @@ import { ProjectsPage } from '../features/projects/ProjectsPage'
 import { ReviewPage } from '../features/review/ReviewPage'
 import { TasksTab } from '../features/tasks/TasksTab'
 import { TicketsTab } from '../features/tickets/TicketsTab'
+import type { MemberRole } from '../shared/types'
 import { AppLayout } from './AppLayout'
 import { NotFoundPage } from './NotFoundPage'
+
+/** Pages réservées à certains rôles (la RLS reste la vraie protection). */
+function Guard({ roles }: { roles: readonly MemberRole[] }) {
+  return (
+    <RequireRole roles={roles}>
+      <Outlet />
+    </RequireRole>
+  )
+}
 
 export function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/desktop/prompt" element={<DesktopPromptRoute />} />
+      {/* Aperçus A4 imprimables : hors de la barre latérale. */}
+      <Route
+        element={
+          <RequireAuth>
+            <MemberGate>
+              <Guard roles={FINANCE_ROLES} />
+            </MemberGate>
+          </RequireAuth>
+        }
+      >
+        <Route path="/quotes/:quoteId/print" element={<QuotePrintPage />} />
+        <Route path="/invoices/:invoiceId/print" element={<InvoicePrintPage />} />
+      </Route>
       <Route
         element={
           <RequireAuth>
@@ -33,14 +65,13 @@ export function AppRoutes() {
           </RequireAuth>
         }
       >
-        <Route
-          element={
-            <RequireRole roles={PROJECT_ROLES}>
-              <Outlet />
-            </RequireRole>
-          }
-        >
-          <Route path="/" element={<ProjectsPage />} />
+        <Route path="/" element={<HomePage />} />
+        <Route element={<Guard roles={CLIENT_READ_ROLES} />}>
+          <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/clients" element={<ClientsPage />} />
+          <Route path="/clients/:clientId" element={<ClientPage />} />
+        </Route>
+        <Route element={<Guard roles={PROJECT_ROLES} />}>
           <Route path="/projects/:projectId" element={<ProjectPage />}>
             <Route index element={<Navigate to="tickets" replace />} />
             <Route path="tickets" element={<TicketsTab />} />
@@ -49,16 +80,18 @@ export function AppRoutes() {
           </Route>
           <Route path="/projects/:projectId/inputs/:inputId" element={<InputDetailPage />} />
           <Route path="/projects/:projectId/inputs/:inputId/review" element={<ReviewPage />} />
-          <Route path="/clients" element={<ClientsPage />} />
-          <Route path="/clients/:clientId" element={<ClientPage />} />
         </Route>
-        <Route
-          element={
-            <RequireRole roles={ADMIN_ROLES}>
-              <Outlet />
-            </RequireRole>
-          }
-        >
+        <Route element={<Guard roles={FINANCE_ROLES} />}>
+          <Route path="/quotes" element={<QuotesPage />} />
+          <Route path="/quotes/:quoteId" element={<QuotePage />} />
+          <Route path="/invoices" element={<InvoicesPage />} />
+          <Route path="/invoices/:invoiceId" element={<InvoicePage />} />
+        </Route>
+        <Route element={<Guard roles={PROSPECT_ROLES} />}>
+          <Route path="/prospects" element={<ProspectsPage />} />
+          <Route path="/prospects/:prospectId" element={<ProspectPage />} />
+        </Route>
+        <Route element={<Guard roles={ADMIN_ROLES} />}>
           <Route path="/team" element={<TeamPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>

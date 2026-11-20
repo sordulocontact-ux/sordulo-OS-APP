@@ -243,7 +243,7 @@ export function InputDetailPage() {
       <EmptyState
         title="Entrée introuvable"
         text="Cette entrée n'existe pas ou tu n'y as pas accès."
-        action={projectId ? <Link to={`/projects/${projectId}/inputs`}>Retour aux entrées</Link> : <Link to="/">Retour aux projets</Link>}
+        action={projectId ? <Link to={`/projects/${projectId}/inputs`}>Retour aux entrées</Link> : <Link to="/projects">Retour aux projets</Link>}
       />
     )
   }

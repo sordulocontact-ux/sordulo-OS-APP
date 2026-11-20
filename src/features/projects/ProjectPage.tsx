@@ -32,7 +32,7 @@ export function ProjectPage() {
       <EmptyState
         title="Projet introuvable"
         text="Ce projet n'existe pas ou tu n'y as pas accès."
-        action={<Link to="/">Retour aux projets</Link>}
+        action={<Link to="/projects">Retour aux projets</Link>}
       />
     )
   }
@@ -43,7 +43,7 @@ export function ProjectPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <BackLink to="/" label="Projets" />
+        <BackLink to="/projects" label="Projets" />
         <div className={styles.titleRow}>
           <h1>{project.name}</h1>
           <Button onClick={() => setEditing(true)}>Modifier</Button>

@@ -14,4 +14,11 @@ export const queryKeys = {
   clientContacts: (clientId: string) => ['client-contacts', clientId] as const,
   projectMembers: (projectId: string) => ['project-members', projectId] as const,
   organization: (organizationId: string) => ['organization', organizationId] as const,
+  quotes: () => ['quotes'] as const,
+  quote: (quoteId: string) => ['quote', quoteId] as const,
+  invoices: () => ['invoices'] as const,
+  invoice: (invoiceId: string) => ['invoice', invoiceId] as const,
+  prospects: () => ['prospects'] as const,
+  prospect: (prospectId: string) => ['prospect', prospectId] as const,
+  home: (organizationId: string) => ['home', organizationId] as const,
 }

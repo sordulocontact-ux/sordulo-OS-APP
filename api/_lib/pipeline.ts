@@ -214,7 +214,7 @@ async function saveTickets(
   // La charge augmente au fil des tickets de cette analyse, pour les répartir.
   // Aucun candidat (équipe vide, tous retirés ou en prospection) : tickets et tâches sans personne.
   const assignments = tickets.map((t) => {
-    const picked = pickTicketAssignee(candidates, { area: t.area }, workload)
+    const picked = pickTicketAssignee(candidates, { area: t.area, hours: ticketHours(t.tasks) }, workload, { today: new Date() })
     if (picked) addToWorkload(workload, picked.member.id, ticketHours(t.tasks), t.area)
     return picked
   })

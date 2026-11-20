@@ -5,7 +5,8 @@ import { buildPatch, toForm } from './settingsLogic'
 const org: Organization = {
   id: 'o', name: 'Sordulo', legal_name: null, legal_form: null, siret: null, address_street: null,
   address_postal_code: null, address_city: null, address_country: null, vat_mention: null,
-  default_daily_rate: null, default_hourly_rate: null, created_at: '', updated_at: '',
+  default_daily_rate: null, default_hourly_rate: null, default_vat_rate: 20, payment_terms_days: 30,
+  quote_validity_days: 30, bank_iban: null, bank_bic: null, created_at: '', updated_at: '',
 }
 
 describe('buildPatch', () => {

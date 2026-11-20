@@ -4,7 +4,7 @@
  * Relative imports in src/shared and api/ use the ".js" extension (Node ESM on Vercel).
  */
 
-export const MEMBER_ROLES = ['admin', 'membre', 'prospection'] as const
+export const MEMBER_ROLES = ['admin', 'membre', 'prospection', 'finance'] as const
 export type MemberRole = (typeof MEMBER_ROLES)[number]
 
 /** Statuts d'un projet (migration 0003 : l'ancien « active » devient « in_progress »). */
@@ -43,6 +43,145 @@ export type TaskStatus = (typeof TASK_STATUSES)[number]
 /** Niveaux de compétence, ex. { "design": 5, "dev": 2 } : 1 à 5 saisis dans l'Équipe, 0 ou absent = ne pratique pas. */
 export type SkillLevels = Partial<Record<Skill, number>>
 
+/* ---------- Devis, factures, prospection (migration 0004) ---------- */
+
+/** Brouillon → envoyé → accepté ou refusé. « Expiré » est calculé (envoyé et date de validité passée). */
+export const QUOTE_STATUSES = ['draft', 'sent', 'accepted', 'refused'] as const
+export type QuoteStatus = (typeof QUOTE_STATUSES)[number]
+
+/** Facture, facture d'acompte, avoir (annule une facture émise). */
+export const INVOICE_KINDS = ['invoice', 'deposit', 'credit_note'] as const
+export type InvoiceKind = (typeof INVOICE_KINDS)[number]
+
+/** Brouillon modifiable → émise (numérotée, figée) ↔ payée ; annulée par un avoir. */
+export const INVOICE_STATUSES = ['draft', 'issued', 'paid', 'cancelled'] as const
+export type InvoiceStatus = (typeof INVOICE_STATUSES)[number]
+
+export const LINE_UNITS = ['day', 'hour', 'flat', 'unit'] as const
+export type LineUnit = (typeof LINE_UNITS)[number]
+
+export const PROSPECT_STAGES = ['to_contact', 'contacted', 'followed_up', 'meeting', 'won', 'lost'] as const
+export type ProspectStage = (typeof PROSPECT_STAGES)[number]
+
+/** Ligne d'un devis ou d'une facture (jsonb). Montants en centimes HT. */
+export interface DocumentLine {
+  label: string
+  description: string | null
+  /** > 0, décimales permises (0,5 jour). */
+  quantity: number
+  unit: LineUnit
+  /** Prix unitaire HT en centimes ; négatif seulement sur un avoir. */
+  unit_price_cents: number
+  /** Taux de TVA en %, 0 à 100. */
+  vat_rate: number
+}
+
+/** Totaux calculés par la base (trigger), en centimes. */
+export interface DocumentTotals {
+  total_ht_cents: number
+  total_vat_cents: number
+  total_ttc_cents: number
+}
+
+export interface Quote extends DocumentTotals {
+  id: string
+  organization_id: string
+  client_id: string
+  project_id: string | null
+  /** D-AAAA-NNN, attribué par la base à la création. */
+  number: string
+  title: string
+  status: QuoteStatus
+  issue_date: string
+  valid_until: string | null
+  lines: DocumentLine[]
+  notes: string | null
+  sent_at: string | null
+  accepted_at: string | null
+  refused_at: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Vendeur copié dans la facture à l'émission (l'organisation à cette date). */
+export interface InvoiceSeller {
+  name: string
+  legal_name: string | null
+  legal_form: string | null
+  siret: string | null
+  address_street: string | null
+  address_postal_code: string | null
+  address_city: string | null
+  address_country: string | null
+  vat_mention: string | null
+  bank_iban: string | null
+  bank_bic: string | null
+}
+
+/** Acheteur copié dans la facture à l'émission (le client à cette date). */
+export interface InvoiceBuyer {
+  name: string
+  siret: string | null
+  billing_street: string | null
+  billing_postal_code: string | null
+  billing_city: string | null
+  billing_country: string | null
+  contact_name: string | null
+  contact_email: string | null
+}
+
+export interface Invoice extends DocumentTotals {
+  id: string
+  organization_id: string
+  client_id: string
+  project_id: string | null
+  quote_id: string | null
+  kind: InvoiceKind
+  status: InvoiceStatus
+  /** F-AAAA-NNNN (facture, acompte) ou A-AAAA-NNNN (avoir) ; null en brouillon. */
+  number: string | null
+  title: string
+  issue_date: string | null
+  due_date: string | null
+  lines: DocumentLine[]
+  notes: string | null
+  /** Facture d'acompte : pourcentage du devis (information). */
+  deposit_percent: number | null
+  /** Avoir : facture annulée. */
+  credited_invoice_id: string | null
+  /** null tant que la facture est en brouillon. */
+  seller: InvoiceSeller | null
+  buyer: InvoiceBuyer | null
+  issued_at: string | null
+  paid_at: string | null
+  cancelled_at: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Prospect {
+  id: string
+  organization_id: string
+  company: string
+  website: string | null
+  contact_name: string | null
+  contact_email: string | null
+  contact_phone: string | null
+  /** D'où vient le prospect (salon, recommandation, recherche…), texte libre. */
+  source: string | null
+  stage: ProspectStage
+  next_action_date: string | null
+  notes: string | null
+  owner_member_id: string | null
+  /** Client créé à la conversion. */
+  client_id: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface Organization {
   id: string
   name: string
@@ -60,6 +199,12 @@ export interface Organization {
   /** Taux par défaut en euros HT. */
   default_daily_rate: number | null
   default_hourly_rate: number | null
+  /** Facturation (migration 0004) : TVA par défaut des lignes (%), délai de paiement (jours, 60 max), validité des devis (jours). */
+  default_vat_rate: number
+  payment_terms_days: number
+  quote_validity_days: number
+  bank_iban: string | null
+  bank_bic: string | null
   created_at: string
   updated_at: string
 }
@@ -245,7 +390,28 @@ export const LABELS = {
     paid: 'Payé',
     archived: 'Archivé',
   } satisfies Record<ProjectStatus, string>,
-  memberRole: { admin: 'Admin', membre: 'Membre', prospection: 'Prospection' } satisfies Record<MemberRole, string>,
+  memberRole: { admin: 'Admin', membre: 'Membre', prospection: 'Prospection', finance: 'Finance' } satisfies Record<
+    MemberRole,
+    string
+  >,
+  quoteStatus: { draft: 'Brouillon', sent: 'Envoyé', accepted: 'Accepté', refused: 'Refusé' } satisfies Record<
+    QuoteStatus,
+    string
+  >,
+  invoiceKind: { invoice: 'Facture', deposit: 'Acompte', credit_note: 'Avoir' } satisfies Record<InvoiceKind, string>,
+  invoiceStatus: { draft: 'Brouillon', issued: 'Émise', paid: 'Payée', cancelled: 'Annulée' } satisfies Record<
+    InvoiceStatus,
+    string
+  >,
+  lineUnit: { day: 'jour', hour: 'heure', flat: 'forfait', unit: 'unité' } satisfies Record<LineUnit, string>,
+  prospectStage: {
+    to_contact: 'À contacter',
+    contacted: 'Contacté',
+    followed_up: 'Relancé',
+    meeting: 'Rendez-vous',
+    won: 'Gagné',
+    lost: 'Perdu',
+  } satisfies Record<ProspectStage, string>,
   weekday: {
     1: 'Lundi',
     2: 'Mardi',
