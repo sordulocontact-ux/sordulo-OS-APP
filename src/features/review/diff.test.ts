@@ -41,6 +41,8 @@ function task(id: string, over: Partial<Task> = {}): Task {
     organization_id: 'o',
     project_id: 'p',
     ticket_id: 't1',
+    assigned_by_member_id: null,
+    assigned_at: null,
     title: `Tâche ${id}`,
     skill: 'design',
     estimate_hours: 2,

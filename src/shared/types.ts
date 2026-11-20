@@ -131,6 +131,9 @@ export interface Task {
   skill: Skill
   estimate_hours: number | null
   assignee_member_id: string | null
+  /** Filled by a database trigger (0003): who set the assignee, and when. Null for service-role writes. */
+  assigned_by_member_id: string | null
+  assigned_at: string | null
   status: TaskStatus
   depends_on_task_id: string | null
   position: number
