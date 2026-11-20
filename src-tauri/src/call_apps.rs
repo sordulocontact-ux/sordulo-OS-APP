@@ -27,14 +27,44 @@ const BROWSERS: &[&str] = &[
     "chrome", "msedge", "firefox", "brave", "opera", "vivaldi", "arc", "chromium", "safari",
 ];
 
+/// Navigateurs Mac dont le bundle id ne finit pas par le nom court (`company.thebrowser.Browser` = Arc),
+/// et bundle id à interroger pour lire leurs onglets (`browser_bundle_id`).
+const MAC_BROWSERS: &[(&str, &str)] = &[
+    ("company.thebrowser.Browser", "arc"),
+    ("com.google.Chrome", "chrome"),
+    ("com.microsoft.edgemac", "msedge"),
+    ("com.brave.Browser", "brave"),
+    ("org.chromium.Chromium", "chromium"),
+    ("com.vivaldi.Vivaldi", "vivaldi"),
+    ("com.operasoftware.Opera", "opera"),
+    ("org.mozilla.firefox", "firefox"),
+    ("com.apple.Safari", "safari"),
+];
+
+/// Bundle id Mac d'un navigateur, d'après son nom court (`arc` → `company.thebrowser.Browser`).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn browser_bundle_id(short: &str) -> Option<&'static str> {
+    MAC_BROWSERS
+        .iter()
+        .find(|(_, name)| *name == short)
+        .map(|(bundle_id, _)| *bundle_id)
+}
+
 /// Mots d'un titre de fenêtre qui indiquent un appel dans un navigateur.
 const CALL_TITLE_WORDS: &[&str] = &[
     "meet", "teams", "zoom", "discord", "whereby", "jitsi", "webex", "slack", "whatsapp", "skype",
 ];
 
 /// Nom court de l'app : exécutable sans `.exe` (clé `NonPackaged`), sinon dernier segment pointé
-/// de la famille de paquet ou du bundle id (`TheBrowserCompany.Arc_xxx` → `arc`).
+/// de la famille de paquet ou du bundle id (`TheBrowserCompany.Arc_xxx` → `arc`). Navigateurs Mac :
+/// voir `MAC_BROWSERS` (`company.thebrowser.Browser` → `arc`).
 pub fn short_name(id: &str) -> String {
+    if let Some((_, name)) = MAC_BROWSERS
+        .iter()
+        .find(|(bundle_id, _)| bundle_id.eq_ignore_ascii_case(id))
+    {
+        return (*name).to_owned();
+    }
     let id = id.to_ascii_lowercase();
     if id.contains('#') {
         let exe = id.rsplit('#').next().unwrap_or_default();
@@ -188,6 +218,11 @@ mod tests {
             "5319275A.WhatsAppDesktop_cv1g1gvanyjgm",
             "C:#Users#me#AppData#Local#Discord#app-1.0.9#Discord.exe",
             "us.zoom.xos",
+            "com.hnc.Discord",
+            "com.microsoft.teams2",
+            "net.whatsapp.WhatsApp",
+            "com.tinyspeck.slackmacgap",
+            "com.apple.FaceTime",
         ] {
             assert_eq!(classify(id), Some(CallApp::Dedicated), "{id}");
         }
@@ -196,6 +231,10 @@ mod tests {
             "C:#Program Files (x86)#Microsoft#Edge#Application#msedge.exe",
             "TheBrowserCompany.Arc_ttt1ap7aakyb4",
             "com.google.Chrome",
+            "company.thebrowser.Browser",
+            "com.microsoft.edgemac",
+            "com.brave.Browser",
+            "com.apple.Safari",
         ] {
             assert_eq!(classify(id), Some(CallApp::Browser), "{id}");
         }
@@ -204,9 +243,28 @@ mod tests {
             "C:#Users#me#.local#bin#claude.exe",
             "Microsoft.WindowsSoundRecorder_8wekyb3d8bbwe",
             "C:#tools#search.exe",
+            "com.anthropic.claudefordesktop",
+            "com.apple.CoreSpeech",
+            "com.microsoft.VSCode",
         ] {
             assert_eq!(classify(id), None, "{id}");
         }
+    }
+
+    #[test]
+    fn mac_browsers_both_ways() {
+        assert_eq!(short_name("company.thebrowser.Browser"), "arc");
+        assert_eq!(short_name("com.microsoft.edgemac"), "msedge");
+        assert_eq!(short_name("com.google.Chrome"), "chrome");
+        assert_eq!(browser_bundle_id("arc"), Some("company.thebrowser.Browser"));
+        assert_eq!(browser_bundle_id("safari"), Some("com.apple.Safari"));
+        assert_eq!(browser_bundle_id("discord"), None);
+        // Discord dans Arc : le titre de l'onglet donne le service.
+        assert_eq!(
+            recognize_service("company.thebrowser.Browser", &["Discord | #général".into()]),
+            Some(CallService::Discord)
+        );
+        assert_eq!(recognize_service("com.hnc.Discord", &[]), Some(CallService::Discord));
     }
 
     #[test]

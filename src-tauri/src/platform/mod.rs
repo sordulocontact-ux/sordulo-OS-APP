@@ -2,8 +2,8 @@
 //!
 //! Une implémentation par système d'exploitation :
 //! - `windows/` : ce soir (registre CapabilityAccessManager + WASAPI + MP3).
-//! - `macos/`   : île (curseur, encoche, niveau de fenêtre) et presse-papiers ; détection du micro et
-//!   enregistrement à venir (Core Audio : process tap), voir TICKET.md (L13).
+//! - `macos/`   : île (curseur, encoche, niveau de fenêtre), détection du micro et des appels (processus
+//!   Core Audio, onglets par AppleScript), presse-papiers ; enregistrement à venir (process tap, L13).
 //!
 //! Le reste de l'app (tray, commandes Tauri, boucle de détection) ne dépend QUE de ce module :
 //! jamais de `cfg(windows)` en dehors de `platform/`.
@@ -127,7 +127,8 @@ pub fn recording_level() -> Option<f32> {
     }
 }
 
-/// Exécutables (minuscules, sans `.exe`) qui jouent du son en ce moment. Vide si non disponible.
+/// Apps qui jouent du son en ce moment, en noms courts (`call_apps::short_name` : exécutable en minuscules
+/// sans `.exe` sous Windows, `arc`, `chrome`… sur Mac). Vide si non disponible.
 pub fn processes_playing_audio() -> Vec<String> {
     #[cfg(windows)]
     {
@@ -136,13 +137,18 @@ pub fn processes_playing_audio() -> Vec<String> {
             Vec::new()
         })
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        macos::processes_playing_audio()
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         Vec::new()
     }
 }
 
-/// Titres des fenêtres visibles. Vide si non disponible.
+/// Titres des fenêtres visibles. Vide si non disponible (Mac : il faudrait l'autorisation
+/// d'enregistrement de l'écran ; on lit plutôt les onglets des navigateurs, voir `browser_page_titles`).
 pub fn visible_window_titles() -> Vec<String> {
     #[cfg(windows)]
     {
@@ -161,7 +167,11 @@ pub fn browser_page_titles(browser: &str) -> Vec<String> {
     {
         windows::browser_page_titles(browser)
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        macos::browser_page_titles(browser)
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = browser;
         Vec::new()

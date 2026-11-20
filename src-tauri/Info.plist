@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Fusionné par Tauri dans l'Info.plist du bundle macOS. -->
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Sordulo OS lit le titre de l'onglet affiché par votre navigateur pendant un appel, pour reconnaître Google Meet, Discord ou Teams.</string>
+</dict>
+</plist>

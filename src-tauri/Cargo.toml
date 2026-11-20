@@ -47,11 +47,11 @@ rubato = "5"
 windows = { version = "0.62", features = ["Win32_UI_Accessibility", "Win32_System_Com", "Win32_System_Ole", "Win32_System_Variant"] }
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging", "Win32_System_SystemInformation", "Win32_System_DataExchange", "Win32_System_Memory"] }
 
-# macOS : île (encoche, niveau de fenêtre). Mêmes versions que celles déjà tirées par Tauri (tao, wry).
-# Détection du micro et enregistrement : lot à venir (voir TICKET.md, lot L13).
+# macOS : île (encoche, niveau de fenêtre), détection du micro (bundle des apps). Mêmes versions que celles
+# déjà tirées par Tauri (tao, wry). Enregistrement : lot à venir (voir TICKET.md, lot L13).
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSGeometry"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSBundle", "NSGeometry", "NSString"] }
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSResponder", "NSScreen", "NSWindow", "NSGraphics"] }
 
 [profile.dev]
