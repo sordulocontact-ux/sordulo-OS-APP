@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Droits des fenêtres main et prompt : événements, fenêtre, positionnement près de la zone de notification.",
+  "description": "Droits des fenêtres main et prompt (l'île) : événements, fenêtre.",
   "windows": ["main", "prompt"],
   "permissions": [
     "core:default",
@@ -9,7 +9,6 @@
     "core:window:default",
     "core:window:allow-show",
     "core:window:allow-hide",
-    "core:window:allow-set-focus",
-    "positioner:default"
+    "core:window:allow-set-focus"
   ]
 }

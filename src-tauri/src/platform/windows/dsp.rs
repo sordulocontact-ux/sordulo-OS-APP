@@ -1,8 +1,10 @@
 //! Traitements purs du signal : conversion en mono, rééchantillonnage vers 16 kHz, mesures de niveau.
 
+use super::mixer::Source;
 use anyhow::{anyhow, Result};
 use rubato::audioadapter_buffers::direct::InterleavedSlice;
 use rubato::{Fft, FixedSync, Indexing, Resampler};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 /// Fréquence d'échantillonnage du fichier produit (et de la ligne de temps commune).
 pub const TARGET_RATE: u32 = 16_000;
@@ -37,6 +39,73 @@ pub fn to_dbfs(level: f32) -> f32 {
         -120.0
     } else {
         20.0 * level.log10()
+    }
+}
+
+/// Niveau en direct de l'enregistrement, lisible sans verrou depuis n'importe quel thread.
+/// Écrit par les threads de capture (un seul écrivain par source), lu par le ticker de l'île.
+pub struct LiveLevels {
+    mic: AtomicU32,
+    system: AtomicU32,
+    active: AtomicBool,
+}
+
+/// Niveaux de l'enregistrement en cours (il n'y en a qu'un à la fois dans le processus).
+pub static LIVE_LEVELS: LiveLevels = LiveLevels::new();
+
+impl LiveLevels {
+    const fn new() -> Self {
+        Self {
+            mic: AtomicU32::new(0),
+            system: AtomicU32::new(0),
+            active: AtomicBool::new(false),
+        }
+    }
+
+    /// Début (`true`) ou fin (`false`) d'un enregistrement : remet les niveaux à zéro.
+    pub fn set_active(&self, active: bool) {
+        self.mic.store(0, Ordering::Relaxed);
+        self.system.store(0, Ordering::Relaxed);
+        self.active.store(active, Ordering::Relaxed);
+    }
+
+    /// Publie le niveau RMS (linéaire, 0..1) d'une source.
+    pub fn publish(&self, source: Source, level: f32) {
+        let slot = match source {
+            Source::Mic => &self.mic,
+            Source::System => &self.system,
+        };
+        slot.store(level.to_bits(), Ordering::Relaxed);
+    }
+
+    /// Niveau RMS linéaire le plus fort des deux sources ; `None` hors enregistrement.
+    pub fn current(&self) -> Option<f32> {
+        if !self.active.load(Ordering::Relaxed) {
+            return None;
+        }
+        let read = |slot: &AtomicU32| f32::from_bits(slot.load(Ordering::Relaxed));
+        Some(read(&self.mic).max(read(&self.system)))
+    }
+}
+
+/// Niveau « récent » d'une source : RMS du dernier paquet, retenu puis relâché en ~50 ms,
+/// pour que le niveau lu toutes les ~90 ms ne rate pas un mot entre deux lectures.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct LevelMeter {
+    value: f32,
+}
+
+impl LevelMeter {
+    /// Facteur de relâche par sondage de 10 ms (≈ 50 ms de constante de temps).
+    const DECAY: f32 = 0.8;
+
+    /// Intègre le RMS d'un sondage (0 s'il n'y avait aucun échantillon) et renvoie le niveau retenu.
+    pub fn update(&mut self, rms: f32) -> f32 {
+        self.value = rms.max(self.value * Self::DECAY);
+        if self.value < 1e-5 {
+            self.value = 0.0;
+        }
+        self.value
     }
 }
 
@@ -166,6 +235,33 @@ fn run_chunk(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn meter_holds_then_releases() {
+        let mut m = LevelMeter::default();
+        assert_eq!(m.update(0.0), 0.0);
+        assert_eq!(m.update(0.4), 0.4);
+        // Plus de son : relâche progressive, puis zéro.
+        let after = m.update(0.0);
+        assert!(after > 0.3 && after < 0.4);
+        for _ in 0..100 {
+            m.update(0.0);
+        }
+        assert_eq!(m.update(0.0), 0.0);
+    }
+
+    #[test]
+    fn live_levels_take_the_loudest_source() {
+        let levels = LiveLevels::new();
+        assert_eq!(levels.current(), None);
+        levels.set_active(true);
+        assert_eq!(levels.current(), Some(0.0));
+        levels.publish(Source::Mic, 0.1);
+        levels.publish(Source::System, 0.3);
+        assert_eq!(levels.current(), Some(0.3));
+        levels.set_active(false);
+        assert_eq!(levels.current(), None);
+    }
 
     #[test]
     fn mono_averages_channels() {

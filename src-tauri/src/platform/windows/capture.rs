@@ -14,7 +14,7 @@
 //! chaque seconde de rouvrir le périphérique par défaut (ex. casque débranché → haut-parleurs).
 //! Pendant ce temps, le mixeur complète par du silence : l'enregistrement continue.
 
-use super::dsp::TARGET_RATE;
+use super::dsp::{rms, LevelMeter, LIVE_LEVELS, TARGET_RATE};
 use super::mixer::Source;
 use super::timeline::{Chunk, SourcePipeline};
 use anyhow::{anyhow, Result};
@@ -194,6 +194,7 @@ impl Stream {
 
         let mut bytes: VecDeque<u8> = VecDeque::new();
         let mut samples: Vec<f32> = Vec::new();
+        let mut meter = LevelMeter::default();
         let result = loop {
             if stop.load(Ordering::Relaxed) {
                 break Ok(Exit::Stopped);
@@ -201,10 +202,15 @@ impl Stream {
             if let Err(err) = self.read_available(&mut bytes) {
                 break Err(err);
             }
-            if !bytes.is_empty() {
+            if bytes.is_empty() {
+                // Rien reçu (loopback muet) : le niveau retombe.
+                LIVE_LEVELS.publish(self.source, meter.update(0.0));
+            } else {
                 samples.clear();
                 append_f32(&mut samples, bytes.make_contiguous());
                 bytes.clear();
+                // Niveau pour l'onde de l'île : un RMS et un atomique, sans verrou ni allocation.
+                LIVE_LEVELS.publish(self.source, meter.update(rms(&samples)));
                 let clock_end = t0.elapsed().as_secs_f64() * f64::from(TARGET_RATE);
                 match pipeline.push(&samples, clock_end) {
                     Ok(chunks) => {
@@ -218,6 +224,7 @@ impl Stream {
             thread::sleep(POLL);
         };
 
+        LIVE_LEVELS.publish(self.source, 0.0);
         let _ = self.client.stop_stream();
         // Ce qui reste dans le rééchantillonneur (arrêt normal OU périphérique perdu).
         match pipeline.finish() {

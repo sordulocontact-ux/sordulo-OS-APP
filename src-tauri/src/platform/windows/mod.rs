@@ -15,9 +15,13 @@
 //! - `recorder` : orchestration (threads, arrêt, `RecordingInfo`).
 //! - `activity` : indices d'appel pour les navigateurs (son joué, titres de fenêtres).
 //! - `url_scheme` : association du schéma `sordulo://` (retour du lien de connexion).
+//! - `cursor`   : position du curseur et bouton principal (clics qui passent à travers l'île).
+//! - `clipboard` : copie de texte dans le presse-papiers (chemin d'un fichier déposé sur « Claude Code »).
 
 mod activity;
 mod capture;
+mod clipboard;
+mod cursor;
 mod dsp;
 mod encoder;
 mod mic;
@@ -27,6 +31,8 @@ mod timeline;
 mod url_scheme;
 
 pub use activity::{processes_playing_audio, visible_window_titles};
+pub use clipboard::copy_text;
+pub use cursor::cursor_state;
 pub use mic::RegistryMicMonitor;
 pub use recorder::WasapiRecorder;
 pub use url_scheme::register_url_scheme;

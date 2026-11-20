@@ -5,20 +5,34 @@ description = "Sordulo OS — app de bureau (Tauri 2) autour du front React/Vite
 authors = ["Sordulo"]
 edition = "2021"
 rust-version = "1.80"
+# `tauri dev` lance `cargo run` : avec deux binaires, celui-ci est l'app (voir `src/claude/mod.rs`).
+default-run = "sordulo-os"
 
 [lib]
 name = "sordulo_os_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+# L'app elle-même (src/main.rs).
+[[bin]]
+name = "sordulo-os"
+path = "src/main.rs"
+
+# Relais appelé par les hooks de Claude Code (std + serde_json seulement). Voir `src/claude/mod.rs`.
+[[bin]]
+name = "sordulo-hook"
+path = "src/bin/sordulo-hook.rs"
 
 [build-dependencies]
 tauri-build = { version = "2.7", features = [] }
 
 [dependencies]
 tauri = { version = "2.12", features = ["tray-icon", "image-png"] }
-tauri-plugin-positioner = { version = "2.4", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2.5"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# preserve_order : la fusion de ~/.claude/settings.json garde l'ordre des clés de l'utilisateur.
+serde_json = { version = "1", features = ["preserve_order"] }
+# Jeton du relais Claude Code et identifiants de demandes (déjà dans l'arbre de dépendances).
+getrandom = "0.3"
 anyhow = "1"
 thiserror = "2"
 log = "0.4"
@@ -29,7 +43,7 @@ winreg = "0.56"
 wasapi = "0.27"
 mp3lame-encoder = "0.3"
 rubato = "5"
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging", "Win32_System_SystemInformation", "Win32_System_DataExchange", "Win32_System_Memory"] }
 
 # macOS : lot à venir (voir TICKET.md, lot L13). Aucune dépendance ce soir.
 

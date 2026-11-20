@@ -46,6 +46,24 @@ pub trait Recorder: Send {
     fn is_recording(&self) -> bool;
     /// Durée enregistrée jusqu'ici, en secondes (0 si rien en cours).
     fn elapsed_secs(&self) -> f64;
+    /// Niveau sonore actuel (RMS linéaire 0..1, le plus fort du micro et du son de l'ordinateur sur
+    /// ~100 ms), `None` hors enregistrement ou si non disponible. Ne bloque jamais.
+    /// Le ticker de l'île passe par [`recording_level`] (pas de verrou de l'enregistreur) ; cette
+    /// méthode sert à qui tient déjà l'enregistreur.
+    #[allow(dead_code)]
+    fn audio_level(&self) -> Option<f32> {
+        None
+    }
+}
+
+/// Curseur de la souris, pour la surveillance de l'île (clics qui passent à travers).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CursorState {
+    /// Position en px physiques, coordonnées de l'écran virtuel (origine : coin haut-gauche de l'écran principal).
+    pub x: i32,
+    pub y: i32,
+    /// Bouton principal enfoncé (le gauche, ou le droit si les boutons sont inversés).
+    pub primary_down: bool,
 }
 
 /// Extension du fichier produit par `Recorder` (sans point).
@@ -88,6 +106,19 @@ pub fn recorder() -> Box<dyn Recorder> {
     }
 }
 
+/// Niveau sonore de l'enregistrement en cours (voir `Recorder::audio_level`), lu sans prendre le
+/// verrou de l'enregistreur : appelable à haute fréquence. `None` hors enregistrement.
+pub fn recording_level() -> Option<f32> {
+    #[cfg(windows)]
+    {
+        windows::WasapiRecorder::live_level()
+    }
+    #[cfg(not(windows))]
+    {
+        None
+    }
+}
+
 /// Exécutables (minuscules, sans `.exe`) qui jouent du son en ce moment. Vide si non disponible.
 pub fn processes_playing_audio() -> Vec<String> {
     #[cfg(windows)]
@@ -112,6 +143,39 @@ pub fn visible_window_titles() -> Vec<String> {
     #[cfg(not(windows))]
     {
         Vec::new()
+    }
+}
+
+/// Position du curseur et état du bouton principal. `None` si non disponible.
+pub fn cursor_state() -> Option<CursorState> {
+    #[cfg(windows)]
+    {
+        windows::cursor_state()
+    }
+    #[cfg(target_os = "macos")]
+    {
+        macos::cursor_state()
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        None
+    }
+}
+
+/// Copie `text` dans le presse-papiers du système (chemin d'un fichier déposé sur « Claude Code »).
+pub fn copy_text(text: &str) -> anyhow::Result<()> {
+    #[cfg(windows)]
+    {
+        windows::copy_text(text)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        macos::copy_text(text)
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        let _ = text;
+        anyhow::bail!("Copie dans le presse-papiers pas encore disponible sur ce système")
     }
 }
 

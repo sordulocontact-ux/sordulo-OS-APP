@@ -2,14 +2,15 @@
 //!
 //! Les types sérialisés reflètent exactement `src/shared/desktop-contract.ts` (camelCase).
 //!
-//! Verrous : `shared` (métadonnées) et `recorder` (enregistreur). Seul `start_recording` tient les deux
+//! Verrous : `shared` (métadonnées), `recorder` (enregistreur) et `island_hits` (zones cliquables de l'île,
+//! lues ~60 fois par seconde, jamais pris avec un autre verrou). `shared` et `recorder` : seul `start_recording` tient les deux
 //! en même temps, toujours dans l'ordre `shared` puis `recorder`. L'arrêt relâche `shared` avant de
 //! prendre `recorder` (la finalisation du fichier peut durer), donc pas d'interblocage.
 
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::platform::{self, MicApp as PlatformMicApp, Recorder, RecordingInfo};
 use crate::time::now_ms;
@@ -128,6 +129,62 @@ pub struct PromptPayload {
     pub recording: RecordingState,
 }
 
+/// `IslandRect` du contrat : px CSS relatifs au coin haut-gauche de la fenêtre de l'île.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IslandRect {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+/// `IslandHitRects` du contrat : formes noires de l'île + marge de réveil au glisser-déposer.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IslandHitRects {
+    pub rects: Vec<IslandRect>,
+    /// px CSS ; 0 désactive la marge.
+    pub drag_margin: f64,
+}
+
+impl IslandHitRects {
+    /// Écarte les valeurs inutilisables (non finies, tailles nulles ou négatives) envoyées par le front.
+    pub fn sanitized(rects: Vec<IslandRect>, drag_margin: f64) -> Self {
+        let finite = |v: f64| v.is_finite();
+        Self {
+            rects: rects
+                .into_iter()
+                .filter(|r| finite(r.x) && finite(r.y) && finite(r.width) && finite(r.height))
+                .filter(|r| r.width > 0.0 && r.height > 0.0)
+                .collect(),
+            drag_margin: if finite(drag_margin) {
+                drag_margin.max(0.0)
+            } else {
+                0.0
+            },
+        }
+    }
+}
+
+/// `IslandPointer` du contrat.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct IslandPointer {
+    pub inside: bool,
+}
+
+/// `FocusModeState` du contrat.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct FocusModeState {
+    pub on: bool,
+}
+
+/// `NavigatePayload` du contrat.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NavigatePayload {
+    pub route: String,
+}
+
 // ---------------------------------------------------------------------------
 // État interne
 // ---------------------------------------------------------------------------
@@ -152,11 +209,15 @@ pub struct Shared {
     pub prompt_dismissed: bool,
     /// Lien de connexion reçu (`sordulo://auth…`), en attente de lecture par la fenêtre principale.
     pub pending_auth_url: Option<String>,
+    /// Mode concentration (case du menu du soleil) : l'île garde les notifications pendant un appel.
+    pub focus_mode: bool,
 }
 
 pub struct DesktopState {
     pub shared: Mutex<Shared>,
     pub recorder: Mutex<Box<dyn Recorder>>,
+    /// Zones cliquables envoyées par l'île (`island_set_hit_rects`).
+    pub island_hits: Mutex<IslandHitRects>,
 }
 
 impl DesktopState {
@@ -164,11 +225,22 @@ impl DesktopState {
         Self {
             shared: Mutex::new(Shared::default()),
             recorder: Mutex::new(platform::recorder()),
+            island_hits: Mutex::new(IslandHitRects::default()),
         }
     }
 
     pub fn shared(&self) -> MutexGuard<'_, Shared> {
         self.shared.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub fn island_hits(&self) -> MutexGuard<'_, IslandHitRects> {
+        self.island_hits.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub fn focus_mode(&self) -> FocusModeState {
+        FocusModeState {
+            on: self.shared().focus_mode,
+        }
     }
 
     pub fn recorder(&self) -> MutexGuard<'_, Box<dyn Recorder>> {
@@ -270,6 +342,46 @@ mod tests {
         ] {
             assert!(json.get(key).is_some(), "champ manquant : {key}");
         }
+    }
+
+    #[test]
+    fn island_types_match_the_ts_contract() {
+        let hits: IslandHitRects = serde_json::from_value(serde_json::json!({
+            "rects": [{ "x": 1.0, "y": 2.0, "width": 3.0, "height": 4.0 }],
+            "dragMargin": 24.0
+        }))
+        .unwrap();
+        assert_eq!(hits.drag_margin, 24.0);
+        assert_eq!(hits.rects[0].height, 4.0);
+        assert_eq!(
+            serde_json::to_value(IslandPointer { inside: true }).unwrap(),
+            serde_json::json!({ "inside": true })
+        );
+        assert_eq!(
+            serde_json::to_value(FocusModeState { on: false }).unwrap(),
+            serde_json::json!({ "on": false })
+        );
+        assert_eq!(
+            serde_json::to_value(NavigatePayload { route: "/a".into() }).unwrap(),
+            serde_json::json!({ "route": "/a" })
+        );
+    }
+
+    #[test]
+    fn island_hits_sanitized() {
+        let rect = |w: f64| IslandRect {
+            x: 0.0,
+            y: 0.0,
+            width: w,
+            height: 8.0,
+        };
+        let hits = IslandHitRects::sanitized(vec![rect(120.0), rect(0.0), rect(f64::NAN)], -3.0);
+        assert_eq!(hits.rects, vec![rect(120.0)]);
+        assert_eq!(hits.drag_margin, 0.0);
+        assert_eq!(
+            IslandHitRects::sanitized(vec![], f64::INFINITY).drag_margin,
+            0.0
+        );
     }
 
     #[test]
