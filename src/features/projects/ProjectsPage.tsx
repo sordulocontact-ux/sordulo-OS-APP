@@ -1,17 +1,14 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { EmptyState, ErrorState, LoadingState, SearchField } from '../../components/ui'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Button, EmptyState, ErrorState, LoadingState, SearchField, Select } from '../../components/ui'
+import table from '../../components/ui/dataTable.module.css'
 import { formatDate } from '../tickets/format'
+import { LABELS, PROJECT_STATUSES } from '../../shared/types'
+import { ProjectFormModal } from './ProjectFormModal'
+import { ProjectStatus } from './ProjectStatus'
+import { clientsInProjects, filterProjects, formatDay, NO_CLIENT, parseStatusParam } from './projectLogic'
 import { useProjects } from './useProjects'
 import styles from './ProjectsPage.module.css'
-
-/** Libellé et couleur de pastille des statuts de projet (texte libre en base, « active » par défaut). */
-function projectStatus(status: string): { label: string; tone: 'active' | 'idle' } {
-  if (status === 'active') return { label: 'En cours', tone: 'active' }
-  if (status === 'paused') return { label: 'En pause', tone: 'idle' }
-  if (status === 'done' || status === 'archived') return { label: 'Terminé', tone: 'idle' }
-  return { label: status, tone: 'idle' }
-}
 
 /** Initiales du projet pour le carré « logo » (« App Ibé » → « AI »). */
 function projectInitials(name: string): string {
@@ -21,59 +18,124 @@ function projectInitials(name: string): string {
 }
 
 export function ProjectsPage() {
+  const navigate = useNavigate()
   const { data, isLoading, isError, refetch } = useProjects()
+  const [params, setParams] = useSearchParams()
   const [query, setQuery] = useState('')
+  const [creating, setCreating] = useState(false)
 
-  const projects = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!data || !q) return data ?? []
-    return data.filter((p) => p.name.toLowerCase().includes(q) || (p.client?.name ?? '').toLowerCase().includes(q))
-  }, [data, query])
+  const status = parseStatusParam(params.get('statut'))
+  const client = params.get('client') ?? ''
+  const hasFilters = status !== '' || client !== '' || query.trim() !== ''
+
+  function setParam(key: 'statut' | 'client', value: string) {
+    const next = new URLSearchParams(params)
+    if (value) next.set(key, value)
+    else next.delete(key)
+    setParams(next, { replace: true })
+  }
+
+  function clearFilters() {
+    setQuery('')
+    setParams(new URLSearchParams(), { replace: true })
+  }
+
+  const projects = useMemo(() => filterProjects(data ?? [], { query, status, client }), [data, query, status, client])
+  const clientOptions = useMemo(() => clientsInProjects(data ?? []), [data])
 
   return (
-    <section className={styles.page} aria-labelledby="projects-title">
+    <section className={table.page} aria-labelledby="projects-title">
       <h1 id="projects-title">Projets</h1>
-      <SearchField label="Rechercher un projet" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <div className={table.toolbar}>
+        <SearchField label="Rechercher un projet" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <div className={styles.filter}>
+          <Select aria-label="Statut" value={status} onChange={(e) => setParam('statut', e.target.value)}>
+            <option value="">Tous les statuts actifs</option>
+            {PROJECT_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s === 'archived' ? 'Archivés' : LABELS.projectStatus[s]}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className={styles.filter}>
+          <Select aria-label="Client" value={client} onChange={(e) => setParam('client', e.target.value)}>
+            <option value="">Tous les clients</option>
+            {clientOptions.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+            <option value={NO_CLIENT}>Sans client</option>
+          </Select>
+        </div>
+        <Button variant="primary" onClick={() => setCreating(true)}>
+          Nouveau projet
+        </Button>
+      </div>
+
       {isLoading ? (
         <LoadingState label="Chargement des projets…" />
       ) : isError ? (
         <ErrorState message="Impossible de charger les projets." onRetry={() => void refetch()} />
       ) : !data || data.length === 0 ? (
-        <EmptyState title="Aucun projet" text="Les projets de l'organisation apparaîtront ici." />
+        <EmptyState
+          title="Aucun projet"
+          text="Crée le premier projet de l'organisation."
+          action={
+            <Button variant="primary" onClick={() => setCreating(true)}>
+              Nouveau projet
+            </Button>
+          }
+        />
       ) : projects.length === 0 ? (
-        <EmptyState title="Aucun projet ne correspond à la recherche." />
+        <EmptyState
+          title="Aucun projet ne correspond aux filtres."
+          action={
+            hasFilters ? (
+              <Button onClick={clearFilters}>Effacer les filtres</Button>
+            ) : undefined
+          }
+        />
       ) : (
-        <table className={styles.table}>
+        <table className={table.table}>
           <thead>
             <tr>
               <th scope="col">Projet</th>
               <th scope="col">Client</th>
               <th scope="col">Statut</th>
+              <th scope="col">Échéance</th>
               <th scope="col">Créé le</th>
             </tr>
           </thead>
           <tbody>
             {projects.map((project) => {
-              const status = projectStatus(project.status)
+              const due = formatDay(project.due_date)
               return (
-                <tr key={project.id} className={styles.row}>
+                <tr key={project.id} className={table.row}>
                   <td>
                     <span className={styles.project}>
                       <span className={styles.logo} aria-hidden="true">
                         {projectInitials(project.name)}
                       </span>
-                      <Link to={`/projects/${project.id}`} className={styles.name}>
+                      <Link to={`/projects/${project.id}`} className={table.rowLink}>
                         {project.name}
                       </Link>
                     </span>
                   </td>
-                  <td>{project.client?.name ?? 'Sans client'}</td>
                   <td>
-                    <span className={styles.status}>
-                      <span className={[styles.dot, styles[status.tone]].join(' ')} aria-hidden="true" />
-                      {status.label}
-                    </span>
+                    {project.client ? (
+                      <Link to={`/clients/${project.client.id}`} className={styles.clientLink}>
+                        {project.client.name}
+                      </Link>
+                    ) : (
+                      <span className={table.inactive}>Sans client</span>
+                    )}
                   </td>
+                  <td>
+                    <ProjectStatus status={project.status} />
+                  </td>
+                  <td>{due ?? <span className={table.inactive}>Non définie</span>}</td>
                   <td>{formatDate(project.created_at)}</td>
                 </tr>
               )
@@ -81,6 +143,13 @@ export function ProjectsPage() {
           </tbody>
         </table>
       )}
+
+      <ProjectFormModal
+        open={creating}
+        onClose={() => setCreating(false)}
+        defaultClientId={client && client !== NO_CLIENT ? client : null}
+        onSaved={(project) => void navigate(`/projects/${project.id}`)}
+      />
     </section>
   )
 }

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   addToWorkload,
   areaKey,
+  assignmentCandidates,
+  canBeAutoAssigned,
   emptyWorkload,
   pickAssignee,
   pickTicketAssignee,
@@ -85,5 +87,38 @@ describe('pickTicketAssignee', () => {
     expect(areaKey('  Page  d’Accueil ')).toBe('page d’accueil')
     expect(areaKey('Équipe')).toBe('equipe')
     expect(areaKey('  ')).toBeNull()
+  })
+})
+
+describe('assignmentCandidates', () => {
+  const base = { removed_at: null }
+  const admin = { ...base, id: 'a', role: 'admin' as const }
+  const membre = { ...base, id: 'b', role: 'membre' as const }
+  const prospection = { ...base, id: 'c', role: 'prospection' as const }
+  const retire = { id: 'd', role: 'membre' as const, removed_at: '2026-11-20T10:00:00Z' }
+  const team = [admin, membre, prospection, retire]
+
+  it('garde les membres actifs hors prospection quand le projet n’a pas de membres affectés', () => {
+    expect(assignmentCandidates(team, []).map((m) => m.id)).toEqual(['a', 'b'])
+    expect(canBeAutoAssigned(prospection)).toBe(false)
+    expect(canBeAutoAssigned(retire)).toBe(false)
+    expect(canBeAutoAssigned(admin)).toBe(true)
+  })
+
+  it('se limite aux membres du projet, toujours actifs et hors prospection', () => {
+    expect(assignmentCandidates(team, ['b', 'c', 'd']).map((m) => m.id)).toEqual(['b'])
+    expect(assignmentCandidates(team, ['a', 'b']).map((m) => m.id)).toEqual(['a', 'b'])
+  })
+
+  it('retombe sur toute l’équipe attribuable si aucun membre du projet ne l’est', () => {
+    expect(assignmentCandidates(team, ['c', 'd']).map((m) => m.id)).toEqual(['a', 'b'])
+    expect(assignmentCandidates(team, ['inconnu']).map((m) => m.id)).toEqual(['a', 'b'])
+  })
+
+  it('renvoie une liste vide sans membre attribuable : le ticket reste sans personne', () => {
+    const candidates = assignmentCandidates([prospection, retire], ['c'])
+    expect(candidates).toEqual([])
+    const named = candidates.map((m) => ({ ...m, name: m.id, skills: {} }))
+    expect(pickTicketAssignee(named, { area: null }, emptyWorkload())).toBeNull()
   })
 })

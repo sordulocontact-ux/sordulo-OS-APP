@@ -1,49 +1,4 @@
-.page {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-
-.page > h1 {
-  margin-bottom: var(--space-3);
-}
-
-/* Figma « Projet » : tableau bordé, en-tête gris, séparateurs de colonnes discrets. */
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  border: var(--size-border) solid var(--color-border);
-  background: var(--color-surface);
-  table-layout: fixed;
-}
-
-.table th,
-.table td {
-  padding: var(--space-4);
-  border-bottom: var(--size-border) solid var(--color-border);
-  border-right: var(--size-border) solid var(--color-border-subtle);
-  font-weight: var(--font-weight-medium);
-  text-align: left;
-  vertical-align: middle;
-}
-
-.table th:last-child,
-.table td:last-child {
-  border-right: 0;
-}
-
-.table th {
-  background: var(--color-surface-muted);
-}
-
-.row {
-  position: relative;
-}
-
-.row:hover {
-  background: var(--color-surface-muted);
-}
-
+/* Le reste (page, barre d'outils, tableau, ligne cliquable) vient de components/ui/dataTable.module.css. */
 .project {
   display: flex;
   align-items: center;
@@ -65,38 +20,18 @@
   letter-spacing: normal;
 }
 
-.name {
+/* Filtre de la barre d'outils : largeur du contenu, le Select prend 100% de ce bloc. */
+.filter {
+  flex: 0 0 auto;
+}
+
+/* Lien du client, au-dessus de l'overlay de ligne (élément positionné plus tard dans l'ordre du DOM). */
+.clientLink {
+  position: relative;
   color: var(--color-text);
-  text-decoration: none;
 }
 
-/* Toute la ligne ouvre le projet. */
-.name::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-}
-
-.row:hover .name {
-  text-decoration: underline;
-}
-
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.dot {
-  width: var(--size-status-dot);
-  height: var(--size-status-dot);
-  flex-shrink: 0;
-}
-
-.active {
-  background: var(--color-info-dot);
-}
-
-.idle {
-  background: var(--color-idle-dot);
+.clientLink:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
 }

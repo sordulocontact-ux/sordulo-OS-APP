@@ -47,12 +47,22 @@ describe('buildUserMessage', () => {
     expect(() => buildUserMessage(context({ kind: 'meeting', rawText: null, transcript: null }))).toThrow()
   })
 
+  it('indique « non renseigné » quand le ton de voix est vide', () => {
+    expect(buildUserMessage({ ...context(), toneOfVoice: null })).toContain('Ton de voix : non renseigné')
+    expect(buildUserMessage({ ...context(), toneOfVoice: '  \n ' })).toContain('Ton de voix : non renseigné')
+  })
+
   it('indique l’absence de tickets ouverts', () => {
     expect(buildUserMessage({ ...context(), openTickets: [] })).toContain('(aucun)')
   })
 })
 
 describe('ANALYSIS_SYSTEM_PROMPT', () => {
+  it('dit quoi faire du ton de voix du projet', () => {
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain('Ton de voix : s\'il est renseigné')
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain('rédige les titres et les descriptions des tickets dans ce ton')
+  })
+
   it('reste stable (aucune date ni identifiant) pour le cache', () => {
     expect(ANALYSIS_SYSTEM_PROMPT).not.toMatch(/\d{4}-\d{2}-\d{2}/)
     expect(ANALYSIS_SYSTEM_PROMPT).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/i)
@@ -118,6 +128,20 @@ describe('analyzeInput : repli Mistral', () => {
     const tickets = await analyzeInput(context())
     expect(tickets).toHaveLength(1)
     expect(fallback).not.toHaveBeenCalled()
+  })
+
+  it('envoie le ton de voix du projet à Claude, et au repli Mistral', async () => {
+    vi.stubEnv('MISTRAL_API_KEY', 'm')
+    streamOk()
+    await analyzeInput(context())
+    const claudeRequest = stream.mock.calls[0]![0] as { messages: { role: string; content: string }[] }
+    expect(claudeRequest.messages[0]?.content).toContain('Ton de voix : Chaleureux, tutoiement')
+
+    streamKo()
+    await analyzeInput({ ...context(), toneOfVoice: 'Sobre, vouvoiement' })
+    const mistralRequest = fallback.mock.calls[0]![0] as mistral.MistralAnalysisRequest
+    expect(mistralRequest.content).toContain('Ton de voix : Sobre, vouvoiement')
+    expect(mistralRequest.system).toContain('rédige les titres et les descriptions des tickets dans ce ton')
   })
 
   it('crédits épuisés + clé Mistral : bascule sur Mistral avec le même prompt', async () => {

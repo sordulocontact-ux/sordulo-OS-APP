@@ -18,7 +18,7 @@ export function ProposedTicketsPreview({ input }: { input: Input }) {
     proposed.length > 0,
   )
   const { data: members = [] } = useOrgMembers(input.organization_id)
-  const nameOf = (id: string | null) => (id ? (members.find((m) => m.id === id)?.name ?? '—') : 'Personne')
+  const nameOf = (id: string | null) => (id ? (members.find((m) => m.id === id)?.name ?? 'Membre inconnu') : 'Personne')
 
   if (tickets.isLoading || (proposed.length > 0 && tasks.isLoading)) return <LoadingState label="Chargement des tickets…" />
   if (proposed.length === 0) return null

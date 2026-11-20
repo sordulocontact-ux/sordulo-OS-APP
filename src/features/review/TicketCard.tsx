@@ -1,3 +1,4 @@
+import { canBeAutoAssigned } from '../../shared/assignment'
 import { Badge, Button, Card, Field, Select, Textarea, TextInput } from '../../components/ui'
 import {
   LABELS,
@@ -64,7 +65,7 @@ export function TicketCard({
   }
 
   function addTask() {
-    const task = makeNewTaskDraft(`new-${crypto.randomUUID()}`, members, 'dev', ticketAssigneeOf(draft))
+    const task = makeNewTaskDraft(`new-${crypto.randomUUID()}`, members.filter(canBeAutoAssigned), 'dev', ticketAssigneeOf(draft))
     onChange({ ...draft, tasks: [...draft.tasks, task] })
   }
 
@@ -92,11 +93,13 @@ export function TicketCard({
             onChange={(e) => onChange(assignTicket(draft, e.target.value || null))}
           >
             {holder === null ? <option value="">{draft.tasks.length > 1 ? 'Plusieurs personnes' : 'Personne'}</option> : null}
-            {members.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.name}
-              </option>
-            ))}
+            {members
+              .filter((member) => canBeAutoAssigned(member) || member.id === holder)
+              .map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name}
+                </option>
+              ))}
           </Select>
         </Field>
         <p className={styles.muted}>

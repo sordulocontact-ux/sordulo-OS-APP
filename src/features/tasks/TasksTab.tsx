@@ -54,6 +54,8 @@ export function TasksTab() {
   // Positions are compared inside the full visible column, so a filtered view never inverts the order.
   const fullColumns = groupByStatus(tasks)
   const memberById = new Map(members.map((m) => [m.id, m]))
+  // Un membre retiré n'apparaît dans le filtre que s'il garde des tâches (faites) dans ce projet.
+  const assigneeIds = new Set(tasks.map((t) => t.assignee_member_id).filter((id): id is string => id !== null))
 
   const setPerson = (value: string) => {
     const next = new URLSearchParams(searchParams)
@@ -100,11 +102,13 @@ export function TasksTab() {
         <Field label="Personne">
           <Select value={person ?? ''} onChange={(e) => setPerson(e.target.value)}>
             <option value="">Tout le monde</option>
-            {members.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.name}
-              </option>
-            ))}
+            {members
+              .filter((member) => member.removed_at === null || assigneeIds.has(member.id))
+              .map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.removed_at === null ? member.name : `${member.name} (retiré)`}
+                </option>
+              ))}
             <option value={PERSON_NONE}>Non attribuées</option>
           </Select>
         </Field>

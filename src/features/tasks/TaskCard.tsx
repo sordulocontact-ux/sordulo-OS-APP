@@ -1,3 +1,4 @@
+import { canBeAutoAssigned } from '../../shared/assignment'
 import type { DragEvent } from 'react'
 import { Avatar, Badge, Card, Select } from '../../components/ui'
 import { LABELS, TASK_STATUSES, type Member, type TaskStatus } from '../../shared/types'
@@ -101,7 +102,9 @@ export function TaskCard({
               onChange={(e) => onChangeAssignee(task, e.target.value || null)}
             >
               <option value="">Non attribuée</option>
-              {members.map((member) => (
+              {members
+                .filter((member) => canBeAutoAssigned(member) || member.id === task.assignee_member_id)
+                .map((member) => (
                 <option key={member.id} value={member.id}>
                   {member.name}
                 </option>

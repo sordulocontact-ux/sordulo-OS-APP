@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import briefcaseIcon from '../assets/icons/briefcase.svg'
+import handshakeIcon from '../assets/icons/handshake.svg'
+import settingsIcon from '../assets/icons/settings.svg'
+import usersIcon from '../assets/icons/users.svg'
 import sidebarIcon from '../assets/icons/sidebar.svg'
 import { Avatar, Button } from '../components/ui'
+import { ADMIN_ROLES, PROJECT_ROLES } from '../features/auth/roles'
 import { SetPasswordButton } from '../features/auth/SetPasswordButton'
 import { useAuth } from '../features/auth/useAuth'
 import { useCurrentMember } from '../features/auth/useCurrentMember'
@@ -10,13 +14,26 @@ import { DesktopRecordButton } from '../features/desktop/DesktopRecordButton'
 import { useIsDesktop } from '../lib/desktop'
 import styles from './AppLayout.module.css'
 
-const NAV = [{ to: '/', label: 'Projets', icon: briefcaseIcon, end: false }] as const
+/** Pages de la barre latérale et rôles qui les voient (prospection : son espace viendra plus tard). */
+const NAV = [
+  { to: '/', label: 'Projets', icon: briefcaseIcon, roles: PROJECT_ROLES },
+  { to: '/clients', label: 'Clients', icon: handshakeIcon, roles: PROJECT_ROLES },
+  { to: '/team', label: 'Équipe', icon: usersIcon, roles: ADMIN_ROLES },
+  { to: '/settings', label: 'Paramètres', icon: settingsIcon, roles: ADMIN_ROLES },
+] as const
+
+/** « Projets » (/) reste actif dans les pages d'un projet ; les autres suivent leur préfixe. */
+function isNavActive(to: string, pathname: string, isActive: boolean): boolean {
+  if (to === '/') return pathname === '/' || pathname.startsWith('/projects/')
+  return isActive
+}
 
 /** Barre latérale d'icônes (Figma « Sidebar ») + contenu de la page. */
 export function AppLayout() {
   const { signOut } = useAuth()
   const { member, organization } = useCurrentMember()
   const desktop = useIsDesktop()
+  const { pathname } = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -45,14 +62,15 @@ export function AppLayout() {
             <img src={sidebarIcon} alt="Sordulo OS" width={17} height={13} />
           </span>
           <nav aria-label="Navigation principale" className={styles.nav}>
-            {NAV.map((item) => (
+            {NAV.filter((item) => member !== null && item.roles.includes(member.role)).map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
-                end={item.end}
                 title={item.label}
                 aria-label={item.label}
-                className={({ isActive }) => [styles.navItem, isActive ? styles.navActive : ''].filter(Boolean).join(' ')}
+                className={({ isActive }) =>
+                  [styles.navItem, isNavActive(item.to, pathname, isActive) ? styles.navActive : ''].filter(Boolean).join(' ')
+                }
               >
                 <img src={item.icon} alt="" width={20} height={20} />
               </NavLink>

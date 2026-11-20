@@ -9,4 +9,9 @@ export const queryKeys = {
   tickets: (projectId: string) => ['tickets', projectId] as const,
   inputTickets: (inputId: string) => ['input-tickets', inputId] as const,
   tasks: (projectId: string) => ['tasks', projectId] as const,
+  clients: () => ['clients'] as const,
+  client: (clientId: string) => ['client', clientId] as const,
+  clientContacts: (clientId: string) => ['client-contacts', clientId] as const,
+  projectMembers: (projectId: string) => ['project-members', projectId] as const,
+  organization: (organizationId: string) => ['organization', organizationId] as const,
 }

@@ -10,6 +10,31 @@ import type { Member, Skill } from './types.js'
 
 export type AssignableMember = Pick<Member, 'id' | 'name' | 'skills'>
 
+/** Membre tel que lu pour choisir les candidats à l'attribution automatique. */
+export type CandidateMember = Pick<Member, 'id' | 'role' | 'removed_at'>
+
+/** Actif (pas retiré) et pas au rôle prospection : seul ce membre peut recevoir un ticket automatiquement. */
+export function canBeAutoAssigned(member: Pick<Member, 'role' | 'removed_at'>): boolean {
+  return member.removed_at === null && member.role !== 'prospection'
+}
+
+/**
+ * Candidats à l'attribution automatique d'un projet : les membres actifs hors prospection.
+ * Si le projet a des membres affectés (project_members), seulement ceux-là ; si aucun d'eux n'est
+ * attribuable (tous retirés ou en prospection), retour à toute l'équipe attribuable.
+ * Liste vide = les tickets restent sans personne.
+ */
+export function assignmentCandidates<T extends CandidateMember>(
+  members: readonly T[],
+  projectMemberIds: readonly string[],
+): T[] {
+  const eligible = members.filter(canBeAutoAssigned)
+  if (projectMemberIds.length === 0) return eligible
+  const onProject = new Set(projectMemberIds)
+  const restricted = eligible.filter((m) => onProject.has(m.id))
+  return restricted.length > 0 ? restricted : eligible
+}
+
 /** Heures d'avance accordées par ticket déjà fait sur la même partie… */
 export const FAMILIARITY_HOURS_PER_TICKET = 3
 /** …dans la limite de ce nombre de tickets (au-delà, l'habitude n'accélère plus). */

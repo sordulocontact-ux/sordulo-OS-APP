@@ -1,7 +1,13 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { LoginPage } from '../features/auth/LoginPage'
 import { MemberGate } from '../features/auth/MemberGate'
 import { RequireAuth } from '../features/auth/RequireAuth'
+import { RequireRole } from '../features/auth/RequireRole'
+import { ADMIN_ROLES, PROJECT_ROLES } from '../features/auth/roles'
+import { ClientPage } from '../features/clients/ClientPage'
+import { ClientsPage } from '../features/clients/ClientsPage'
+import { SettingsPage } from '../features/settings/SettingsPage'
+import { TeamPage } from '../features/team/TeamPage'
 import { DesktopPromptRoute } from '../features/desktop/DesktopPromptRoute'
 import { InputDetailPage } from '../features/inputs/InputDetailPage'
 import { InputsTab } from '../features/inputs/InputsTab'
@@ -27,15 +33,35 @@ export function AppRoutes() {
           </RequireAuth>
         }
       >
-        <Route path="/" element={<ProjectsPage />} />
-        <Route path="/projects/:projectId" element={<ProjectPage />}>
-          <Route index element={<Navigate to="tickets" replace />} />
-          <Route path="tickets" element={<TicketsTab />} />
-          <Route path="tasks" element={<TasksTab />} />
-          <Route path="inputs" element={<InputsTab />} />
+        <Route
+          element={
+            <RequireRole roles={PROJECT_ROLES}>
+              <Outlet />
+            </RequireRole>
+          }
+        >
+          <Route path="/" element={<ProjectsPage />} />
+          <Route path="/projects/:projectId" element={<ProjectPage />}>
+            <Route index element={<Navigate to="tickets" replace />} />
+            <Route path="tickets" element={<TicketsTab />} />
+            <Route path="tasks" element={<TasksTab />} />
+            <Route path="inputs" element={<InputsTab />} />
+          </Route>
+          <Route path="/projects/:projectId/inputs/:inputId" element={<InputDetailPage />} />
+          <Route path="/projects/:projectId/inputs/:inputId/review" element={<ReviewPage />} />
+          <Route path="/clients" element={<ClientsPage />} />
+          <Route path="/clients/:clientId" element={<ClientPage />} />
         </Route>
-        <Route path="/projects/:projectId/inputs/:inputId" element={<InputDetailPage />} />
-        <Route path="/projects/:projectId/inputs/:inputId/review" element={<ReviewPage />} />
+        <Route
+          element={
+            <RequireRole roles={ADMIN_ROLES}>
+              <Outlet />
+            </RequireRole>
+          }
+        >
+          <Route path="/team" element={<TeamPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+        </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

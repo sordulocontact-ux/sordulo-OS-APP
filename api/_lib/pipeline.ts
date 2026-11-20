@@ -6,6 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   addToWorkload,
   areaKey,
+  assignmentCandidates,
   emptyWorkload,
   pickTicketAssignee,
   ticketHours,
@@ -68,7 +69,8 @@ interface LoadedContext {
   input: Input
   project: Project
   client: Client | null
-  members: Member[]
+  /** Personnes qui peuvent recevoir un ticket (voir assignmentCandidates). */
+  candidates: Member[]
 }
 
 async function loadContext(admin: SupabaseClient, inputId: string): Promise<LoadedContext> {
@@ -82,19 +84,23 @@ async function loadContext(admin: SupabaseClient, inputId: string): Promise<Load
   if (!projectRes.data) throw new Error('projet introuvable.')
   const project = projectRes.data as Project
 
-  const [clientRes, membersRes] = await Promise.all([
+  const [clientRes, membersRes, projectMembersRes] = await Promise.all([
     project.client_id
       ? admin.from('clients').select('*').eq('id', project.client_id).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     admin.from('members').select('*').eq('organization_id', project.organization_id).order('name'),
+    admin.from('project_members').select('member_id').eq('project_id', project.id),
   ])
   if (clientRes.error) throw new Error(`lecture du client : ${clientRes.error.message}`)
   if (membersRes.error) throw new Error(`lecture des membres : ${membersRes.error.message}`)
+  if (projectMembersRes.error) throw new Error(`lecture des membres du projet : ${projectMembersRes.error.message}`)
+  const members = (membersRes.data as Member[] | null) ?? []
+  const projectMemberIds = ((projectMembersRes.data as { member_id: string }[] | null) ?? []).map((row) => row.member_id)
   return {
     input,
     project,
     client: (clientRes.data as Client | null) ?? null,
-    members: (membersRes.data as Member[] | null) ?? [],
+    candidates: assignmentCandidates(members, projectMemberIds),
   }
 }
 
@@ -202,12 +208,13 @@ async function saveTickets(
   workload: TeamWorkload,
 ): Promise<{ tickets: number; tasks: number }> {
   if (tickets.length === 0) return { tickets: 0, tasks: 0 }
-  const { input, project, members } = ctx
+  const { input, project, candidates } = ctx
 
   // Un ticket = une personne : la moins chargée, avec un bonus d'habitude sur la même partie.
   // La charge augmente au fil des tickets de cette analyse, pour les répartir.
+  // Aucun candidat (équipe vide, tous retirés ou en prospection) : tickets et tâches sans personne.
   const assignments = tickets.map((t) => {
-    const picked = pickTicketAssignee(members, { area: t.area }, workload)
+    const picked = pickTicketAssignee(candidates, { area: t.area }, workload)
     if (picked) addToWorkload(workload, picked.member.id, ticketHours(t.tasks), t.area)
     return picked
   })

@@ -8,6 +8,8 @@ export const SERVER_ENV_NAMES = [
   'TRANSCRIPTION_API_KEY',
   'MISTRAL_API_KEY',
   'MISTRAL_MODEL',
+  /** Optionnelle : adresse publique de l'app (ex. https://os.sordulo.fr), cible des liens de connexion. */
+  'APP_URL',
 ] as const
 export type ServerEnvName = (typeof SERVER_ENV_NAMES)[number]
 

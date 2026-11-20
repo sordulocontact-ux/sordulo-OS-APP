@@ -3,7 +3,7 @@
  * Every request carries `Authorization: Bearer <supabase access token>`.
  * Errors: non-2xx with body { error: string } (French, shown to the user).
  */
-import type { Input } from './types.js'
+import type { Input, Member, MemberRole } from './types.js'
 
 /** POST /api/inputs/create — written feedback: creates the input and starts the analysis. */
 export interface CreateWrittenInputRequest {
@@ -87,3 +87,38 @@ export interface ApiError {
 /** Supabase Free: 50 MB max per file (checked in the Storage settings). */
 export const AUDIO_MAX_BYTES = 50 * 1024 * 1024
 export const AUDIO_BUCKET = 'audio'
+
+/**
+ * POST /api/members/invite — réservé aux admins de l'organisation.
+ * Crée le membre (ou refuse si l'email existe déjà dans l'organisation : 409), crée son compte de connexion
+ * s'il n'existe pas, puis renvoie un lien de connexion à usage unique à copier et envoyer soi-même
+ * (aucun email n'est envoyé). Le lien expire selon le réglage Supabase (1 h par défaut).
+ */
+export interface InviteMemberRequest {
+  organizationId: string
+  name: string
+  email: string
+  role: MemberRole
+}
+
+export interface InviteMemberResponse {
+  member: Member
+  /**
+   * Lien de connexion à usage unique, ou null quand l'email a déjà un compte qui s'est connecté :
+   * le membre est alors relié à ce compte et se connecte comme d'habitude (aucun lien n'est généré,
+   * pour qu'un admin n'obtienne jamais un accès au compte existant de quelqu'un d'autre).
+   */
+  link: string | null
+}
+
+/**
+ * POST /api/members/link — réservé aux admins. Nouveau lien de connexion pour un membre actif
+ * qui ne s'est encore jamais connecté (lien d'invitation expiré ou perdu). 409 s'il s'est déjà connecté.
+ */
+export interface MemberLinkRequest {
+  memberId: string
+}
+
+export interface MemberLinkResponse {
+  link: string
+}

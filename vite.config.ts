@@ -20,6 +20,12 @@ export default defineConfig(({ mode }) => {
       // pendant que les fenêtres de l'app bureau rechargent tout le front en même temps.
       warmup: { ssrFiles: ['./api/**/!(*.test).ts'] },
     },
-    test: { include: ['src/**/*.test.ts', 'api/**/*.test.ts'], environment: 'node' },
+    test: {
+      include: ['src/**/*.test.ts', 'api/**/*.test.ts', 'supabase/**/*.test.ts'],
+      environment: 'node',
+      // Tests RLS (supabase/tests) : démarrer PGlite et appliquer les migrations prend quelques secondes.
+      hookTimeout: 60_000,
+      testTimeout: 30_000,
+    },
   }
 })

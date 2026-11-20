@@ -7,6 +7,10 @@ import type {
   CreateInputResponse,
   DeleteInputRequest,
   DeleteInputResponse,
+  InviteMemberRequest,
+  InviteMemberResponse,
+  MemberLinkRequest,
+  MemberLinkResponse,
   ProcessInputRequest,
   ProcessInputResponse,
 } from '../shared/api-contract'
@@ -50,4 +54,9 @@ export const api = {
     post<ProcessInputRequest, ProcessInputResponse>('/api/inputs/process', body),
   deleteInput: (body: DeleteInputRequest) => post<DeleteInputRequest, DeleteInputResponse>('/api/inputs/delete', body),
   audioUrl: (body: AudioUrlRequest) => post<AudioUrlRequest, AudioUrlResponse>('/api/inputs/audio-url', body),
+  /** Admins : ajoute un membre et renvoie son lien de connexion à usage unique (409 si l'email existe déjà). */
+  inviteMember: (body: InviteMemberRequest) =>
+    post<InviteMemberRequest, InviteMemberResponse>('/api/members/invite', body),
+  /** Admins : nouveau lien de connexion pour un membre actif jamais connecté (409 sinon). */
+  memberLink: (body: MemberLinkRequest) => post<MemberLinkRequest, MemberLinkResponse>('/api/members/link', body),
 }

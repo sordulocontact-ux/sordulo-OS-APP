@@ -19,9 +19,10 @@ export async function requireUser(request: Request): Promise<AuthUser> {
 }
 
 /**
- * Returns the member of `organizationId` linked to the user, or throws HttpError(403).
- * If no member is linked yet but a member of this organization has the user's email
- * and no user_id, it is linked now (first login).
+ * Returns the active member of `organizationId` linked to the user, or throws HttpError(403).
+ * If no member is linked yet but an active member of this organization has the user's email
+ * and no user_id, it is linked now (first login). A removed member (`removed_at` set) is never
+ * returned nor linked: he no longer has access.
  */
 export async function requireOrgMember(user: AuthUser, organizationId: string): Promise<Member> {
   const admin = getSupabaseAdmin()
@@ -30,6 +31,7 @@ export async function requireOrgMember(user: AuthUser, organizationId: string): 
     .select('*')
     .eq('organization_id', organizationId)
     .eq('user_id', user.id)
+    .is('removed_at', null)
     .limit(1)
     .maybeSingle()
   if (linked.error) throw new Error(`Lecture des membres impossible : ${linked.error.message}`)
@@ -45,6 +47,7 @@ export async function requireOrgMember(user: AuthUser, organizationId: string): 
     .select('*')
     .eq('organization_id', organizationId)
     .is('user_id', null)
+    .is('removed_at', null)
   if (unlinked.error) throw new Error(`Lecture des membres impossible : ${unlinked.error.message}`)
   const candidate = (unlinked.data as Member[]).find((m) => m.email.trim().toLowerCase() === email)
   if (!candidate) throw forbidden
@@ -54,10 +57,18 @@ export async function requireOrgMember(user: AuthUser, organizationId: string): 
     .update({ user_id: user.id })
     .eq('id', candidate.id)
     .is('user_id', null)
+    .is('removed_at', null)
     .select('*')
     .maybeSingle()
   if (claimed.error) throw new Error(`Liaison du compte impossible : ${claimed.error.message}`)
   if (!claimed.data) throw forbidden
   console.log(`[auth] compte lié au membre ${candidate.id}`)
   return claimed.data as Member
+}
+
+/** Like requireOrgMember, but the member must also be an admin of the organization. Throws HttpError(403). */
+export async function requireOrgAdmin(user: AuthUser, organizationId: string): Promise<Member> {
+  const member = await requireOrgMember(user, organizationId)
+  if (member.role !== 'admin') throw new HttpError(403, "Accès refusé : réservé aux admins de l'organisation.")
+  return member
 }

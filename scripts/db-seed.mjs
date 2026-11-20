@@ -65,7 +65,7 @@ async function main() {
 
     await client.query(
       `insert into public.projects (id, organization_id, client_id, name, status)
-       values ($1, $2, $3, 'App Ibé', 'active')
+       values ($1, $2, $3, 'App Ibé', 'in_progress')
        on conflict (id) do update set
          client_id = excluded.client_id,
          name = excluded.name,

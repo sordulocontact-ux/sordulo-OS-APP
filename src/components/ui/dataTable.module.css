@@ -1,0 +1,96 @@
+/*
+ * Styles partagés des pages de liste (Figma « Projet ») : barre d'outils, tableau bordé, ligne cliquable,
+ * pastille de statut. À importer tel quel dans une page de liste (comme formControl.module.css pour les champs).
+ */
+
+/* Page de liste : titre, barre d'outils, tableau. */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.page > h1 {
+  margin-bottom: var(--space-3);
+}
+
+/* Recherche (prend la place restante), filtres, action principale à droite. */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.toolbar > :first-child {
+  flex: 1 1 16rem;
+}
+
+/* Tableau bordé, en-tête gris, séparateurs de colonnes discrets. */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  border: var(--size-border) solid var(--color-border);
+  background: var(--color-surface);
+  table-layout: fixed;
+}
+
+.table th,
+.table td {
+  padding: var(--space-4);
+  border-bottom: var(--size-border) solid var(--color-border);
+  border-right: var(--size-border) solid var(--color-border-subtle);
+  font-weight: var(--font-weight-medium);
+  text-align: left;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.table th:last-child,
+.table td:last-child {
+  border-right: 0;
+}
+
+.table th {
+  background: var(--color-surface-muted);
+}
+
+.row {
+  position: relative;
+}
+
+.row:hover {
+  background: var(--color-surface-muted);
+}
+
+/* Lien principal de la ligne : toute la ligne devient cliquable. */
+.rowLink {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.rowLink::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.row:hover .rowLink {
+  text-decoration: underline;
+}
+
+.rowLink:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* Texte secondaire dans une cellule (email, date…). */
+.muted {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+/* Ligne d'un élément archivé ou retiré. */
+.inactive {
+  color: var(--color-text-subtle);
+}

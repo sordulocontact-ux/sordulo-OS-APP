@@ -45,6 +45,9 @@
   --color-info-soft: #ebf8ff;
   --color-info-pill: rgb(32 89 202 / 0.18);
   --color-info-dot: #a2ccff;
+  /* Pastilles de statut de projet (V0.2) : même clarté que --color-info-dot. Absentes du Figma, à valider par Sacha. */
+  --color-success-dot: #9fdf9c;
+  --color-warning-dot: #f2c98c;
 
   /* Color — statut « pas commencé » (colonnes et pastilles) */
   --color-idle: #828282;
