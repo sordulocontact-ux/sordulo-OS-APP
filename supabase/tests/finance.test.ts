@@ -111,12 +111,12 @@ describe('0004 : schéma', () => {
   it('a les colonnes de src/shared/types.ts', async () => {
     const expected: Record<string, string[]> = {
       quotes: [
-        'id', 'organization_id', 'client_id', 'project_id', 'number', 'title', 'status', 'issue_date', 'valid_until',
+        'id', 'organization_id', 'client_id', 'project_id', 'issuer_id', 'number', 'title', 'status', 'issue_date', 'valid_until',
         'lines', 'notes', 'total_ht_cents', 'total_vat_cents', 'total_ttc_cents', 'sent_at', 'accepted_at',
         'refused_at', 'created_by', 'created_at', 'updated_at',
       ],
       invoices: [
-        'id', 'organization_id', 'client_id', 'project_id', 'quote_id', 'kind', 'status', 'number', 'title',
+        'id', 'organization_id', 'client_id', 'project_id', 'quote_id', 'issuer_id', 'kind', 'status', 'number', 'title',
         'issue_date', 'due_date', 'lines', 'notes', 'deposit_percent', 'credited_invoice_id', 'seller', 'buyer',
         'total_ht_cents', 'total_vat_cents', 'total_ttc_cents', 'issued_at', 'paid_at', 'cancelled_at', 'created_by',
         'created_at', 'updated_at',
@@ -235,7 +235,7 @@ describe('0004 : devis', () => {
     )
     expect(quote).toMatchObject({
       ...TWO_RATES_TOTALS,
-      number: 'D-2026-001',
+      number: '2026-001', // AAAA-NNN depuis la 0005 (D-AAAA-NNN avant)
       organization_id: ORG_A,
       created_by: FIN_A.member,
       status: 'draft',
@@ -254,20 +254,20 @@ describe('0004 : devis', () => {
       [quote!.id, JSON.stringify([line('Demi-centime', 0.5, 'unit', 1, 20)])],
     )
     // round(0,5) = 1 (demi vers l'extérieur) ; TVA round(0,2) = 0.
-    expect(updated).toMatchObject({ total_ht_cents: 1, total_vat_cents: 0, total_ttc_cents: 1, number: 'D-2026-001' })
+    expect(updated).toMatchObject({ total_ht_cents: 1, total_vat_cents: 0, total_ttc_cents: 1, number: '2026-001' })
 
     const second = await q<Doc>(
       FIN_A,
       `insert into public.quotes (client_id, title, issue_date) values ($1, 'Autre', '2026-05-01') returning *`,
       [CLIENT_A_FULL],
     )
-    expect(second[0]?.number).toBe('D-2026-002')
+    expect(second[0]?.number).toBe('2026-002')
     const otherYear = await q<Doc>(
       FIN_A,
       `insert into public.quotes (client_id, title, issue_date) values ($1, 'Autre', '2027-01-02') returning *`,
       [CLIENT_A_FULL],
     )
-    expect(otherYear[0]?.number).toBe('D-2027-001')
+    expect(otherYear[0]?.number).toBe('2027-001')
   })
 
   it('refuse des lignes invalides', async () => {
@@ -321,7 +321,8 @@ describe('0004 : devis', () => {
 })
 
 describe('0004 : factures', () => {
-  it('numérotation continue F-…-0001, 0002, avoir A-…-0001, vendeur et acheteur figés', async () => {
+  // Depuis la 0005 : AAAA-NNN, une seule série pour factures, acomptes et avoirs (ici sans émetteur).
+  it('numérotation continue …-001, 002, avoir …-003, vendeur et acheteur figés', async () => {
     const year = await parisYear()
     const first = await newInvoice()
     const second = await newInvoice(null, 'deposit')
@@ -330,8 +331,8 @@ describe('0004 : factures', () => {
 
     const issued1 = await issue(first.id)
     const issued2 = await issue(second.id, ADMIN_A1)
-    expect(issued1.number).toBe(`F-${year}-0001`)
-    expect(issued2.number).toBe(`F-${year}-0002`)
+    expect(issued1.number).toBe(`${year}-001`)
+    expect(issued2.number).toBe(`${year}-002`)
     expect(issued1).toMatchObject({ status: 'issued', ...TWO_RATES_TOTALS })
     expect(issued1.seller).toMatchObject({ name: 'Sordulo', legal_name: 'Sordulo SAS', siret: '73282932000074', bank_bic: 'AGRIFRPP' })
     expect(issued1.buyer).toMatchObject({
@@ -357,10 +358,10 @@ describe('0004 : factures', () => {
 
     const [credit] = await q<Doc & Record<string, unknown>>(FIN_A, `select * from public.create_credit_note($1)`, [first.id])
     expect(credit).toMatchObject({
-      number: `A-${year}-0001`,
+      number: `${year}-003`,
       kind: 'credit_note',
       status: 'issued',
-      title: `Avoir sur F-${year}-0001`,
+      title: `Avoir sur ${year}-001`,
       credited_invoice_id: first.id,
       total_ht_cents: -151830,
       total_vat_cents: -25532,
@@ -383,7 +384,7 @@ describe('0004 : factures', () => {
 
     // La facture suivante continue la série.
     const third = await issue((await newInvoice()).id)
-    expect(third.number).toBe(`F-${year}-0003`)
+    expect(third.number).toBe(`${year}-004`)
   })
 
   it('émission refusée sans ligne, sans droit, ou depuis une autre organisation', async () => {

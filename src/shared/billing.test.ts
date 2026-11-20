@@ -19,10 +19,11 @@ import {
   parseVatRate,
   quoteDisplayStatus,
   roundHalfAwayFromZero,
+  sellerFromIssuer,
   validateInvoiceLines,
   validateLines,
 } from './billing.js'
-import type { DocumentLine, Invoice, Quote } from './types.js'
+import type { BillingIssuer, DocumentLine, Invoice, Quote } from './types.js'
 
 function line(over: Partial<DocumentLine> = {}): DocumentLine {
   return { label: 'Design', description: null, quantity: 1, unit: 'day', unit_price_cents: 10000, vat_rate: 20, ...over }
@@ -338,6 +339,7 @@ describe('invoicesCsv', () => {
     client_id: 'c1',
     project_id: null,
     quote_id: null,
+    issuer_id: null,
     kind: 'invoice',
     status: 'paid',
     number: 'F-2026-0001',
@@ -379,5 +381,26 @@ describe('invoicesCsv', () => {
     const row = csv.trimEnd().split('\r\n')[1] ?? ''
     expect(row).toContain(';-10,00;-2,00;-12,00;Émise;')
     expect(row).toContain(`"'=HYPERLINK(""x"")"`)
+  })
+})
+
+describe('sellerFromIssuer', () => {
+  const issuer: BillingIssuer = {
+    id: 'e1', organization_id: 'o', member_id: null, display_name: 'Sacha Moricet', legal_name: 'Sacha Moricet EI',
+    legal_form: 'Micro-entreprise / EI', siret: '73282932000074', address_street: '1 rue A', address_postal_code: '75001',
+    address_city: 'Paris', address_country: 'France', vat_mention: 'TVA non applicable, art. 293 B du CGI', vat_number: null,
+    bank_iban: 'FR7630006000011234567890189', bank_bic: 'BNPAFRPP', email: 'sacha@example.fr', phone: '0102030405',
+    is_default: true, archived_at: null, created_at: '', updated_at: '',
+  }
+  it('reprend les champs de l’émetteur, nom affiché compris', () => {
+    expect(sellerFromIssuer(issuer)).toEqual({
+      name: 'Sacha Moricet', legal_name: 'Sacha Moricet EI', legal_form: 'Micro-entreprise / EI', siret: '73282932000074',
+      address_street: '1 rue A', address_postal_code: '75001', address_city: 'Paris', address_country: 'France',
+      vat_mention: 'TVA non applicable, art. 293 B du CGI', bank_iban: 'FR7630006000011234567890189', bank_bic: 'BNPAFRPP',
+      vat_number: null, email: 'sacha@example.fr', phone: '0102030405',
+    })
+  })
+  it('garde le n° de TVA saisi', () => {
+    expect(sellerFromIssuer({ ...issuer, vat_number: 'FR12345678901' }).vat_number).toBe('FR12345678901')
   })
 })

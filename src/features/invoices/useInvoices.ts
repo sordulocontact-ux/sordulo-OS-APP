@@ -99,6 +99,8 @@ export interface NewInvoiceFields {
   title: string
   lines: DocumentLine[]
   notes?: string | null
+  /** null : la base met l'émetteur par défaut. */
+  issuerId?: string | null
 }
 
 export function useCreateInvoiceDraft() {
@@ -116,6 +118,7 @@ export function useCreateInvoiceDraft() {
           title: fields.title,
           lines: fields.lines,
           notes: fields.notes ?? null,
+          ...(fields.issuerId ? { issuer_id: fields.issuerId } : {}),
         })
         .select()
         .overrideTypes<Invoice[], { merge: false }>()
@@ -132,6 +135,8 @@ export interface DraftFields {
   title: string
   lines: DocumentLine[]
   notes: string | null
+  /** Seulement quand l'émetteur change. */
+  issuer_id?: string
 }
 
 export function useSaveInvoiceDraft(invoice: Pick<Invoice, 'id' | 'project_id'>) {

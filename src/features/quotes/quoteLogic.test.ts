@@ -26,7 +26,7 @@ function quote(over: Partial<QuoteWithLinks>): QuoteWithLinks {
     id: 'q', organization_id: 'o', client_id: 'c1', project_id: null, number: 'D-2026-001', title: 'Site vitrine',
     status: 'draft', issue_date: '2026-11-01', valid_until: null, lines: [line], notes: null,
     total_ht_cents: 0, total_vat_cents: 0, total_ttc_cents: 0, sent_at: null, accepted_at: null, refused_at: null,
-    created_by: null, created_at: '2026-11-01T10:00:00Z', updated_at: '2026-11-01T10:00:00Z',
+    issuer_id: null, created_by: null, created_at: '2026-11-01T10:00:00Z', updated_at: '2026-11-01T10:00:00Z',
     client: { id: 'c1', name: 'Ibé' }, project: null,
     ...over,
   }
@@ -50,6 +50,11 @@ describe('filterQuotes', () => {
   it('filtre « Expiré » sur le statut affiché', () => {
     expect(filterQuotes(all, { ...none, status: 'expired' }, TODAY).map((q) => q.id)).toEqual(['b'])
     expect(filterQuotes(all, { ...none, status: 'sent' }, TODAY).map((q) => q.id)).toEqual(['a'])
+  })
+  it('filtre par émetteur', () => {
+    const list = [quote({ id: 'x', issuer_id: 'e1' }), quote({ id: 'y', issuer_id: 'e2' }), quote({ id: 'z' })]
+    expect(filterQuotes(list, { ...none, issuerId: 'e2' }, TODAY).map((q) => q.id)).toEqual(['y'])
+    expect(filterQuotes(list, { ...none, issuerId: '' }, TODAY)).toHaveLength(3)
   })
   it('filtre par client', () => expect(filterQuotes(all, { ...none, clientId: 'c2' }, TODAY).map((q) => q.id)).toEqual(['b']))
 })

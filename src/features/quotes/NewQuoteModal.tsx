@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { Button, Field, Modal, Select, TextInput, useToast } from '../../components/ui'
 import { useCurrentMember } from '../auth/useCurrentMember'
+import { activeIssuers, defaultIssuerId, showIssuerSelect } from '../settings/issuerLogic'
+import { useIssuers } from '../settings/useIssuers'
 import { quoteErrorText } from './quoteLogic'
 import { useClientProjectOptions, useCreateQuote, useQuoteClients } from './useQuotes'
 import styles from './quotes.module.css'
@@ -24,9 +26,14 @@ export function NewQuoteModal({ open, onClose, initialClientId = '', initialProj
   const [clientId, setClientId] = useState(initialClientId)
   const [projectId, setProjectId] = useState(initialProjectId)
   const [title, setTitle] = useState('')
+  const [pickedIssuerId, setPickedIssuerId] = useState('')
   const [showErrors, setShowErrors] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const projects = useClientProjectOptions(clientId)
+  const issuers = useIssuers(organization?.id)
+  const issuerChoices = activeIssuers(issuers.data ?? [])
+  // Émetteur par défaut tant que rien n'est choisi ; aucun émetteur lisible : la base décide.
+  const issuerId = issuerChoices.some((i) => i.id === pickedIssuerId) ? pickedIssuerId : defaultIssuerId(issuerChoices)
 
   const clientError = showErrors && clientId === '' ? 'Choisis un client.' : null
   const titleError = showErrors && title.trim() === '' ? 'Donne un titre au devis.' : null
@@ -43,6 +50,7 @@ export function NewQuoteModal({ open, onClose, initialClientId = '', initialProj
         clientId,
         projectId: projectId === '' ? null : projectId,
         title: title.trim(),
+        issuerId: issuerId === '' ? null : issuerId,
       })
       toast.success('Devis créé')
       onCreated(quote.id)
@@ -98,6 +106,17 @@ export function NewQuoteModal({ open, onClose, initialClientId = '', initialProj
         <Field label="Titre" error={titleError}>
           <TextInput value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Refonte du site vitrine" />
         </Field>
+        {showIssuerSelect(issuerChoices) ? (
+          <Field label="Émetteur" hint="L’entité qui émet le devis puis les factures.">
+            <Select value={issuerId} onChange={(e) => setPickedIssuerId(e.target.value)}>
+              {issuerChoices.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.display_name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
         {clients.isError ? <p className={styles.error}>Impossible de charger les clients.</p> : null}
         {error ? (
           <p className={styles.error} role="alert">

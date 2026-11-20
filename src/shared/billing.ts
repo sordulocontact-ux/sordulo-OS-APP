@@ -7,6 +7,7 @@
  */
 import {
   LABELS,
+  type BillingIssuer,
   type Client,
   type ClientContact,
   type DocumentLine,
@@ -371,6 +372,26 @@ export function sellerFromOrganization(org: Organization): InvoiceSeller {
     vat_mention: org.vat_mention,
     bank_iban: org.bank_iban,
     bank_bic: org.bank_bic,
+  }
+}
+
+/** Vendeur d'un document dont l'émetteur est une entité de facturation (micro-entreprise…) ; même forme que `issue_invoice`. */
+export function sellerFromIssuer(issuer: BillingIssuer): InvoiceSeller {
+  return {
+    name: issuer.display_name,
+    legal_name: issuer.legal_name,
+    legal_form: issuer.legal_form,
+    siret: issuer.siret,
+    address_street: issuer.address_street,
+    address_postal_code: issuer.address_postal_code,
+    address_city: issuer.address_city,
+    address_country: issuer.address_country,
+    vat_mention: issuer.vat_mention,
+    bank_iban: issuer.bank_iban,
+    bank_bic: issuer.bank_bic,
+    vat_number: issuer.vat_number,
+    email: issuer.email,
+    phone: issuer.phone,
   }
 }
 

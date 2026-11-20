@@ -64,9 +64,10 @@ export interface InvoiceFilters {
   status: InvoiceDisplayStatus | ''
   kind: InvoiceKind | ''
   clientId: string
+  issuerId: string
 }
 
-export const EMPTY_FILTERS: InvoiceFilters = { query: '', status: '', kind: '', clientId: '' }
+export const EMPTY_FILTERS: InvoiceFilters = { query: '', status: '', kind: '', clientId: '', issuerId: '' }
 
 export function filtersFromParams(params: URLSearchParams): InvoiceFilters {
   const status = params.get('statut') ?? ''
@@ -76,6 +77,7 @@ export function filtersFromParams(params: URLSearchParams): InvoiceFilters {
     status: (DISPLAY_STATUSES as readonly string[]).includes(status) ? (status as InvoiceDisplayStatus) : '',
     kind: (INVOICE_KINDS as readonly string[]).includes(kind) ? (kind as InvoiceKind) : '',
     clientId: params.get('client') ?? '',
+    issuerId: params.get('emetteur') ?? '',
   }
 }
 
@@ -90,11 +92,12 @@ export function filtersToParams(filters: InvoiceFilters, base: URLSearchParams =
   set('statut', filters.status)
   set('type', filters.kind)
   set('client', filters.clientId)
+  set('emetteur', filters.issuerId)
   return next
 }
 
 export function activeFilterCount(filters: InvoiceFilters): number {
-  return (filters.status !== '' ? 1 : 0) + (filters.kind !== '' ? 1 : 0) + (filters.clientId !== '' ? 1 : 0)
+  return (filters.status !== '' ? 1 : 0) + (filters.kind !== '' ? 1 : 0) + (filters.clientId !== '' ? 1 : 0) + (filters.issuerId !== '' ? 1 : 0)
 }
 
 function normalize(value: string): string {
@@ -112,6 +115,7 @@ export function matchesInvoice(invoice: InvoiceRow, filters: InvoiceFilters, tod
   if (filters.status !== '' && invoiceDisplayStatus(invoice, today) !== filters.status) return false
   if (filters.kind !== '' && invoice.kind !== filters.kind) return false
   if (filters.clientId !== '' && invoice.client_id !== filters.clientId) return false
+  if (filters.issuerId !== '' && invoice.issuer_id !== filters.issuerId) return false
   const q = normalize(filters.query)
   if (q === '') return true
   return [invoice.number ?? '', invoice.title, invoice.client?.name ?? ''].some((v) => normalize(v).includes(q))
@@ -198,6 +202,7 @@ export function issueCheck(input: {
   lineErrors: readonly LineErrors[]
   totalError?: string | null
   client: Pick<Client, 'billing_street' | 'billing_postal_code' | 'billing_city'> | null
+  /** Émetteur du document, à défaut l'organisation : c'est lui qui figure comme vendeur. */
   organization: Pick<Organization, 'siret' | 'legal_name'> | null
 }): IssueCheck {
   const blockers: IssueCheck['blockers'] = []
@@ -215,7 +220,7 @@ export function issueCheck(input: {
   if (!org || !org.siret?.trim() || !org.legal_name?.trim()) {
     warnings.push({
       code: 'legal',
-      message: 'Le SIRET ou la raison sociale de ton organisation manque : ils figureront en blanc sur la facture.',
+      message: 'Le SIRET ou la raison sociale de l’émetteur manque : ils figureront en blanc sur la facture.',
     })
   }
   return { blockers, warnings }

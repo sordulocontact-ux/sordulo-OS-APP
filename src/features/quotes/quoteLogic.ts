@@ -35,6 +35,8 @@ export interface QuoteFilters {
   query: string
   status: QuoteDisplayStatus | ''
   clientId: string
+  /** Émetteur du devis ; absent ou vide = tous. */
+  issuerId?: string
 }
 
 function normalize(value: string): string {
@@ -45,12 +47,13 @@ function normalize(value: string): string {
     .trim()
 }
 
-/** Recherche par numéro, titre ou client ; filtres statut (affiché) et client. */
+/** Recherche par numéro, titre ou client ; filtres statut (affiché), client et émetteur. */
 export function filterQuotes(quotes: readonly QuoteWithLinks[], filters: QuoteFilters, today: string): QuoteWithLinks[] {
   const query = normalize(filters.query)
   return quotes.filter((q) => {
     if (filters.status && quoteDisplayStatus(q, today) !== filters.status) return false
     if (filters.clientId && q.client_id !== filters.clientId) return false
+    if (filters.issuerId && q.issuer_id !== filters.issuerId) return false
     if (!query) return true
     return [q.number, q.title, q.client?.name ?? ''].some((text) => normalize(text).includes(query))
   })

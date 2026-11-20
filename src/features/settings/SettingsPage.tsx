@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase'
 import { queryKeys } from '../../lib/queryKeys'
 import type { Organization } from '../../shared/types'
 import { buildPatch, formatIban, isZeroVat, LEGAL_FORMS, toForm, type SettingsErrors, type SettingsForm } from './settingsLogic'
+import { IssuersCard } from './IssuersCard'
 import styles from './SettingsPage.module.css'
 
 function useOrganization(organizationId: string | undefined) {
@@ -37,7 +38,10 @@ export function SettingsPage() {
       ) : isError || !data ? (
         <ErrorState message="Impossible de charger les paramètres." onRetry={() => void refetch()} />
       ) : (
-        <SettingsForm key={data.id} organization={data} />
+        <>
+          <SettingsForm key={data.id} organization={data} />
+          <IssuersCard organizationId={data.id} />
+        </>
       )}
     </section>
   )

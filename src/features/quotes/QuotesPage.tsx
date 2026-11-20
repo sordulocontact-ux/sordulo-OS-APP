@@ -17,6 +17,8 @@ import {
 } from '../../components/ui'
 import plusIcon from '../../assets/icons/plus.svg'
 import { formatDate, formatMoney, quoteDisplayStatus, todayIso } from '../../shared/billing'
+import { issuerName } from '../settings/issuerLogic'
+import { useIssuers } from '../settings/useIssuers'
 import { NewQuoteModal } from './NewQuoteModal'
 import {
   canDeleteQuote,
@@ -41,6 +43,7 @@ export function QuotesPage() {
   const { member, organization } = useCurrentMember()
   const { data, isLoading, isError, refetch } = useQuotes()
   const clients = useQuoteClients()
+  const issuers = useIssuers(organization?.id).data ?? []
   const duplicate = useDuplicateQuote()
   const remove = useDeleteQuote()
   const [params, setParams] = useSearchParams()
@@ -49,6 +52,7 @@ export function QuotesPage() {
 
   const status = parseStatusParam(params.get('statut'))
   const clientId = params.get('client') ?? ''
+  const issuerId = params.get('emetteur') ?? ''
   // `?nouveau=1` ou `?project=` : ouvre la modale de création (client et projet pré-remplis).
   const creating = params.has('nouveau') || params.has('project')
   const today = todayIso()
@@ -72,8 +76,8 @@ export function QuotesPage() {
   }
 
   const visible = useMemo(
-    () => sortQuotes(filterQuotes(data ?? [], { query, status, clientId }, today)),
-    [data, query, status, clientId, today],
+    () => sortQuotes(filterQuotes(data ?? [], { query, status, clientId, issuerId }, today)),
+    [data, query, status, clientId, issuerId, today],
   )
   const stats = useMemo(() => quoteStats(data ?? [], today), [data, today])
 
@@ -118,11 +122,12 @@ export function QuotesPage() {
       ) : null}
       <ListToolbar
         search={{ value: query, onChange: setQuery, label: 'Rechercher un devis', placeholder: 'Numéro, titre, client' }}
-        activeFilterCount={(status !== '' ? 1 : 0) + (clientId !== '' ? 1 : 0)}
+        activeFilterCount={(status !== '' ? 1 : 0) + (clientId !== '' ? 1 : 0) + (issuerId !== '' ? 1 : 0)}
         onResetFilters={() => {
           const next = new URLSearchParams(params)
           next.delete('statut')
           next.delete('client')
+          next.delete('emetteur')
           setParams(next, { replace: true })
         }}
         onAdd={openCreate}
@@ -139,6 +144,18 @@ export function QuotesPage() {
                 ))}
               </Select>
             </Field>
+            {issuers.length > 1 ? (
+              <Field label="Émetteur">
+                <Select value={issuerId} onChange={(e) => setParam('emetteur', e.target.value)}>
+                  <option value="">Tous les émetteurs</option>
+                  {issuers.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.display_name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
             <Field label="Client">
               <Select value={clientId} onChange={(e) => setParam('client', e.target.value)}>
                 <option value="">Tous les clients</option>
@@ -187,7 +204,10 @@ export function QuotesPage() {
                         <Link to={`/quotes/${quote.id}`} className={table.rowLink}>
                           {quote.title}
                         </Link>
-                        <span className={table.secondLine}>{quote.number}</span>
+                        <span className={table.secondLine}>
+                          {quote.number}
+                          {issuers.length > 1 && issuerName(issuers, quote.issuer_id) ? ` · ${issuerName(issuers, quote.issuer_id)}` : ''}
+                        </span>
                       </span>
                     </td>
                     <td>{quote.client?.name ?? <span className={table.muted}>Client inconnu</span>}</td>

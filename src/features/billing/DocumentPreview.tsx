@@ -66,7 +66,7 @@ export function DocumentPreview({
   const mentions = legalMentions({ kind, seller, dueDate, issueDate, validUntil, vatTotal: shown.total_vat_cents })
   const sellerName = sellerDisplayName(seller)
   const withVat = shown.total_vat_cents !== 0
-  const sellerVat = withVat ? frenchVatNumber(seller.siret) : null
+  const sellerVat = withVat ? seller.vat_number?.trim() || frenchVatNumber(seller.siret) : null
   const buyerVat = withVat ? frenchVatNumber(buyer.siret) : null
   const sellerAddress = addressLines({
     street: seller.address_street,
@@ -92,6 +92,8 @@ export function DocumentPreview({
             ))}
             {seller.siret ? <p>SIRET : {formatSiret(seller.siret)}</p> : null}
             {sellerVat ? <p>N° TVA : {sellerVat}</p> : null}
+            {seller.email ? <p>{seller.email}</p> : null}
+            {seller.phone ? <p>{seller.phone}</p> : null}
           </div>
           <div className={styles.meta}>
             <h2 className={styles.kind}>{KIND_TITLE[kind]}</h2>

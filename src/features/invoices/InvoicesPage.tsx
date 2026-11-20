@@ -40,6 +40,9 @@ import {
   type InvoiceFilters,
   type InvoiceRow,
 } from './invoiceLogic'
+import { issuerName } from '../settings/issuerLogic'
+import { useIssuers } from '../settings/useIssuers'
+import { useCurrentMember } from '../auth/useCurrentMember'
 import { NewInvoiceModal } from './NewInvoiceModal'
 import { useDeleteInvoice, useInvoices, useSetInvoicePaid } from './useInvoices'
 import table from '../../components/ui/dataTable.module.css'
@@ -61,6 +64,8 @@ export function InvoicesPage() {
   const toast = useToast()
   const [params, setParams] = useSearchParams()
   const { data, isLoading, isError, refetch } = useInvoices()
+  const { organization } = useCurrentMember()
+  const issuers = useIssuers(organization?.id).data ?? []
   const setPaid = useSetInvoicePaid()
   const deleteInvoice = useDeleteInvoice()
   const filters = filtersFromParams(params)
@@ -78,7 +83,7 @@ export function InvoicesPage() {
   const visible = useMemo(
     () => sortInvoices(all.filter((inv) => matchesInvoice(inv, filters, today))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [all, filters.query, filters.status, filters.kind, filters.clientId, today],
+    [all, filters.query, filters.status, filters.kind, filters.clientId, filters.issuerId, today],
   )
   const stats = useMemo(() => invoiceStats(all, today), [all, today])
   const clientOptions = useMemo(() => {
@@ -185,6 +190,18 @@ export function InvoicesPage() {
                 ))}
               </Select>
             </Field>
+            {issuers.length > 1 ? (
+              <Field label="Émetteur">
+                <Select value={filters.issuerId} onChange={(e) => updateFilters({ ...filters, issuerId: e.target.value })}>
+                  <option value="">Tous les émetteurs</option>
+                  {issuers.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.display_name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
             <Field label="Client">
               <Select value={filters.clientId} onChange={(e) => updateFilters({ ...filters, clientId: e.target.value })}>
                 <option value="">Tous les clients</option>
@@ -236,6 +253,9 @@ export function InvoicesPage() {
                         </Link>
                         <span className={table.secondLine}>
                           {invoiceSecondLine(invoice)}
+                          {issuers.length > 1 && issuerName(issuers, invoice.issuer_id)
+                            ? ` · ${issuerName(issuers, invoice.issuer_id)}`
+                            : ''}
                         </span>
                       </span>
                     </td>

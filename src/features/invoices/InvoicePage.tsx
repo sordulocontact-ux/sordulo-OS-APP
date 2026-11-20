@@ -9,6 +9,7 @@ import {
   Field,
   LoadingState,
   Modal,
+  Select,
   Textarea,
   TextInput,
   useToast,
@@ -27,6 +28,8 @@ import { ADMIN_ROLES, PROJECT_ROLES, useHasRole } from '../auth/roles'
 import { useCurrentMember } from '../auth/useCurrentMember'
 import { LinesEditor } from '../billing'
 import { useClient } from '../clients/useClients'
+import { issuerChoices, issuerName, showIssuerSelect } from '../settings/issuerLogic'
+import { useIssuers } from '../settings/useIssuers'
 import {
   DISPLAY_STATUS_TONE,
   invoiceDisplayStatus,
@@ -100,6 +103,12 @@ function InvoiceView({ invoice, client, organization }: InvoiceViewProps) {
   const [title, setTitle] = useState(invoice.title)
   const [lines, setLines] = useState<DocumentLine[]>(invoice.lines)
   const [notes, setNotes] = useState(invoice.notes ?? '')
+  const [issuerId, setIssuerId] = useState(invoice.issuer_id ?? '')
+  const issuers = useIssuers(organization?.id)
+  const issuerList = issuers.data ?? []
+  const issuerOptions = issuerChoices(issuerList, invoice.issuer_id)
+  const issuerChanged = issuerId !== (invoice.issuer_id ?? '')
+  const issuer = issuerList.find((i) => i.id === issuerId)
   const [attempted, setAttempted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<'issue' | 'delete' | 'credit' | null>(null)
@@ -112,12 +121,20 @@ function InvoiceView({ invoice, client, organization }: InvoiceViewProps) {
   // Prix négatifs : avoir, et facture (déduction des acomptes d'une facture de solde) si le total reste positif ou nul.
   const allowNegative = invoiceAllowsNegativeLines(invoice.kind)
   const { lineErrors, totalError } = validateInvoiceLines(invoice.kind, lines)
-  const check = issueCheck({ lines, lineErrors, totalError, client, organization })
+  const check = issueCheck({ lines, lineErrors, totalError, client, organization: issuer ?? organization })
   const titleError = title.trim() === '' ? 'Indique un titre.' : null
   const dirty =
-    title !== invoice.title || notes !== (invoice.notes ?? '') || JSON.stringify(lines) !== JSON.stringify(invoice.lines)
+    title !== invoice.title ||
+    notes !== (invoice.notes ?? '') ||
+    issuerChanged ||
+    JSON.stringify(lines) !== JSON.stringify(invoice.lines)
 
-  const fields = () => ({ title: title.trim(), lines, notes: notes.trim() === '' ? null : notes.trim() })
+  const fields = () => ({
+    title: title.trim(),
+    lines,
+    notes: notes.trim() === '' ? null : notes.trim(),
+    ...(issuerChanged && issuerId !== '' ? { issuer_id: issuerId } : {}),
+  })
 
   async function saveDraft(): Promise<boolean> {
     setAttempted(true)
@@ -263,6 +280,12 @@ function InvoiceView({ invoice, client, organization }: InvoiceViewProps) {
         <dl className={styles.infos}>
           <dt>Titre</dt>
           <dd>{invoice.title}</dd>
+          {!isDraft && (invoice.seller?.name ?? issuerName(issuerList, invoice.issuer_id)) ? (
+            <>
+              <dt>Émetteur</dt>
+              <dd>{invoice.seller?.name ?? issuerName(issuerList, invoice.issuer_id)}</dd>
+            </>
+          ) : null}
           <dt>Client</dt>
           <dd>
             {client ? (
@@ -395,6 +418,19 @@ function InvoiceView({ invoice, client, organization }: InvoiceViewProps) {
             <Field label="Titre" error={attempted ? titleError : null}>
               <TextInput value={title} onChange={(e) => setTitle(e.target.value)} />
             </Field>
+            {showIssuerSelect(issuerOptions) ? (
+              <Field label="Émetteur" hint="Fixé à l’émission : chaque émetteur a sa propre numérotation de factures.">
+                <Select value={issuerId} onChange={(e) => setIssuerId(e.target.value)}>
+                  {issuerId === '' ? <option value="">Émetteur par défaut</option> : null}
+                  {issuerOptions.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.display_name}
+                      {i.archived_at ? ' (archivé)' : ''}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
             {organization ? (
               <LinesEditor lines={lines} onChange={setLines} org={organization} showErrors={attempted} allowNegative={allowNegative} />
             ) : null}

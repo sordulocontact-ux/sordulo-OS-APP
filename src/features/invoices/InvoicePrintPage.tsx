@@ -1,10 +1,11 @@
 import { Link, useParams } from 'react-router-dom'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ui'
-import { buyerFromClient, sellerFromOrganization } from '../../shared/billing'
+import { buyerFromClient, sellerFromIssuer, sellerFromOrganization } from '../../shared/billing'
 import { useCurrentMember } from '../auth/useCurrentMember'
 import { DocumentPreview, PrintBar } from '../billing'
 import { useClient, useClientContacts } from '../clients/useClients'
 import { primaryContact } from '../clients/clientUtils'
+import { useIssuers } from '../settings/useIssuers'
 import { useInvoice } from './useInvoices'
 
 /** Aperçu A4 d'une facture. Émise : vendeur et acheteur figés ; brouillon : ceux d'aujourd'hui. */
@@ -15,12 +16,14 @@ export function InvoicePrintPage() {
   const invoice = invoiceQuery.data
   const clientQuery = useClient(invoice?.client_id)
   const contactsQuery = useClientContacts(invoice?.client_id)
+  // Une facture émise a son vendeur figé : les émetteurs ne servent qu'aux brouillons.
+  const issuersQuery = useIssuers(organization?.id)
   const back = invoiceId ? `/invoices/${invoiceId}` : '/invoices'
 
-  if (invoiceQuery.isLoading || (invoice && (clientQuery.isLoading || contactsQuery.isLoading))) {
+  if (invoiceQuery.isLoading || (invoice && (clientQuery.isLoading || contactsQuery.isLoading || issuersQuery.isLoading))) {
     return <LoadingState label="Chargement de la facture…" />
   }
-  if (invoiceQuery.isError || clientQuery.isError || contactsQuery.isError) {
+  if (invoiceQuery.isError || clientQuery.isError || contactsQuery.isError || issuersQuery.isError) {
     return (
       <ErrorState
         message="Impossible de charger la facture."
@@ -28,6 +31,7 @@ export function InvoicePrintPage() {
           void invoiceQuery.refetch()
           void clientQuery.refetch()
           void contactsQuery.refetch()
+          void issuersQuery.refetch()
         }}
       />
     )
@@ -42,7 +46,9 @@ export function InvoicePrintPage() {
     )
   }
 
-  const seller = invoice.seller ?? (organization ? sellerFromOrganization(organization) : null)
+  const issuer = (issuersQuery.data ?? []).find((i) => i.id === invoice.issuer_id)
+  const seller =
+    invoice.seller ?? (issuer ? sellerFromIssuer(issuer) : organization ? sellerFromOrganization(organization) : null)
   const client = clientQuery.data
   const buyer = invoice.buyer ?? (client ? buyerFromClient(client, primaryContact(contactsQuery.data ?? [])) : null)
   if (!seller || !buyer) {

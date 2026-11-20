@@ -28,6 +28,7 @@ function inv(over: Partial<InvoiceRow> = {}): InvoiceRow {
     client_id: 'c1',
     project_id: null,
     quote_id: null,
+    issuer_id: null,
     kind: 'invoice',
     status: 'issued',
     number: 'F-2026-0001',
@@ -69,7 +70,7 @@ describe('statut affiché', () => {
 describe('filtres', () => {
   it('passent par l’URL et ignorent les valeurs inconnues', () => {
     const f = filtersFromParams(new URLSearchParams('q=ibe&statut=overdue&type=deposit&client=c1'))
-    expect(f).toEqual({ query: 'ibe', status: 'overdue', kind: 'deposit', clientId: 'c1' })
+    expect(f).toEqual({ query: 'ibe', status: 'overdue', kind: 'deposit', clientId: 'c1', issuerId: '' })
     expect(filtersFromParams(new URLSearchParams('statut=zz&type=zz'))).toEqual(EMPTY_FILTERS)
     expect(filtersToParams(f).toString()).toBe('q=ibe&statut=overdue&type=deposit&client=c1')
     expect(filtersToParams(EMPTY_FILTERS, new URLSearchParams('q=x&statut=paid')).toString()).toBe('')
@@ -81,6 +82,12 @@ describe('filtres', () => {
     expect(matchesInvoice(row, { ...EMPTY_FILTERS, status: 'issued' }, TODAY)).toBe(false)
     expect(matchesInvoice(row, { ...EMPTY_FILTERS, kind: 'deposit' }, TODAY)).toBe(false)
     expect(matchesInvoice(row, { ...EMPTY_FILTERS, clientId: 'c2' }, TODAY)).toBe(false)
+    expect(matchesInvoice({ ...row, issuer_id: 'e1' }, { ...EMPTY_FILTERS, issuerId: 'e1' }, TODAY)).toBe(true)
+    expect(matchesInvoice({ ...row, issuer_id: 'e1' }, { ...EMPTY_FILTERS, issuerId: 'e2' }, TODAY)).toBe(false)
+    expect(matchesInvoice(row, { ...EMPTY_FILTERS, issuerId: 'e1' }, TODAY)).toBe(false)
+    expect(filtersFromParams(new URLSearchParams('emetteur=e1')).issuerId).toBe('e1')
+    expect(filtersToParams({ ...EMPTY_FILTERS, issuerId: 'e1' }).toString()).toBe('emetteur=e1')
+    expect(activeFilterCount({ ...EMPTY_FILTERS, issuerId: 'e1' })).toBe(1)
     expect(matchesInvoice(row, { ...EMPTY_FILTERS, query: 'ibe' }, TODAY)).toBe(true)
     expect(matchesInvoice(row, { ...EMPTY_FILTERS, query: '0001' }, TODAY)).toBe(true)
     expect(matchesInvoice(row, { ...EMPTY_FILTERS, query: 'refonte' }, TODAY)).toBe(true)

@@ -109,6 +109,8 @@ export interface NewQuoteInput {
   clientId: string
   projectId: string | null
   title: string
+  /** null : la base met l'émetteur par défaut. */
+  issuerId?: string | null
 }
 
 export function useCreateQuote() {
@@ -122,6 +124,7 @@ export function useCreateQuote() {
           client_id: input.clientId,
           project_id: input.projectId,
           title: input.title,
+          ...(input.issuerId ? { issuer_id: input.issuerId } : {}),
           status: 'draft',
           // Sans ligne : la base refuse une ligne sans libellé, l'éditeur propose « Ajouter une ligne ».
           lines: [],
@@ -177,7 +180,12 @@ export function useDuplicateQuote() {
     mutationFn: async ({ quote, organizationId, memberId }: { quote: Quote; organizationId: string; memberId: string | null }) => {
       const { data, error } = await supabase
         .from('quotes')
-        .insert({ ...duplicateQuote(quote), organization_id: organizationId, created_by: memberId })
+        .insert({
+          ...duplicateQuote(quote),
+          ...(quote.issuer_id ? { issuer_id: quote.issuer_id } : {}),
+          organization_id: organizationId,
+          created_by: memberId,
+        })
         .select()
         .overrideTypes<Quote[], { merge: false }>()
       if (error) throw error
@@ -240,7 +248,13 @@ export function useCreateInvoiceFromQuote() {
           : invoiceFromQuote(quote, { kind, percent })
       const { data, error } = await supabase
         .from('invoices')
-        .insert({ ...draft, organization_id: organizationId, status: 'draft', created_by: memberId })
+        .insert({
+          ...draft,
+          ...(quote.issuer_id ? { issuer_id: quote.issuer_id } : {}),
+          organization_id: organizationId,
+          status: 'draft',
+          created_by: memberId,
+        })
         .select()
         .overrideTypes<Invoice[], { merge: false }>()
       if (error) throw error

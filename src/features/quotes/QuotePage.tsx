@@ -9,6 +9,7 @@ import {
   Field,
   LoadingState,
   Modal,
+  Select,
   Textarea,
   TextInput,
   useToast,
@@ -16,6 +17,8 @@ import {
 import { formatDate, quoteDisplayStatus, todayIso } from '../../shared/billing'
 import { LinesEditor } from '../billing'
 import { useCurrentMember } from '../auth/useCurrentMember'
+import { issuerChoices, issuerName, showIssuerSelect } from '../settings/issuerLogic'
+import { useIssuers } from '../settings/useIssuers'
 import {
   canTransition,
   DRAFT_DEPOSIT_WARNING,
@@ -88,13 +91,18 @@ function QuoteEditor({ quote }: { quote: QuoteWithLinks }) {
   const hasDraftDeposit = (deposits.data?.drafts.length ?? 0) > 0
   const saved = fieldsOf(quote)
   const [draft, setDraft] = useState<QuoteDraftFields>(saved)
+  const [issuerId, setIssuerId] = useState(quote.issuer_id ?? '')
+  const issuers = useIssuers(organization?.id)
+  const issuerList = issuers.data ?? []
+  const issuerOptions = issuerChoices(issuerList, quote.issuer_id)
+  const issuerChanged = issuerId !== (quote.issuer_id ?? '')
   const [showErrors, setShowErrors] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [depositOpen, setDepositOpen] = useState(false)
   const [percentText, setPercentText] = useState('30')
 
   const locked = isQuoteLocked(quote.status)
-  const dirty = !locked && hasUnsavedChanges(saved, draft)
+  const dirty = !locked && (hasUnsavedChanges(saved, draft) || issuerChanged)
   useUnsavedGuard(dirty)
   const shown = quoteDisplayStatus(quote, todayIso())
   const errors = showErrors ? validateQuoteFields(draft, quote.issue_date) : {}
@@ -114,6 +122,7 @@ function QuoteEditor({ quote }: { quote: QuoteWithLinks }) {
       lines: draft.lines,
       notes: draft.notes.trim() === '' ? null : draft.notes.trim(),
       valid_until: draft.validUntil === '' ? null : draft.validUntil,
+      ...(issuerChanged && issuerId !== '' ? { issuer_id: issuerId } : {}),
     }
   }
 
@@ -245,6 +254,12 @@ function QuoteEditor({ quote }: { quote: QuoteWithLinks }) {
           </dd>
           <dt>Projet</dt>
           <dd>{quote.project?.name ?? 'Aucun projet'}</dd>
+          {quote.status !== 'draft' && issuerName(issuerList, quote.issuer_id) ? (
+            <>
+              <dt>Émetteur</dt>
+              <dd>{issuerName(issuerList, quote.issuer_id)}</dd>
+            </>
+          ) : null}
           <dt>Date du devis</dt>
           <dd>{formatDate(quote.issue_date)}</dd>
           {quote.sent_at ? (
@@ -276,6 +291,19 @@ function QuoteEditor({ quote }: { quote: QuoteWithLinks }) {
           <Field label="Titre" error={errors.title}>
             <TextInput value={draft.title} onChange={(e) => set('title', e.target.value)} disabled={locked} />
           </Field>
+          {quote.status === 'draft' && showIssuerSelect(issuerOptions) ? (
+            <Field label="Émetteur" hint="L’entité qui émet le devis puis les factures.">
+              <Select value={issuerId} onChange={(e) => setIssuerId(e.target.value)}>
+                {issuerId === '' ? <option value="">Émetteur par défaut</option> : null}
+                {issuerOptions.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.display_name}
+                    {i.archived_at ? ' (archivé)' : ''}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : null}
           <Field label="Valable jusqu’au" error={errors.validUntil}>
             <TextInput type="date" value={draft.validUntil} onChange={(e) => set('validUntil', e.target.value)} disabled={locked} />
           </Field>

@@ -21,5 +21,6 @@ export const queryKeys = {
   prospects: () => ['prospects'] as const,
   prospect: (prospectId: string) => ['prospect', prospectId] as const,
   home: (organizationId: string) => ['home', organizationId] as const,
+  issuers: (organizationId: string) => ['billing-issuers', organizationId] as const,
   memberSignIn: (organizationId: string) => ['member-sign-in', organizationId] as const,
 }

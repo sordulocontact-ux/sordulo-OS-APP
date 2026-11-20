@@ -76,6 +76,36 @@ export interface DocumentLine {
   vat_rate: number
 }
 
+/**
+ * Émetteur de facturation (migration 0005) : une des micro-entreprises qui émettent les documents de
+ * l'organisation (ex. Sacha Moricet EI, Maël Auzenet EI). Chacun a ses infos légales, son IBAN et sa
+ * série de numéros de factures.
+ */
+export interface BillingIssuer {
+  id: string
+  organization_id: string
+  member_id: string | null
+  display_name: string
+  legal_name: string | null
+  legal_form: string | null
+  siret: string | null
+  address_street: string | null
+  address_postal_code: string | null
+  address_city: string | null
+  address_country: string | null
+  vat_mention: string | null
+  vat_number: string | null
+  bank_iban: string | null
+  bank_bic: string | null
+  email: string | null
+  phone: string | null
+  /** Émetteur proposé par défaut (un seul par organisation). */
+  is_default: boolean
+  archived_at: string | null
+  created_at: string
+  updated_at: string
+}
+
 /** Totaux calculés par la base (trigger), en centimes. */
 export interface DocumentTotals {
   total_ht_cents: number
@@ -88,7 +118,9 @@ export interface Quote extends DocumentTotals {
   organization_id: string
   client_id: string
   project_id: string | null
-  /** D-AAAA-NNN, attribué par la base à la création. */
+  /** Émetteur (micro-entreprise) ; null = l'organisation. */
+  issuer_id: string | null
+  /** AAAA-NNN, attribué par la base à la création (les devis importés gardent leur numéro d'origine). */
   number: string
   title: string
   status: QuoteStatus
@@ -117,6 +149,10 @@ export interface InvoiceSeller {
   vat_mention: string | null
   bank_iban: string | null
   bank_bic: string | null
+  /** Émetteur seulement (migration 0005) ; absents des factures émises avant. */
+  vat_number?: string | null
+  email?: string | null
+  phone?: string | null
 }
 
 /** Acheteur copié dans la facture à l'émission (le client à cette date). */
@@ -137,9 +173,11 @@ export interface Invoice extends DocumentTotals {
   client_id: string
   project_id: string | null
   quote_id: string | null
+  /** Émetteur (micro-entreprise) ; null = l'organisation. Sa série numérote factures, acomptes et avoirs. */
+  issuer_id: string | null
   kind: InvoiceKind
   status: InvoiceStatus
-  /** F-AAAA-NNNN (facture, acompte) ou A-AAAA-NNNN (avoir) ; null en brouillon. */
+  /** AAAA-NNN dans la série de l'émetteur (les factures importées gardent leur numéro d'origine) ; null en brouillon. */
   number: string | null
   title: string
   issue_date: string | null
