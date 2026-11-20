@@ -11,7 +11,9 @@ function setup(options: { projects?: { id: string; name: string }[] } = {}) {
   const claude = fakeEvent<ClaudeRelayEvent>()
   const deps = {
     onClaude: claude.subscribe,
-    claudeAnswer: vi.fn(async (_args: { requestId: string; decision: ClaudeDecision }) => {}),
+    claudeAnswer: vi.fn(
+      async (_args: { requestId: string; decision: ClaudeDecision; answers?: Record<string, string> }) => {},
+    ),
     claudeOpenSession: vi.fn(async (_args: { sessionId: string }) => {}),
   } satisfies ClaudeSourceDeps
   const env = setupRuntime({ sources: [createClaudeSource(deps)], projects: options.projects })
@@ -203,6 +205,24 @@ describe('source « Claude Code »', () => {
     t.runtime.runAction({ ...done, action: { type: 'showSessions' } })
     expect(t.snap().pinnedId).toBe(MULTI_ACTIVITY_ID)
     expect(t.snap().primary?.id).toBe(MULTI_ACTIVITY_ID)
+  })
+
+  it('question à choix : les réponses choisies dans l’île partent avec « allow »', async () => {
+    const t = setup()
+    await flush()
+    const questions = [
+      { question: 'Quelle approche ?', header: null, multiSelect: false, options: [{ label: 'Simple', description: null }] },
+    ]
+    t.emit('PermissionRequest', { toolName: 'AskUserQuestion', toolSummary: null, requestId: 'r-q', questions })
+    const ask = t.snap().ask!
+    expect(ask.questions).toEqual(questions)
+    t.runtime.gestures.onAskDecision('allow', ask, { 'Quelle approche ?': 'Simple' })
+    expect(t.deps.claudeAnswer).toHaveBeenCalledWith({
+      requestId: 'r-q',
+      decision: 'allow',
+      answers: { 'Quelle approche ?': 'Simple' },
+    })
+    expect(t.snap().ask).toBeNull()
   })
 
   it('clic sur « Une session a terminé » ou sur une session : sa fenêtre VS Code', async () => {

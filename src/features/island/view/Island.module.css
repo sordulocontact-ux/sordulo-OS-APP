@@ -488,6 +488,35 @@
   margin-right: auto;
 }
 
+/* Questions à choix de Claude : les choix passent à la ligne, « Valider » et « Dans le terminal » à la suite */
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--island-space-6);
+  margin-top: var(--island-space-12);
+}
+
+.btnQuiet {
+  background: transparent;
+  color: var(--island-muted);
+}
+
+.btn:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btnQuiet:hover {
+    color: var(--island-text);
+  }
+}
+
+/* Questions : les boutons Autoriser / Refuser n'ont pas de sens (on répond par les choix) */
+.askRowHidden {
+  display: none;
+}
+
 /* Plusieurs sessions Claude Code */
 .seg {
   width: var(--island-size-6);

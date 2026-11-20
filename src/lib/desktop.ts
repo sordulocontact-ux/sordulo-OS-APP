@@ -94,7 +94,8 @@ export const setFocusMode = (args: FocusModeState) =>
 export const claudeGetConnection = () => call<ClaudeConnection>(DESKTOP_COMMANDS.claudeGetConnection)
 
 /** Answers a pending PermissionRequest (requestId from the ClaudeRelayEvent). */
-export const claudeAnswer = (args: { requestId: string; decision: ClaudeDecision }) =>
+/** `answers` (AskUserQuestion): question text → chosen label (several: « A, B »), sent with `allow`. */
+export const claudeAnswer = (args: { requestId: string; decision: ClaudeDecision; answers?: Record<string, string> }) =>
   call<void>(DESKTOP_COMMANDS.claudeAnswer, args)
 
 /** Brings the VS Code window (or app) running this Claude session to the front, on its folder. */

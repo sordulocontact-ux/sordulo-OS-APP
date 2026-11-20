@@ -154,6 +154,7 @@ export function describeStep(toolName: string | null, summary: string | null, cw
  */
 export function askTitle(toolName: string, projectName: string): string {
   const where = `dans ${projectName}`
+  if (toolName === 'AskUserQuestion') return `Question de Claude ${where}`
   if (isShellTool(toolName)) return `Lancer une commande ${where}`
   if (isSubagentTool(toolName)) return `Lancer un sous-agent ${where}`
   switch (toolName) {

@@ -325,6 +325,7 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
           title: askTitle(toolName, record.session.projectName),
           receivedAt: event.at,
           expiresAt: event.at + CLAUDE_PERMISSION_TIMEOUT_MS,
+          questions: event.questions && event.questions.length > 0 ? event.questions : null,
         }
         pending = [...pending, ask]
         effects.push({ type: 'requestAsk', ask })

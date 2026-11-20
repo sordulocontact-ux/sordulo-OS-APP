@@ -88,16 +88,18 @@ export function Island(props: IslandProps) {
   if (liveService !== undefined && liveService !== keptService) setKeptService(liveService)
   const callService = liveService === undefined ? keptService : liveService
 
+  // Question à choix de Claude : la taille haute de la demande (celle de l'appel), pour loger les choix.
+  const questionAsk = state === 'agentAsk' && Boolean(snapshot.ask?.questions)
   const target: EngineTarget = useMemo(
     () => ({
-      key: sizeKeyFor(state, open, withCall),
+      key: sizeKeyFor(state, open, withCall || questionAsk),
       platform,
       reduced,
       hasGarden,
       sessionCount,
       meetRows: meetRows.length,
     }),
-    [state, open, withCall, platform, reduced, hasGarden, sessionCount, meetRows.length],
+    [state, open, withCall, questionAsk, platform, reduced, hasGarden, sessionCount, meetRows.length],
   )
 
   // Éléments du DOM pilotés hors de React

@@ -383,9 +383,15 @@ pub fn connection(app: &AppHandle) -> ClaudeConnection {
 }
 
 /// `claude_answer` : transmet la décision de l'île au relais qui attend.
-pub fn answer(app: &AppHandle, request_id: &str, decision: ClaudeDecision) -> Result<(), String> {
+pub fn answer(
+    app: &AppHandle,
+    request_id: &str,
+    decision: ClaudeDecision,
+    answers: Option<std::collections::BTreeMap<String, String>>,
+) -> Result<(), String> {
     let state = app.state::<ClaudeState>();
-    if state.pending.answer(request_id, decision) {
+    let answers = answers.map(|a| Value::Object(a.into_iter().map(|(k, v)| (k, Value::String(v))).collect()));
+    if state.pending.answer_with(request_id, decision, answers) {
         log::info!("relais Claude : demande {request_id} → {decision:?}");
         Ok(())
     } else {

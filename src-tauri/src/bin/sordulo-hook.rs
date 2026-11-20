@@ -95,9 +95,11 @@ fn run(event: &str, read_deadline: Instant) -> Option<String> {
         .ok()?;
     let relay = read_relay_file()?;
     let input: Value = serde_json::from_slice(&raw).ok()?;
+    // Entrée complète de l'outil, avant allègement : `updatedInput` la remplace en entier.
+    let tool_input = input.get("tool_input").cloned();
     let body = request_body(event, input);
     let (status, response) = post(&relay, &body, read_deadline)?;
-    decide_output(event, status, &response)
+    decide_output_for(event, status, &response, tool_input.as_ref())
 }
 
 /// Nom d'événement plausible (lettres seulement) : l'app vérifie qu'il fait partie des siens.
@@ -264,13 +266,28 @@ fn parse_response(bytes: &[u8]) -> Option<(u16, Vec<u8>)> {
 
 /// Ce que le relais imprime sur stdout : seulement une décision allow / deny à un PermissionRequest
 /// (l'app répond `{ "behavior": "allow" }`, `{ "behavior": "deny", "message"? }`, ou `{}` sans décision).
+#[cfg(test)]
 fn decide_output(event: &str, status: u16, body: &[u8]) -> Option<String> {
+    decide_output_for(event, status, body, None)
+}
+
+/// Comme `decide_output`. Question à choix (`AskUserQuestion`) : l'app joint `answers` à « allow » ; on
+/// renvoie alors `updatedInput` = entrée de l'outil + `answers` (texte de la question → choix), que Claude
+/// Code prend comme réponse sans afficher sa question.
+fn decide_output_for(event: &str, status: u16, body: &[u8], tool_input: Option<&Value>) -> Option<String> {
     if event != PERMISSION_EVENT || status != 200 {
         return None;
     }
     let answer: Value = serde_json::from_slice(body).ok()?;
     let decision = match answer.get("behavior")?.as_str()? {
-        "allow" => json!({ "behavior": "allow" }),
+        "allow" => match (answer.get("answers").filter(|a| a.is_object()), tool_input.and_then(Value::as_object)) {
+            (Some(answers), Some(input)) => {
+                let mut updated = input.clone();
+                updated.insert("answers".into(), answers.clone());
+                json!({ "behavior": "allow", "updatedInput": updated })
+            }
+            _ => json!({ "behavior": "allow" }),
+        },
         "deny" => {
             let message = answer
                 .get("message")
@@ -346,6 +363,21 @@ mod tests {
             None
         );
         assert_eq!(decide_output("SessionStart", 200, b"{}"), None);
+
+        // Question à choix : réponses remises dans l'entrée complète de l'outil.
+        let input = json!({ "questions": [{ "question": "Quelle approche ?", "options": [{ "label": "Simple" }] }] });
+        let out = decide_output_for(
+            "PermissionRequest",
+            200,
+            br#"{"behavior":"allow","answers":{"Quelle approche ?":"Simple"}}"#,
+            Some(&input),
+        )
+        .unwrap();
+        let out: Value = serde_json::from_str(&out).unwrap();
+        let updated = &out["hookSpecificOutput"]["decision"]["updatedInput"];
+        assert_eq!(updated["answers"]["Quelle approche ?"], "Simple");
+        assert_eq!(updated["questions"][0]["question"], "Quelle approche ?");
+        assert_eq!(out["hookSpecificOutput"]["decision"]["behavior"], "allow");
     }
 
     #[test]

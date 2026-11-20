@@ -28,6 +28,8 @@ const WAIT_STEP: Duration = Duration::from_millis(500);
 #[derive(Default)]
 pub struct Pending {
     map: Mutex<HashMap<String, Sender<ClaudeDecision>>>,
+    /// Réponses aux questions d'un `AskUserQuestion` (texte de la question → choix), jointes à « allow ».
+    answers: Mutex<HashMap<String, Value>>,
 }
 
 /// Retire la demande de la liste quand le thread qui l'attend se termine (réponse, délai, abandon,
@@ -40,6 +42,7 @@ pub struct PendingGuard<'a> {
 impl Drop for PendingGuard<'_> {
     fn drop(&mut self) {
         self.pending.lock().remove(&self.id);
+        self.pending.answers_lock().remove(&self.id);
     }
 }
 
@@ -54,10 +57,30 @@ impl Pending {
         (receiver, PendingGuard { pending: self, id })
     }
 
+    fn answers_lock(&self) -> MutexGuard<'_, HashMap<String, Value>> {
+        self.answers.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     /// Transmet la décision ; `false` si la demande n'attend plus (délai dépassé, relais parti).
-    pub fn answer(&self, id: &str, decision: ClaudeDecision) -> bool {
+    #[cfg(test)]
+    fn answer(&self, id: &str, decision: ClaudeDecision) -> bool {
+        self.answer_with(id, decision, None)
+    }
+
+    /// Comme `answer`, avec les réponses aux questions (`{ "<question>": "<choix>" }`) jointes à « allow ».
+    pub fn answer_with(&self, id: &str, decision: ClaudeDecision, answers: Option<Value>) -> bool {
         let sender = self.lock().get(id).cloned();
-        sender.is_some_and(|s| s.send(decision).is_ok())
+        let Some(sender) = sender else {
+            return false;
+        };
+        if let Some(answers) = answers.filter(|a| a.is_object()) {
+            self.answers_lock().insert(id.to_owned(), answers);
+        }
+        sender.send(decision).is_ok()
+    }
+
+    fn take_answers(&self, id: &str) -> Option<Value> {
+        self.answers_lock().remove(id)
     }
 
     #[cfg(test)]
@@ -217,6 +240,17 @@ fn respond(stream: &mut TcpStream, status: u16, body: &str) {
     let _ = stream.flush();
 }
 
+/// Comme `decision_body`, avec les réponses aux questions jointes à « allow » (`answers`), que le relais
+/// remet dans `updatedInput` pour Claude Code.
+pub fn decision_body_with(decision: Option<ClaudeDecision>, answers: Option<Value>) -> String {
+    match (decision, answers) {
+        (Some(ClaudeDecision::Allow), Some(answers)) => {
+            json!({ "behavior": "allow", "answers": answers }).to_string()
+        }
+        (decision, _) => decision_body(decision),
+    }
+}
+
 /// Corps de la réponse au relais pour une décision (`None` = pas de décision).
 pub fn decision_body(decision: Option<ClaudeDecision>) -> String {
     match decision {
@@ -275,7 +309,8 @@ fn handle(relay: &Relay, mut stream: TcpStream) {
     drop(pending);
     match outcome {
         Outcome::Answered(decision) => {
-            respond(&mut stream, 200, &decision_body(Some(decision)));
+            let answers = relay.pending.take_answers(&request_id);
+            respond(&mut stream, 200, &decision_body_with(Some(decision), answers));
         }
         Outcome::TimedOut => {
             log::info!(
@@ -394,6 +429,19 @@ mod tests {
         let deny: Value = serde_json::from_str(&decision_body(Some(ClaudeDecision::Deny))).unwrap();
         assert_eq!(deny["behavior"], "deny");
         assert_eq!(decision_body(Some(ClaudeDecision::Later)), "{}");
+        let answered: Value = serde_json::from_str(&decision_body_with(
+            Some(ClaudeDecision::Allow),
+            Some(json!({ "Quelle approche ?": "Simple" })),
+        ))
+        .unwrap();
+        assert_eq!(answered["answers"]["Quelle approche ?"], "Simple");
+        // Pas de réponses jointes à un refus.
+        let deny: Value = serde_json::from_str(&decision_body_with(
+            Some(ClaudeDecision::Deny),
+            Some(json!({ "q": "a" })),
+        ))
+        .unwrap();
+        assert!(deny.get("answers").is_none());
         assert_eq!(decision_body(None), "{}");
     }
 

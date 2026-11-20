@@ -83,8 +83,77 @@ pub struct ClaudeRelayEvent {
     pub file_path: Option<String>,
     pub request_id: Option<String>,
     pub message: Option<String>,
+    /// PermissionRequest de l'outil `AskUserQuestion` : les questions et leurs choix, pour répondre
+    /// depuis l'île. Absent pour tout le reste.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub questions: Option<Vec<ClaudeQuestion>>,
     /// Epoch Unix en ms.
     pub at: u64,
+}
+
+/// `ClaudeQuestion` du contrat : une question de Claude à choix (outil `AskUserQuestion`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeQuestion {
+    /// Texte de la question : clé de la réponse renvoyée à Claude Code.
+    pub question: String,
+    /// Étiquette courte (« Approche », « Format »).
+    pub header: Option<String>,
+    pub multi_select: bool,
+    pub options: Vec<ClaudeQuestionOption>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeQuestionOption {
+    pub label: String,
+    pub description: Option<String>,
+}
+
+/// Outil de Claude Code qui pose des questions à choix.
+pub const ASK_USER_QUESTION: &str = "AskUserQuestion";
+/// Au plus 4 questions de 4 choix (limites de l'outil), avec une marge.
+const MAX_QUESTIONS: usize = 4;
+const MAX_OPTIONS: usize = 6;
+const QUESTION_MAX_CHARS: usize = 300;
+const OPTION_MAX_CHARS: usize = 120;
+
+/// Questions d'un `AskUserQuestion` (`tool_input.questions`), `None` si absentes ou illisibles.
+pub fn questions_of(tool_input: &Value) -> Option<Vec<ClaudeQuestion>> {
+    let questions: Vec<ClaudeQuestion> = tool_input
+        .get("questions")?
+        .as_array()?
+        .iter()
+        .take(MAX_QUESTIONS)
+        .filter_map(|q| {
+            // Le texte exact sert de clé à la réponse : jamais tronqué.
+            let question = q.get("question")?.as_str()?.trim().to_owned();
+            if question.is_empty() || question.chars().count() > QUESTION_MAX_CHARS * 4 {
+                return None;
+            }
+            let options: Vec<ClaudeQuestionOption> = q
+                .get("options")?
+                .as_array()?
+                .iter()
+                .take(MAX_OPTIONS)
+                .filter_map(|o| {
+                    let label = o.get("label")?.as_str()?.trim().to_owned();
+                    (!label.is_empty()).then(|| ClaudeQuestionOption {
+                        label,
+                        description: str_field(o, "description")
+                            .map(|d| shorten(&one_line(&d), OPTION_MAX_CHARS)),
+                    })
+                })
+                .collect();
+            (!options.is_empty()).then(|| ClaudeQuestion {
+                question,
+                header: str_field(q, "header").map(|h| shorten(&one_line(&h), OPTION_MAX_CHARS)),
+                multi_select: q.get("multiSelect").and_then(Value::as_bool).unwrap_or(false),
+                options,
+            })
+        })
+        .collect();
+    (!questions.is_empty()).then_some(questions)
 }
 
 /// `ClaudeConnection` du contrat.
@@ -139,6 +208,10 @@ pub fn build_event(
         }
         _ => None,
     };
+    let questions = match (event, tool_name.as_deref()) {
+        (ClaudeHookEventName::PermissionRequest, Some(ASK_USER_QUESTION)) => questions_of(tool_input),
+        _ => None,
+    };
     ClaudeRelayEvent {
         event,
         session_id: str_field(input, "session_id").unwrap_or_default(),
@@ -149,6 +222,7 @@ pub fn build_event(
         file_path,
         request_id,
         message,
+        questions,
         at,
     }
 }
@@ -410,6 +484,30 @@ mod tests {
         let long = summary("Bash", json!({ "command": "a".repeat(500) })).unwrap();
         assert_eq!(long.chars().count(), SUMMARY_MAX_CHARS);
         assert!(long.ends_with('…'));
+    }
+
+    #[test]
+    fn questions_for_the_island() {
+        let input = json!({
+            "session_id": "s",
+            "tool_name": "AskUserQuestion",
+            "tool_input": { "questions": [
+                { "question": "Quelle approche ?", "header": "Approche", "multiSelect": false,
+                  "options": [ { "label": "Simple", "description": "Rapide" }, { "label": "Complète" }, { "label": " " } ] },
+                { "question": "", "options": [ { "label": "x" } ] }
+            ] }
+        });
+        let event = build_event(ClaudeHookEventName::PermissionRequest, &input, 1, None, Some("r".into()));
+        let questions = event.questions.unwrap();
+        assert_eq!(questions.len(), 1);
+        assert_eq!(questions[0].question, "Quelle approche ?");
+        assert_eq!(questions[0].header.as_deref(), Some("Approche"));
+        assert_eq!(questions[0].options.len(), 2);
+        assert_eq!(questions[0].options[0].description.as_deref(), Some("Rapide"));
+        // Pas de questions hors PermissionRequest ni pour un autre outil.
+        assert!(build_event(ClaudeHookEventName::PreToolUse, &input, 1, None, None).questions.is_none());
+        let bash = json!({ "session_id": "s", "tool_name": "Bash", "tool_input": { "command": "ls" } });
+        assert!(build_event(ClaudeHookEventName::PermissionRequest, &bash, 1, None, None).questions.is_none());
     }
 
     #[test]

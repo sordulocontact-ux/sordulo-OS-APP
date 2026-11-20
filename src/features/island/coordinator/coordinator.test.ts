@@ -39,7 +39,7 @@ function rappel() {
   return createNotification('rappel', { meetingTitle: 'Call Ibé', minutes: 5, appName: 'Meet', url: 'https://x' })
 }
 function ask(id: string): PermissionAsk {
-  return { id, sessionId: 's', toolName: 'Bash', summary: 'ls', title: 'Lancer une commande', receivedAt: 0, expiresAt: 60_000 }
+  return { id, sessionId: 's', toolName: 'Bash', summary: 'ls', title: 'Lancer une commande', receivedAt: 0, expiresAt: 60_000, questions: null }
 }
 
 describe('activités', () => {

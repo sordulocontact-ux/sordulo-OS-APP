@@ -5,7 +5,7 @@
  * le contrôleur Tauri (controller/), le labo (lab/) et le jardin (garden/).
  */
 
-import type { CallService } from '../../shared/desktop-contract'
+import type { CallService, ClaudeQuestion } from '../../shared/desktop-contract'
 
 /** Variante de forme : Windows (bord haut de l'écran) ou Mac (autour de l'encoche de la caméra). */
 export type IslandPlatform = 'win' | 'mac'
@@ -250,7 +250,12 @@ export interface PermissionAsk {
   receivedAt: number
   /** epoch ms : au-delà, le relais a rendu la main au terminal (60 s). */
   expiresAt: number
+  /** Questions à choix de Claude (outil AskUserQuestion) : on choisit dans l'île au lieu d'autoriser. */
+  questions: readonly ClaudeQuestion[] | null
 }
+
+/** Réponses aux questions à choix : texte de la question → choix (plusieurs : « A, B »). */
+export type QuestionAnswers = Record<string, string>
 
 export type PermissionDecision = 'allow' | 'deny' | 'later'
 

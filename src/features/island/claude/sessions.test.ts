@@ -147,6 +147,26 @@ describe('sessions Claude Code', () => {
 describe('demandes d’autorisation', () => {
   const ask = ev('PermissionRequest', { toolName: 'Bash', toolSummary: 'npm run build', requestId: 'r-1', at: T0 + 10 })
 
+  it('question à choix de Claude (AskUserQuestion) : la demande porte les questions', () => {
+    const questions = [
+      {
+        question: 'Quelle approche ?',
+        header: 'Approche',
+        multiSelect: false,
+        options: [
+          { label: 'Simple', description: null },
+          { label: 'Complète', description: 'Plus long' },
+        ],
+      },
+    ]
+    const { effects } = run([
+      ev('PermissionRequest', { toolName: 'AskUserQuestion', toolSummary: null, requestId: 'r-q', questions, at: T0 + 10 }),
+    ])
+    expect(effects).toEqual([
+      { type: 'requestAsk', ask: expect.objectContaining({ id: 'r-q', title: 'Question de Claude dans sordulo-OS', questions }) },
+    ])
+  })
+
   it('PermissionRequest : session « à autoriser » et demande à montrer', () => {
     const { sessions, effects, state } = run([ev('UserPromptSubmit', { message: 'x' }), ask])
     expect(sessions[0]?.status).toBe('waiting')
@@ -161,6 +181,7 @@ describe('demandes d’autorisation', () => {
           title: 'Lancer une commande dans sordulo-OS',
           receivedAt: T0 + 10,
           expiresAt: T0 + 10 + CLAUDE_PERMISSION_TIMEOUT_MS,
+          questions: null,
         },
       },
     ])

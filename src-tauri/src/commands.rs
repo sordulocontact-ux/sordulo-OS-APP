@@ -202,9 +202,11 @@ pub fn claude_answer(
     app: AppHandle,
     request_id: String,
     decision: ClaudeDecision,
+    // Questions à choix (AskUserQuestion) : texte de la question → choix (plusieurs : « A, B »).
+    answers: Option<std::collections::BTreeMap<String, String>>,
 ) -> Result<(), String> {
     if window.label() != WINDOW_PROMPT {
         return Err("Seule l'île peut répondre à une demande d'autorisation.".into());
     }
-    claude::answer(&app, &request_id, decision)
+    claude::answer(&app, &request_id, decision, answers)
 }

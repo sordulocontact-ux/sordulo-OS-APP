@@ -3,8 +3,9 @@
  * plusieurs sessions (multi, multiOpen). L'icône Claude, les points, le temps écoulé et les pastilles sont
  * des éléments partagés (SharedElements).
  */
+import { useState } from 'react'
 import { MAX_SESSION_ROWS } from '../../geometry'
-import type { ClaudeSession, PermissionAsk, PermissionDecision } from '../../types'
+import type { ClaudeSession, PermissionAsk, PermissionDecision, QuestionAnswers } from '../../types'
 import { cx } from '../cx'
 import { useLastNonNull } from '../hooks'
 import styles from '../Island.module.css'
@@ -66,6 +67,84 @@ export function AgentLayer({
   )
 }
 
+/**
+ * Questions à choix de Claude (AskUserQuestion) : une question à la fois, ses choix en boutons. Choix
+ * simple : un clic répond. Choix multiple : on coche, puis « Valider ». La dernière réponse envoie tout
+ * (« allow » + réponses). « Dans le terminal » rend la main à Claude Code, qui pose alors sa question.
+ */
+function QuestionForm({
+  ask,
+  onAnswer,
+  onLater,
+}: {
+  ask: PermissionAsk
+  onAnswer: (answers: QuestionAnswers) => void
+  onLater: () => void
+}) {
+  const questions = ask.questions ?? []
+  const [step, setStep] = useState(0)
+  const [answers, setAnswers] = useState<QuestionAnswers>({})
+  const [picked, setPicked] = useState<readonly string[]>([])
+  const q = questions[Math.min(step, questions.length - 1)]
+  if (!q) return null
+
+  const answer = (value: string) => {
+    const next = { ...answers, [q.question]: value }
+    if (step + 1 < questions.length) {
+      setAnswers(next)
+      setStep(step + 1)
+      setPicked([])
+    } else {
+      onAnswer(next)
+    }
+  }
+  const toggle = (label: string) =>
+    setPicked((current) => (current.includes(label) ? current.filter((l) => l !== label) : [...current, label]))
+  const position = questions.length > 1 ? ` (${step + 1} sur ${questions.length})` : ''
+
+  return (
+    <>
+      <div className={styles.headText}>
+        <strong>{q.header ?? 'Claude te pose une question'}</strong>
+        <small title={q.question}>
+          {q.question}
+          {position}
+        </small>
+      </div>
+      <div className={styles.choices} role="group" aria-label={q.question}>
+        {q.options.map((option) => {
+          const on = picked.includes(option.label)
+          return (
+            <button
+              key={option.label}
+              type="button"
+              className={cx(styles.btn, styles.btnSm, on ? styles.btnMain : styles.btnGhost)}
+              title={option.description ?? undefined}
+              aria-pressed={q.multiSelect ? on : undefined}
+              onClick={() => (q.multiSelect ? toggle(option.label) : answer(option.label))}
+            >
+              {option.label}
+            </button>
+          )
+        })}
+        <button type="button" className={cx(styles.btn, styles.btnSm, styles.btnQuiet)} onClick={onLater}>
+          Dans le terminal
+        </button>
+        {q.multiSelect && (
+          <button
+            type="button"
+            className={cx(styles.btn, styles.btnSm, styles.btnMain)}
+            disabled={picked.length === 0}
+            onClick={() => answer(picked.join(', '))}
+          >
+            Valider
+          </button>
+        )}
+      </div>
+    </>
+  )
+}
+
 export function AskLayer({
   ask,
   sessions,
@@ -76,7 +155,7 @@ export function AskLayer({
   ask: PermissionAsk | null
   sessions: readonly ClaudeSession[]
   askPosition: { index: number; total: number } | null
-  onAskDecision: (decision: PermissionDecision, ask: PermissionAsk) => void
+  onAskDecision: (decision: PermissionDecision, ask: PermissionAsk, answers?: QuestionAnswers) => void
 }) {
   const shown = useLastNonNull(ask)
   const multiple = sessions.length > 1
@@ -91,20 +170,34 @@ export function AskLayer({
   return (
     <Layer
       {...base}
+      // Taille de la couche : la haute (celle de l'appel) pour une question, comme la forme (Island.tsx).
+      withCall={base.withCall || Boolean(shown?.questions)}
       state="agentAsk"
       className={cx(styles.layerAsk, base.withCall && styles.withCall)}
       role="dialog"
-      label="Claude demande l’autorisation"
+      label={shown?.questions ? 'Claude te pose une question' : 'Claude demande l’autorisation'}
     >
       <span className={styles.notifCall} aria-hidden="true" />
-      <div className={styles.headText}>
-        <strong>Claude demande l’autorisation</strong>
-        <small>{sub}</small>
-      </div>
-      <div className={styles.code} title={shown?.summary}>
-        <span>{shown?.summary}</span>
-      </div>
-      <div className={styles.askRow}>
+      {shown?.questions ? (
+        // La clé repart de la première question à chaque nouvelle demande.
+        <QuestionForm
+          key={shown.id}
+          ask={shown}
+          onAnswer={(answers) => onAskDecision('allow', shown, answers)}
+          onLater={() => decide('later')}
+        />
+      ) : (
+        <>
+          <div className={styles.headText}>
+            <strong>Claude demande l’autorisation</strong>
+            <small>{sub}</small>
+          </div>
+          <div className={styles.code} title={shown?.summary}>
+            <span>{shown?.summary}</span>
+          </div>
+        </>
+      )}
+      <div className={cx(styles.askRow, shown?.questions && styles.askRowHidden)}>
         {multiple && (
           <button type="button" className={cx(styles.btn, styles.btnGhost, styles.later)} onClick={() => decide('later')}>
             Plus tard

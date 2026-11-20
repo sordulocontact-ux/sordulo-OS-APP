@@ -51,16 +51,42 @@ export function makeSessions(count: number, now: number, waiting = false): Claud
 
 let askSequence = 0
 
+/** Une demande sur deux est une question à choix de Claude (AskUserQuestion), pour voir les deux rendus. */
 export function makeAsk(sessionId: string, now: number): PermissionAsk {
   askSequence += 1
+  const question = askSequence % 2 === 0
   return {
     id: `lab-ask-${askSequence}`,
     sessionId,
-    toolName: 'Bash',
-    summary: 'npm run build',
-    title: 'Lancer une commande dans PDS OS',
+    toolName: question ? 'AskUserQuestion' : 'Bash',
+    summary: question ? '' : 'npm run build',
+    title: question ? 'Question de Claude dans PDS OS' : 'Lancer une commande dans PDS OS',
     receivedAt: now,
     expiresAt: now + 60_000,
+    questions: question
+      ? [
+          {
+            question: 'Comment gérer les tickets déjà importés ?',
+            header: 'Import',
+            multiSelect: false,
+            options: [
+              { label: 'Les ignorer', description: 'On ne touche pas aux pages existantes' },
+              { label: 'Les mettre à jour', description: 'Réécrire le contenu depuis le Drive' },
+              { label: 'Demander à chaque fois', description: null },
+            ],
+          },
+          {
+            question: 'Quelles parties de l’app sont concernées ?',
+            header: 'Parties',
+            multiSelect: true,
+            options: [
+              { label: 'Accueil', description: null },
+              { label: 'Projets', description: null },
+              { label: 'Tickets', description: null },
+            ],
+          },
+        ]
+      : null,
   }
 }
 

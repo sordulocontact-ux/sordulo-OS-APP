@@ -43,6 +43,7 @@ function ask(id: string, at: number): PermissionAsk {
     title: 'Lancer une commande dans PDS OS',
     receivedAt: at,
     expiresAt: at + 60_000,
+    questions: null,
   }
 }
 

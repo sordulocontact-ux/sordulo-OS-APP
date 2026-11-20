@@ -13,6 +13,7 @@ import type {
   IslandSnapshot,
   PermissionAsk,
   PermissionDecision,
+  QuestionAnswers,
 } from '../types'
 
 /** Activité d'un genre donné, avec son id et son ordre. */
@@ -83,7 +84,8 @@ export interface IslandProps {
   /** Échap pendant une notification. */
   onNotificationDismiss: (notification: IslandNotification) => void
   /** Plus tard / Refuser / Autoriser. */
-  onAskDecision: (decision: PermissionDecision, ask: PermissionAsk) => void
+  /** `answers` : choix faits dans l'île pour une question de Claude (AskUserQuestion), avec « allow ». */
+  onAskDecision: (decision: PermissionDecision, ask: PermissionAsk, answers?: QuestionAnswers) => void
   /** « Transcrire » avec le projet choisi. */
   onCallAccept: (projectId: string | null) => void
   /** « Ignorer » (ou Échap) sur l'appel détecté. */

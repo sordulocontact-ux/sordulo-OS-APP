@@ -177,8 +177,20 @@ export interface ClaudeRelayEvent {
   requestId: string | null
   /** Notification: Claude Code message. UserPromptSubmit: start of the prompt. Stop / SessionEnd: reason if any. */
   message: string | null
+  /** PermissionRequest of the AskUserQuestion tool: Claude's multiple-choice questions, answered from the island. */
+  questions?: ClaudeQuestion[]
   /** Unix epoch in ms. */
   at: number
+}
+
+/** A multiple-choice question asked by Claude (AskUserQuestion tool). */
+export interface ClaudeQuestion {
+  /** Exact text: key of the answer sent back to Claude Code. */
+  question: string
+  /** Short tag (« Approche », « Format »). */
+  header: string | null
+  multiSelect: boolean
+  options: { label: string; description: string | null }[]
 }
 
 export interface ClaudeConnection {

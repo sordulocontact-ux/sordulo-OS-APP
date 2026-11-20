@@ -52,7 +52,7 @@ export const CLAUDE_TICK_MS = 30_000
 /** Accès Tauri de la source (src/lib/desktop.ts), remplacés par des faux en test. */
 export interface ClaudeSourceDeps {
   onClaude: (handler: (event: ClaudeRelayEvent) => void) => Promise<() => void>
-  claudeAnswer: (args: { requestId: string; decision: ClaudeDecision }) => Promise<void>
+  claudeAnswer: (args: { requestId: string; decision: ClaudeDecision; answers?: Record<string, string> }) => Promise<void>
   claudeOpenSession: (args: { sessionId: string }) => Promise<void>
 }
 
@@ -196,9 +196,9 @@ export function createClaudeSource(deps: ClaudeSourceDeps): IslandSource {
           onOpenSession(sessionId) {
             openSession(sessionId)
           },
-          onAskDecision(decision, ask) {
+          onAskDecision(decision, ask, answers) {
             deps
-              .claudeAnswer({ requestId: ask.id, decision })
+              .claudeAnswer(answers ? { requestId: ask.id, decision, answers } : { requestId: ask.id, decision })
               .catch((e: unknown) => console.warn('[île] réponse à Claude Code :', e))
             dispatch({ type: 'decision', requestId: ask.id, decision })
             // Demande déjà oubliée par les sessions (délai écoulé entre-temps) : on la ferme quand même.
