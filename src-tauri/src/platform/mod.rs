@@ -255,6 +255,23 @@ pub struct EditorHost {
     pub bundle_id: Option<String>,
 }
 
+/// `storage.json` de l'éditeur de la session (VS Code, Cursor…), qui liste ses fenêtres ouvertes.
+pub fn editor_storage_file(editor: &EditorHost) -> Option<PathBuf> {
+    #[cfg(windows)]
+    {
+        windows::editor_storage_file(editor)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        macos::editor_storage_file(editor)
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        let _ = editor;
+        None
+    }
+}
+
 /// Met au premier plan la fenêtre de l'éditeur ouverte sur `folder` (ou l'ouvre). Bloquant (~100 ms).
 pub fn open_in_editor(editor: &EditorHost, folder: &Path) -> anyhow::Result<()> {
     #[cfg(windows)]

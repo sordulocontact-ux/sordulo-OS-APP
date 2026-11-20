@@ -139,10 +139,20 @@ pub fn open_session(app: &AppHandle, session_id: &str) -> Result<(), String> {
         .get(session_id)
         .cloned()
         .ok_or("Session inconnue : son dossier n'a pas encore été reçu.")?;
-    let folder = PathBuf::from(&host.cwd);
-    if !folder.is_absolute() || !folder.is_dir() {
+    let cwd = PathBuf::from(&host.cwd);
+    if !cwd.is_absolute() || !cwd.is_dir() {
         return Err(format!("Dossier introuvable : {}", host.cwd));
     }
+    // La fenêtre peut être ouverte sur un dossier parent : on rouvre le sien (VS Code la met devant)
+    // plutôt que le dossier de la session (qui ouvrirait une nouvelle fenêtre).
+    let folders = crate::platform::editor_storage_file(&host.editor)
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .map(|storage| crate::editor_windows::open_folders(&storage))
+        .unwrap_or_default();
+    let folder = crate::editor_windows::window_folder_for(&host.cwd, &folders)
+        .map(PathBuf::from)
+        .filter(|folder| folder.is_dir())
+        .unwrap_or(cwd);
     crate::platform::open_in_editor(&host.editor, &folder).map_err(|e| format!("{e:#}"))?;
     log::info!("session Claude {session_id} ouverte dans son éditeur");
     Ok(())

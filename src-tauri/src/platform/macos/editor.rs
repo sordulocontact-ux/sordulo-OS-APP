@@ -16,6 +16,27 @@ use crate::platform::EditorHost;
 
 const DEFAULT_EDITOR: &str = "com.microsoft.VSCode";
 
+/// Nom court de l'éditeur (`nameShort` de son product.json : « Code », « Cursor »…), « Code » par défaut.
+fn name_short(app: Option<&str>) -> String {
+    app.map(|app| Path::new(app).join("Contents/Resources/app/product.json"))
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .and_then(|product| product["nameShort"].as_str().map(str::to_owned))
+        .unwrap_or_else(|| "Code".to_owned())
+}
+
+/// `storage.json` de l'éditeur (liste de ses fenêtres ouvertes, voir `editor_windows`).
+pub fn editor_storage_file(editor: &EditorHost) -> Option<std::path::PathBuf> {
+    let home = std::env::var_os("HOME")?;
+    let name = name_short(editor.exe.as_deref().and_then(outer_app_bundle));
+    Some(
+        Path::new(&home)
+            .join("Library/Application Support")
+            .join(name)
+            .join("User/globalStorage/storage.json"),
+    )
+}
+
 /// Bundle id plausible (lettres, chiffres, points, tirets) : jamais passé tel quel s'il est bizarre.
 fn valid_bundle_id(id: &str) -> bool {
     !id.is_empty()

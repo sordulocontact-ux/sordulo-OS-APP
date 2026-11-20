@@ -34,7 +34,7 @@ mod timeline;
 /// Enregistreur Mac : capture Core Audio + chaîne partagée (MP3 mono 16 kHz 32 kb/s).
 pub use recorder::WasapiRecorder as CoreAudioRecorder;
 
-pub use editor::open_in_editor;
+pub use editor::{editor_storage_file, open_in_editor};
 pub use island::{cursor_state, primary_notch, raise_island_window};
 pub use pages::browser_page_titles;
 

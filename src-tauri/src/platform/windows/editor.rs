@@ -27,6 +27,27 @@ fn default_vscode() -> Option<PathBuf> {
     candidates.into_iter().flatten().find(|p| p.is_file())
 }
 
+/// Nom court de l'éditeur (`nameShort` de `resources\app\product.json`), « Code » par défaut.
+fn name_short(exe: Option<&str>) -> String {
+    exe.and_then(|exe| Path::new(exe).parent().map(|dir| dir.join("resources").join("app").join("product.json")))
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .and_then(|product| product["nameShort"].as_str().map(str::to_owned))
+        .unwrap_or_else(|| "Code".to_owned())
+}
+
+/// `storage.json` de l'éditeur (liste de ses fenêtres ouvertes, voir `editor_windows`).
+pub fn editor_storage_file(editor: &EditorHost) -> Option<PathBuf> {
+    let appdata = std::env::var_os("APPDATA")?;
+    Some(
+        PathBuf::from(appdata)
+            .join(name_short(editor.exe.as_deref()))
+            .join("User")
+            .join("globalStorage")
+            .join("storage.json"),
+    )
+}
+
 /// Chemin à la Git Bash (`/c/Users/…`) → chemin Windows (`C:\Users\…`).
 fn windows_path(folder: &Path) -> PathBuf {
     let text = folder.to_string_lossy();

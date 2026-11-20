@@ -6,6 +6,7 @@ mod auth_link;
 mod call_apps;
 mod claude;
 mod commands;
+mod editor_windows;
 mod dropped;
 mod events;
 mod island_window;

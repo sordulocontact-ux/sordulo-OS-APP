@@ -37,7 +37,7 @@ pub use activity::{processes_playing_audio, visible_window_titles};
 pub use clipboard::copy_text;
 pub use pages::browser_page_titles;
 pub use cursor::cursor_state;
-pub use editor::open_in_editor;
+pub use editor::{editor_storage_file, open_in_editor};
 pub use mic::RegistryMicMonitor;
 pub use recorder::WasapiRecorder;
 pub use url_scheme::register_url_scheme;
