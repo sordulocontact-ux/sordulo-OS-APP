@@ -113,7 +113,7 @@
   }
 }
 
-/* Encoche du Mac : les Claude passent derrière (lot macOS, inactif) */
+/* Encoche du Mac : les Claude passent derrière */
 .notch {
   position: absolute;
   top: 0;

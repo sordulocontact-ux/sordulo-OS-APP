@@ -4,16 +4,33 @@
 //! - `pages.rs` : titres des onglets des navigateurs (AppleScript), pour reconnaître Meet, Discord…
 //! - Presse-papiers par `pbcopy`.
 //!
-//! Enregistrement : LOT À VENIR (L13, voir .tickets/…/TICKET.md). Plan : porter depuis le projet open
-//! source Coucou (https://github.com/Louis-CFM/coucou, licence MIT)
-//! `NotchBuddy/Sources/App/NoteAudio.swift` → capture du son système via un process tap Core Audio
-//! (macOS 14.4+) + micro → `CoreAudioRecorder`.
+//! - `capture.rs` : capture du micro et du son de l'ordinateur (process tap, macOS 14.2+).
+//!
+//! Enregistrement : seule la capture est propre au Mac. Ligne de temps, mix, rééchantillonnage, MP3 et
+//! orchestration sont les modules purs de `windows/` (aucun appel Windows dedans), inclus ici tels quels
+//! par `#[path]` : une correction faite d'un côté vaut pour les deux.
 //! Obligations : conserver la mention de copyright MIT d'origine dans les fichiers portés ;
 //! ne pas reprendre les noms « Coucou », « Mochi » ni leurs sons.
 
 mod audio;
+mod capture;
 mod island;
 mod pages;
+
+// Chaîne d'enregistrement partagée avec Windows (voir l'en-tête).
+#[path = "../windows/dsp.rs"]
+mod dsp;
+#[path = "../windows/encoder.rs"]
+mod encoder;
+#[path = "../windows/mixer.rs"]
+mod mixer;
+#[path = "../windows/recorder.rs"]
+mod recorder;
+#[path = "../windows/timeline.rs"]
+mod timeline;
+
+/// Enregistreur Mac : capture Core Audio + chaîne partagée (MP3 mono 16 kHz 32 kb/s).
+pub use recorder::WasapiRecorder as CoreAudioRecorder;
 
 pub use island::{cursor_state, primary_notch, raise_island_window};
 pub use pages::browser_page_titles;
@@ -26,9 +43,8 @@ pub fn processes_playing_audio() -> Vec<String> {
         .collect()
 }
 
-use super::{MicApp, MicMonitor, Recorder, RecordingInfo};
+use super::{MicApp, MicMonitor};
 use std::io::Write;
-use std::path::Path;
 use std::process::{Command, Stdio};
 
 pub struct CoreAudioMicMonitor;
@@ -40,27 +56,6 @@ impl CoreAudioMicMonitor {
 impl MicMonitor for CoreAudioMicMonitor {
     fn active_apps(&self) -> anyhow::Result<Vec<MicApp>> {
         Ok(audio::apps_with_running(audio::Direction::Input))
-    }
-}
-
-pub struct CoreAudioRecorder;
-impl CoreAudioRecorder {
-    pub fn new() -> Self {
-        Self
-    }
-}
-impl Recorder for CoreAudioRecorder {
-    fn start(&mut self, _output: &Path) -> anyhow::Result<()> {
-        anyhow::bail!("Enregistrement macOS pas encore disponible (lot L13)")
-    }
-    fn stop(&mut self) -> anyhow::Result<RecordingInfo> {
-        anyhow::bail!("Aucun enregistrement en cours")
-    }
-    fn is_recording(&self) -> bool {
-        false
-    }
-    fn elapsed_secs(&self) -> f64 {
-        0.0
     }
 }
 
@@ -79,4 +74,37 @@ pub fn copy_text(text: &str) -> anyhow::Result<()> {
     let status = child.wait()?;
     anyhow::ensure!(status.success(), "pbcopy a échoué ({status})");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CoreAudioRecorder;
+    use crate::platform::Recorder;
+
+    /// Manuel : `SORDULO_TEST_RECORDING=/chemin/test.mp3 cargo test record_a_few_seconds -- --ignored
+    /// --nocapture` (demande les autorisations micro et son du système au terminal).
+    #[test]
+    #[ignore]
+    fn record_a_few_seconds() {
+        let path = std::env::var("SORDULO_TEST_RECORDING").expect("SORDULO_TEST_RECORDING");
+        crate::logging::init();
+        let mut recorder = CoreAudioRecorder::new();
+        let started = std::time::Instant::now();
+        recorder.start(std::path::Path::new(&path)).expect("démarrage");
+        println!("démarré en {:?}", started.elapsed());
+        // Son de l'ordinateur à t ≈ 2 s (le micro capte la pièce).
+        let player = std::thread::spawn(|| {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            let _ = std::process::Command::new("/usr/bin/afplay")
+                .arg("/System/Library/Sounds/Submarine.aiff")
+                .status();
+        });
+        for _ in 0..12 {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            println!("niveau : {:?}", CoreAudioRecorder::live_level());
+        }
+        let _ = player.join();
+        let info = recorder.stop().expect("arrêt");
+        println!("{info:?}");
+    }
 }

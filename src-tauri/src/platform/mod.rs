@@ -3,7 +3,7 @@
 //! Une implémentation par système d'exploitation :
 //! - `windows/` : ce soir (registre CapabilityAccessManager + WASAPI + MP3).
 //! - `macos/`   : île (curseur, encoche, niveau de fenêtre), détection du micro et des appels (processus
-//!   Core Audio, onglets par AppleScript), presse-papiers ; enregistrement à venir (process tap, L13).
+//!   Core Audio, onglets par AppleScript), enregistrement (micro + process tap), presse-papiers.
 //!
 //! Le reste de l'app (tray, commandes Tauri, boucle de détection) ne dépend QUE de ce module :
 //! jamais de `cfg(windows)` en dehors de `platform/`.
@@ -121,7 +121,11 @@ pub fn recording_level() -> Option<f32> {
     {
         windows::WasapiRecorder::live_level()
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        macos::CoreAudioRecorder::live_level()
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         None
     }
