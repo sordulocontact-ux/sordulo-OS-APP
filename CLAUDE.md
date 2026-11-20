@@ -48,7 +48,7 @@ npm test           # inclut les tests RLS (supabase/tests, Postgres PGlite en m�
 npm run build
 ```
 
-Migrations : une nouvelle migration `supabase/migrations/000N_*.sql` est appliquée en production **avant** de pousser le code qui en dépend, par `npm run db:migrate` (`SUPABASE_DB_URL` = URI « Session pooler » dans `.env.local`, les migrations déjà passées sont sautées) ou par l'éditeur SQL Supabase. Pour tester sur une base jetable : un Supabase local (`supabase start`, ports libres) et un fichier `.env.<mode>.local` lu par `npx vite --mode <mode>` (jamais le `.env.local` de production).
+Migrations : une nouvelle migration `supabase/migrations/000N_*.sql` est appliquée en production **avant** de pousser le code qui en dépend, par `npm run db:migrate` (`SUPABASE_DB_URL` = URI « Session pooler » dans `.env.local`, les migrations déjà passées sont sautées) ou par l'éditeur SQL Supabase. Production sans `sordulo_meta` (migrations collées à la main) : `node scripts/db-apply-files.mjs <nouvelles.sql> --mark <déjà appliquées.sql>` applique chaque fichier dans sa transaction et note les migrations. Pour tester sur une base jetable : un Supabase local (`supabase start`, ports libres) et un fichier `.env.<mode>.local` lu par `npx vite --mode <mode>` (jamais le `.env.local` de production).
 
 ## Organisation du code
 
@@ -127,6 +127,7 @@ La fenêtre `/desktop/prompt` est petite : elle doit rester lisible à taille r�
 - Devis `D-AAAA-NNN` à la création. Factures et acomptes `F-AAAA-NNNN`, avoirs `A-AAAA-NNNN`, attribués par `issue_invoice` / `create_credit_note` : séries continues, facture figée après émission (correction = avoir), vendeur et acheteur copiés à l'émission.
 - Statut du projet automatique, seulement vers l'avant : devis envoyé → « devis envoyé », accepté → « en cours », factures payées → « payé ».
 - PDF = aperçu A4 + impression du navigateur. Export CSV comptable depuis la liste des factures.
+- Émetteurs (migration 0005) : les micro-entreprises qui émettent (Sacha Moricet EI, Maël Auzenet EI), chacune avec ses infos légales, son IBAN et sa série de factures `AAAA-NNN` ; devis `AAAA-NNN` par organisation. Les documents importés (`sordulo.import`, serveur seulement) gardent leur numéro d'origine. Les données réelles ne sont jamais versionnées dans git.
 
 ## Règles de design (obligatoires)
 
