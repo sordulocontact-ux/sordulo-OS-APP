@@ -270,13 +270,17 @@ describe('conflits', () => {
 })
 
 describe('activité Claude de l’île', () => {
-  it('une session → agent, plusieurs → multi, aucune ou toutes inactives → rien', () => {
-    const one = run([ev('SessionStart')]).sessions
+  it('une session → agent, plusieurs → multi ; rien tant qu’aucune ne travaille ni n’attend', () => {
+    const prompt = (sessionId: string) => ev('UserPromptSubmit', { sessionId, message: 'x' })
+    expect(claudeActivityFor(run([ev('SessionStart')]).sessions)).toBeNull()
+    const one = run([ev('SessionStart'), prompt('s-1')]).sessions
     expect(claudeActivityFor(one)).toEqual({ kind: 'agent', sessionId: 's-1' })
-    const two = run([ev('SessionStart'), ev('SessionStart', { sessionId: 's-2' })]).sessions
+    const two = run([ev('SessionStart'), ev('SessionStart', { sessionId: 's-2' }), prompt('s-2')]).sessions
     expect(claudeActivityFor(two)).toEqual({ kind: 'multi' })
+    const finished = run([ev('SessionStart'), prompt('s-1'), ev('Stop')]).sessions
+    expect(claudeActivityFor(finished)).toBeNull()
+    const asking = run([prompt('s-1'), ev('PermissionRequest', { requestId: 'r-1', toolName: 'Bash' })]).sessions
+    expect(claudeActivityFor(asking)).toEqual({ kind: 'agent', sessionId: 's-1' })
     expect(claudeActivityFor([])).toBeNull()
-    const asleep = run([ev('SessionStart'), { type: 'tick', at: T0 + SLEEP_AFTER_MS }]).sessions
-    expect(claudeActivityFor(asleep)).toBeNull()
   })
 })

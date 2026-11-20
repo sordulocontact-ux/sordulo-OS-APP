@@ -143,11 +143,15 @@ export function findPendingAsk(state: ClaudeState, requestId: string): Permissio
   return null
 }
 
-/** Activité Claude de l'île : une session → `agent`, plusieurs → `multi`, aucune (ou toutes inactives) → rien. */
+/**
+ * Activité Claude de l'île : une session → `agent`, plusieurs → `multi`. Rien tant qu'aucune session ne
+ * travaille ni n'attend de réponse (demande de Maël : rien ne tourne, rien dans l'île) ; la fin d'un tour
+ * est annoncée par la notification « Claude a terminé ».
+ */
 export type ClaudeActivityTarget = { kind: 'agent'; sessionId: string } | { kind: 'multi' } | null
 
 export function claudeActivityFor(sessions: readonly ClaudeSession[]): ClaudeActivityTarget {
-  if (!sessions.some((s) => s.status !== 'sleep')) return null
+  if (!sessions.some((s) => s.status === 'working' || s.status === 'waiting')) return null
   if (sessions.length === 1 && sessions[0]) return { kind: 'agent', sessionId: sessions[0].id }
   return { kind: 'multi' }
 }

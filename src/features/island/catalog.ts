@@ -230,7 +230,8 @@ export const notificationCatalog: { [K in NotificationKind]: (params: Notificati
       tone: 'claude',
       title: 'Claude a terminé',
       subtitle: projectDetail(p),
-      button: 'Voir',
+      // Pas de bouton : la session ne travaille plus, l'île n'a plus rien à en montrer.
+      button: null,
       action: showSessions,
     }),
   claudeStop: (p) =>
@@ -239,7 +240,8 @@ export const notificationCatalog: { [K in NotificationKind]: (params: Notificati
       tone: 'claude',
       title: 'Claude attend tes consignes',
       subtitle: projectDetail(p),
-      button: 'Ouvrir',
+      // Pas de bouton : la session ne travaille plus, l'île n'a plus rien à en montrer.
+      button: null,
       action: showSessions,
     }),
   multiDone: (p) =>
@@ -248,7 +250,8 @@ export const notificationCatalog: { [K in NotificationKind]: (params: Notificati
       tone: 'claude',
       title: 'Une session a terminé',
       subtitle: projectDetail(p),
-      button: 'Voir',
+      // Pas de bouton : la session ne travaille plus, l'île n'a plus rien à en montrer.
+      button: null,
       action: showSessions,
     }),
   conflict: (p) =>

@@ -146,6 +146,20 @@ pub fn visible_window_titles() -> Vec<String> {
     }
 }
 
+/// Titres des fenêtres visibles d'un navigateur (nom court, voir `call_apps::short_name`) et des pages
+/// qu'elles affichent (Arc ne met pas le titre de la page dans celui de sa fenêtre). Vide si non disponible.
+pub fn browser_page_titles(browser: &str) -> Vec<String> {
+    #[cfg(windows)]
+    {
+        windows::browser_page_titles(browser)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = browser;
+        Vec::new()
+    }
+}
+
 /// Position du curseur et état du bouton principal. `None` si non disponible.
 pub fn cursor_state() -> Option<CursorState> {
     #[cfg(windows)]

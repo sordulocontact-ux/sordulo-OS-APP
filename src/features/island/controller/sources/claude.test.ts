@@ -27,6 +27,9 @@ describe('source « Claude Code »', () => {
     t.emit('SessionStart')
     expect(t.sessions()).toHaveLength(1)
     expect(t.sessions()[0]).toMatchObject({ projectName: 'Sordulo OS', projectId: 'p-2' })
+    // Une session qui ne travaille pas n'occupe pas l'île.
+    expect(t.snap().primary).toBeNull()
+    t.emit('UserPromptSubmit', { message: 'x' })
     expect(t.snap().primary).toMatchObject({ id: AGENT_ACTIVITY_ID, kind: 'agent', sessionId: 's-1' })
     expect(t.snap().state).toBe('agent')
 
@@ -37,6 +40,8 @@ describe('source « Claude Code »', () => {
 
     t.emit('SessionEnd', { sessionId: 's-2' })
     expect(t.snap().primary).toMatchObject({ id: AGENT_ACTIVITY_ID, sessionId: 's-1' })
+    t.emit('Stop')
+    expect(t.snap().primary).toBeNull()
     t.emit('SessionEnd')
     expect(t.snap().primary).toBeNull()
     expect(t.sessions()).toHaveLength(0)
@@ -176,7 +181,7 @@ describe('source « Claude Code »', () => {
     expect(notify).not.toHaveBeenCalled()
   })
 
-  it('« Voir » : l’activité Claude dans la bulle est épinglée', async () => {
+  it('action showSessions (« Voir » d’un conflit) : l’activité Claude dans la bulle est épinglée', async () => {
     const t = setup()
     await flush()
     t.coordinator.addActivity({
@@ -189,24 +194,23 @@ describe('source « Claude Code »', () => {
       estimatedMs: 10_000,
     })
     t.emit('UserPromptSubmit', { message: 'x' })
-    t.emit('Stop')
-    expect(t.snap().secondary?.id).toBe(AGENT_ACTIVITY_ID)
+    t.emit('UserPromptSubmit', { sessionId: 's-2', message: 'y' })
+    t.emit('Stop', { sessionId: 's-2' })
+    expect(t.snap().secondary?.id).toBe(MULTI_ACTIVITY_ID)
     t.runtime.runAction(t.snap().notification!)
-    expect(t.snap().pinnedId).toBe(AGENT_ACTIVITY_ID)
-    expect(t.snap().primary?.id).toBe(AGENT_ACTIVITY_ID)
+    expect(t.snap().pinnedId).toBe(MULTI_ACTIVITY_ID)
+    expect(t.snap().primary?.id).toBe(MULTI_ACTIVITY_ID)
   })
 
-  it('« Voir » pendant un appel : l’appel reste seul dans l’île, Claude reste sous l’appel', async () => {
+  it('pendant un appel : Claude au travail reste sous l’appel, sans bulle', async () => {
     const t = setup()
     await flush()
     t.coordinator.addActivity({ id: 'meet', kind: 'meet', appName: 'Discord', service: null, projectId: null, projectName: null, startedAt: 0 })
     t.emit('UserPromptSubmit', { message: 'x' })
-    t.emit('Stop')
-    expect(t.snap().secondary).toBeNull()
-    t.runtime.runAction(t.snap().notification!)
-    expect(t.snap().pinnedId).toBeNull()
-    expect(t.snap().primary?.id).toBe('meet')
+    expect(t.snap()).toMatchObject({ state: 'meet', secondary: null })
     expect(t.snap().background.map((a) => a.id)).toEqual([AGENT_ACTIVITY_ID])
+    t.emit('Stop')
+    expect(t.snap().background).toEqual([])
   })
 
   it('session inactive après 15 min : l’île se repose, puis se réveille au prochain hook', async () => {

@@ -26,12 +26,14 @@ mod dsp;
 mod encoder;
 mod mic;
 mod mixer;
+mod pages;
 mod recorder;
 mod timeline;
 mod url_scheme;
 
 pub use activity::{processes_playing_audio, visible_window_titles};
 pub use clipboard::copy_text;
+pub use pages::browser_page_titles;
 pub use cursor::cursor_state;
 pub use mic::RegistryMicMonitor;
 pub use recorder::WasapiRecorder;

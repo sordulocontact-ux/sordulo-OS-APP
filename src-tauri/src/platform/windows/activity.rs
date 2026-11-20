@@ -71,7 +71,7 @@ pub fn processes_playing_audio() -> anyhow::Result<Vec<String>> {
     Ok(names)
 }
 
-fn exe_stem(pid: u32) -> Option<String> {
+pub(super) fn exe_stem(pid: u32) -> Option<String> {
     if pid == 0 {
         return None;
     }

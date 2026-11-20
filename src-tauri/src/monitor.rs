@@ -133,15 +133,13 @@ pub fn spawn_mic_loop(app: AppHandle) {
                             .into_iter()
                             .filter(|a| call_apps::classify(&a.id).is_some())
                             .collect();
-                        // Les titres des fenêtres ne servent qu'à reconnaître le service d'un navigateur.
-                        let titles = if apps
+                        // Les titres ne servent qu'à reconnaître le service d'un navigateur : fenêtres et pages de
+                        // ce navigateur seulement (une autre fenêtre « Meet » ne doit pas colorer un appel Discord).
+                        let titles: Vec<String> = apps
                             .iter()
-                            .any(|a| call_apps::classify(&a.id) == Some(call_apps::CallApp::Browser))
-                        {
-                            platform::visible_window_titles()
-                        } else {
-                            Vec::new()
-                        };
+                            .filter(|a| call_apps::classify(&a.id) == Some(call_apps::CallApp::Browser))
+                            .flat_map(|a| platform::browser_page_titles(&call_apps::short_name(&a.id)))
+                            .collect();
                         let mic = MicState::from_apps_with_titles(apps, &titles);
                         let active = mic.active;
                         match on_poll(&app, mic) {
