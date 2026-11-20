@@ -14,13 +14,15 @@
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
+  color: var(--color-text-muted);
   cursor: pointer;
-  transition: background var(--duration-fast) var(--easing-standard);
+  transition: background var(--duration-fast) var(--easing-standard), color var(--duration-fast) var(--easing-standard);
 }
 
 .button:hover,
 .button[aria-expanded='true'] {
   background: var(--color-surface-hover);
+  color: var(--color-text);
 }
 
 .button:focus-visible {

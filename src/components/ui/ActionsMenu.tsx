@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import moreIcon from '../../assets/icons/more.svg'
 import styles from './ActionsMenu.module.css'
+import { Icon } from './Icon'
 
 export interface ActionsMenuItem {
   label: string
@@ -107,7 +108,7 @@ export function ActionsMenu({ label, items }: ActionsMenuProps) {
         onClick={() => setOpen((value) => !value)}
         onKeyDown={onButtonKey}
       >
-        <img src={moreIcon} alt="" width={20} height={20} />
+        <Icon src={moreIcon} />
       </button>
       {open ? (
         <div id={menuId} className={styles.menu} role="menu" aria-label={label} onKeyDown={onMenuKey}>

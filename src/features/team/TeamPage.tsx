@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ActionsMenu, Avatar, Badge, Button, EmptyState, ErrorState, LoadingState, StatCard, useToast, type ActionsMenuItem } from '../../components/ui'
+import { ActionsMenu, Avatar, Icon, Badge, Button, EmptyState, ErrorState, LoadingState, StatCard, useToast, type ActionsMenuItem } from '../../components/ui'
 import plusIcon from '../../assets/icons/plus.svg'
 import table from '../../components/ui/dataTable.module.css'
 import { useAuth, useCurrentMember } from '../auth'
@@ -86,7 +86,7 @@ export function TeamPage() {
         </label>
         <div className={table.toolbarEnd}>
           <Button variant="primary" onClick={() => setInviting(true)} disabled={!orgId}>
-            <img src={plusIcon} alt="" width={20} height={20} />
+            <Icon src={plusIcon} />
             Inviter un membre
           </Button>
         </div>

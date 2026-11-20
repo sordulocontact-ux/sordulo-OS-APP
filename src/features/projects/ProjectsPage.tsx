@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ActionsMenu, Avatar, Button, EmptyState, ErrorState, LoadingState, SearchField, Select, StatCard } from '../../components/ui'
+import { ActionsMenu, Avatar, Icon, Button, EmptyState, ErrorState, LoadingState, SearchField, Select, StatCard } from '../../components/ui'
 import plusIcon from '../../assets/icons/plus.svg'
 import table from '../../components/ui/dataTable.module.css'
 import { formatDate } from '../tickets/format'
@@ -88,7 +88,7 @@ export function ProjectsPage() {
         </div>
         <div className={table.toolbarEnd}>
           <Button variant="primary" onClick={() => setCreating(true)}>
-            <img src={plusIcon} alt="" width={20} height={20} />
+            <Icon src={plusIcon} />
             Nouveau projet
           </Button>
         </div>
@@ -104,7 +104,7 @@ export function ProjectsPage() {
           text="Crée le premier projet de l'organisation."
           action={
             <Button variant="primary" onClick={() => setCreating(true)}>
-              <img src={plusIcon} alt="" width={20} height={20} />
+              <Icon src={plusIcon} />
               Nouveau projet
             </Button>
           }

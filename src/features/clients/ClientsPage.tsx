@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ActionsMenu, Avatar, Badge, Button, EmptyState, ErrorState, LoadingState, SearchField, StatCard, useToast } from '../../components/ui'
+import { ActionsMenu, Avatar, Icon, Badge, Button, EmptyState, ErrorState, LoadingState, SearchField, StatCard, useToast } from '../../components/ui'
 import plusIcon from '../../assets/icons/plus.svg'
 import { formatDate } from '../tickets/format'
 import { ArchiveClientModal } from './ArchiveClientModal'
@@ -39,7 +39,7 @@ export function ClientsPage() {
 
   const newButton = (
     <Button variant="primary" onClick={() => setCreating(true)}>
-      <img src={plusIcon} alt="" width={20} height={20} />
+      <Icon src={plusIcon} />
       Nouveau client
     </Button>
   )
