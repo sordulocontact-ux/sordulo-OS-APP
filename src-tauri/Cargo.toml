@@ -36,6 +36,13 @@ getrandom = "0.3"
 anyhow = "1"
 thiserror = "2"
 log = "0.4"
+# Connecteur Spotify (src/spotify/) : API Web en HTTPS, client bloquant appelé depuis ses threads.
+# TLS du système (SChannel sous Windows, Security.framework sur Mac), ni rustls ni ring.
+# Même version que celle déjà tirée par Tauri.
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "native-tls"] }
+# PKCE (S256, base64url sans remplissage) : mêmes versions que celles déjà dans Cargo.lock.
+sha2 = "0.11"
+base64 = "0.23"
 
 # Implémentation Windows (détection du micro + capture WASAPI + encodage MP3).
 [target.'cfg(windows)'.dependencies]
@@ -47,7 +54,7 @@ rubato = "5"
 # Foundation, Media_Control, Storage_Streams : musique en cours (contrôles multimédias du système, WinRT),
 # voir src/platform/windows/media.rs. WinRT est initialisé par CoInitializeEx (Win32_System_Com).
 windows = { version = "0.62", features = ["Win32_UI_Accessibility", "Win32_System_Com", "Win32_System_Ole", "Win32_System_Variant", "Foundation", "Media_Control", "Storage_Streams"] }
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging", "Win32_System_SystemInformation", "Win32_System_DataExchange", "Win32_System_Memory"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging", "Win32_System_SystemInformation", "Win32_System_DataExchange", "Win32_System_Memory", "Win32_UI_Shell"] }
 
 # macOS : île (encoche, niveau de fenêtre), détection du micro (bundle des apps), enregistrement (tap
 # Core Audio). objc2 : mêmes versions que celles déjà tirées par Tauri (tao, wry). Encodage MP3 et

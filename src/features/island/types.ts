@@ -131,6 +131,8 @@ export interface IslandMusic {
   artworkUrl: string | null
   /** Couleurs de la pochette ; null : tokens --island-music* par défaut. */
   palette: MusicPalette | null
+  /** Boutons précédent / lecture-pause / suivant utilisables (faux : Spotify sur un autre appareil sans Premium). */
+  canControl: boolean
 }
 
 export type ActivityPayload = MeetActivity | ProgressActivity | AgentActivity | MultiActivity | MusicActivity
@@ -158,6 +160,8 @@ export type NotificationKind =
   | 'uploadError'
   | 'pendingUpload'
   | 'loginRequired'
+  /** Accès au compte Spotify perdu (connecteur) : « Reconnecte Spotify », bouton vers la page Connecteurs. */
+  | 'spotifyReconnect'
   /** Le micro est redevenu inactif pendant l'enregistrement : « L'appel semble terminé », bouton Arrêter. */
   | 'callEnded'
   /** « Enregistrer un appel » demandé alors qu'un enregistrement tourne déjà : bouton Arrêter. */

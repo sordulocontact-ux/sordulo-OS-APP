@@ -88,6 +88,7 @@ describe('source « musique »', () => {
       positionAt: 1_000_000,
       artworkUrl: null,
       palette: null,
+      canControl: true,
     })
   })
 
@@ -341,5 +342,19 @@ describe('source « musique »', () => {
     await flush()
     expect(t.deps.musicCommand).toHaveBeenLastCalledWith({ command: 'playPause' })
     expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^\[île\]/), expect.any(Error))
+  })
+
+  it('canControl faux (Spotify sur un autre appareil sans Premium) : publié, commandes ignorées sauf « open »', async () => {
+    const t = setup(track({ appName: 'Spotify sur iPhone de Maël', canControl: false }))
+    await flush()
+    expect(t.view()).toMatchObject({ appName: 'Spotify sur iPhone de Maël', canControl: false })
+    t.runtime.gestures.onMusicCommand('playPause')
+    t.runtime.gestures.onMusicCommand('next')
+    t.runtime.gestures.onMusicCommand('previous')
+    expect(t.deps.musicCommand).not.toHaveBeenCalled()
+    // Pas de mise à jour immédiate : la musique reste en lecture, position inchangée.
+    expect(t.view()).toMatchObject({ playing: true, positionMs: 30_000, positionAt: 1_000_000 })
+    t.runtime.gestures.onMusicCommand('open')
+    expect(t.deps.musicCommand).toHaveBeenCalledWith({ command: 'open' })
   })
 })

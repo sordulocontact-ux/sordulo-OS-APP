@@ -6,10 +6,11 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::claude::{self, ClaudeConnection, ClaudeDecision};
 use crate::dropped;
-use crate::events::WINDOW_PROMPT;
+use crate::events::{WINDOW_MAIN, WINDOW_PROMPT};
 use crate::music::{self, MusicState};
 use crate::platform::MediaCommand;
 use crate::recording;
+use crate::spotify::{self, SpotifyStatus};
 use crate::state::{
     DesktopState, DesktopStatus, FocusModeState, IslandHitRects, IslandRect, PromptReason,
     RecordingResult, RecordingState,
@@ -175,7 +176,8 @@ pub async fn get_music_artwork(app: AppHandle, artwork_id: String) -> Result<Res
 }
 
 /// Précédent, lecture / pause, suivant, ou lecteur au premier plan. Réservé à la fenêtre de l'île.
-/// Asynchrone : la commande au lecteur peut prendre quelques centaines de ms.
+/// Asynchrone : la commande au lecteur peut prendre quelques centaines de ms. L'île montre Spotify sur un
+/// autre appareil : la commande part à l'API Web de Spotify (client bloquant, d'où `spawn_blocking`).
 #[tauri::command]
 pub async fn music_command(
     window: tauri::WebviewWindow,
@@ -188,8 +190,49 @@ pub async fn music_command(
     if !app.state::<DesktopState>().shared().music_enabled {
         return Err("La musique est masquée dans le menu de Sordulo OS.".into());
     }
+    let shows_spotify = music::current(&app).is_some_and(|m| m.app_id == spotify::APP_ID);
+    if shows_spotify {
+        return tauri::async_runtime::spawn_blocking(move || spotify::command(&app, command))
+            .await
+            .map_err(|e| format!("Commande Spotify interrompue : {e}"))?;
+    }
     crate::platform::media_command(command)
         .map_err(|e| format!("Commande du lecteur impossible : {e:#}"))
+}
+
+/// État de la connexion Spotify (page Connecteurs).
+#[tauri::command]
+pub fn spotify_status(app: AppHandle) -> SpotifyStatus {
+    spotify::status(&app)
+}
+
+/// Connecte un compte Spotify : ouvre la page d'autorisation dans le navigateur par défaut et attend la
+/// redirection (3 min au plus). Réservé à la fenêtre principale. Bloquant (serveur local, HTTP) : tourne
+/// dans `spawn_blocking`, jamais sur un thread async.
+#[tauri::command]
+pub async fn spotify_connect(
+    window: tauri::WebviewWindow,
+    app: AppHandle,
+    client_id: String,
+) -> Result<SpotifyStatus, String> {
+    if window.label() != WINDOW_MAIN {
+        return Err("Seule la fenêtre principale peut connecter Spotify.".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || spotify::connect(&app, &client_id))
+        .await
+        .map_err(|e| format!("Connexion à Spotify interrompue : {e}"))?
+}
+
+/// Déconnecte le compte Spotify (jetons oubliés, fichier supprimé). Réservé à la fenêtre principale.
+#[tauri::command]
+pub fn spotify_disconnect(
+    window: tauri::WebviewWindow,
+    app: AppHandle,
+) -> Result<SpotifyStatus, String> {
+    if window.label() != WINDOW_MAIN {
+        return Err("Seule la fenêtre principale peut déconnecter Spotify.".into());
+    }
+    Ok(spotify::disconnect(&app))
 }
 
 #[tauri::command]

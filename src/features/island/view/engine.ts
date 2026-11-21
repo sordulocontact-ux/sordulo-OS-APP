@@ -47,6 +47,8 @@ export interface EngineTarget {
   meetRows: number
   /** Progression de la musique connue (hauteur de musicOpen). */
   musicProgress: boolean
+  /** Boutons de la musique affichés (faux : Spotify sur un autre appareil sans Premium). */
+  musicControls: boolean
 }
 
 interface SharedItem {
@@ -81,7 +83,7 @@ export class IslandEngine {
     target: EngineTarget,
   ) {
     this.target = target
-    const size = islandSize(target.platform, target.key, target.meetRows, target.musicProgress)
+    const size = islandSize(target.platform, target.key, target.meetRows, target.musicProgress, target.musicControls)
     this.w = createSpring(size.w)
     this.h = createSpring(size.h)
     this.r = createSpring(size.r)
@@ -104,7 +106,7 @@ export class IslandEngine {
   retarget(target: EngineTarget): void {
     const platformChanged = target.platform !== this.target.platform
     this.target = target
-    const t = islandSize(target.platform, target.key, target.meetRows, target.musicProgress)
+    const t = islandSize(target.platform, target.key, target.meetRows, target.musicProgress, target.musicControls)
     this.w.t = t.w
     this.h.t = t.h
     this.r.t = t.r
@@ -261,13 +263,13 @@ export class IslandEngine {
 
   /** Zones cliquables : union de la taille courante et de la cible, forme et bulle. */
   hitRects(): IslandRect[] {
-    const { platform, key, meetRows, musicProgress } = this.target
+    const { platform, key, meetRows, musicProgress, musicControls } = this.target
     return hitRectsFor({
       rootWidth: this.rootWidth,
       platform,
       island: {
         current: { w: this.w.x, h: this.h.x, r: this.r.x },
-        target: islandSize(platform, key, meetRows, musicProgress),
+        target: islandSize(platform, key, meetRows, musicProgress, musicControls),
       },
       bubble: this.bubbleShown
         ? { current: { w: this.bw.x, h: this.bh.x }, target: { w: this.bw.t, h: this.bh.t } }
@@ -281,12 +283,12 @@ export class IslandEngine {
    */
   ghostPlacement(): { left: number; width: number; height: number; dx: number } | null {
     if (!this.bubbleShown || this.rootWidth <= 0) return null
-    const { platform, key, meetRows, musicProgress } = this.target
+    const { platform, key, meetRows, musicProgress, musicControls } = this.target
     const cx = this.rootWidth / 2
     const island = shapeGeometry(this.w.x, this.h.x, this.r.x, platform)
     const b = shapeGeometry(this.bw.x, this.bh.x, BUBBLE_SIZES[platform].r, platform)
     const left = cx + island.width / 2 + BUBBLE_GAP + b.edge
-    const arrival = cx - islandSize(platform, key, meetRows, musicProgress).w / 2 + GHOST.inset
+    const arrival = cx - islandSize(platform, key, meetRows, musicProgress, musicControls).w / 2 + GHOST.inset
     const dx = arrival - (left + (b.innerWidth - GHOST.iconSize) / 2)
     return { left, width: b.innerWidth, height: b.height, dx }
   }

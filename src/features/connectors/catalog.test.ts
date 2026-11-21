@@ -7,8 +7,22 @@ describe('catalogue des connecteurs', () => {
     for (const c of CONNECTORS.filter((x) => x.status === 'connected')) expect(c.state).toBeTruthy()
   })
 
+  it('a un connecteur Spotify à état vivant, sans phrase d’état statique', () => {
+    const spotify = CONNECTORS.find((c) => c.id === 'spotify')
+    expect(spotify?.status).toBe('live')
+    expect(spotify?.state).toBeUndefined()
+  })
+
   it('filtre par onglet, sans tenir compte des accents ni de la casse', () => {
     expect(filterConnectors(CONNECTORS, '', true).map((c) => c.id)).toEqual(['claude', 'deepgram', 'mistral', 'supabase'])
+    expect(filterConnectors(CONNECTORS, '', true, new Set(['spotify'])).map((c) => c.id)).toEqual([
+      'claude',
+      'deepgram',
+      'mistral',
+      'supabase',
+      'spotify',
+    ])
+    expect(filterConnectors(CONNECTORS, 'musique', false).map((c) => c.id)).toEqual(['spotify'])
     expect(filterConnectors(CONNECTORS, 'COMPTABILITE', false).map((c) => c.id)).toEqual(['qonto', 'pennylane'])
     expect(filterConnectors(CONNECTORS, 'zzz', false)).toEqual([])
   })

@@ -1,19 +1,28 @@
 //! Musique écoutée sur l'ordinateur, montrée par l'île (pochette, titre, artiste, contrôles).
 //!
-//! Source : le lecteur du système (`platform::now_playing`), jamais un connecteur Spotify. Une boucle
-//! (~1 s) lit le morceau en cours et émet `desktop://music` (payload `MusicState | null`) vers l'île
-//! SEULEMENT quand quelque chose change : morceau, lecteur, lecture / pause, pochette, durée, ou position qui
-//! saute de plus de 2 s par rapport à celle attendue (avance ou recul manuel). La position qui avance toute
-//! seule n'est pas émise : le front l'avance à partir de `positionMs` / `positionAt`.
+//! Sources : le lecteur du système (`platform::now_playing`) et, si un compte est connecté, Spotify sur un
+//! autre appareil (`spotify/`, dernière lecture connue, sondée par son propre thread). L'ordinateur d'abord :
+//! ce qui joue sur l'ordinateur passe devant ; sinon Spotify à distance (en lecture ou en pause) ; sinon le
+//! lecteur du système en pause (`spotify::prefer_remote`). Spotify à distance : `appId` « spotify:connect »,
+//! `appName` « Spotify sur <appareil> », `canControl` selon Premium.
+//!
+//! Une boucle (~1 s) choisit le morceau à montrer et émet `desktop://music` (payload `MusicState | null`)
+//! vers l'île SEULEMENT quand quelque chose change : morceau, lecteur, lecture / pause, pochette, durée,
+//! commandes possibles, ou position qui saute de plus de 2 s par rapport à celle attendue (avance ou recul
+//! manuel). La position qui avance toute seule n'est pas émise : le front l'avance à partir de `positionMs` /
+//! `positionAt`.
 //!
 //! Pochette : `artworkId` est un compteur (en chaîne) qui change à chaque nouvelle image ; les octets sont
 //! gardés ici pour `get_music_artwork`. La pochette est relue quand sa clé change, puis encore quelques tours
 //! (sous Windows, certains lecteurs donnent le titre avant la nouvelle image) : même image = même id.
+//! Spotify à distance : la clé est l'URL https de la pochette, ses octets sont déjà téléchargés par
+//! `spotify/` ; même cache et même `artworkId` que la pochette du système.
 //!
 //! Apps d'appel (Teams, Zoom, Discord…) : jamais montrées (`call_apps`). Case « Afficher la musique dans
 //! l'île » du menu du soleil décochée : un `null` est émis une fois, plus aucun sondage, `get_music` rend `null`.
 //!
-//! Tout ce qui est pur (nom du lecteur, exclusion, choix de la session, détection des changements) est testé
+//! Tout ce qui est pur (nom du lecteur, exclusion, choix de la session, détection des changements, choix entre
+//! l'ordinateur et Spotify : `spotify/player.rs`) est testé
 //! plus bas ; seuls `spawn_music_loop`, `publish`, `clear` et les accès à l'état touchent Tauri.
 
 use std::sync::Arc;
@@ -26,6 +35,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::call_apps::{self, CallApp};
 use crate::events::{EVENT_MUSIC, WINDOW_PROMPT};
 use crate::platform::{self, NowPlaying};
+use crate::spotify::{self, RemotePlayback};
 use crate::state::DesktopState;
 
 /// Période de sondage du lecteur.
@@ -58,6 +68,10 @@ pub struct MusicState {
     /// Epoch Unix en ms de la lecture de `position_ms`.
     pub position_at: u64,
     pub artwork_id: Option<String>,
+    /// Boutons précédent / lecture-pause / suivant possibles. Absent (lecteur du système) : oui. `false` :
+    /// Spotify sur un autre appareil sans Premium (ou appareil qui refuse les commandes).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub can_control: Option<bool>,
 }
 
 /// Pochette courante : identifiant donné au front et octets bruts (PNG ou JPEG).
@@ -173,6 +187,34 @@ pub fn pick_session(candidates: &[(&str, Playback)]) -> Option<usize> {
 // Pur : détection des changements et pochette
 // ---------------------------------------------------------------------------
 
+/// Morceau à montrer, avec ce qui dépend de sa source (nom affiché, commandes possibles).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Track {
+    pub now: NowPlaying,
+    pub app_name: String,
+    pub can_control: Option<bool>,
+}
+
+impl Track {
+    /// Lecteur du système : nom tiré de son identifiant, commandes toujours possibles.
+    pub fn system(now: NowPlaying) -> Self {
+        Self {
+            app_name: player_name(&now.app_id),
+            can_control: None,
+            now,
+        }
+    }
+
+    /// Spotify sur un autre appareil.
+    pub fn remote(playback: &RemotePlayback) -> Self {
+        Self {
+            now: playback.track.clone(),
+            app_name: playback.app_name.clone(),
+            can_control: Some(playback.can_control),
+        }
+    }
+}
+
 /// Suit le morceau en cours entre deux tours : dernier état émis, pochette, relectures restantes.
 #[derive(Debug, Default)]
 pub struct Tracker {
@@ -192,18 +234,28 @@ impl Tracker {
         }
     }
 
-    /// Intègre une lecture du lecteur. `fetched` : résultat de la lecture de la pochette si `wants_artwork`
-    /// l'a demandée (`Some(None)` : pas d'image), `None` si elle n'a pas été lue.
-    /// Renvoie `Some(état)` quand il faut émettre (`Some(None)` : plus de musique), `None` sinon.
+    /// Comme [`Tracker::update_track`], pour un morceau du lecteur du système.
+    #[cfg(test)]
     pub fn update(
         &mut self,
         playing: Option<NowPlaying>,
         fetched: Option<Option<Vec<u8>>>,
     ) -> Option<Option<MusicState>> {
+        self.update_track(playing.map(Track::system), fetched)
+    }
+
+    /// Intègre le morceau à montrer. `fetched` : résultat de la lecture de la pochette si `wants_artwork`
+    /// l'a demandée (`Some(None)` : pas d'image), `None` si elle n'a pas été lue.
+    /// Renvoie `Some(état)` quand il faut émettre (`Some(None)` : plus de musique), `None` sinon.
+    pub fn update_track(
+        &mut self,
+        playing: Option<Track>,
+        fetched: Option<Option<Vec<u8>>>,
+    ) -> Option<Option<MusicState>> {
         let next = match playing {
-            Some(p) => {
-                self.apply_artwork(&p, fetched);
-                Some(self.state_of(p))
+            Some(track) => {
+                self.apply_artwork(&track.now, fetched);
+                Some(self.state_of(track))
             }
             None => {
                 self.artwork_key = None;
@@ -265,9 +317,10 @@ impl Tracker {
         }
     }
 
-    fn state_of(&self, p: NowPlaying) -> MusicState {
+    fn state_of(&self, track: Track) -> MusicState {
+        let p = track.now;
         MusicState {
-            app_name: player_name(&p.app_id),
+            app_name: track.app_name,
             app_id: p.app_id,
             title: p.title,
             artist: p.artist,
@@ -277,6 +330,7 @@ impl Tracker {
             duration_ms: p.duration_ms,
             position_at: p.position_at,
             artwork_id: self.artwork.as_ref().map(|a| a.id.clone()),
+            can_control: track.can_control,
         }
     }
 }
@@ -288,6 +342,8 @@ fn should_emit(previous: Option<&MusicState>, next: Option<&MusicState>) -> bool
         (Some(_), None) | (None, Some(_)) => true,
         (Some(a), Some(b)) => {
             a.app_id != b.app_id
+                || a.app_name != b.app_name
+                || a.can_control != b.can_control
                 || a.title != b.title
                 || a.artist != b.artist
                 || a.album != b.album
@@ -395,15 +451,11 @@ pub fn spawn_music_loop(app: AppHandle) {
                     thread::sleep(POLL);
                     continue;
                 }
-                match platform::now_playing() {
+                let local = match platform::now_playing() {
                     Ok(playing) => {
                         errors = 0;
                         last_error.clear();
-                        let playing = playing.filter(|p| !is_excluded(&p.app_id));
-                        let fetched = tracker.wants_artwork(playing.as_ref()).then(read_artwork);
-                        if let Some(music) = tracker.update(playing, fetched) {
-                            publish(&app, music, tracker.artwork().cloned());
-                        }
+                        playing.filter(|p| !is_excluded(&p.app_id))
                     }
                     Err(e) => {
                         let message = format!("{e:#}");
@@ -414,13 +466,31 @@ pub fn spawn_music_loop(app: AppHandle) {
                         } else {
                             log::debug!("lecture de la musique en cours : {message}");
                         }
-                        errors += 1;
-                        if errors == ERRORS_BEFORE_CLEAR {
-                            if let Some(music) = tracker.update(None, None) {
-                                publish(&app, music, None);
-                            }
+                        errors = errors.saturating_add(1);
+                        // Quelques erreurs : on garde ce qui est montré ; au-delà, plus rien sur l'ordinateur.
+                        if errors < ERRORS_BEFORE_CLEAR {
+                            thread::sleep(POLL);
+                            continue;
                         }
+                        None
                     }
+                };
+                spotify::set_local_playing(&app, local.as_ref().is_some_and(|p| p.playing));
+                // L'ordinateur d'abord, Spotify à distance quand rien n'y joue.
+                let remote = spotify::remote(&app)
+                    .filter(|r| spotify::prefer_remote(local.as_ref(), &r.playback));
+                let (track, remote_artwork) = match remote {
+                    Some(r) => (Some(Track::remote(&r.playback)), Some(r.artwork)),
+                    None => (local.map(Track::system), None),
+                };
+                let fetched = tracker
+                    .wants_artwork(track.as_ref().map(|t| &t.now))
+                    .then(|| match remote_artwork {
+                        Some(bytes) => bytes.map(|b| b.to_vec()),
+                        None => read_artwork(),
+                    });
+                if let Some(music) = tracker.update_track(track, fetched) {
+                    publish(&app, music, tracker.artwork().cloned());
                 }
                 thread::sleep(POLL);
             }
@@ -774,6 +844,56 @@ mod tests {
             );
         }
         assert!(serde_json::from_value::<MediaCommand>(serde_json::json!("stop")).is_err());
+    }
+
+    fn remote(device: &str, can_control: bool) -> RemotePlayback {
+        RemotePlayback {
+            track: NowPlaying {
+                app_id: spotify::APP_ID.into(),
+                artwork_key: Some("https://i.scdn.co/image/a".into()),
+                ..track("Get Lucky")
+            },
+            app_name: format!("Spotify sur {device}"),
+            on_computer: false,
+            can_control,
+        }
+    }
+
+    #[test]
+    fn spotify_sur_un_autre_appareil() {
+        let mut t = Tracker::default();
+        let phone = remote("iPhone", true);
+        let state = t
+            .update_track(Some(Track::remote(&phone)), Some(Some(vec![4, 2])))
+            .expect("émis")
+            .expect("état");
+        assert_eq!(state.app_id, "spotify:connect");
+        assert_eq!(state.app_name, "Spotify sur iPhone");
+        assert_eq!(state.artwork_id.as_deref(), Some("1"));
+        assert_eq!(t.artwork().map(|a| a.bytes.as_slice()), Some(&[4u8, 2][..]));
+        let json = serde_json::to_value(&state).unwrap();
+        assert_eq!(json["canControl"], true);
+        // Même lecture sur un autre appareil : émis (nom affiché changé).
+        let speaker = remote("Cuisine", true);
+        let state = t
+            .update_track(Some(Track::remote(&speaker)), None)
+            .expect("appareil émis")
+            .expect("état");
+        assert_eq!(state.app_name, "Spotify sur Cuisine");
+        // Premium perdu : émis, boutons masqués.
+        let free = remote("Cuisine", false);
+        let state = t
+            .update_track(Some(Track::remote(&free)), None)
+            .expect("commandes émises")
+            .expect("état");
+        assert_eq!(serde_json::to_value(&state).unwrap()["canControl"], false);
+        // Retour au lecteur du système : `canControl` absent (oui par défaut).
+        let state = t
+            .update(Some(track("Get Lucky")), Some(Some(vec![4, 2])))
+            .expect("lecteur émis")
+            .expect("état");
+        assert_eq!(state.app_name, "Spotify");
+        assert!(serde_json::to_value(&state).unwrap().get("canControl").is_none());
     }
 
     /// Diagnostic manuel, avec de la musique qui joue :

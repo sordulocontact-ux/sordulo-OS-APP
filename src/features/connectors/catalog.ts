@@ -4,9 +4,10 @@ import gmailLogo from '../../assets/connectors/gmail.png'
 import notionLogo from '../../assets/connectors/notion.png'
 import stripeLogo from '../../assets/connectors/stripe.png'
 
-export type ConnectorCategory = 'Communication' | 'Agenda' | 'Documents' | 'Design' | 'Paiement' | 'Comptabilité' | 'IA' | 'Infrastructure'
+export type ConnectorCategory = 'Communication' | 'Agenda' | 'Documents' | 'Design' | 'Paiement' | 'Comptabilité' | 'IA' | 'Infrastructure' | 'Musique'
 
-export type ConnectorStatus = 'connected' | 'soon'
+/** `live` : l'état vient de l'app de bureau (voir spotify.ts), pas du catalogue. */
+export type ConnectorStatus = 'connected' | 'soon' | 'live'
 
 export interface Connector {
   id: string
@@ -56,6 +57,15 @@ export const CONNECTORS: Connector[] = [
     description: 'Base de données, connexion et stockage des audios.',
     status: 'connected',
     state: 'Actif : toutes les données de l’app y sont stockées.',
+  },
+  {
+    id: 'spotify',
+    name: 'Spotify',
+    category: 'Musique',
+    description: 'L’île de l’app de bureau affiche la musique Spotify jouée sur n’importe quel appareil du compte, avec la pochette.',
+    details:
+      'L’île de l’app de bureau affiche la musique Spotify jouée sur n’importe quel appareil du compte (téléphone, enceinte…), avec la pochette, la progression et le nom de l’appareil. Avec Spotify Premium, les commandes de l’île pilotent aussi la lecture ; les podcasts sont affichés. La connexion est propre à cet ordinateur.',
+    status: 'live',
   },
   {
     id: 'gmail',
@@ -149,6 +159,13 @@ export function matchesConnector(connector: Connector, query: string): boolean {
   return normalize(`${connector.name} ${connector.description} ${connector.category}`).includes(q)
 }
 
-export function filterConnectors(list: Connector[], query: string, onlyConnected: boolean): Connector[] {
-  return list.filter((c) => (!onlyConnected || c.status === 'connected') && matchesConnector(c, query))
+/** `liveConnected` : ids des connecteurs `live` actuellement connectés. */
+export function filterConnectors(
+  list: Connector[],
+  query: string,
+  onlyConnected: boolean,
+  liveConnected: ReadonlySet<string> = new Set(),
+): Connector[] {
+  const isConnected = (c: Connector) => (c.status === 'live' ? liveConnected.has(c.id) : c.status === 'connected')
+  return list.filter((c) => (!onlyConnected || isConnected(c)) && matchesConnector(c, query))
 }

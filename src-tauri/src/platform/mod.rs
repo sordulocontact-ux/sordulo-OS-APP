@@ -6,6 +6,7 @@
 //!   Core Audio, onglets par AppleScript), enregistrement (micro + process tap), presse-papiers.
 //! - Musique en cours (`now_playing`, `media_command`) : `windows/media.rs` (contrôles multimédias du
 //!   système) et `macos/media.rs` (Spotify et Musique par AppleScript).
+//! - Ouverture d'une URL (`open_url`, connecteur Spotify) : `windows/open_url.rs` et `macos/open_url.rs`.
 //!
 //! Le reste de l'app (tray, commandes Tauri, boucle de détection) ne dépend QUE de ce module :
 //! jamais de `cfg(windows)` en dehors de `platform/`.
@@ -392,6 +393,33 @@ pub fn copy_text(text: &str) -> anyhow::Result<()> {
     }
 }
 
+/// URL que l'app accepte d'ouvrir : `https://…` ou `spotify:…` seulement (jamais un chemin ni un
+/// programme), sans espace ni caractère de contrôle, longueur bornée.
+pub fn is_openable_url(url: &str) -> bool {
+    (url.starts_with("https://") || url.starts_with("spotify:"))
+        && url.len() <= 4096
+        && !url.chars().any(|c| c.is_whitespace() || c.is_control())
+}
+
+/// Ouvre une URL avec l'app associée du système : navigateur par défaut pour `https://` (page
+/// d'autorisation de Spotify), app Spotify pour `spotify:`. Erreur si aucune app ne la prend en charge.
+/// Windows : `ShellExecuteW` (`windows/open_url.rs`) ; macOS : `/usr/bin/open` (`macos/open_url.rs`).
+pub fn open_url(url: &str) -> anyhow::Result<()> {
+    anyhow::ensure!(is_openable_url(url), "adresse refusée");
+    #[cfg(windows)]
+    {
+        windows::open_url(url)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        macos::open_url(url)
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        anyhow::bail!("Ouverture d'adresse non disponible sur ce système")
+    }
+}
+
 /// Associe le schéma d'URL `scheme://` à l'exécutable courant (retour du lien de connexion par email).
 /// macOS : déclaré dans `Info.plist` (CFBundleURLTypes) et reçu par `RunEvent::Opened`, rien à faire ici.
 pub fn register_url_scheme(scheme: &str) -> anyhow::Result<()> {
@@ -404,6 +432,22 @@ pub fn register_url_scheme(scheme: &str) -> anyhow::Result<()> {
     {
         let _ = scheme;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn adresses_ouvrables() {
+        assert!(is_openable_url("https://accounts.spotify.com/authorize?client_id=a&scope=b%20c"));
+        assert!(is_openable_url("spotify:"));
+        assert!(!is_openable_url("http://open.spotify.com"));
+        assert!(!is_openable_url("C:\\Windows\\System32\\calc.exe"));
+        assert!(!is_openable_url("file:///etc/passwd"));
+        assert!(!is_openable_url("https://a b"));
+        assert!(!is_openable_url("spotify:\n--args"));
     }
 }
 

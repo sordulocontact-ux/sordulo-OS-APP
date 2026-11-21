@@ -12,6 +12,8 @@
  * - Pochette : à chaque nouvel `artworkId`, octets lus par `getMusicArtwork` → Blob → URL blob: (l'ancienne
  *   est révoquée, comme à l'arrêt), puis couleurs tirées de l'image (../../music). Une réponse arrivée après
  *   un autre changement ou après l'arrêt est ignorée. Erreur : pas de pochette (dégradé par défaut).
+ * - `canControl` faux (Spotify sur un autre appareil sans Premium) : précédent, lecture / pause et suivant ne
+ *   font rien (pas de mise à jour immédiate non plus) ; le lecteur au premier plan (`open`) reste possible.
  * - Geste `onMusicCommand` (précédent, lecture / pause, suivant, lecteur au premier plan) : commande Rust.
  *   Lecture / pause change l'île tout de suite (position figée en pause) ; l'événement Rust suivant fait foi,
  *   et un échec de la commande rend l'état d'avant.
@@ -83,6 +85,7 @@ export function createMusicSource(deps: MusicSourceDeps): IslandSource {
           positionAt: current.positionAt,
           artworkUrl,
           palette,
+          canControl: current.canControl !== false,
         }
         ctx.view.patch({ music })
       }
@@ -193,6 +196,8 @@ export function createMusicSource(deps: MusicSourceDeps): IslandSource {
         },
         gestures: {
           onMusicCommand(command) {
+            // Spotify sur un autre appareil sans Premium : aucune commande possible (seul « open » reste).
+            if (command !== 'open' && current?.canControl === false) return
             const toggle = command === 'playPause' ? togglePlaying() : null
             deps.musicCommand({ command }).catch((e: unknown) => {
               console.warn('[île] commande du lecteur :', e)

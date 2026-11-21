@@ -95,6 +95,7 @@ describe('islandLabel', () => {
 
 describe('musique', () => {
   const music: IslandMusic = {
+    canControl: true,
     title: 'Nuit blanche',
     artist: 'Lou',
     album: null,

@@ -1,5 +1,6 @@
 //! Coque Tauri 2 de Sordulo OS : fenêtres (dont l'île), zone de notification, détection du micro,
-//! musique en cours (`music.rs`), relais Claude Code (`claude/`), commandes IPC.
+//! musique en cours (`music.rs`, avec Spotify sur un autre appareil : `spotify/`), relais Claude Code
+//! (`claude/`), commandes IPC.
 //! Contrat avec le front : `src/shared/desktop-contract.ts`. Fonctions système : `platform/` uniquement.
 
 mod auth_link;
@@ -15,6 +16,7 @@ mod monitor;
 mod music;
 mod platform;
 mod recording;
+mod spotify;
 mod state;
 mod time;
 mod tray;
@@ -42,6 +44,7 @@ pub fn run() {
             },
         ))
         .manage(DesktopState::new())
+        .manage(spotify::SpotifyState::new())
         .setup(|app| {
             let handle = app.handle().clone();
             auth_link::register();
@@ -59,6 +62,7 @@ pub fn run() {
             }
             island_window::spawn_pointer_loop(handle.clone());
             monitor::spawn_mic_loop(handle.clone());
+            spotify::start(&handle);
             music::spawn_music_loop(handle.clone());
             monitor::spawn_recording_ticker(handle);
             Ok(())
@@ -101,6 +105,9 @@ pub fn run() {
             commands::get_music,
             commands::get_music_artwork,
             commands::music_command,
+            commands::spotify_status,
+            commands::spotify_connect,
+            commands::spotify_disconnect,
         ])
         .build(tauri::generate_context!())
         .expect("erreur au démarrage de Sordulo OS");

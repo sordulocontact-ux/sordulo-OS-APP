@@ -29,6 +29,8 @@ pub const EVENT_CLAUDE: &str = "desktop://claude";
 pub const EVENT_CLAUDE_CONNECTION: &str = "desktop://claude-connection";
 /// `DESKTOP_EVENTS.music` (payload `MusicState | null`), fenêtre de l'île, seulement quand ça change.
 pub const EVENT_MUSIC: &str = "desktop://music";
+/// `DESKTOP_EVENTS.spotify` (payload `SpotifyStatus`), toutes les fenêtres : connexion Spotify changée.
+pub const EVENT_SPOTIFY: &str = "desktop://spotify";
 /// `CLAUDE_PERMISSION_TIMEOUT_MS` : attente maximale d'une réponse de l'île à un PermissionRequest.
 pub const CLAUDE_PERMISSION_TIMEOUT_MS: u64 = 60_000;
 /// Schéma de `DESKTOP_AUTH_REDIRECT` (`sordulo://auth`).

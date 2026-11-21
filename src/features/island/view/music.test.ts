@@ -14,6 +14,7 @@ import {
 } from './music'
 
 const music = (over: Partial<IslandMusic> = {}): IslandMusic => ({
+  canControl: true,
   title: 'Nuit blanche',
   artist: 'Lou',
   album: null,

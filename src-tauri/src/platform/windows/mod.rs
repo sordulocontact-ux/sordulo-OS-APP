@@ -19,6 +19,7 @@
 //! - `editor`   : rouvrir VS Code sur le dossier d'une session Claude Code.
 //! - `clipboard` : copie de texte dans le presse-papiers (chemin d'un fichier déposé sur « Claude Code »).
 //! - `media`    : musique en cours, pochette et commandes (contrôles multimédias du système, WinRT).
+//! - `open_url` : ouverture d'une URL par l'app associée (`ShellExecuteW`, connecteur Spotify).
 
 mod activity;
 mod capture;
@@ -30,6 +31,7 @@ mod encoder;
 mod media;
 mod mic;
 mod mixer;
+mod open_url;
 mod pages;
 mod recorder;
 mod timeline;
@@ -42,5 +44,6 @@ pub use cursor::cursor_state;
 pub use editor::{editor_storage_file, open_in_editor};
 pub use media::{media_command, now_playing, now_playing_artwork};
 pub use mic::RegistryMicMonitor;
+pub use open_url::open_url;
 pub use recorder::WasapiRecorder;
 pub use url_scheme::register_url_scheme;

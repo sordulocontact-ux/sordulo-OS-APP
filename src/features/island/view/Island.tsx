@@ -85,6 +85,7 @@ export function Island(props: IslandProps) {
   // Les Claude du jardin ne dansent qu'en lecture (sans données : comme en lecture).
   const musicPlaying = musicOn && music?.playing !== false
   const musicProgress = musicHasProgress(music)
+  const musicControls = music?.canControl !== false
   const agentSession: ClaudeSession | null =
     sessions.find((s) => s.id === agentActivity?.sessionId) ?? sessions[0] ?? null
   const askSession = snapshot.ask ? (sessions.find((s) => s.id === snapshot.ask?.sessionId) ?? null) : null
@@ -114,8 +115,9 @@ export function Island(props: IslandProps) {
       sessionCount,
       meetRows: meetRows.length,
       musicProgress,
+      musicControls,
     }),
-    [state, open, withCall, questionAsk, musicGarden, platform, reduced, hasGarden, sessionCount, meetRows.length, musicProgress],
+    [state, open, withCall, questionAsk, musicGarden, platform, reduced, hasGarden, sessionCount, meetRows.length, musicProgress, musicControls],
   )
 
   // Éléments du DOM pilotés hors de React

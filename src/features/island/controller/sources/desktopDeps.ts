@@ -18,7 +18,9 @@ import {
   onMusic,
   onPrompt,
   onRecordingState,
+  onSpotify,
   readRecording,
+  spotifyStatus,
   startRecording,
   stopRecording,
 } from '../../../../lib/desktop'
@@ -39,11 +41,12 @@ import type { AnalysisSourceDeps, PolledInput } from './analysis'
 import type { CallSourceDeps } from './call'
 import type { FocusModeDeps } from './focusMode'
 import type { MusicSourceDeps } from './music'
+import type { SpotifySourceDeps } from './spotify'
 import type { UploadSourceDeps } from './upload'
 
 const INPUT_COLUMNS = 'id, project_id, kind, title, raw_text, created_at, status, error_message'
 
-export const desktopDeps: CallSourceDeps & UploadSourceDeps & AnalysisSourceDeps & FocusModeDeps & MusicSourceDeps = {
+export const desktopDeps: CallSourceDeps & UploadSourceDeps & AnalysisSourceDeps & FocusModeDeps & MusicSourceDeps & SpotifySourceDeps = {
   // Appel et enregistrement
   getStatus,
   startRecording,
@@ -116,4 +119,8 @@ export const desktopDeps: CallSourceDeps & UploadSourceDeps & AnalysisSourceDeps
   paletteFromImageUrl,
   createObjectURL: (blob) => URL.createObjectURL(blob),
   revokeObjectURL: (url) => URL.revokeObjectURL(url),
+
+  // Connexion Spotify
+  spotifyStatus,
+  onSpotify,
 }

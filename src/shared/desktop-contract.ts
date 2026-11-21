@@ -134,6 +134,28 @@ export interface MusicState {
   positionAt: number
   /** Changes with each new cover; null: no cover. Fetch the image bytes with getMusicArtwork. */
   artworkId: string | null
+  /**
+   * The island can send previous / play-pause / next. False: hide the buttons (Spotify on another device with a
+   * free account: the Web API player commands need Spotify Premium). Absent: true.
+   */
+  canControl?: boolean
+}
+
+/**
+ * Spotify account connected in the desktop app (Web API, OAuth PKCE, tokens kept by Rust in the app data
+ * folder). Lets the island show what plays on any device of the account (phone, speaker), after the computer's
+ * own player. Shown on the Connectors page.
+ */
+export interface SpotifyStatus {
+  connected: boolean
+  /** Spotify display name of the connected account; null when not connected. */
+  account: string | null
+  /** Premium account: the island can control playback on the other devices. */
+  premium: boolean
+  /** Access lost (revoked, expired, password changed): connect again. */
+  needsReconnect: boolean
+  /** A connection is waiting for the user in the browser. */
+  connecting: boolean
 }
 
 /** Player commands sent from the island (`open`: bring the player's window to the front). */
@@ -266,6 +288,8 @@ export const DESKTOP_EVENTS = {
    * jump, player). Sent on change only (polled by Rust about every second), not as a position ticker.
    */
   music: 'desktop://music',
+  /** Payload SpotifyStatus, all windows: the Spotify connection changed (connected, disconnected, access lost). */
+  spotify: 'desktop://spotify',
 } as const
 
 /** Commands implemented in Rust (invoke from @tauri-apps/api/core). Arguments are camelCase. */
@@ -319,4 +343,14 @@ export const DESKTOP_COMMANDS = {
   getMusicArtwork: 'get_music_artwork',
   /** ({ command: MusicCommand }) => void — island window: previous / play-pause / next / bring the player to the front. */
   musicCommand: 'music_command',
+  /** () => SpotifyStatus */
+  spotifyStatus: 'spotify_status',
+  /**
+   * ({ clientId: string }) => SpotifyStatus — opens the Spotify authorization page in the default browser and
+   * waits (up to 3 minutes) for its redirect to http://127.0.0.1:43127/callback. clientId: the Spotify app's
+   * Client ID (VITE_SPOTIFY_CLIENT_ID, not a secret with PKCE), kept with the tokens to refresh them.
+   */
+  spotifyConnect: 'spotify_connect',
+  /** () => SpotifyStatus — forgets the tokens. */
+  spotifyDisconnect: 'spotify_disconnect',
 } as const

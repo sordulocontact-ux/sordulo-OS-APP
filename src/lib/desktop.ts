@@ -21,6 +21,7 @@ import {
   type MicState,
   type MusicCommand,
   type MusicState,
+  type SpotifyStatus,
   type NavigatePayload,
   type PromptPayload,
   type RecordingResult,
@@ -127,6 +128,12 @@ export const getMusicArtwork = (args: { artworkId: string }) =>
 export const musicCommand = (args: { command: MusicCommand }) =>
   call<void>(DESKTOP_COMMANDS.musicCommand, { command: args.command })
 
+/** Spotify connection (Connectors page). */
+export const spotifyStatus = () => call<SpotifyStatus>(DESKTOP_COMMANDS.spotifyStatus)
+export const spotifyConnect = (args: { clientId: string }) =>
+  call<SpotifyStatus>(DESKTOP_COMMANDS.spotifyConnect, { clientId: args.clientId })
+export const spotifyDisconnect = () => call<SpotifyStatus>(DESKTOP_COMMANDS.spotifyDisconnect)
+
 /** Each returns a promise of the unsubscribe function. */
 export const onPrompt = (handler: (payload: PromptPayload) => void) =>
   subscribe<PromptPayload>(DESKTOP_EVENTS.prompt, handler)
@@ -156,6 +163,9 @@ export const onFocusMode = (handler: (state: FocusModeState) => void) =>
 /** Island window: what is playing changed (sent on change only, not as a position ticker). */
 export const onMusic = (handler: (state: MusicState | null) => void) =>
   subscribe<MusicState | null>(DESKTOP_EVENTS.music, handler)
+
+export const onSpotify = (handler: (status: SpotifyStatus) => void) =>
+  subscribe<SpotifyStatus>(DESKTOP_EVENTS.spotify, handler)
 
 export const onClaude = (handler: (event: ClaudeRelayEvent) => void) =>
   subscribe<ClaudeRelayEvent>(DESKTOP_EVENTS.claude, handler)
