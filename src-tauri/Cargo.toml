@@ -57,8 +57,16 @@ objc2 = "0.6"
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSBundle", "NSDictionary", "NSGeometry", "NSString", "NSUUID", "NSValue"] }
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSResponder", "NSScreen", "NSWindow", "NSGraphics"] }
 
+# Compilation de dev plus rapide (Windows et macOS) : infos de débogage réduites aux numéros de ligne
+# (les panics gardent fichier et ligne, mais un débogueur ne montre plus les variables), aucune pour les
+# dépendances. C'est surtout l'écriture du .pdb (Windows) et l'édition des liens qui raccourcissent.
+# Pour déboguer pas à pas : remettre `debug = true` le temps de la séance.
 [profile.dev]
 incremental = true
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
 
 [profile.release]
 codegen-units = 1

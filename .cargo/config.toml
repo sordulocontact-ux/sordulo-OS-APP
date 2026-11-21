@@ -1,0 +1,8 @@
+# Config Cargo du dépôt (lue aussi bien depuis la racine, pour le hook, que depuis src-tauri/).
+#
+# Windows : édition des liens par rust-lld (livré avec Rust) au lieu de link.exe de Visual Studio, bien plus
+# rapide sur le gros exécutable de l'app. Les bibliothèques de Windows viennent toujours de Visual Studio,
+# qui reste nécessaire. En cas d'erreur de lien, commenter ces deux lignes pour revenir à link.exe.
+# macOS : rien à régler, l'éditeur de liens d'Xcode est déjà rapide.
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
