@@ -22,7 +22,7 @@ Demande de Maël (21/11) : « on avait prévu dans la maquette d'ajouter aussi l
 - Vraie analyse du son, connecteur Spotify, autres lecteurs Mac que Spotify et Musique, paroles, file d'attente.
 
 ## Critères d'acceptation
-- [ ] (à tester chez Maël) Windows : un morceau qui joue (Spotify app, navigateur…) fait apparaître l'île `music` avec la vraie pochette ; changement de morceau = nouvelle pochette et nouvelles couleurs.
+- [ ] (compilé et testé unitairement ; essai réel avec un lecteur chez Maël) Windows : un morceau qui joue (Spotify app, navigateur…) fait apparaître l'île `music` avec la vraie pochette ; changement de morceau = nouvelle pochette et nouvelles couleurs.
 - [ ] (à tester chez Sacha) macOS : idem avec Spotify et Musique ; refus d'Automatisation sans plantage ni boucle de demandes.
 - [x] Barres en dégradé aux couleurs de la pochette ; à plat en pause ; immobiles sous réduction des animations.
 - [x] Survol : vue ouverte avec pochette, titre, artiste, lecteur, barre de progression si connue, boutons précédent / lecture-pause / suivant qui marchent ; clic pochette = lecteur au premier plan.
@@ -37,7 +37,7 @@ Demande de Maël (21/11) : « on avait prévu dans la maquette d'ajouter aussi l
 | Lot | Objectif | Fichiers possédés | Dépend de | Modèle / effort | Statut |
 |---|---|---|---|---|---|
 | L0 | Contrat et types partagés | `src/shared/desktop-contract.ts`, `src/features/island/types.ts`, `view/types.ts`, tailles `musicOpen` de `geometry.ts` | - | orchestrateur | validé |
-| L1 | Rust : lecture en cours Windows + macOS, boucle, événement, commandes, interrupteur du menu | `src-tauri/**` (Cargo.toml, platform/, music.rs, events.rs, commands.rs, lib.rs, state.rs, tray.rs, Info.plist) | L0 | opus / high | validé (non compilé) |
+| L1 | Rust : lecture en cours Windows + macOS, boucle, événement, commandes, interrupteur du menu | `src-tauri/**` (Cargo.toml, platform/, music.rs, events.rs, commands.rs, lib.rs, state.rs, tray.rs, Info.plist) | L0 | opus / high | validé |
 | L2 | Front données : wrappers Tauri, source « musique » (pause 10 s, pochette, couleurs), branchement du contrôleur | `src/lib/desktop.ts`, `src/features/island/controller/**`, `src/features/island/music/**` | L0 | opus / high | validé |
 | L3 | Front rendu : couches music / musicOpen, barres en dégradé, progression, bulle, labo | `src/features/island/view/**`, `geometry.ts`, `src/styles/tokens.css` (section Île), `src/features/island/lab/**` | L0 | opus / high | validé |
 
@@ -56,10 +56,11 @@ Demande de Maël (21/11) : « on avait prévu dans la maquette d'ajouter aussi l
 
 **Front** : contrat (`desktop-contract.ts`), types (`types.ts`, `view/types.ts`), wrappers (`src/lib/desktop.ts`), source `controller/sources/music.ts` (pause 10 s, pochette blob, mise à jour immédiate de lecture / pause), `music/palette.ts` + `music/artwork.ts` (couleurs), rendu (`view/**`, `geometry.ts` taille `musicOpen`), tokens Île (`--island-size-56`, `--island-radius-music-cover`), labo.
 
-**Vérifications** : typecheck, lint, 821 tests (dont source musique, palette, animation des barres, géométrie, annonces), build. Labo vérifié à l'œil dans Chrome (compact et ouvert, Windows et Mac, pause, progression, boutons). **Rust non compilé** dans cette session (bibliothèques MSVC invisibles pour les outils) : à compiler et tester chez Maël (Windows : `npm run tauri dev`, `cargo test`, diagnostic `cargo test print_now_playing -- --ignored --nocapture` dans src-tauri) et chez Sacha (macOS).
+**Vérifications** : typecheck, lint, 821 tests (dont source musique, palette, animation des barres, géométrie, annonces), build. Labo vérifié à l'œil dans Chrome (compact et ouvert, Windows et Mac, pause, progression, boutons). **Rust compilé sur Windows** après coup (compilateur MSVC portable installé sur le poste de Maël, voir Journal) : build complet sans erreur ni avertissement, `cargo test --lib` 114 tests verts, diagnostic `print_now_playing` qui interroge bien le lecteur Windows. macOS : à compiler et tester chez Sacha.
 
 **Décisions prises sans demander** : props `music` / `onMusicCommand` optionnelles ; couleurs extraites côté front ; case du menu non mémorisée entre deux lancements (comme le mode concentration) ; progression affichée seulement si durée ET position sont connues ; Mac : un morceau en pause depuis 30 s dans un lecteur silencieux est oublié (plus d'osascript) ; Windows : statut « Changing » compté comme en lecture.
 
 **Points à regarder** : après un clic sur un bouton, l'île reste ouverte tant qu'elle garde le focus (comportement existant de toutes les vues ouvertes, pas propre à la musique). Mac : vérifier que Core Audio voit bien Musique (streaming Apple Music) et Spotify en sortie, sinon ils ne seraient jamais interrogés. Le Figma ne couvre pas la vue ouverte de la musique : à signaler à Sacha.
 
 **Hors périmètre / non retenu** : vraie analyse du son, connecteur Spotify, autres lecteurs Mac, contournement MediaRemote.
+- 21/11 Les Build Tools de Visual Studio avaient disparu du poste (cl.exe introuvable aussi dans le terminal de Maël), réinstallation impossible sans droits admin. Compilateur MSVC 14.44 + Windows SDK 10.0.26100 installés sans droits admin dans C:Usersmauzenet1msvc (paquets officiels du catalogue Visual Studio), variables utilisateur INCLUDE, LIB, VCINSTALLDIR, Path. Rust compilé sans erreur ni avertissement, 114 tests verts.
