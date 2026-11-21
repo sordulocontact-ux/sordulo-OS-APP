@@ -6,6 +6,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { getVersion } from '@tauri-apps/api/app'
 import { useSyncExternalStore } from 'react'
 import {
   DESKTOP_COMMANDS,
@@ -27,6 +28,7 @@ import {
   type PromptPayload,
   type RecordingResult,
   type RecordingState,
+  type UpdateStatus,
 } from '../shared/desktop-contract'
 
 export function isDesktop(): boolean {
@@ -135,6 +137,17 @@ export const spotifyConnect = (args: { clientId: string }) =>
   call<SpotifyStatus>(DESKTOP_COMMANDS.spotifyConnect, { clientId: args.clientId })
 export const spotifyDisconnect = () => call<SpotifyStatus>(DESKTOP_COMMANDS.spotifyDisconnect)
 
+/** Version of the running app (Tauri config), e.g. "0.2.0". */
+export const getAppVersion = () => getVersion()
+
+export const getUpdateStatus = () => call<UpdateStatus>(DESKTOP_COMMANDS.getUpdateStatus)
+
+/**
+ * Checks, downloads and installs the newest version now (the app restarts). Rejects with a French message,
+ * e.g. while a call is being recorded.
+ */
+export const installUpdateNow = () => call<UpdateStatus>(DESKTOP_COMMANDS.installUpdateNow)
+
 /** Each returns a promise of the unsubscribe function. */
 export const onPrompt = (handler: (payload: PromptPayload) => void) =>
   subscribe<PromptPayload>(DESKTOP_EVENTS.prompt, handler)
@@ -171,6 +184,10 @@ export const onSpotify = (handler: (status: SpotifyStatus) => void) =>
 /** Island window: live bands and beat of the music played by this computer (Windows), ~30 per second. */
 export const onMusicLevels = (handler: (levels: MusicLevels) => void) =>
   subscribe<MusicLevels>(DESKTOP_EVENTS.musicLevels, handler)
+
+/** Main window: the update state changed. */
+export const onUpdateStatus = (handler: (status: UpdateStatus) => void) =>
+  subscribe<UpdateStatus>(DESKTOP_EVENTS.updateStatus, handler)
 
 export const onClaude = (handler: (event: ClaudeRelayEvent) => void) =>
   subscribe<ClaudeRelayEvent>(DESKTOP_EVENTS.claude, handler)

@@ -1,0 +1,85 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: var(--size-modal-max);
+}
+
+.page > h1 {
+  margin-bottom: 0;
+}
+
+.intro {
+  color: var(--color-text-muted);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.section h2 {
+  font-size: var(--font-size-lg);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* Lien de téléchargement : mêmes valeurs que Button (primary / md), mais un vrai <a>. */
+.download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--size-control-md);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  text-decoration: none;
+  transition: background var(--duration-fast) var(--easing-standard);
+}
+
+.download:hover {
+  background: var(--color-primary-hover);
+}
+
+.download:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.secondaryLink {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-left: var(--space-5);
+  line-height: var(--line-height-normal);
+}
+
+.note {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.platformBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.platformBlock h3 {
+  font-size: var(--font-size-md);
+}

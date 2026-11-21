@@ -1,10 +1,11 @@
 /*
  * Fenêtre de l'île (route /desktop/prompt) : le document entier est transparent, sans marge ni défilement.
- * La classe est posée sur <html> par DesktopPromptRoute, seulement sur cette route.
+ * La classe est posée sur <html> par DesktopPromptRoute, seulement sur cette route. Elle est lue dans le
+ * module (styles.islandWindow) : un import sans utilisation est retiré par Vite au build de production.
  */
-:global(html.islandWindow),
-:global(html.islandWindow body),
-:global(html.islandWindow #root) {
+.islandWindow,
+.islandWindow :global(body),
+.islandWindow :global(#root) {
   width: 100%;
   height: 100%;
   margin: 0;

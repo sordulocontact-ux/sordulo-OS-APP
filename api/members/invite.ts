@@ -103,3 +103,5 @@ export const POST = route(async (request) => {
 
   return json(201, { member, link } satisfies InviteMemberResponse)
 })
+
+export { OPTIONS } from '../_lib/cors.js'

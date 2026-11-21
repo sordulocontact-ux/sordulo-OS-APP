@@ -54,3 +54,5 @@ export const POST = route(async (request) => {
     keptTickets: kept.count ?? 0,
   } satisfies DeleteInputResponse)
 })
+
+export { OPTIONS } from '../_lib/cors.js'

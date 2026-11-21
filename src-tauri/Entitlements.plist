@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Droits de l'app sous runtime renforcé (tauri.release.conf.json, bundle > macOS > entitlements).
+	     Pas de bac à sable : ni réseau ni fichiers à déclarer ici.
+	     Pas de JIT : le JavaScript du front tourne dans le processus WebContent de WKWebView, signé par
+	     Apple, pas dans le nôtre.
+	     Son de l'ordinateur (process tap Core Audio) : aucun droit de signature, seulement l'autorisation
+	     « Enregistrement audio du système » demandée avec NSAudioCaptureUsageDescription (Info.plist). -->
+
+	<!-- Micro : enregistrement des appels (sans ce droit, le runtime renforcé coupe le micro sans prévenir). -->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+
+	<!-- AppleScript vers les navigateurs : titre de l'onglet pendant un appel (NSAppleEventsUsageDescription). -->
+	<key>com.apple.security.automation.apple-events</key>
+	<true/>
+</dict>
+</plist>

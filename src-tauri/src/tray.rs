@@ -1,18 +1,21 @@
 //! Icône soleil dans la zone de notification et son menu (dont les cases « Mode concentration » et
 //! « Afficher la musique dans l'île », et « Connecter / Déconnecter Claude Code » avec sa ligne d'état,
-//! voir `claude/`).
+//! voir `claude/`, la case « Lancer au démarrage », voir `autostart`, et la version avec « Rechercher une
+//! mise à jour », voir `updater`).
 
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, Wry};
 
+use crate::autostart;
 use crate::claude;
 use crate::events::{EVENT_FOCUS_MODE, WINDOW_PROMPT};
 use crate::music;
 use crate::recording;
 use crate::state::{DesktopState, FocusModeState, PromptReason, RecordingStatus};
 use crate::time::format_duration;
+use crate::updater;
 use crate::windows_mgmt;
 
 const TRAY_ID: &str = "sordulo-tray";
@@ -21,6 +24,9 @@ const ID_STATUS: &str = "status";
 const ID_TOGGLE: &str = "toggle-recording";
 const ID_FOCUS: &str = "focus-mode";
 const ID_MUSIC: &str = "music";
+const ID_AUTOSTART: &str = "autostart";
+const ID_UPDATE_STATUS: &str = "update-status";
+const ID_UPDATE_CHECK: &str = "update-check";
 const ID_CLAUDE_STATUS: &str = "claude-status";
 const ID_CLAUDE_TOGGLE: &str = "claude-toggle";
 const ID_QUIT: &str = "quit";
@@ -34,6 +40,9 @@ pub struct TrayMenu {
     toggle: MenuItem<Wry>,
     focus: CheckMenuItem<Wry>,
     music: CheckMenuItem<Wry>,
+    autostart: CheckMenuItem<Wry>,
+    update_status: MenuItem<Wry>,
+    update_check: MenuItem<Wry>,
     claude_status: MenuItem<Wry>,
     claude_toggle: MenuItem<Wry>,
 }
@@ -59,6 +68,30 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
         music_on,
         None::<&str>,
     )?;
+    // En dev, la case est grisée : seule la version installée peut se relancer seule (voir autostart).
+    let autostart = CheckMenuItem::with_id(
+        app,
+        ID_AUTOSTART,
+        if autostart::available() {
+            "Lancer au démarrage"
+        } else {
+            "Lancer au démarrage (version installée)"
+        },
+        autostart::available(),
+        autostart::is_enabled(app),
+        None::<&str>,
+    )?;
+    // Ligne grisée « Version 0.2.0 · à jour » et vérification immédiate (grisée en dev).
+    let (update_text, update_check_text, update_check_enabled) = updater::menu_texts(app);
+    let update_status =
+        MenuItem::with_id(app, ID_UPDATE_STATUS, update_text, false, None::<&str>)?;
+    let update_check = MenuItem::with_id(
+        app,
+        ID_UPDATE_CHECK,
+        update_check_text,
+        update_check_enabled,
+        None::<&str>,
+    )?;
     let (claude_text, claude_toggle_text, claude_enabled) = claude::menu_texts(app);
     let claude_status = MenuItem::with_id(app, ID_CLAUDE_STATUS, claude_text, false, None::<&str>)?;
     let claude_toggle = MenuItem::with_id(
@@ -79,6 +112,10 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
             &PredefinedMenuItem::separator(app)?,
             &focus,
             &music,
+            &autostart,
+            &PredefinedMenuItem::separator(app)?,
+            &update_status,
+            &update_check,
             &PredefinedMenuItem::separator(app)?,
             &claude_status,
             &claude_toggle,
@@ -111,6 +148,9 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
         toggle,
         focus,
         music,
+        autostart,
+        update_status,
+        update_check,
         claude_status,
         claude_toggle,
     });
@@ -146,6 +186,16 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
             let on = !app.state::<DesktopState>().shared().music_enabled;
             set_music_enabled(app, on);
         }
+        ID_AUTOSTART => {
+            let on = autostart::set_enabled(app, !autostart::is_enabled(app));
+            // Resynchronise la case : le menu l'a déjà basculée, même si le système a refusé.
+            if let Some(menu) = app.try_state::<TrayMenu>() {
+                if let Err(e) = menu.autostart.set_checked(on) {
+                    log::warn!("menu (lancement au démarrage) : {e}");
+                }
+            }
+        }
+        ID_UPDATE_CHECK => updater::check_from_menu(app),
         ID_CLAUDE_TOGGLE => claude::toggle_connection(app),
         ID_QUIT => {
             log::info!("« Quitter » depuis la zone de notification");
@@ -267,5 +317,23 @@ pub fn refresh_claude(app: &AppHandle) {
         .and_then(|_| menu.claude_toggle.set_enabled(enabled))
     {
         log::warn!("menu (Claude Code) : {e}");
+    }
+}
+
+/// Met à jour la ligne de version / mise à jour et « Rechercher une mise à jour » (voir `updater`).
+pub fn refresh_update(app: &AppHandle) {
+    let Some(menu) = app.try_state::<TrayMenu>() else {
+        return;
+    };
+    let (status, check, enabled) = updater::menu_texts(app);
+    if let Err(e) = menu.update_status.set_text(status) {
+        log::warn!("menu (mise à jour) : {e}");
+    }
+    if let Err(e) = menu
+        .update_check
+        .set_text(check)
+        .and_then(|_| menu.update_check.set_enabled(enabled))
+    {
+        log::warn!("menu (mise à jour) : {e}");
     }
 }

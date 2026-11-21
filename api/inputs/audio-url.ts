@@ -31,3 +31,5 @@ export const POST = route(async (request) => {
   const url = await createSignedDownloadUrl(input.audio_path, DOWNLOAD_URL_SECONDS, `reunion-${day}.${extension}`)
   return json(200, { url } satisfies AudioUrlResponse)
 })
+
+export { OPTIONS } from '../_lib/cors.js'

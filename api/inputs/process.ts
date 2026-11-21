@@ -60,3 +60,5 @@ export const POST = route(async (request) => {
   runInBackground(processInput(input.id))
   return json(202, { inputId: input.id, status } satisfies ProcessInputResponse)
 })
+
+export { OPTIONS } from '../_lib/cors.js'

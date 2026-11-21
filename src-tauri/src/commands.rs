@@ -13,9 +13,10 @@ use crate::recording;
 use crate::spotify::{self, SpotifyStatus};
 use crate::state::{
     DesktopState, DesktopStatus, FocusModeState, IslandHitRects, IslandRect, PromptReason,
-    RecordingResult, RecordingState,
+    RecordingResult, RecordingState, UpdateStatus,
 };
 use crate::tray;
+use crate::updater;
 use crate::windows_mgmt;
 
 #[tauri::command]
@@ -286,4 +287,20 @@ pub fn claude_answer(
         return Err("Seule l'île peut répondre à une demande d'autorisation.".into());
     }
     claude::answer(&app, &request_id, decision, answers)
+}
+
+/// État des mises à jour automatiques (`disabled` en dev).
+#[tauri::command]
+pub fn get_update_status(app: AppHandle) -> UpdateStatus {
+    updater::status(&app)
+}
+
+/// Vérifie, télécharge et installe la dernière version tout de suite, même fenêtre ouverte (l'app
+/// redémarre). Refusé pendant un enregistrement. Le travail (réseau, installation) tourne sur un
+/// thread bloquant : l'installation macOS peut demander le thread principal.
+#[tauri::command]
+pub async fn install_update_now(app: AppHandle) -> Result<UpdateStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || updater::install_now(&app))
+        .await
+        .map_err(|e| format!("Mise à jour impossible : {e}"))?
 }

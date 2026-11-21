@@ -204,6 +204,34 @@ export interface FocusModeState {
   on: boolean
 }
 
+/**
+ * Automatic updates of the installed app (src-tauri/src/updater.rs). Dev builds never update:
+ * `state` stays `disabled`.
+ * - idle: nothing known yet; checking: asking the update server; up-to-date: no newer version;
+ * - downloading: a newer version is being downloaded; ready: downloaded, waiting for a quiet moment
+ *   (main window hidden, no recording) to install; installing: being installed, the app restarts;
+ * - error: last check or install failed (`message`), retried at the next check.
+ */
+export type UpdateState =
+  | 'disabled'
+  | 'idle'
+  | 'checking'
+  | 'up-to-date'
+  | 'downloading'
+  | 'ready'
+  | 'installing'
+  | 'error'
+
+export interface UpdateStatus {
+  /** Version of the running app, e.g. "0.2.0". */
+  current: string
+  state: UpdateState
+  /** Newer version found on the update server, when there is one. */
+  available: string | null
+  /** French error message when state is `error`. */
+  message: string | null
+}
+
 export interface NavigatePayload {
   /** Route of the main window, e.g. /projects/:projectId/inputs/:inputId/review */
   route: string
@@ -308,6 +336,8 @@ export const DESKTOP_EVENTS = {
   spotify: 'desktop://spotify',
   /** Payload MusicLevels, island window: live bands and beat of the music played by the computer (Windows). */
   musicLevels: 'desktop://music-levels',
+  /** Payload UpdateStatus, main window: the update state changed. */
+  updateStatus: 'desktop://update-status',
 } as const
 
 /** Commands implemented in Rust (invoke from @tauri-apps/api/core). Arguments are camelCase. */
@@ -371,4 +401,12 @@ export const DESKTOP_COMMANDS = {
   spotifyConnect: 'spotify_connect',
   /** () => SpotifyStatus — forgets the tokens. */
   spotifyDisconnect: 'spotify_disconnect',
+  /** () => UpdateStatus */
+  getUpdateStatus: 'get_update_status',
+  /**
+   * () => UpdateStatus — checks, downloads and installs the newest version now, even while the main window is
+   * shown (the app restarts). Refused with a French message while a call is being recorded. Used when the API
+   * requires a newer desktop version (DESKTOP_MIN_VERSION).
+   */
+  installUpdateNow: 'install_update_now',
 } as const

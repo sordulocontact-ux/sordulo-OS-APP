@@ -5,6 +5,7 @@
 //! Contrat avec le front : `src/shared/desktop-contract.ts`. Fonctions système : `platform/` uniquement.
 
 mod auth_link;
+mod autostart;
 mod call_apps;
 mod claude;
 mod commands;
@@ -22,6 +23,7 @@ mod spotify;
 mod state;
 mod time;
 mod tray;
+mod updater;
 mod windows_mgmt;
 
 use tauri::{Manager, WindowEvent};
@@ -33,7 +35,7 @@ pub fn run() {
     logging::init();
     log::info!("démarrage de Sordulo OS {}", env!("CARGO_PKG_VERSION"));
 
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default()
         // En premier : un second lancement montre la fenêtre de l'instance déjà ouverte.
         // Un clic sur le lien de connexion relance l'exécutable avec `sordulo://auth…` en argument.
         .plugin(tauri_plugin_single_instance::init(
@@ -45,6 +47,9 @@ pub fn run() {
                 }
             },
         ))
+        .plugin(autostart::plugin());
+    // Notification « à jour » et, en release seulement, mises à jour automatiques (voir updater).
+    let app = updater::register(builder)
         .manage(DesktopState::new())
         .manage(spotify::SpotifyState::new())
         .setup(|app| {
@@ -56,7 +61,18 @@ pub fn run() {
                 handle.state::<DesktopState>().shared().pending_auth_url = Some(url);
             }
             island_window::create(&handle)?;
+            autostart::init(&handle);
+            // Fenêtre principale cachée au départ (tauri.conf.json) : montrée sauf à l'ouverture de
+            // session, où l'app démarre discrète (île et zone de notification). Relancée par une
+            // mise à jour, elle retrouve l'état d'avant (cachée après une installation au calme).
+            let show_main = updater::take_restart_window(&handle)
+                .unwrap_or_else(|| !autostart::launched_at_login(&args));
+            if show_main {
+                windows_mgmt::show_main(&handle);
+            }
             claude::start(&handle);
+            // Avant le menu du soleil, qui affiche la version et l'état des mises à jour.
+            updater::init(&handle);
             tray::create(&handle)?;
             match recording::recordings_dir(&handle) {
                 Ok(dir) => log::info!("dossier des enregistrements : {}", dir.display()),
@@ -110,6 +126,8 @@ pub fn run() {
             commands::spotify_status,
             commands::spotify_connect,
             commands::spotify_disconnect,
+            commands::get_update_status,
+            commands::install_update_now,
         ])
         .build(tauri::generate_context!())
         .expect("erreur au démarrage de Sordulo OS");
@@ -117,6 +135,7 @@ pub fn run() {
     app.run(|app, event| match event {
         tauri::RunEvent::Exit => {
             // Filet de sécurité (ex. arrêt de session Windows) : ne pas perdre un appel en cours.
+            // Aussi la relance après une mise à jour sous macOS ; sous Windows, voir `updater`.
             recording::stop_before_exit(app);
             claude::shutdown(app);
             log::info!("Sordulo OS s'arrête");

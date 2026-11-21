@@ -207,6 +207,33 @@ pub struct NavigatePayload {
     pub route: String,
 }
 
+/// `UpdateState` du contrat (voir `updater`) : `disabled` en dev, jamais de mise à jour.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum UpdateState {
+    Disabled,
+    Idle,
+    Checking,
+    UpToDate,
+    Downloading,
+    Ready,
+    Installing,
+    Error,
+}
+
+/// `UpdateStatus` du contrat : état des mises à jour automatiques de la version installée.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateStatus {
+    /// Version de l'app en cours d'exécution (« 0.2.0 »).
+    pub current: String,
+    pub state: UpdateState,
+    /// Version plus récente trouvée sur le serveur des mises à jour, s'il y en a une.
+    pub available: Option<String>,
+    /// Message d'erreur en français quand `state` vaut `error`.
+    pub message: Option<String>,
+}
+
 // ---------------------------------------------------------------------------
 // État interne
 // ---------------------------------------------------------------------------
@@ -401,6 +428,38 @@ mod tests {
             serde_json::to_value(NavigatePayload { route: "/a".into() }).unwrap(),
             serde_json::json!({ "route": "/a" })
         );
+    }
+
+    #[test]
+    fn update_status_matches_the_ts_contract() {
+        let status = UpdateStatus {
+            current: "0.2.0".into(),
+            state: UpdateState::UpToDate,
+            available: None,
+            message: None,
+        };
+        assert_eq!(
+            serde_json::to_value(&status).unwrap(),
+            serde_json::json!({
+                "current": "0.2.0",
+                "state": "up-to-date",
+                "available": null,
+                "message": null
+            })
+        );
+        let states = [
+            (UpdateState::Disabled, "disabled"),
+            (UpdateState::Idle, "idle"),
+            (UpdateState::Checking, "checking"),
+            (UpdateState::UpToDate, "up-to-date"),
+            (UpdateState::Downloading, "downloading"),
+            (UpdateState::Ready, "ready"),
+            (UpdateState::Installing, "installing"),
+            (UpdateState::Error, "error"),
+        ];
+        for (state, name) in states {
+            assert_eq!(serde_json::to_value(state).unwrap(), name);
+        }
     }
 
     #[test]

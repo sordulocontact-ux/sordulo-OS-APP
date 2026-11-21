@@ -62,6 +62,7 @@ export function AppLayout() {
   const { member, organization } = useCurrentMember()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const navigate = useNavigate()
   useDesktopNavigation()
 
   // Ferme le menu du compte au clic à l'extérieur ou avec Échap.
@@ -119,6 +120,19 @@ export function AppLayout() {
               {member ? <p className={styles.menuName}>{member.name}</p> : null}
               {organization ? <p className={styles.menuOrg}>{organization.name}</p> : null}
               <SetPasswordButton />
+              {isDesktop() ? null : (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    void navigate('/download')
+                  }}
+                >
+                  Installer l’app de bureau
+                </Button>
+              )}
               <Button variant="secondary" size="sm" role="menuitem" onClick={() => void signOut()}>
                 Déconnexion
               </Button>

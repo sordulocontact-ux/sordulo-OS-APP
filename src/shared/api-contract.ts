@@ -181,3 +181,7 @@ export interface TranscribeVoiceResponse {
 export const VOICE_NOTE_MAX_BYTES = 4 * 1024 * 1024
 /** Durée maximale d'un enregistrement de note vocale. */
 export const VOICE_NOTE_MAX_SECONDS = 10 * 60
+/** GET /api/desktop/min-version (sans authentification) : voir src/shared/desktop-version.ts. */
+export interface DesktopMinVersionResponse {
+  minVersion: string
+}

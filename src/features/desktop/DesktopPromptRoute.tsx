@@ -3,16 +3,16 @@ import { Navigate } from 'react-router-dom'
 import { isDesktop } from '../../lib/desktop'
 import { IslandController } from '../island/controller'
 import { useSessionSync } from './useSessionSync'
-import './IslandWindow.module.css'
-
-const WINDOW_CLASS = 'islandWindow'
+import styles from './IslandWindow.module.css'
 
 /** Rend le document transparent tant que la route est affichée (la fenêtre est une île sans fond). */
 function useTransparentWindow(): void {
   useLayoutEffect(() => {
+    const windowClass = styles.islandWindow
+    if (!windowClass) return
     const html = document.documentElement
-    html.classList.add(WINDOW_CLASS)
-    return () => html.classList.remove(WINDOW_CLASS)
+    html.classList.add(windowClass)
+    return () => html.classList.remove(windowClass)
   }, [])
 }
 

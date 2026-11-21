@@ -129,3 +129,5 @@ export const POST = route(async (request) => {
   console.log(`[create] réunion ${input.id} créée (projet ${project.id}), en attente du fichier`)
   return json(201, { input, upload } satisfies CreateInputResponse)
 })
+
+export { OPTIONS } from '../_lib/cors.js'

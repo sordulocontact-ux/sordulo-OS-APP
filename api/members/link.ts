@@ -75,3 +75,5 @@ export const POST = route(async (request) => {
 
   return json(200, { link: generated.link } satisfies MemberLinkResponse)
 })
+
+export { OPTIONS } from '../_lib/cors.js'

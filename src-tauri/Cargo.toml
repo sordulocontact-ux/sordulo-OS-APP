@@ -1,6 +1,6 @@
 [package]
 name = "sordulo-os"
-version = "0.1.0"
+version = "0.2.0"
 description = "Sordulo OS — app de bureau (Tauri 2) autour du front React/Vite"
 authors = ["Sordulo"]
 edition = "2021"
@@ -28,6 +28,12 @@ tauri-build = { version = "2.7", features = [] }
 [dependencies]
 tauri = { version = "2.12", features = ["tray-icon", "image-png"] }
 tauri-plugin-single-instance = "2.5"
+# Lancement à l'ouverture de session (clé Run sous Windows, LaunchAgent sous macOS). Voir src/autostart.rs.
+tauri-plugin-autostart = "2.5"
+# Mises à jour automatiques (GitHub Releases, `latest.json` signé) et notification « à jour ». Voir
+# src/updater.rs.
+tauri-plugin-updater = "2"
+tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
 # preserve_order : la fusion de ~/.claude/settings.json garde l'ordre des clés de l'utilisateur.
 serde_json = { version = "1", features = ["preserve_order"] }

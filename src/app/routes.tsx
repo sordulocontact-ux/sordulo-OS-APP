@@ -20,6 +20,8 @@ import { ClientPage } from '../features/clients/ClientPage'
 import { ClientsPage } from '../features/clients/ClientsPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
 import { TeamPage } from '../features/team/TeamPage'
+import { DesktopUpdateGate } from '../features/desktop-update'
+import { DownloadPage } from '../features/download'
 import { DesktopPromptRoute } from '../features/desktop/DesktopPromptRoute'
 import { InputDetailPage } from '../features/inputs/InputDetailPage'
 import { InputsTab } from '../features/inputs/InputsTab'
@@ -44,7 +46,16 @@ function Guard({ roles }: { roles: readonly MemberRole[] }) {
 /** Labo de l'île : développement seulement (la condition est remplacée à la compilation, le code n'entre pas dans le build). */
 const IslandLab = import.meta.env.DEV ? lazy(() => import('../features/island/lab/IslandLab')) : null
 
+/** App de bureau trop vieille pour l'API : l'écran « Mise à jour nécessaire » remplace toutes les routes, connecté ou non. */
 export function AppRoutes() {
+  return (
+    <DesktopUpdateGate>
+      <RoutesTree />
+    </DesktopUpdateGate>
+  )
+}
+
+function RoutesTree() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
@@ -82,6 +93,7 @@ export function AppRoutes() {
         }
       >
         <Route path="/" element={<HomePage />} />
+        <Route path="/download" element={<DownloadPage />} />
         <Route element={<Guard roles={CLIENT_READ_ROLES} />}>
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/clients" element={<ClientsPage />} />

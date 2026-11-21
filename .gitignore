@@ -15,3 +15,7 @@ src-tauri/gen
 .claude/skills/
 .claude/hooks/
 skills-lock.json
+
+# App de bureau : relais compilé par scripts/build-desktop.mjs, fichiers copiés pour la release (CI)
+src-tauri/binaries/
+release-assets/

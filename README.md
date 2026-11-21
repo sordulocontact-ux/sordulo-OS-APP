@@ -62,6 +62,39 @@ Dans Supabase, sous **Authentication > URL Configuration**, ajoute `http://local
 | `npm test` | Vitest (attribution, transcription, post-traitement IA, diff de validation, kanban) |
 | `npm run build` | Typecheck + build de production |
 | `npm run db:migrate` / `db:seed` | Base Supabase (idempotents) |
+| `npm run desktop:build` | App de bureau installable (voir ci-dessous) |
+| `npm run release -- <version>` | Nouvelle version de l'app de bureau (commit + tag) |
+
+## App de bureau
+
+App Tauri 2 (`src-tauri/`) : la même interface que le site, plus l'île, la détection et l'enregistrement des appels. Le front est embarqué dans l'app et appelle l'API Vercel (`VITE_API_BASE_URL`).
+
+**Développer** : `npm run tauri dev` (front servi par Vite, `/api` en local, ni mise à jour ni lancement au démarrage).
+
+**Construire en local** : `npm run desktop:build` construit pour la machine courante (`-- --target universal-apple-darwin` pour un Mac universel, `-- --dry-run` pour voir les commandes). Il compile le relais Claude Code (`sordulo-hook`, livré à côté de l'exécutable), puis lance `tauri build` avec `src-tauri/tauri.release.conf.json`. Installeurs dans `src-tauri/target/[<cible>/]release/bundle/`.
+
+- Sans `TAURI_SIGNING_PRIVATE_KEY`, l'app est construite sans fichiers de mise à jour (suffisant pour tester). Pour les produire : `export TAURI_SIGNING_PRIVATE_KEY=~/.tauri/sordulo-os-updater.key` et `export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$(security find-generic-password -s sordulo-os-updater-key-password -a sordulo-os -w)"`.
+- Sans `APPLE_SIGNING_IDENTITY` (nom du certificat, voir `security find-identity -v -p codesigning`), l'app Mac est signée ad hoc : elle marche sur ce Mac seulement.
+
+**Publier une version** : `npm run release -- 0.3.0` (ou `patch`, `minor`, `major` ; `--dry-run` pour simuler), depuis `main` avec un arbre propre. Le script monte la version (`package.json`, seule source lue par Tauri, recopiée dans `Cargo.toml`), commite « chore(release): vX.Y.Z » et crée le tag, sans pousser. Pousser ensuite branche et tag (GitHub Desktop pousse les tags, sinon `git push --follow-tags`) : le workflow `.github/workflows/release.yml` compile Mac (universel) et Windows, puis publie la release avec `latest.json`. Les apps installées se mettent à jour seules. Liens stables pour la page de téléchargement : `https://github.com/sordulocontact-ux/sordulo-OS-APP/releases/latest/download/Sordulo-OS-macOS.dmg` et `…/Sordulo-OS-Windows-setup.exe`.
+
+Secrets du dépôt (Settings > Secrets and variables > Actions) :
+
+| Secret | Contenu |
+|---|---|
+| `TAURI_SIGNING_PRIVATE_KEY` | Contenu de `~/.tauri/sordulo-os-updater.key` (perdue = plus aucune mise à jour possible) |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Son mot de passe (Trousseau `sordulo-os-updater-key-password`) |
+| `APPLE_CERTIFICATE` | Certificat « Apple Development » exporté en .p12, en base64 (`base64 -i cert.p12 \| pbcopy`) |
+| `APPLE_CERTIFICATE_PASSWORD` | Mot de passe choisi à l'export du .p12 |
+| `APPLE_SIGNING_IDENTITY` | Nom complet du certificat (jamais écrit dans le dépôt) |
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Mêmes valeurs que sur Vercel |
+
+**Première installation** (app non notarisée, installeur Windows non signé) :
+
+- Mac : ouvrir le .dmg, glisser l'app dans Applications, l'ouvrir une fois, puis **Réglages Système > Confidentialité et sécurité > Ouvrir quand même**.
+- Windows : à l'avertissement SmartScreen, **Informations complémentaires > Exécuter quand même**. Installation pour l'utilisateur courant, sans droits administrateur.
+
+Les mises à jour suivantes s'installent seules, sans ces étapes.
 
 ## Organisation du code
 

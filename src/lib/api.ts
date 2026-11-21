@@ -7,6 +7,7 @@ import type {
   CreateInputResponse,
   DeleteInputRequest,
   DeleteInputResponse,
+  DesktopMinVersionResponse,
   InviteMemberRequest,
   InviteMemberResponse,
   MemberLinkRequest,
@@ -26,6 +27,9 @@ export class ApiRequestError extends Error {
   }
 }
 
+/** Base de l'API : vide sur le web et en dev (chemins relatifs), l'URL de production dans l'app de bureau. */
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '')
+
 /** Sends an authenticated POST and returns the JSON response; errors carry the server's French message. */
 async function send<TRes>(path: string, contentType: string, body: BodyInit): Promise<TRes> {
   const { data } = await supabase.auth.getSession()
@@ -33,7 +37,7 @@ async function send<TRes>(path: string, contentType: string, body: BodyInit): Pr
   if (!token) throw new ApiRequestError('Session expirée, reconnecte-toi.', 401)
   let response: Response
   try {
-    response = await fetch(path, {
+    response = await fetch(`${API_BASE}${path}`, {
       method: 'POST',
       headers: { 'content-type': contentType, authorization: `Bearer ${token}` },
       body,
@@ -56,7 +60,26 @@ function post<TReq, TRes>(path: string, body: TReq): Promise<TRes> {
   return send<TRes>(path, 'application/json', JSON.stringify(body))
 }
 
+/** GET sans authentification : version minimale de l'app de bureau acceptée par l'API. */
+async function getMinVersion(): Promise<DesktopMinVersionResponse> {
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}/api/desktop/min-version`, { headers: { accept: 'application/json' } })
+  } catch {
+    throw new ApiRequestError('Serveur injoignable. Vérifie ta connexion.', 0)
+  }
+  const payload = (await response.json().catch(() => null)) as DesktopMinVersionResponse | ApiError | null
+  if (!response.ok) {
+    const message =
+      payload && typeof payload === 'object' && 'error' in payload ? payload.error : `Erreur ${response.status}`
+    throw new ApiRequestError(message, response.status)
+  }
+  return payload as DesktopMinVersionResponse
+}
+
 export const api = {
+  /** Sans authentification. */
+  desktopMinVersion: getMinVersion,
   createInput: (body: CreateInputRequest) => post<CreateInputRequest, CreateInputResponse>('/api/inputs/create', body),
   processInput: (body: ProcessInputRequest) =>
     post<ProcessInputRequest, ProcessInputResponse>('/api/inputs/process', body),

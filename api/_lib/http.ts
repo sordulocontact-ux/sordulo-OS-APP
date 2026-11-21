@@ -1,6 +1,7 @@
 /** HTTP helpers for the /api functions (Web Request/Response). Error messages are in French. */
 import { z } from 'zod'
 import type { ApiError } from '../../src/shared/api-contract.js'
+import { preflight, withCors } from './cors.js'
 import { MissingEnvError } from './env.js'
 
 /** Error that becomes a JSON response { error } with the given status. */
@@ -47,19 +48,28 @@ export async function readJsonBody<S extends z.ZodType>(request: Request, schema
   return result.data
 }
 
-/** Wraps a route handler: HttpError -> its status, anything else -> 500 (logged). */
+/**
+ * Wraps a route handler: HttpError -> its status, anything else -> 500 (logged).
+ * Also adds the CORS headers (desktop app origins only) to every response, errors included,
+ * and answers OPTIONS preflights with 204.
+ */
 export function route(handler: (request: Request) => Promise<Response>): (request: Request) => Promise<Response> {
   return async (request) => {
-    try {
-      return await handler(request)
-    } catch (error) {
-      if (error instanceof HttpError) return errorJson(error.status, error.message)
-      if (error instanceof MissingEnvError) {
-        console.error(`[api] ${error.message}`)
-        return errorJson(500, error.message)
-      }
-      console.error('[api] erreur inattendue', error)
-      return errorJson(500, 'Erreur serveur inattendue. Réessaie dans un instant.')
+    if (request.method === 'OPTIONS') return preflight(request)
+    return withCors(request, await run(handler, request))
+  }
+}
+
+async function run(handler: (request: Request) => Promise<Response>, request: Request): Promise<Response> {
+  try {
+    return await handler(request)
+  } catch (error) {
+    if (error instanceof HttpError) return errorJson(error.status, error.message)
+    if (error instanceof MissingEnvError) {
+      console.error(`[api] ${error.message}`)
+      return errorJson(500, error.message)
     }
+    console.error('[api] erreur inattendue', error)
+    return errorJson(500, 'Erreur serveur inattendue. Réessaie dans un instant.')
   }
 }

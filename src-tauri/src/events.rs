@@ -34,6 +34,8 @@ pub const EVENT_SPOTIFY: &str = "desktop://spotify";
 /// `DESKTOP_EVENTS.musicLevels` (payload `MusicLevels`), fenêtre de l'île, ~30 fois par seconde pendant
 /// l'analyse du son de la musique jouée par l'ordinateur (Windows ; jamais sur macOS).
 pub const EVENT_MUSIC_LEVELS: &str = "desktop://music-levels";
+/// `DESKTOP_EVENTS.updateStatus` (payload `UpdateStatus`), fenêtre principale.
+pub const EVENT_UPDATE_STATUS: &str = "desktop://update-status";
 /// `CLAUDE_PERMISSION_TIMEOUT_MS` : attente maximale d'une réponse de l'île à un PermissionRequest.
 pub const CLAUDE_PERMISSION_TIMEOUT_MS: u64 = 60_000;
 /// Schéma de `DESKTOP_AUTH_REDIRECT` (`sordulo://auth`).
