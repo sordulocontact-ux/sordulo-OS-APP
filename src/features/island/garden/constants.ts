@@ -136,6 +136,11 @@ export const GARDEN = {
 
   // --- Physique ----------------------------------------------------------------------------------------------
   gravity: { main: 380, sub: 520 },
+  /**
+   * Chute quand l'île s'ouvre sous eux (le sol descend) : chute libre bien plus forte que celle des petits
+   * sauts, qui accélère franchement, puis petit rebond à l'atterrissage (px/s).
+   */
+  fall: { gravity: 1900, bounce: 70, bounceAbove: 220 },
   /** dt maximal d'une image de simulation (s) : un onglet qui revient ne fait pas de bond. */
   maxDt: 0.05,
 

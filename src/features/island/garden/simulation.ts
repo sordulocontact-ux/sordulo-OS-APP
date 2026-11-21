@@ -132,6 +132,8 @@ export interface Walker {
   nextBlink: number
   blink: number
   gone: boolean
+  /** Tombe parce que le sol est descendu (île ouverte) : chute libre forte, rebond à l'arrivée. */
+  falling: boolean
   dead: boolean
   /** Session partie ou sous-agent fini : retiré à la fin de son fondu ou de son retour. */
   retiring: boolean
@@ -317,6 +319,7 @@ export class GardenSim {
       nextBlink: this.rnd(GARDEN.blink.first),
       blink: 0,
       gone: false,
+      falling: false,
       dead: false,
       retiring: false,
     }
@@ -807,6 +810,7 @@ export class GardenSim {
       if (w.dead || w.mode === 'ride') continue
       w.y = Math.max(0, w.y + dh)
       if (w.y === 0 && w.vy < 0) w.vy = 0
+      if (dh > 0) w.falling = true
     }
   }
 
@@ -869,11 +873,16 @@ export class GardenSim {
         }
       }
       if (w.mode !== 'ride' && (w.y > 0 || w.vy > 0)) {
-        w.vy -= (w.sub ? GARDEN.gravity.sub : GARDEN.gravity.main) * dt
+        const gravity = w.falling ? GARDEN.fall.gravity : w.sub ? GARDEN.gravity.sub : GARDEN.gravity.main
+        w.vy -= gravity * dt
         w.y += w.vy * dt
         if (w.y <= 0) {
+          // Fin de chute : petit rebond seulement après une vraie chute (pas pendant que le sol finit de
+          // descendre), puis gravité normale.
+          const impact = -w.vy
           w.y = 0
-          w.vy = 0
+          w.vy = w.falling && impact > GARDEN.fall.bounceAbove ? GARDEN.fall.bounce : 0
+          w.falling = false
         }
       }
     }
