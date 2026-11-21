@@ -4,6 +4,8 @@
 //! - `windows/` : ce soir (registre CapabilityAccessManager + WASAPI + MP3).
 //! - `macos/`   : île (curseur, encoche, niveau de fenêtre), détection du micro et des appels (processus
 //!   Core Audio, onglets par AppleScript), enregistrement (micro + process tap), presse-papiers.
+//! - Musique en cours (`now_playing`, `media_command`) : `windows/media.rs` (contrôles multimédias du
+//!   système) et `macos/media.rs` (Spotify et Musique par AppleScript).
 //!
 //! Le reste de l'app (tray, commandes Tauri, boucle de détection) ne dépend QUE de ce module :
 //! jamais de `cfg(windows)` en dehors de `platform/`.
@@ -76,6 +78,90 @@ pub struct Notch {
 
 /// Extension du fichier produit par `Recorder` (sans point).
 pub const RECORDING_EXTENSION: &str = "mp3";
+
+/// Morceau en cours dans un lecteur du système (Windows : contrôles multimédias du système, tous les
+/// lecteurs ; macOS : Spotify et Musique par AppleScript). Les apps d'appel sont écartées (`music::is_excluded`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NowPlaying {
+    /// Identifiant du lecteur : AppUserModelId sous Windows, bundle id sous macOS.
+    pub app_id: String,
+    pub title: String,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    /// `false` : en pause.
+    pub playing: bool,
+    /// Position dans le morceau à l'instant `position_at`, en ms (`None` si le lecteur ne la donne pas).
+    pub position_ms: Option<u64>,
+    pub duration_ms: Option<u64>,
+    /// Epoch Unix en ms de la lecture de `position_ms`.
+    pub position_at: u64,
+    /// Change quand la pochette change (même morceau = même clé) ; `None` : pas de pochette.
+    /// La pochette elle-même se lit par [`now_playing_artwork`], seulement quand cette clé change.
+    pub artwork_key: Option<String>,
+}
+
+/// Commande envoyée au lecteur depuis l'île (`MusicCommand` du contrat : `previous`, `playPause`, `next`,
+/// `open`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MediaCommand {
+    Previous,
+    PlayPause,
+    Next,
+    /// Met la fenêtre du lecteur au premier plan.
+    Open,
+}
+
+/// Morceau en cours (en lecture de préférence, sinon en pause), `None` si rien. Appelé ~toutes les secondes
+/// par la boucle de la musique ; ne bloque pas longtemps (macOS : lecture en arrière-plan mise en cache).
+pub fn now_playing() -> anyhow::Result<Option<NowPlaying>> {
+    #[cfg(windows)]
+    {
+        windows::now_playing()
+    }
+    #[cfg(target_os = "macos")]
+    {
+        macos::now_playing()
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        Ok(None)
+    }
+}
+
+/// Octets bruts (PNG ou JPEG) de la pochette du morceau rendu en dernier par [`now_playing`], `None` sans
+/// pochette. Bloquant (lecture du flux, téléchargement) : appelé seulement quand `artwork_key` change.
+pub fn now_playing_artwork() -> anyhow::Result<Option<Vec<u8>>> {
+    #[cfg(windows)]
+    {
+        windows::now_playing_artwork()
+    }
+    #[cfg(target_os = "macos")]
+    {
+        macos::now_playing_artwork()
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        Ok(None)
+    }
+}
+
+/// Envoie une commande au lecteur rendu en dernier par [`now_playing`]. Bloquant (quelques centaines de ms).
+pub fn media_command(command: MediaCommand) -> anyhow::Result<()> {
+    #[cfg(windows)]
+    {
+        windows::media_command(command)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        macos::media_command(command)
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        let _ = command;
+        anyhow::bail!("Commandes du lecteur non disponibles sur ce système")
+    }
+}
 
 #[cfg(target_os = "macos")]
 mod macos;

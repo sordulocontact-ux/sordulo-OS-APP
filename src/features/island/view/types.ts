@@ -9,8 +9,10 @@ import type {
   ActivityKind,
   ClaudeSession,
   IslandNotification,
+  IslandMusic,
   IslandPlatform,
   IslandSnapshot,
+  MusicCommand,
   PermissionAsk,
   PermissionDecision,
   QuestionAnswers,
@@ -71,6 +73,8 @@ export interface IslandProps {
   drop: IslandDropInfo | null
   /** Zone de dépôt survolée. */
   hotZone: IslandDropZone | null
+  /** Lecture en cours (états `music` / `musicOpen`, bulle) ; null ou absent : pochette et couleurs par défaut. */
+  music?: IslandMusic | null
   /** Jardin des Claude (autre lot), affiché dans `multi` au repos. Sans jardin : compte + pastilles. */
   garden?: ReactNode
   /** Force la réduction des animations (labo) ; par défaut : prefers-reduced-motion. */
@@ -98,6 +102,8 @@ export interface IslandProps {
   onAnswerSession: (sessionId: string) => void
   /** Clic sur une session (agentOpen, multiOpen) : sa fenêtre VS Code. */
   onOpenSession: (sessionId: string) => void
+  /** musicOpen : précédent, lecture / pause, suivant, ou clic sur la pochette (`open`, lecteur au premier plan). */
+  onMusicCommand?: (command: MusicCommand) => void
   /**
    * Zones cliquables (forme + bulle), au plus toutes les ~50 ms pendant une animation et une dernière fois
    * au repos. Union de la taille courante et de la cible pendant une transition.

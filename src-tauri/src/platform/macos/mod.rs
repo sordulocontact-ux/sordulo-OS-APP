@@ -3,6 +3,7 @@
 //! - `audio.rs` : apps qui utilisent le micro ou jouent du son (processus Core Audio, macOS 14+).
 //! - `pages.rs` : titres des onglets des navigateurs (AppleScript), pour reconnaître Meet, Discord…
 //! - `editor.rs` : rouvrir la fenêtre VS Code (ou l'app) d'une session Claude Code.
+//! - `media.rs` : musique en cours dans Spotify et Musique (AppleScript), pochette, commandes.
 //! - Presse-papiers par `pbcopy`.
 //!
 //! - `capture.rs` : capture du micro et du son de l'ordinateur (process tap, macOS 14.2+).
@@ -17,6 +18,7 @@ mod audio;
 mod capture;
 mod editor;
 mod island;
+mod media;
 mod pages;
 
 // Chaîne d'enregistrement partagée avec Windows (voir l'en-tête).
@@ -36,6 +38,7 @@ pub use recorder::WasapiRecorder as CoreAudioRecorder;
 
 pub use editor::{editor_storage_file, open_in_editor};
 pub use island::{cursor_state, primary_notch, raise_island_window};
+pub use media::{media_command, now_playing, now_playing_artwork};
 pub use pages::browser_page_titles;
 
 /// Noms courts (voir `call_apps::short_name`) des apps qui jouent du son en ce moment.

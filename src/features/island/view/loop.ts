@@ -1,18 +1,17 @@
 /**
  * Boucle requestAnimationFrame de l'île (prototype : frame) : ressort, rendu de la forme, minuteurs, onde,
- * anneau, égaliseur, rapport des zones cliquables. Tout s'écrit directement dans le DOM.
+ * anneau, égaliseur et progression de la musique, rapport des zones cliquables. Tout s'écrit directement
+ * dans le DOM.
  */
 import type { IslandRect } from '../../../shared/desktop-contract'
 import { WAVE, progressRatio, ringDashOffset, waveBarHeight } from '../geometry'
-import type { ClaudeSession, IslandState, ProgressActivity } from '../types'
+import type { ClaudeSession, IslandMusic, IslandState, ProgressActivity } from '../types'
 import type { IslandEngine } from './engine'
 import { formatElapsed } from './labels'
+import { createEqualizer, musicPosition, musicRatio, stepEqualizer, stillEqualizer } from './music'
 
 /** Intervalle minimal entre deux rapports de zones cliquables pendant une animation (ms). */
 export const HIT_RECTS_INTERVAL_MS = 50
-
-/** Égaliseur de la musique (hors périmètre, gardé pour les scénarios du prototype). */
-const EQ_BARS = 8
 
 /** Éléments mis à jour par la boucle (texte et styles que React ne rend pas). */
 export interface LiveElements {
@@ -24,6 +23,9 @@ export interface LiveElements {
   bubbleRing: SVGCircleElement | null
   /** Temps écoulé des sessions qui travaillent, dans multiOpen. */
   rowElapsed: Map<string, HTMLElement>
+  /** Temps écoulé du morceau et remplissage de sa barre de progression (musicOpen). */
+  musicElapsed: HTMLElement | null
+  musicFill: HTMLElement | null
 }
 
 /** Données lues par la boucle, mises à jour à chaque rendu React. */
@@ -39,6 +41,8 @@ export interface LiveData {
   progress: ProgressActivity | null
   bubbleProgress: ProgressActivity | null
   audioLevels: readonly number[] | undefined
+  /** Lecture en cours (égaliseur, progression) ; null : égaliseur en lecture, sans progression. */
+  music: IslandMusic | null
   onHitRects: (rects: IslandRect[]) => void
 }
 
@@ -124,8 +128,9 @@ export function startIslandLoop(
   // Onde simulée du prototype quand aucun niveau sonore n'est fourni (labo).
   let talking = true
   let talkLeft = 14
-  const phase = Array.from({ length: EQ_BARS }, () => Math.random() * 6.28)
-  const freq = Array.from({ length: EQ_BARS }, () => 5 + Math.random() * 7)
+  const eq = createEqualizer()
+  // Échelles déjà écrites : on n'écrit le DOM que si une barre bouge.
+  const eqShown = new WeakMap<HTMLElement, number>()
   live.waveBars.forEach((b, j) => {
     if (b) b.style.height = `${wave[j] ?? WAVE.minHeight}px`
   })
@@ -196,13 +201,21 @@ export function startIslandLoop(
     if (d.bubbleProgress && live.bubbleRing) {
       live.bubbleRing.style.strokeDashoffset = ringDashOffset(progressRatio(d.bubbleProgress, epoch)).toFixed(2)
     }
-    if (state === 'music' && !d.reduced) {
-      const t = now / 1000
+    if (state === 'music') {
+      // Sans données de lecture (scénarios), l'égaliseur joue.
+      const playing = d.music?.playing ?? true
+      const scales = d.reduced ? stillEqualizer(playing) : stepEqualizer(eq, now / 1000, dt, playing)
       live.eqBars.forEach((b, j) => {
-        if (!b) return
-        const v = 0.3 + 0.7 * Math.abs(Math.sin(t * (freq[j] ?? 6) * 0.5 + (phase[j] ?? 0)) * Math.sin(t * 1.7 + j))
-        b.style.transform = `scaleY(${v.toFixed(3)})`
+        const v = Math.round((scales[j] ?? 0) * 1000) / 1000
+        if (!b || eqShown.get(b) === v) return
+        eqShown.set(b, v)
+        b.style.transform = `scaleY(${v})`
       })
+      if (d.music) {
+        const position = musicPosition(d.music, epoch)
+        setText(live.musicElapsed, formatElapsed(position ?? 0))
+        if (live.musicFill) live.musicFill.style.transform = `scaleX(${musicRatio(d.music, epoch).toFixed(4)})`
+      }
     }
     raf = requestAnimationFrame(frame)
   }

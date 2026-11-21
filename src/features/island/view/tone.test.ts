@@ -34,7 +34,8 @@ describe('tone tokens', () => {
 
 describe('Island.module.css', () => {
   it('only uses defined tokens (besides the variables set by the component)', () => {
-    const local = new Set(['--island-tone', '--nd'])
+    // Posées par le rendu : couleur d'accent, durée de notification, couleurs de la pochette, rang d'une barre.
+    const local = new Set(['--island-tone', '--nd', '--music-start', '--music-end', '--eq-t'])
     const used = Array.from(moduleCss.matchAll(/var\((--[a-z0-9-]+)/g), (m: RegExpExecArray) => m[1] ?? '')
     const missing = used.filter((v) => !local.has(v) && !defined.has(v))
     expect(missing).toEqual([])

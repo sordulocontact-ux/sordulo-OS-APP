@@ -125,6 +125,47 @@ export function DocumentIcon() {
   )
 }
 
+export type MusicControlIconName = 'previous' | 'play' | 'pause' | 'next'
+
+/** Boutons du lecteur (musicOpen) : formes pleines aux coins arrondis par le trait, comme les autres icônes. */
+export function MusicControlIcon({ name, className }: { name: MusicControlIconName; className?: string }) {
+  return (
+    <svg className={[styles.ico, styles.icoFill, className].filter(Boolean).join(' ')} viewBox="0 0 24 24" aria-hidden="true">
+      {name === 'play' && <path d="M8 5.5v13l10.5-6.5z" />}
+      {name === 'pause' && (
+        <>
+          <rect x="6.5" y="5.5" width="3.5" height="13" rx="1" />
+          <rect x="14" y="5.5" width="3.5" height="13" rx="1" />
+        </>
+      )}
+      {name === 'previous' && <path d="M6 6v12M18.5 6.5v11L10 12z" />}
+      {name === 'next' && <path d="M18 6v12M5.5 6.5v11L14 12z" />}
+    </svg>
+  )
+}
+
+/**
+ * Pochette du morceau : l'image (décorative, alt vide) sur le dégradé de repli aux couleurs de la pochette
+ * (ou des tokens) ; une image qui ne se charge pas laisse voir le dégradé.
+ */
+export function MusicCover({ artworkUrl, className }: { artworkUrl: string | null | undefined; className?: string }) {
+  return (
+    <span className={[styles.cover, className].filter(Boolean).join(' ')}>
+      {artworkUrl ? (
+        <img
+          key={artworkUrl}
+          src={artworkUrl}
+          alt=""
+          draggable={false}
+          onError={(e) => {
+            e.currentTarget.style.visibility = 'hidden'
+          }}
+        />
+      ) : null}
+    </span>
+  )
+}
+
 /** Icône pixel de Claude Code fournie par Sacha (rendu net, sans lissage). */
 export function ClaudeIcon({ className }: { className?: string }) {
   return <img className={[styles.pixel, className].filter(Boolean).join(' ')} src={claudeCodeIcon} alt="" draggable={false} />

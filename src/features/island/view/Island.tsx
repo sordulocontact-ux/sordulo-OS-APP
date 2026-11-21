@@ -22,6 +22,7 @@ import styles from './Island.module.css'
 import { backgroundRows, islandLabel } from './labels'
 import { ActivityLayers } from './layers'
 import { createIslandStage, startIslandLoop, type IslandLoop, type LiveData, type LiveElements } from './loop'
+import { musicHasProgress, musicStyle } from './music'
 import { SharedElements } from './SharedElements'
 import { ACTIVITY_NAMES } from './tone'
 import type { ActivityOfKind, IslandProps } from './types'
@@ -44,6 +45,7 @@ export function Island(props: IslandProps) {
     sessions,
     drop,
     hotZone,
+    music: musicProp,
     garden,
     reducedMotion,
     onHoverChange,
@@ -57,8 +59,10 @@ export function Island(props: IslandProps) {
     onStopRecording,
     onAnswerSession,
     onOpenSession,
+    onMusicCommand,
     onHitRectsChange,
   } = props
+  const music = musicProp ?? null
 
   const prefersReduced = usePrefersReducedMotion()
   const reduced = reducedMotion ?? prefersReduced
@@ -74,12 +78,18 @@ export function Island(props: IslandProps) {
   const bubbleProgress = findActivity('progress', secondary)
   const agentActivity = findActivity('agent', primary, secondary)
   const musicOn = findActivity('music', primary, secondary) !== null
+  // Les Claude du jardin ne dansent qu'en lecture (sans données : comme en lecture).
+  const musicPlaying = musicOn && music?.playing !== false
+  const musicProgress = musicHasProgress(music)
   const agentSession: ClaudeSession | null =
     sessions.find((s) => s.id === agentActivity?.sessionId) ?? sessions[0] ?? null
   const askSession = snapshot.ask ? (sessions.find((s) => s.id === snapshot.ask?.sessionId) ?? null) : null
   const bubbleActivity = useLastNonNull(secondary)
   // Pendant un enregistrement : ce qui tourne aussi, sous l'appel au survol (pas de bulle).
-  const meetRows = useMemo(() => backgroundRows(snapshot.background, sessions), [snapshot.background, sessions])
+  const meetRows = useMemo(
+    () => backgroundRows(snapshot.background, sessions, music),
+    [snapshot.background, sessions, music],
+  )
 
   // Service de l'appel (logo et couleur) : l'enregistrement en cours, sinon la proposition ; gardé le temps
   // du fondu de sortie pour que la couleur ne repasse pas au jaune avant la fin.
@@ -98,8 +108,9 @@ export function Island(props: IslandProps) {
       hasGarden,
       sessionCount,
       meetRows: meetRows.length,
+      musicProgress,
     }),
-    [state, open, withCall, questionAsk, platform, reduced, hasGarden, sessionCount, meetRows.length],
+    [state, open, withCall, questionAsk, platform, reduced, hasGarden, sessionCount, meetRows.length, musicProgress],
   )
 
   // Éléments du DOM pilotés hors de React
@@ -121,6 +132,8 @@ export function Island(props: IslandProps) {
     ring: null,
     bubbleRing: null,
     rowElapsed: new Map(),
+    musicElapsed: null,
+    musicFill: null,
   })
   const [stage] = useState(createIslandStage)
   const engineRef = useRef<IslandEngine | null>(null)
@@ -138,6 +151,7 @@ export function Island(props: IslandProps) {
     progress,
     bubbleProgress,
     audioLevels,
+    music,
     onHitRects: onHitRectsChange,
   }
   const liveDataRef = useRef(liveData)
@@ -204,10 +218,10 @@ export function Island(props: IslandProps) {
       state,
       platform,
       reduced,
-      mood: { call: callOn, music: musicOn },
+      mood: { call: callOn, music: musicPlaying },
       agentSessionId,
     }),
-    [stage, gardenVisible, state, platform, reduced, callOn, musicOn, agentSessionId],
+    [stage, gardenVisible, state, platform, reduced, callOn, musicPlaying, agentSessionId],
   )
 
   // Nouvelle cible : état, survol, plateforme, jardin, nombre de sessions
@@ -297,6 +311,12 @@ export function Island(props: IslandProps) {
   const bubbleRingRef = useCallback((el: SVGCircleElement | null) => {
     liveRef.current.bubbleRing = el
   }, [])
+  const musicElapsedRef = useCallback((el: HTMLElement | null) => {
+    liveRef.current.musicElapsed = el
+  }, [])
+  const musicFillRef = useCallback((el: HTMLElement | null) => {
+    liveRef.current.musicFill = el
+  }, [])
   const rowElapsedRef = useCallback((sessionId: string, el: HTMLElement | null) => {
     if (el) liveRef.current.rowElapsed.set(sessionId, el)
     else liveRef.current.rowElapsed.delete(sessionId)
@@ -323,7 +343,7 @@ export function Island(props: IslandProps) {
       data-hover={open ? 'true' : 'false'}
       data-reduced={reduced ? 'true' : 'false'}
       data-state={state}
-      style={callToneStyle(callService)}
+      style={{ ...callToneStyle(callService), ...musicStyle(music?.palette) }}
       onFocus={handleFocus}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
@@ -346,11 +366,12 @@ export function Island(props: IslandProps) {
             meet={meet}
             meetRows={meetRows}
             progress={progress}
+            music={music}
             agentSession={agentSession}
             sessions={sessions}
             drop={drop}
             hotZone={hotZone}
-            refs={{ eqBarRef, ringRef, rowElapsedRef }}
+            refs={{ musicElapsedRef, musicFillRef, ringRef, rowElapsedRef }}
             handlers={{
               onCallAccept,
               onCallIgnore,
@@ -360,6 +381,7 @@ export function Island(props: IslandProps) {
               onAnswerSession,
               onOpenSession,
               onNotificationAction,
+              onMusicCommand,
             }}
           />
           <div className={cx(styles.garden, gardenVisible && styles.on)} aria-hidden="true">
@@ -372,6 +394,8 @@ export function Island(props: IslandProps) {
             timerRef={timerRef}
             elapsedRef={elapsedRef}
             waveBarRef={waveBarRef}
+            eqBarRef={eqBarRef}
+            artworkUrl={music?.artworkUrl ?? null}
             agentWorking={agentSession?.status === 'working'}
             reduced={reduced}
           />
@@ -395,7 +419,7 @@ export function Island(props: IslandProps) {
           <path ref={bubblePathRef} />
         </svg>
         <span ref={bubbleContentRef} className={styles.bubbleContent}>
-          <BubbleContent activity={bubbleActivity} ringRef={bubbleRingRef} />
+          <BubbleContent activity={bubbleActivity} music={music} ringRef={bubbleRingRef} />
         </span>
         {secondary && extra > 0 && (
           <span className={styles.badge} aria-hidden="true">
@@ -404,7 +428,7 @@ export function Island(props: IslandProps) {
         )}
       </button>
       <p className={styles.srOnly} aria-live="polite">
-        {islandLabel(snapshot, sessionCount, call?.appName ?? null)}
+        {islandLabel(snapshot, sessionCount, call?.appName ?? null, music)}
       </p>
     </div>
   )

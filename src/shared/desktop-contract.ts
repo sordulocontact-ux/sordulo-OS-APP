@@ -111,6 +111,34 @@ export interface AudioLevel {
   at: number
 }
 
+/**
+ * What the computer is playing, read from the system player (Windows: Global System Media Transport Controls,
+ * any player; macOS: Spotify and Music via AppleScript). Call apps (Teams, Zoom…) are never reported.
+ * `null` in MusicChanged / getMusic: nothing is playing or paused, or music is turned off in the tray menu.
+ */
+export interface MusicState {
+  /** Stable player id (Windows AppUserModelId, macOS bundle id). */
+  appId: string
+  /** Player name shown to the user (« Spotify », « Google Chrome », « Musique »). */
+  appName: string
+  title: string
+  artist: string | null
+  album: string | null
+  /** false: paused (the island keeps it for a few seconds, then hides it). */
+  playing: boolean
+  /** Position in the track when it was read, in ms; null if the player does not give it. */
+  positionMs: number | null
+  /** Track length in ms; null if unknown. */
+  durationMs: number | null
+  /** Unix epoch in ms when positionMs was read (the front advances it while playing). */
+  positionAt: number
+  /** Changes with each new cover; null: no cover. Fetch the image bytes with getMusicArtwork. */
+  artworkId: string | null
+}
+
+/** Player commands sent from the island (`open`: bring the player's window to the front). */
+export type MusicCommand = 'previous' | 'playPause' | 'next' | 'open'
+
 /** A rectangle of the island window that must receive the mouse, in CSS px relative to the window's top-left corner. */
 export interface IslandRect {
   x: number
@@ -233,6 +261,11 @@ export const DESKTOP_EVENTS = {
   claude: 'desktop://claude',
   /** Payload ClaudeConnection, island window: hooks connected / disconnected, or a hook arrived. */
   claudeConnection: 'desktop://claude-connection',
+  /**
+   * Payload MusicState | null, island window: what is playing changed (track, play / pause, cover, position
+   * jump, player). Sent on change only (polled by Rust about every second), not as a position ticker.
+   */
+  music: 'desktop://music',
 } as const
 
 /** Commands implemented in Rust (invoke from @tauri-apps/api/core). Arguments are camelCase. */
@@ -277,4 +310,13 @@ export const DESKTOP_COMMANDS = {
   saveDroppedFile: 'save_dropped_file',
   /** ({ text: string }) => void — island window: copies text to the system clipboard (works without focus, unlike navigator.clipboard). */
   copyText: 'copy_text',
+  /** () => MusicState | null — island window: what is playing now (initial read; then DESKTOP_EVENTS.music). */
+  getMusic: 'get_music',
+  /**
+   * ({ artworkId: string }) => ArrayBuffer — island window: raw bytes of the current cover (PNG or JPEG).
+   * Error if artworkId is no longer the current one (the track changed in between).
+   */
+  getMusicArtwork: 'get_music_artwork',
+  /** ({ command: MusicCommand }) => void — island window: previous / play-pause / next / bring the player to the front. */
+  musicCommand: 'music_command',
 } as const

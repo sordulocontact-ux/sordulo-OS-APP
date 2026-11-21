@@ -10,7 +10,10 @@ import type { IslandBus } from './bus'
 import type { PatchStore, ReadableStore } from './store'
 
 /** Données du rendu que les sources fournissent (le reste vient de la coordination). */
-export type IslandViewData = Pick<IslandProps, 'call' | 'audioLevels' | 'sessions' | 'drop' | 'hotZone' | 'garden'>
+export type IslandViewData = Pick<
+  IslandProps,
+  'call' | 'audioLevels' | 'sessions' | 'drop' | 'hotZone' | 'garden' | 'music'
+>
 
 export const EMPTY_VIEW_DATA: IslandViewData = {
   call: null,
@@ -19,6 +22,7 @@ export const EMPTY_VIEW_DATA: IslandViewData = {
   drop: null,
   hotZone: null,
   garden: undefined,
+  music: null,
 }
 
 /** Gestes de l'île qu'une source peut prendre en charge (les autres sont gérés par le contrôleur). */
@@ -31,7 +35,10 @@ export type IslandGestures = Pick<
   | 'onAskDecision'
   | 'onAnswerSession'
   | 'onOpenSession'
->
+> & {
+  /** Facultatif pour <Island> (labo, tests), toujours fourni par le contrôleur. */
+  onMusicCommand: NonNullable<IslandProps['onMusicCommand']>
+}
 
 export type IslandGestureName = keyof IslandGestures
 
@@ -53,7 +60,7 @@ export interface IslandSourceContext {
   coordinator: IslandCoordinator
   /** Horloge (injectée en test) : utiliser ses minuteurs plutôt que window.setTimeout. */
   clock: IslandClock
-  /** Données du rendu : appel détecté, niveaux sonores, sessions Claude Code, fichier glissé, jardin. */
+  /** Données du rendu : appel détecté, niveaux sonores, sessions Claude Code, fichier glissé, jardin, musique. */
   view: PatchStore<IslandViewData>
   /** Connexion courante. */
   session: ReadableStore<IslandSessionInfo>

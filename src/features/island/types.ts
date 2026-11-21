@@ -5,7 +5,9 @@
  * le contrôleur Tauri (controller/), le labo (lab/) et le jardin (garden/).
  */
 
-import type { CallService, ClaudeQuestion } from '../../shared/desktop-contract'
+import type { CallService, ClaudeQuestion, MusicCommand } from '../../shared/desktop-contract'
+
+export type { MusicCommand }
 
 /** Variante de forme : Windows (bord haut de l'écran) ou Mac (autour de l'encoche de la caméra). */
 export type IslandPlatform = 'win' | 'mac'
@@ -45,6 +47,7 @@ export type IslandSizeKey =
   | 'agentAskCall'
   | 'multi'
   | 'multiOpen'
+  | 'musicOpen'
   | 'dragWake'
   | 'dragOver'
   | 'notif'
@@ -97,9 +100,33 @@ export interface MultiActivity {
   kind: 'multi'
 }
 
-/** Hors périmètre (musique) : type déclaré pour la coordination et les scénarios du prototype. */
+/** Musique en lecture (ou en pause depuis peu) : les données affichées sont dans IslandMusic (view.music). */
 export interface MusicActivity {
   kind: 'music'
+}
+
+/** Couleurs tirées de la pochette (couleurs CSS `rgb(…)`) : dégradé des barres et de la pochette de repli. */
+export interface MusicPalette {
+  start: string
+  end: string
+}
+
+/** Lecture en cours affichée par l'île (source « musique » du contrôleur, d'après MusicState). */
+export interface IslandMusic {
+  title: string
+  artist: string | null
+  album: string | null
+  /** Nom du lecteur (« Spotify »). */
+  appName: string
+  playing: boolean
+  positionMs: number | null
+  durationMs: number | null
+  /** Epoch ms de positionMs ; en lecture, la position avance à partir de là. */
+  positionAt: number
+  /** URL (blob:) de la pochette ; null : pas de pochette (dégradé de repli). */
+  artworkUrl: string | null
+  /** Couleurs de la pochette ; null : tokens --island-music* par défaut. */
+  palette: MusicPalette | null
 }
 
 export type ActivityPayload = MeetActivity | ProgressActivity | AgentActivity | MultiActivity | MusicActivity

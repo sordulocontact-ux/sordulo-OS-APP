@@ -232,7 +232,8 @@
   --island-control-height: 34px;
   --island-control-height-sm: 28px;
   --island-control-height-xs: 24px;
-  /* Couleurs ponctuelles (rendu, lot L3) */
+  /* Couleurs ponctuelles (rendu, lot L3). Musique : dégradé de repli de la pochette et de l'égaliseur, quand
+     la pochette ne donne pas de couleurs (--music-start / --music-end, posées par le rendu) */
   --island-music-cover-start: #ff7a3d;
   --island-music-cover-end: #e14a08;
   --island-bar-track: rgb(255 255 255 / 0.12);
@@ -263,7 +264,8 @@
   --island-space-52: 52px;
   --island-space-54: 54px;
   --island-space-70: 70px;
-  /* Tailles : icônes (16, 18, 20, 22, 28), pastilles (4, 6, 11, 12), barres et hauteurs de ligne (14, 30, 32, 34, 36, 40, 92) */
+  /* Tailles : icônes (16, 18, 20, 22, 28), pastilles (4, 6, 11, 12), barres et hauteurs de ligne (14, 30, 32, 34, 36, 40, 92),
+     pochette de la musique ouverte (56) */
   --island-size-2: 2px;
   --island-size-4: 4px;
   --island-size-6: 6px;
@@ -280,12 +282,15 @@
   --island-size-34: 34px;
   --island-size-36: 36px;
   --island-size-40: 40px;
+  --island-size-56: 56px;
   --island-size-92: 92px;
   /* Rayons internes (1px reste en dur : exception tolérée) */
   --island-radius-5: 5px;
   --island-radius-6: 6px;
   --island-radius-7: 7px;
   --island-radius-14: 14px;
+  /* Pochette de la musique : rayon proportionnel, il suit la pochette qui grandit (28 px → 6 px, 56 px → 12 px) */
+  --island-radius-music-cover: 22%;
   /* Détails : contour de focus, flou de bascule, saut au survol, anneau Claude, halo de pulsation */
   --island-outline-width: 2px;
   --island-outline-offset: 2px;

@@ -166,6 +166,7 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
         sessions={view.sessions}
         drop={view.drop}
         hotZone={view.hotZone}
+        music={view.music}
         garden={view.garden ?? <Garden sessions={view.sessions} />}
         onHoverChange={applyHover}
         onBubbleClick={() => coordinator.pinSecondary()}
@@ -178,6 +179,7 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
         onStopRecording={runtime.gestures.onStopRecording}
         onAnswerSession={runtime.gestures.onAnswerSession}
         onOpenSession={runtime.gestures.onOpenSession}
+        onMusicCommand={runtime.gestures.onMusicCommand}
         onHitRectsChange={onHitRectsChange}
       />
     </div>

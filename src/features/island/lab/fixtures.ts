@@ -4,7 +4,7 @@
  */
 import { createNotification } from '../catalog'
 import type { IslandDropInfo, IslandProjectOption } from '../view'
-import type { ClaudeSession, IslandNotification, NotificationKind, PermissionAsk } from '../types'
+import type { ClaudeSession, IslandNotification, MusicPalette, NotificationKind, PermissionAsk } from '../types'
 
 export const LAB_PROJECTS: readonly IslandProjectOption[] = [
   { id: 'p-pds', name: 'PDS OS' },
@@ -207,4 +207,65 @@ export function makeDrop(file: DropFile, options: DropOptions): IslandDropInfo {
     projectName: 'PDS OS',
     zones: { transcribe: file === 'audio', analyse: file === 'document', files: options.files, claude: options.claude },
   }
+}
+
+// --- Musique simulée ----------------------------------------------------------------------------------------
+
+export interface LabTrack {
+  title: string
+  artist: string
+  album: string
+  appName: string
+  durationMs: number
+  /** Couleurs de la pochette, comme celles que la source extrait d'une vraie pochette. */
+  palette: MusicPalette
+  /** Motif de la pochette générée. */
+  motif: 'sun' | 'waves' | 'rings'
+}
+
+export const LAB_TRACKS: readonly LabTrack[] = [
+  {
+    title: 'Lumière du soir sur la ville endormie',
+    artist: 'Les Ondes Claires',
+    album: 'Horizons',
+    appName: 'Spotify',
+    durationMs: 204_000,
+    palette: { start: 'rgb(255, 122, 61)', end: 'rgb(214, 46, 120)' },
+    motif: 'sun',
+  },
+  {
+    title: 'Marée basse',
+    artist: 'Noé Lune',
+    album: 'Littoral',
+    appName: 'Musique',
+    durationMs: 167_000,
+    palette: { start: 'rgb(64, 200, 224)', end: 'rgb(72, 92, 230)' },
+    motif: 'waves',
+  },
+  {
+    title: 'Jardin',
+    artist: 'Atelier Vert',
+    album: 'Saisons',
+    appName: 'Google Chrome',
+    durationMs: 238_000,
+    palette: { start: 'rgb(170, 230, 90)', end: 'rgb(30, 150, 110)' },
+    motif: 'rings',
+  },
+]
+
+/** Pochette générée (SVG en data URL) : dégradé de la palette et un motif clair. */
+export function labArtwork(track: LabTrack): string {
+  const { start, end } = track.palette
+  const motif = {
+    sun: '<circle cx="100" cy="112" r="46" fill="white" fill-opacity="0.85"/><rect y="132" width="200" height="68" fill="black" fill-opacity="0.25"/>',
+    waves:
+      '<path d="M0 120q25-18 50 0t50 0 50 0 50 0v80H0z" fill="white" fill-opacity="0.35"/><path d="M0 145q25-18 50 0t50 0 50 0 50 0v55H0z" fill="white" fill-opacity="0.55"/>',
+    rings:
+      '<circle cx="100" cy="100" r="62" fill="none" stroke="white" stroke-opacity="0.45" stroke-width="14"/><circle cx="100" cy="100" r="26" fill="white" fill-opacity="0.8"/>',
+  }[track.motif]
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">' +
+    `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${start}"/><stop offset="1" stop-color="${end}"/></linearGradient></defs>` +
+    `<rect width="200" height="200" fill="url(#g)"/>${motif}</svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }

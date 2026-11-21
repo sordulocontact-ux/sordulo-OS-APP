@@ -2,10 +2,12 @@
 //!
 //! Les types sérialisés reflètent exactement `src/shared/desktop-contract.ts` (camelCase).
 //!
-//! Verrous : `shared` (métadonnées), `recorder` (enregistreur) et `island_hits` (zones cliquables de l'île,
-//! lues ~60 fois par seconde, jamais pris avec un autre verrou). `shared` et `recorder` : seul `start_recording` tient les deux
-//! en même temps, toujours dans l'ordre `shared` puis `recorder`. L'arrêt relâche `shared` avant de
-//! prendre `recorder` (la finalisation du fichier peut durer), donc pas d'interblocage.
+//! Verrous : `shared` (métadonnées), `recorder` (enregistreur), `island_hits` (zones cliquables de l'île,
+//! lues ~60 fois par seconde, jamais pris avec un autre verrou) et `music` (dernier état de la musique et sa
+//! pochette, voir `music.rs` : peut prendre `shared` ensuite, jamais l'inverse).
+//! `shared` et `recorder` : seul `start_recording` tient les deux en même temps, toujours dans l'ordre
+//! `shared` puis `recorder`. L'arrêt relâche `shared` avant de prendre `recorder` (la finalisation du
+//! fichier peut durer), donc pas d'interblocage.
 
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
@@ -13,6 +15,7 @@ use std::sync::{Mutex, MutexGuard};
 use serde::{Deserialize, Serialize};
 
 use crate::call_apps::{self, CallService};
+use crate::music::MusicHub;
 use crate::platform::{self, MicApp as PlatformMicApp, Recorder, RecordingInfo};
 use crate::time::now_ms;
 
@@ -230,6 +233,9 @@ pub struct Shared {
     pub pending_auth_url: Option<String>,
     /// Mode concentration (case du menu du soleil) : l'île garde les notifications pendant un appel.
     pub focus_mode: bool,
+    /// Case « Afficher la musique dans l'île » du menu du soleil (cochée au démarrage). Décochée : plus
+    /// aucun sondage du lecteur, l'île ne reçoit plus que `null`.
+    pub music_enabled: bool,
 }
 
 pub struct DesktopState {
@@ -237,14 +243,20 @@ pub struct DesktopState {
     pub recorder: Mutex<Box<dyn Recorder>>,
     /// Zones cliquables envoyées par l'île (`island_set_hit_rects`).
     pub island_hits: Mutex<IslandHitRects>,
+    /// Dernier état de la musique émis à l'île et sa pochette (`get_music`, `get_music_artwork`).
+    pub music: Mutex<MusicHub>,
 }
 
 impl DesktopState {
     pub fn new() -> Self {
         Self {
-            shared: Mutex::new(Shared::default()),
+            shared: Mutex::new(Shared {
+                music_enabled: true,
+                ..Shared::default()
+            }),
             recorder: Mutex::new(platform::recorder()),
             island_hits: Mutex::new(IslandHitRects::default()),
+            music: Mutex::new(MusicHub::default()),
         }
     }
 
@@ -254,6 +266,10 @@ impl DesktopState {
 
     pub fn island_hits(&self) -> MutexGuard<'_, IslandHitRects> {
         self.island_hits.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub fn music(&self) -> MutexGuard<'_, MusicHub> {
+        self.music.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     pub fn focus_mode(&self) -> FocusModeState {

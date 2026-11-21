@@ -12,6 +12,7 @@ import {
   shapeGeometry,
   sharedPosition,
   MEET_BACKGROUND,
+  MUSIC_OPEN,
   islandSize,
   sizeKeyFor,
   waveBarHeight,
@@ -24,6 +25,11 @@ describe('sizeKeyFor', () => {
     expect(sizeKeyFor('agent', true, false)).toBe('agentOpen')
     expect(sizeKeyFor('multi', true, false)).toBe('multiOpen')
     expect(sizeKeyFor('meet', true, false)).toBe('meetOpen')
+  })
+
+  it('opens the music on hover', () => {
+    expect(sizeKeyFor('music', true, false)).toBe('musicOpen')
+    expect(sizeKeyFor('music', false, false)).toBe('music')
   })
 
   it('keeps the state without hover', () => {
@@ -50,6 +56,7 @@ describe('layerSizeKeyFor', () => {
     expect(layerSizeKeyFor('agent', false)).toBe('agentOpen')
     expect(layerSizeKeyFor('multi', false)).toBe('multiOpen')
     expect(layerSizeKeyFor('meet', false)).toBe('meetOpen')
+    expect(layerSizeKeyFor('music', false)).toBe('musicOpen')
     expect(layerSizeKeyFor('notif', true)).toBe('notifCall')
     expect(layerSizeKeyFor('repos', false)).toBe('repos')
   })
@@ -65,6 +72,32 @@ describe('ISLAND_SIZES', () => {
   it('gives meetOpen the agentOpen dimensions', () => {
     expect(ISLAND_SIZES.win.meetOpen).toEqual(ISLAND_SIZES.win.agentOpen)
     expect(ISLAND_SIZES.mac.meetOpen).toEqual(ISLAND_SIZES.mac.agentOpen)
+  })
+})
+
+describe('musicOpen', () => {
+  it('drops the progress row when the player gives no progress', () => {
+    for (const platform of ['win', 'mac'] as const) {
+      const full = islandSize(platform, 'musicOpen')
+      expect(full).toEqual(ISLAND_SIZES[platform].musicOpen)
+      expect(islandSize(platform, 'musicOpen', 0, false)).toEqual({ ...full, h: full.h - MUSIC_OPEN.progressRow })
+    }
+    expect(islandSize('win', 'agentOpen', 0, false)).toEqual(ISLAND_SIZES.win.agentOpen)
+  })
+
+  it('grows the cover from the compact island to the open view, below the notch on Mac', () => {
+    const ctx = { hasGarden: true, sessionCount: 0 }
+    expect(sharedPosition('musicCover', 'win', 'music', ctx)).toEqual({ x: 13, y: 6, s: 28 })
+    expect(sharedPosition('musicCover', 'win', 'musicOpen', ctx)?.s).toBe(MUSIC_OPEN.coverSize)
+    expect(sharedPosition('musicCover', 'mac', 'musicOpen', ctx)?.y).toBeGreaterThanOrEqual(ISLAND_SIZES.mac.repos.h)
+    expect(sharedPosition('musicEq', 'mac', 'musicOpen', ctx)).not.toBeNull()
+    expect(sharedPosition('musicCover', 'win', 'agent', ctx)).toBeNull()
+  })
+
+  it('fits the cover, progress and controls in the open shape', () => {
+    // Haut (16 Windows, 44 Mac) + pochette + progression + écart 6 + boutons 32 + bas 14.
+    expect(ISLAND_SIZES.win.musicOpen.h).toBe(16 + MUSIC_OPEN.coverSize + MUSIC_OPEN.progressRow + 6 + 32 + 14)
+    expect(ISLAND_SIZES.mac.musicOpen.h).toBe(44 + MUSIC_OPEN.coverSize + MUSIC_OPEN.progressRow + 6 + 32 + 14)
   })
 })
 

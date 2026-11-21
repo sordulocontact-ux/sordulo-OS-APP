@@ -8,9 +8,10 @@ import { Button, Select } from '../../../components/ui'
 import type { CallService } from '../../../shared/desktop-contract'
 import { CALL_SERVICES, callBrand } from '../brands'
 import { Garden } from '../garden'
-import { ISLAND_SIZES, SPRING, WAVE, sizeKeyFor } from '../geometry'
+import { SPRING, WAVE, islandSize, sizeKeyFor } from '../geometry'
 import type { IslandPlatform, NotificationKind } from '../types'
 import { Island, islandLabel, type IslandDropZone } from '../view'
+import { musicHasProgress } from '../view/music'
 import { MAX_LAB_SESSIONS, NOTIFICATION_KINDS, NOTIFICATION_LABELS, type DropFile } from './fixtures'
 import styles from './IslandLab.module.css'
 import { LabRuntime, SCENARIOS, type ScenarioId } from './runtime'
@@ -92,6 +93,8 @@ export default function IslandLab() {
   const [waitingSession, setWaitingSession] = useState(true)
   const [filesZone, setFilesZone] = useState(false)
   const [claudeZone, setClaudeZone] = useState(true)
+  const [musicArtwork, setMusicArtwork] = useState(true)
+  const [musicProgress, setMusicProgress] = useState(true)
   const audioLevels = useSimulatedWave(simulatedWave)
   const [showGarden, setShowGarden] = useState(true)
   const [gardenCall, setGardenCall] = useState(false)
@@ -104,8 +107,8 @@ export default function IslandLab() {
   }
 
   const sizeKey = sizeKeyFor(snapshot.state, view.hover, snapshot.withCall)
-  const size = ISLAND_SIZES[platform][sizeKey]
-  const label = islandLabel(snapshot, view.sessions.length, view.call?.appName ?? null)
+  const size = islandSize(platform, sizeKey, 0, musicHasProgress(view.music))
+  const label = islandLabel(snapshot, view.sessions.length, view.call?.appName ?? null, view.music)
 
   function resetAll() {
     runtime.reset()
@@ -140,6 +143,7 @@ export default function IslandLab() {
             sessions={view.sessions}
             drop={view.drop}
             hotZone={view.hotZone}
+            music={view.music}
             garden={showGarden ? <Garden sessions={view.sessions} mood={gardenMood} /> : undefined}
             reducedMotion={reducedMotion}
             onHoverChange={runtime.setRealHover}
@@ -153,6 +157,7 @@ export default function IslandLab() {
             onStopRecording={runtime.stopRecording}
             onAnswerSession={runtime.answerSession}
             onOpenSession={(sessionId) => console.info('[labo] ouvrir la session', sessionId)}
+            onMusicCommand={runtime.musicCommand}
             onHitRectsChange={NO_HIT_RECTS}
           />
         </div>
@@ -296,6 +301,46 @@ export default function IslandLab() {
               </Select>
             </label>
           </div>
+        </Group>
+
+        <Group title="Musique">
+          <div className={styles.buttons}>
+            <Button size="sm" onClick={() => apply((r) => r.addMusic())}>
+              Musique
+            </Button>
+            <Button size="sm" disabled={!view.music} onClick={() => runtime.toggleMusicPause()}>
+              Pause ou reprise
+            </Button>
+            <Button size="sm" disabled={!view.music} onClick={() => runtime.changeTrack(1)}>
+              Morceau suivant
+            </Button>
+            <Button
+              size="sm"
+              variant={musicArtwork ? 'secondary' : 'primary'}
+              aria-pressed={!musicArtwork}
+              onClick={() => {
+                setMusicArtwork(!musicArtwork)
+                runtime.setMusicArtwork(!musicArtwork)
+              }}
+            >
+              Sans pochette
+            </Button>
+            <Button
+              size="sm"
+              variant={musicProgress ? 'secondary' : 'primary'}
+              aria-pressed={!musicProgress}
+              onClick={() => {
+                setMusicProgress(!musicProgress)
+                runtime.setMusicProgress(!musicProgress)
+              }}
+            >
+              Sans progression
+            </Button>
+          </div>
+          <p className={styles.hint}>
+            Survol de l’île : vue ouverte, ses boutons agissent sur cette musique simulée. En pause, les barres se
+            mettent à plat et les Claude du jardin ne dansent plus.
+          </p>
         </Group>
 
         <Group title="Jardin des Claude">

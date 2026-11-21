@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ClaudeSession, IslandNotification, IslandSnapshot } from '../types'
+import type { ClaudeSession, IslandMusic, IslandNotification, IslandSnapshot } from '../types'
 import { MEET_BACKGROUND } from '../geometry'
 import { backgroundRows, formatElapsed, islandLabel, sessionsSummary, sessionsTitle } from './labels'
 
@@ -90,6 +90,36 @@ describe('islandLabel', () => {
       estimatedMs: 3200,
     }
     expect(islandLabel(snap({ state: 'progress', primary }), 0, null)).toBe('Import de l’audio')
+  })
+})
+
+describe('musique', () => {
+  const music: IslandMusic = {
+    title: 'Nuit blanche',
+    artist: 'Lou',
+    album: null,
+    appName: 'Spotify',
+    playing: true,
+    positionMs: 0,
+    durationMs: 200_000,
+    positionAt: 0,
+    artworkUrl: null,
+    palette: null,
+  }
+
+  it('annonce le morceau, en lecture ou en pause', () => {
+    const s = snap({ state: 'music' })
+    expect(islandLabel(s, 0, null)).toBe('Musique')
+    expect(islandLabel(s, 0, null, music)).toBe('Musique : Nuit blanche, Lou')
+    expect(islandLabel(s, 0, null, { ...music, playing: false })).toBe('Musique en pause : Nuit blanche, Lou')
+    expect(islandLabel(s, 0, null, { ...music, artist: null })).toBe('Musique : Nuit blanche')
+  })
+
+  it('ligne « aussi en cours » avec le titre, et « En pause »', () => {
+    const act = { id: 'music', kind: 'music', order: 1 } as const
+    expect(backgroundRows([act], [], music)[0]).toMatchObject({ title: 'Musique', detail: 'Nuit blanche, Lou', status: '' })
+    expect(backgroundRows([act], [], { ...music, playing: false })[0]?.status).toBe('En pause')
+    expect(backgroundRows([act], [])[0]?.detail).toBe('')
   })
 })
 

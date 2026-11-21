@@ -96,6 +96,10 @@
   stroke-linejoin: round;
 }
 
+.icoFill {
+  fill: currentColor;
+}
+
 .pixel {
   image-rendering: pixelated;
 }
@@ -173,26 +177,38 @@
   margin-top: var(--island-space-10);
 }
 
-/* Musique (hors périmètre, gardée pour les scénarios du prototype) */
-.layerMusic {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 var(--island-space-13);
-}
-
+/*
+ * Musique : pochette et égaliseur partagés (positions et taille de la pochette : geometry.ts), vue ouverte
+ * au survol (musicOpen). Couleurs de la pochette : variables --music-start / --music-end posées par le rendu
+ * à partir des données (palette extraite de la pochette), repli sur les tokens --island-music*.
+ */
 .cover {
+  position: relative;
+  display: block;
+  overflow: hidden;
   width: var(--island-size-28);
   height: var(--island-size-28);
   border-radius: var(--island-radius-6);
-  background: linear-gradient(135deg, var(--island-music-cover-start), var(--island-music-cover-end));
+  background: linear-gradient(
+    135deg,
+    var(--music-start, var(--island-music-cover-start)),
+    var(--music-end, var(--island-music-cover-end))
+  );
   flex: none;
 }
 
-.root[data-platform='mac'] .layerMusic .cover {
-  width: var(--island-size-22);
-  height: var(--island-size-22);
-  border-radius: var(--island-radius-5);
+.cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Pochette partagée : le moteur écrit sa taille, le rayon la suit (proportionnel) */
+.musicCover .cover {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--island-radius-music-cover);
 }
 
 .eq {
@@ -202,12 +218,163 @@
   height: var(--island-size-14);
 }
 
+/* Barres : pleine hauteur, la boucle écrit scaleY ; dégradé horizontal d'une barre à l'autre (--eq-t) */
 .eq i {
   display: block;
   width: var(--island-size-2);
+  height: 100%;
   border-radius: 1px;
-  background: var(--island-music);
+  background: color-mix(
+    in oklab,
+    var(--music-end, var(--island-music)) calc(var(--eq-t, 0) * 100%),
+    var(--music-start, var(--island-music-cover-start))
+  );
   transform-origin: center;
+}
+
+.detail.musicDetail {
+  display: flex;
+  flex-direction: column;
+  padding: var(--island-space-16) var(--island-space-16) var(--island-space-14);
+}
+
+.root[data-platform='mac'] .detail.musicDetail {
+  padding-top: var(--island-space-44);
+}
+
+.musicHead {
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-12);
+  height: var(--island-size-56);
+  min-width: 0;
+}
+
+/* Bouton transparent sur la pochette partagée (dessinée au-dessus, sans clic) */
+.musicCoverBtn {
+  flex: none;
+  width: var(--island-size-56);
+  height: var(--island-size-56);
+  padding: 0;
+  border: 0;
+  border-radius: var(--island-radius-music-cover);
+  background: transparent;
+  cursor: pointer;
+}
+
+.musicText {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+  padding-right: var(--island-space-38);
+}
+
+.musicText strong,
+.musicText small {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: var(--island-line-height);
+}
+
+.musicText strong {
+  font-size: var(--island-font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.musicText small {
+  font-size: var(--island-font-size-sm);
+  color: var(--island-muted);
+}
+
+.musicText .musicApp {
+  font-size: var(--island-font-size-xs);
+}
+
+.musicProgress {
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-8);
+  height: var(--island-size-14);
+  margin-top: var(--island-space-12);
+}
+
+.musicTime {
+  flex: none;
+  min-width: var(--island-size-32);
+  font-size: var(--island-font-size-xs);
+  color: var(--island-muted);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--island-size-14);
+}
+
+.musicTime:last-child {
+  text-align: right;
+}
+
+.musicTrack {
+  position: relative;
+  flex: 1;
+  height: var(--island-size-4);
+  border-radius: var(--radius-pill);
+  background: var(--island-bar-track);
+  overflow: hidden;
+}
+
+.musicFill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--island-text-soft);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.musicControls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--island-space-16);
+  margin-top: var(--island-space-6);
+}
+
+.musicBtn {
+  display: grid;
+  place-items: center;
+  width: var(--island-size-32);
+  height: var(--island-size-32);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--island-text);
+  cursor: pointer;
+  transition:
+    transform var(--island-duration-press) ease,
+    background var(--island-duration-press) ease;
+}
+
+.musicBtn svg {
+  width: var(--island-size-18);
+  height: var(--island-size-18);
+}
+
+.musicBtnMain svg {
+  width: var(--island-size-22);
+  height: var(--island-size-22);
+}
+
+.musicBtn:active {
+  transform: scale(0.9);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .musicBtn:hover {
+    background: var(--island-ghost);
+  }
 }
 
 /* Progression : import, analyse */
@@ -1125,6 +1292,7 @@
 .root[data-reduced='true'] .garden.on,
 .root[data-reduced='true'] .zone::before,
 .root[data-reduced='true'] .btn,
+.root[data-reduced='true'] .musicBtn,
 .root[data-reduced='true'] .scrollWave i {
   transition: none;
 }
@@ -1146,7 +1314,8 @@
   animation: none;
 }
 
-.root[data-reduced='true'] .btn:active {
+.root[data-reduced='true'] .btn:active,
+.root[data-reduced='true'] .musicBtn:active {
   transform: none;
 }
 

@@ -7,12 +7,23 @@ import type { CallService } from '../../../shared/desktop-contract'
 import { callBrand } from '../brands'
 import { claudeActivityFor } from '../claude'
 import { IslandCoordinator, systemClock, type TimerId } from '../coordinator'
-import type { ClaudeSession, IslandNotification, IslandSnapshot, PermissionDecision, ProgressStage } from '../types'
+import type {
+  ClaudeSession,
+  IslandMusic,
+  IslandNotification,
+  IslandSnapshot,
+  MusicCommand,
+  PermissionDecision,
+  ProgressStage,
+} from '../types'
 import type { IslandCallPrompt, IslandDropInfo, IslandDropZone } from '../view'
+import { musicPosition } from '../view/music'
 import {
   LAB_CALL_APP,
   LAB_PROJECTS,
+  LAB_TRACKS,
   MAX_LAB_SESSIONS,
+  labArtwork,
   makeAsk,
   makeDrop,
   makeSessions,
@@ -28,6 +39,8 @@ export interface LabView {
   call: IslandCallPrompt | null
   drop: IslandDropInfo | null
   hotZone: IslandDropZone | null
+  /** Musique simulée (pochette, couleurs, position) ; null : pas de musique. */
+  music: IslandMusic | null
   /** Survol forcé ou réel : ce que reçoit l'île. */
   hover: boolean
   focusMode: boolean
@@ -53,6 +66,8 @@ const LOG_LIMIT = 6
 const GARDEN_FROM_ICON_MS = 1300
 /** Durée d'un conflit simulé (la dispute dure 6,2 s). */
 const GARDEN_CONFLICT_MS = 8000
+/** Position de départ d'un morceau simulé (ms) : la barre de progression est déjà entamée. */
+const MUSIC_START_MS = 42_000
 
 export class LabRuntime {
   private coordinator: IslandCoordinator
@@ -68,6 +83,12 @@ export class LabRuntime {
   private focusMode = false
   /** Service d'appel simulé (logo et couleur) ; null : inconnu. */
   private callService: CallService | null = 'meet'
+  private music: IslandMusic | null = null
+  private trackIndex = 0
+  private musicArtwork = true
+  private musicProgress = true
+  /** Fin du morceau simulé en lecture : on passe au suivant. */
+  private trackEnd: TimerId | null = null
   private forcedHover = false
   private realHover = false
   private log: string[] = []
@@ -89,6 +110,7 @@ export class LabRuntime {
 
   stop = (): void => {
     this.clearTimers()
+    this.clearTrackEnd()
     this.unsubscribe?.()
     this.unsubscribe = null
     this.coordinator.dispose()
@@ -110,6 +132,7 @@ export class LabRuntime {
       call: this.call,
       drop: this.drop,
       hotZone: this.hotZone,
+      music: this.music,
       hover: this.forcedHover || this.realHover,
       focusMode: this.focusMode,
       log: this.log,
@@ -186,6 +209,8 @@ export class LabRuntime {
     this.drop = null
     this.dropFile = null
     this.hotZone = null
+    this.clearTrackEnd()
+    this.music = null
     this.emit()
   }
 
@@ -222,7 +247,91 @@ export class LabRuntime {
   }
 
   addMusic(): void {
+    this.setTrack(this.trackIndex, MUSIC_START_MS, true)
     this.coordinator.addActivity({ id: 'music', kind: 'music' })
+  }
+
+  // --- Musique simulée (ce que fera la source « musique » du contrôleur) ---------------------------------------
+
+  private clearTrackEnd(): void {
+    if (this.trackEnd !== null) systemClock.clearTimeout(this.trackEnd)
+    this.trackEnd = null
+  }
+
+  /** Morceau `index` à la position donnée ; en lecture, le suivant part à la fin. */
+  private setTrack(index: number, positionMs: number, playing: boolean): void {
+    const count = LAB_TRACKS.length
+    this.trackIndex = ((index % count) + count) % count
+    const track = LAB_TRACKS[this.trackIndex]
+    if (!track) return
+    this.music = {
+      title: track.title,
+      artist: track.artist,
+      album: track.album,
+      appName: track.appName,
+      playing,
+      positionMs: this.musicProgress ? positionMs : null,
+      durationMs: this.musicProgress ? track.durationMs : null,
+      positionAt: systemClock.now(),
+      artworkUrl: this.musicArtwork ? labArtwork(track) : null,
+      palette: this.musicArtwork ? track.palette : null,
+    }
+    this.clearTrackEnd()
+    if (playing) {
+      this.trackEnd = systemClock.setTimeout(() => {
+        this.trackEnd = null
+        this.changeTrack(1)
+      }, Math.max(0, track.durationMs - positionMs))
+    }
+  }
+
+  private currentPosition(): number {
+    return this.music ? (musicPosition(this.music, systemClock.now()) ?? MUSIC_START_MS) : MUSIC_START_MS
+  }
+
+  /** Pause ou reprise, à la position atteinte. */
+  toggleMusicPause(): void {
+    if (!this.music) return
+    this.setTrack(this.trackIndex, this.currentPosition(), !this.music.playing)
+    this.emit()
+  }
+
+  /** Morceau suivant ou précédent (autre pochette, autres couleurs). Précédent après 3 s : retour au début. */
+  changeTrack(delta: 1 | -1): void {
+    if (!this.music) return
+    const restart = delta < 0 && this.currentPosition() > 3000
+    this.setTrack(restart ? this.trackIndex : this.trackIndex + delta, 0, this.music.playing)
+    this.emit()
+  }
+
+  /** Avec ou sans pochette (sans : dégradé des tokens, pas de couleurs). */
+  setMusicArtwork(on: boolean): void {
+    this.musicArtwork = on
+    if (this.music) this.setTrack(this.trackIndex, this.currentPosition(), this.music.playing)
+    this.emit()
+  }
+
+  /** Lecteur qui donne (ou non) la position et la durée. */
+  setMusicProgress(on: boolean): void {
+    this.musicProgress = on
+    if (this.music) this.setTrack(this.trackIndex, this.currentPosition(), this.music.playing)
+    this.emit()
+  }
+
+  /** Boutons du lecteur dans l'île. */
+  musicCommand = (command: MusicCommand): void => {
+    if (command === 'playPause') this.toggleMusicPause()
+    else if (command === 'next') this.changeTrack(1)
+    else if (command === 'previous') this.changeTrack(-1)
+    this.remember(
+      {
+        playPause: this.music?.playing ? 'Lecteur : reprise' : 'Lecteur : pause',
+        next: 'Lecteur : morceau suivant',
+        previous: 'Lecteur : morceau précédent',
+        open: `Lecteur : ouvrir ${this.music?.appName ?? 'le lecteur'}`,
+      }[command],
+    )
+    this.emit()
   }
 
   setSessions(count: number, waiting = false): void {

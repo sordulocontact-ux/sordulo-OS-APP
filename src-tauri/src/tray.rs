@@ -1,5 +1,6 @@
-//! Icône soleil dans la zone de notification et son menu (dont la case « Mode concentration » et
-//! « Connecter / Déconnecter Claude Code » avec sa ligne d'état, voir `claude/`).
+//! Icône soleil dans la zone de notification et son menu (dont les cases « Mode concentration » et
+//! « Afficher la musique dans l'île », et « Connecter / Déconnecter Claude Code » avec sa ligne d'état,
+//! voir `claude/`).
 
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem};
@@ -8,6 +9,7 @@ use tauri::{AppHandle, Emitter, Manager, Wry};
 
 use crate::claude;
 use crate::events::{EVENT_FOCUS_MODE, WINDOW_PROMPT};
+use crate::music;
 use crate::recording;
 use crate::state::{DesktopState, FocusModeState, PromptReason, RecordingStatus};
 use crate::time::format_duration;
@@ -18,6 +20,7 @@ const ID_OPEN: &str = "open";
 const ID_STATUS: &str = "status";
 const ID_TOGGLE: &str = "toggle-recording";
 const ID_FOCUS: &str = "focus-mode";
+const ID_MUSIC: &str = "music";
 const ID_CLAUDE_STATUS: &str = "claude-status";
 const ID_CLAUDE_TOGGLE: &str = "claude-toggle";
 const ID_QUIT: &str = "quit";
@@ -30,6 +33,7 @@ pub struct TrayMenu {
     status: MenuItem<Wry>,
     toggle: MenuItem<Wry>,
     focus: CheckMenuItem<Wry>,
+    music: CheckMenuItem<Wry>,
     claude_status: MenuItem<Wry>,
     claude_toggle: MenuItem<Wry>,
 }
@@ -44,6 +48,15 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
         "Mode concentration",
         true,
         false,
+        None::<&str>,
+    )?;
+    let music_on = app.state::<DesktopState>().shared().music_enabled;
+    let music = CheckMenuItem::with_id(
+        app,
+        ID_MUSIC,
+        "Afficher la musique dans l'île",
+        true,
+        music_on,
         None::<&str>,
     )?;
     let (claude_text, claude_toggle_text, claude_enabled) = claude::menu_texts(app);
@@ -65,6 +78,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
             &toggle,
             &PredefinedMenuItem::separator(app)?,
             &focus,
+            &music,
             &PredefinedMenuItem::separator(app)?,
             &claude_status,
             &claude_toggle,
@@ -96,6 +110,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
         status,
         toggle,
         focus,
+        music,
         claude_status,
         claude_toggle,
     });
@@ -126,6 +141,10 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
         ID_FOCUS => {
             let on = !app.state::<DesktopState>().shared().focus_mode;
             set_focus_mode(app, on);
+        }
+        ID_MUSIC => {
+            let on = !app.state::<DesktopState>().shared().music_enabled;
+            set_music_enabled(app, on);
         }
         ID_CLAUDE_TOGGLE => claude::toggle_connection(app),
         ID_QUIT => {
@@ -163,6 +182,33 @@ pub fn set_focus_mode(app: &AppHandle, on: bool) -> FocusModeState {
         }
     }
     focus
+}
+
+/// Affiche ou masque la musique dans l'île : état partagé, case du menu ; masquée = `null` émis une fois à
+/// l'île et plus aucun sondage du lecteur (voir `music.rs`). Non mémorisé, comme le mode concentration.
+fn set_music_enabled(app: &AppHandle, on: bool) {
+    let state = app.state::<DesktopState>();
+    let changed = {
+        let mut shared = state.shared();
+        let changed = shared.music_enabled != on;
+        shared.music_enabled = on;
+        changed
+    };
+    // Toujours resynchroniser la case : le menu l'a peut-être déjà basculée lui-même au clic.
+    if let Some(menu) = app.try_state::<TrayMenu>() {
+        if let Err(e) = menu.music.set_checked(on) {
+            log::warn!("menu (musique) : {e}");
+        }
+    }
+    if changed {
+        log::info!(
+            "musique dans l'île {}",
+            if on { "affichée" } else { "masquée" }
+        );
+        if !on {
+            music::clear(app);
+        }
+    }
 }
 
 /// Met à jour le libellé de statut et celui de démarrer/arrêter selon l'état courant.

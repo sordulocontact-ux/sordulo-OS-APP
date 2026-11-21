@@ -3,9 +3,11 @@
  */
 import type {
   ClaudeSession,
+  IslandMusic,
   IslandNotification,
   IslandSnapshot,
   MeetActivity,
+  MusicCommand,
   PermissionAsk,
   PermissionDecision,
 } from '../../types'
@@ -19,7 +21,7 @@ import { NotifLayer } from './NotifLayer'
 
 export interface ActivityLayersProps {
   base: BaseLayerProps
-  /** Survol ou focus clavier : détails de meet, agent, multi. */
+  /** Survol ou focus clavier : détails de meet, music, agent, multi. */
   open: boolean
   snapshot: IslandSnapshot
   call: IslandCallPrompt | null
@@ -27,12 +29,15 @@ export interface ActivityLayersProps {
   /** Lignes « aussi en cours » sous l'appel au survol. */
   meetRows: readonly BackgroundRow[]
   progress: ActivityOfKind<'progress'> | null
+  /** Lecture en cours (musicOpen) ; null : textes par défaut. */
+  music: IslandMusic | null
   agentSession: ClaudeSession | null
   sessions: readonly ClaudeSession[]
   drop: IslandDropInfo | null
   hotZone: IslandDropZone | null
   refs: {
-    eqBarRef: (index: number, el: HTMLElement | null) => void
+    musicElapsedRef: (el: HTMLElement | null) => void
+    musicFillRef: (el: HTMLElement | null) => void
     ringRef: (el: SVGCircleElement | null) => void
     rowElapsedRef: (sessionId: string, el: HTMLElement | null) => void
   }
@@ -45,6 +50,7 @@ export interface ActivityLayersProps {
     onAnswerSession: (sessionId: string) => void
     onOpenSession: (sessionId: string) => void
     onNotificationAction: (notification: IslandNotification) => void
+    onMusicCommand?: (command: MusicCommand) => void
   }
 }
 
@@ -56,6 +62,7 @@ export function ActivityLayers({
   meet,
   meetRows,
   progress,
+  music,
   agentSession,
   sessions,
   drop,
@@ -78,7 +85,14 @@ export function ActivityLayers({
         meet={meet}
         rows={meetRows}
         open={open && state === 'meet'} onStopRecording={handlers.onStopRecording} />
-      <MusicLayer {...base} eqBarRef={refs.eqBarRef} />
+      <MusicLayer
+        {...base}
+        music={music}
+        open={open && state === 'music'}
+        onMusicCommand={handlers.onMusicCommand}
+        elapsedRef={refs.musicElapsedRef}
+        fillRef={refs.musicFillRef}
+      />
       <ProgressLayer {...base} progress={progress} ringRef={refs.ringRef} />
       <AgentLayer
         {...base}

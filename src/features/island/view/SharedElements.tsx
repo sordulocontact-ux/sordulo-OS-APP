@@ -1,15 +1,16 @@
 /**
  * Éléments partagés (prototype : .shared / .sh) : ils glissent d'un état à l'autre au lieu de disparaître.
- * Le moteur écrit leur position, leur opacité et la taille de l'icône Claude ; la boucle écrit le minuteur,
- * le temps écoulé et la hauteur des barres de l'onde.
+ * Le moteur écrit leur position, leur opacité et la taille de l'icône Claude et de la pochette ; la boucle
+ * écrit le minuteur, le temps écoulé, la hauteur des barres de l'onde et de l'égaliseur.
  */
 import { MAX_SESSION_ROWS, WAVE, type SharedElementId } from '../geometry'
 import type { CallService } from '../../../shared/desktop-contract'
 import type { ClaudeSession, ClaudeSessionStatus } from '../types'
 import { cx } from './cx'
 import { ClaudeMascot } from './ClaudeMascot'
-import { CallIcon, DropIcon } from './icons'
+import { CallIcon, DropIcon, MusicCover } from './icons'
 import styles from './Island.module.css'
+import { EQ, eqBarStyle } from './music'
 
 const SEG_IDS: SharedElementId[] = ['seg0', 'seg1', 'seg2', 'seg3', 'seg4']
 
@@ -22,6 +23,7 @@ function segClass(status: ClaudeSessionStatus): string | undefined {
 }
 
 const WAVE_INDEXES = Array.from({ length: WAVE.bars }, (_, i) => i)
+const EQ_INDEXES = Array.from({ length: EQ.bars }, (_, i) => i)
 
 export interface SharedElementsProps {
   sessions: readonly ClaudeSession[]
@@ -31,6 +33,10 @@ export interface SharedElementsProps {
   timerRef: (el: HTMLElement | null) => void
   elapsedRef: (el: HTMLElement | null) => void
   waveBarRef: (index: number, el: HTMLElement | null) => void
+  /** Barres de l'égaliseur de la musique (la boucle écrit leur échelle). */
+  eqBarRef: (index: number, el: HTMLElement | null) => void
+  /** Pochette du morceau en cours ; null : dégradé de repli. */
+  artworkUrl: string | null
   /** La session Claude affichée travaille : le Claude de l'île s'anime. */
   agentWorking: boolean
   reduced: boolean
@@ -43,6 +49,8 @@ export function SharedElements({
   timerRef,
   elapsedRef,
   waveBarRef,
+  eqBarRef,
+  artworkUrl,
   agentWorking,
   reduced,
 }: SharedElementsProps) {
@@ -89,6 +97,14 @@ export function SharedElements({
       })}
       <span className={cx(styles.sh, styles.dropIcon)} ref={(el) => register('dropIcon', el)}>
         <DropIcon />
+      </span>
+      <span className={cx(styles.sh, styles.musicCover)} ref={(el) => register('musicCover', el)}>
+        <MusicCover artworkUrl={artworkUrl} />
+      </span>
+      <span className={cx(styles.sh, styles.eq)} ref={(el) => register('musicEq', el)}>
+        {EQ_INDEXES.map((i) => (
+          <i key={i} ref={(el) => eqBarRef(i, el)} style={eqBarStyle(i)} />
+        ))}
       </span>
     </div>
   )

@@ -2,7 +2,7 @@
  * Textes calculés de l'île : annonce de l'état (prototype : label), résumé des sessions, minuteurs.
  */
 import { MEET_BACKGROUND } from '../geometry'
-import type { Activity, ClaudeSession, IslandSnapshot } from '../types'
+import type { Activity, ClaudeSession, IslandMusic, IslandSnapshot } from '../types'
 
 /** mm:ss d'une durée en ms (prototype : mmss). */
 export function formatElapsed(ms: number): string {
@@ -59,12 +59,31 @@ function sessionStatus(session: ClaudeSession): Pick<BackgroundRow, 'status' | '
   return { status: 'Inactive', tone: 'muted' }
 }
 
+/** « Titre, artiste » d'un morceau (artiste absent : le titre seul). */
+export function musicTrackLine(music: IslandMusic): string {
+  return music.artist ? `${music.title}, ${music.artist}` : music.title
+}
+
+/**
+ * Annonce de l'état `music` : « Musique : <titre>, <artiste> », « Musique en pause : … » ; « Musique » sans
+ * données (ou « Musique en pause » sans titre).
+ */
+export function musicLabel(music: IslandMusic | null | undefined): string {
+  if (!music) return STATE_LABELS.music
+  const base = music.playing ? STATE_LABELS.music : 'Musique en pause'
+  return music.title ? `${base} : ${musicTrackLine(music)}` : base
+}
+
 /**
  * Lignes « aussi en cours » sous l'appel : une par progression, une par session Claude (agent : sa session,
- * multi : toutes), dans l'ordre des activités. Au-delà de MEET_BACKGROUND.maxRows, la dernière ligne
- * devient « N autres activités ».
+ * multi : toutes), une pour la musique (son titre), dans l'ordre des activités. Au-delà de
+ * MEET_BACKGROUND.maxRows, la dernière ligne devient « N autres activités ».
  */
-export function backgroundRows(background: readonly Activity[], sessions: readonly ClaudeSession[]): BackgroundRow[] {
+export function backgroundRows(
+  background: readonly Activity[],
+  sessions: readonly ClaudeSession[],
+  music: IslandMusic | null = null,
+): BackgroundRow[] {
   const rows: BackgroundRow[] = []
   const seen = new Set<string>()
   const addSession = (session: ClaudeSession | undefined) => {
@@ -95,7 +114,13 @@ export function backgroundRows(background: readonly Activity[], sessions: readon
         sessions.forEach(addSession)
         break
       case 'music':
-        rows.push({ id: activity.id, title: 'Musique', detail: '', status: '', tone: 'muted' })
+        rows.push({
+          id: activity.id,
+          title: 'Musique',
+          detail: music ? musicTrackLine(music) : '',
+          status: music && !music.playing ? 'En pause' : '',
+          tone: 'muted',
+        })
         break
       case 'meet':
         break
@@ -122,9 +147,14 @@ const STATE_LABELS = {
 
 /**
  * Annonce de la région aria-live (prototype : label), complétée du contenu utile pour un lecteur d'écran :
- * titre de la notification, commande demandée, app de l'appel détecté.
+ * titre de la notification, commande demandée, app de l'appel détecté, morceau en cours.
  */
-export function islandLabel(snapshot: IslandSnapshot, sessionCount: number, callAppName: string | null): string {
+export function islandLabel(
+  snapshot: IslandSnapshot,
+  sessionCount: number,
+  callAppName: string | null,
+  music: IslandMusic | null = null,
+): string {
   const { state } = snapshot
   switch (state) {
     case 'notif': {
@@ -139,6 +169,8 @@ export function islandLabel(snapshot: IslandSnapshot, sessionCount: number, call
       return `Claude demande l’autorisation${snapshot.ask ? ` : ${snapshot.ask.summary}` : ''}`
     case 'multi':
       return sessionsTitle(sessionCount)
+    case 'music':
+      return musicLabel(music)
     case 'appel':
       // Nom d'app vide : enregistrement lancé à la main (menu du soleil, bouton du header).
       if (callAppName === '') return 'Enregistrer un appel'

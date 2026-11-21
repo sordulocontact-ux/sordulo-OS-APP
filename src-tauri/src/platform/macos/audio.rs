@@ -282,6 +282,8 @@ mod tests {
         assert_eq!(bundle_display_name("/Applications/Google Chrome.app"), "Google Chrome");
         assert_eq!(outer_app_bundle("/usr/sbin/coreaudiod"), None);
         assert_eq!(strip_helper("com.hnc.Discord.helper.Renderer"), "com.hnc.Discord");
+        // Musique dans l'île (`media.rs`) : le helper audio de Spotify compte pour Spotify.
+        assert_eq!(strip_helper("com.spotify.client.helper"), "com.spotify.client");
         assert_eq!(strip_helper("com.apple.WebKit.GPU"), "com.apple.WebKit.GPU");
         assert_eq!(fourcc(b"prs#"), 0x7072_7323);
     }

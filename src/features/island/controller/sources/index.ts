@@ -10,6 +10,7 @@ import { claudeSource } from './claude'
 import { desktopDeps } from './desktopDeps'
 import { dropSource } from './drop'
 import { createFocusModeSource } from './focusMode'
+import { createMusicSource } from './music'
 import { createUploadSource } from './upload'
 
 export const ISLAND_SOURCES: readonly IslandSource[] = [
@@ -20,4 +21,5 @@ export const ISLAND_SOURCES: readonly IslandSource[] = [
   assignmentsSource,
   claudeSource,
   dropSource,
+  createMusicSource(desktopDeps),
 ]

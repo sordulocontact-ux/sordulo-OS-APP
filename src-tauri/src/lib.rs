@@ -1,5 +1,5 @@
 //! Coque Tauri 2 de Sordulo OS : fenêtres (dont l'île), zone de notification, détection du micro,
-//! relais Claude Code (`claude/`), commandes IPC.
+//! musique en cours (`music.rs`), relais Claude Code (`claude/`), commandes IPC.
 //! Contrat avec le front : `src/shared/desktop-contract.ts`. Fonctions système : `platform/` uniquement.
 
 mod auth_link;
@@ -12,6 +12,7 @@ mod events;
 mod island_window;
 mod logging;
 mod monitor;
+mod music;
 mod platform;
 mod recording;
 mod state;
@@ -58,6 +59,7 @@ pub fn run() {
             }
             island_window::spawn_pointer_loop(handle.clone());
             monitor::spawn_mic_loop(handle.clone());
+            music::spawn_music_loop(handle.clone());
             monitor::spawn_recording_ticker(handle);
             Ok(())
         })
@@ -96,6 +98,9 @@ pub fn run() {
             commands::claude_open_session,
             commands::save_dropped_file,
             commands::copy_text,
+            commands::get_music,
+            commands::get_music_artwork,
+            commands::music_command,
         ])
         .build(tauri::generate_context!())
         .expect("erreur au démarrage de Sordulo OS");

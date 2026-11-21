@@ -19,6 +19,8 @@ import {
   type IslandHitRects,
   type IslandPointer,
   type MicState,
+  type MusicCommand,
+  type MusicState,
   type NavigatePayload,
   type PromptPayload,
   type RecordingResult,
@@ -114,6 +116,17 @@ export async function saveDroppedFile(file: File | Blob, name: string): Promise<
 /** Island window: copies text to the system clipboard (no focus or user gesture needed). */
 export const copyText = (text: string) => call<void>(DESKTOP_COMMANDS.copyText, { text })
 
+/** Island window: what is playing now (null: nothing, or music turned off in the tray menu). Then onMusic. */
+export const getMusic = () => call<MusicState | null>(DESKTOP_COMMANDS.getMusic)
+
+/** Island window: raw bytes (PNG or JPEG) of the current cover. Rejects if artworkId is no longer the current one. */
+export const getMusicArtwork = (args: { artworkId: string }) =>
+  callBytes(DESKTOP_COMMANDS.getMusicArtwork, { artworkId: args.artworkId })
+
+/** Island window: previous / play-pause / next, or `open` to bring the player's window to the front. */
+export const musicCommand = (args: { command: MusicCommand }) =>
+  call<void>(DESKTOP_COMMANDS.musicCommand, { command: args.command })
+
 /** Each returns a promise of the unsubscribe function. */
 export const onPrompt = (handler: (payload: PromptPayload) => void) =>
   subscribe<PromptPayload>(DESKTOP_EVENTS.prompt, handler)
@@ -139,6 +152,10 @@ export const onNavigate = (handler: (payload: NavigatePayload) => void) =>
 
 export const onFocusMode = (handler: (state: FocusModeState) => void) =>
   subscribe<FocusModeState>(DESKTOP_EVENTS.focusMode, handler)
+
+/** Island window: what is playing changed (sent on change only, not as a position ticker). */
+export const onMusic = (handler: (state: MusicState | null) => void) =>
+  subscribe<MusicState | null>(DESKTOP_EVENTS.music, handler)
 
 export const onClaude = (handler: (event: ClaudeRelayEvent) => void) =>
   subscribe<ClaudeRelayEvent>(DESKTOP_EVENTS.claude, handler)

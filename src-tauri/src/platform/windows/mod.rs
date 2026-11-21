@@ -18,6 +18,7 @@
 //! - `cursor`   : position du curseur et bouton principal (clics qui passent à travers l'île).
 //! - `editor`   : rouvrir VS Code sur le dossier d'une session Claude Code.
 //! - `clipboard` : copie de texte dans le presse-papiers (chemin d'un fichier déposé sur « Claude Code »).
+//! - `media`    : musique en cours, pochette et commandes (contrôles multimédias du système, WinRT).
 
 mod activity;
 mod capture;
@@ -26,6 +27,7 @@ mod cursor;
 mod editor;
 mod dsp;
 mod encoder;
+mod media;
 mod mic;
 mod mixer;
 mod pages;
@@ -38,6 +40,7 @@ pub use clipboard::copy_text;
 pub use pages::browser_page_titles;
 pub use cursor::cursor_state;
 pub use editor::{editor_storage_file, open_in_editor};
+pub use media::{media_command, now_playing, now_playing_artwork};
 pub use mic::RegistryMicMonitor;
 pub use recorder::WasapiRecorder;
 pub use url_scheme::register_url_scheme;

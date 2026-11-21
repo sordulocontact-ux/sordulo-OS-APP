@@ -1,27 +1,91 @@
 /**
- * Couches compactes : progression (import, analyse) et musique (hors périmètre, gardée pour les scénarios).
+ * Couches compactes : progression (import, analyse) et musique (music, et musicOpen au survol).
+ * La pochette et l'égaliseur de la musique sont des éléments partagés (SharedElements) : ils glissent et
+ * grandissent de l'île compacte vers la vue ouverte.
  */
-import { RING } from '../../geometry'
+import { RING, islandSize } from '../../geometry'
+import type { IslandMusic, MusicCommand } from '../../types'
+import { cx } from '../cx'
 import { useLastNonNull } from '../hooks'
-import { IslandIcon } from '../icons'
+import { IslandIcon, MusicControlIcon } from '../icons'
 import styles from '../Island.module.css'
+import { formatElapsed } from '../labels'
 import { Layer } from '../Layer'
+import { musicHasProgress } from '../music'
 import { PROGRESS_VISUALS, toneStyle } from '../tone'
 import type { ActivityOfKind } from '../types'
 import type { BaseLayerProps } from './CallLayers'
 
-/** Hauteurs de base de l'égaliseur (prototype : eqBase) ; la boucle les fait varier. */
-const EQ_BASE = [12, 14, 10, 6, 14, 8, 6, 14]
-
-export function MusicLayer({ eqBarRef, ...base }: BaseLayerProps & { eqBarRef: (index: number, el: HTMLElement | null) => void }) {
+/**
+ * Musique. Compacte : rien ici (pochette et égaliseur partagés). Ouverte (survol ou focus) : bouton sur la
+ * pochette (lecteur au premier plan), titre, artiste et lecteur, progression si le lecteur la donne,
+ * précédent / lecture-pause / suivant. La boucle écrit le temps écoulé et le remplissage de la barre.
+ */
+export function MusicLayer({
+  music,
+  open,
+  onMusicCommand,
+  elapsedRef,
+  fillRef,
+  ...base
+}: BaseLayerProps & {
+  music: IslandMusic | null
+  open: boolean
+  onMusicCommand?: (command: MusicCommand) => void
+  elapsedRef: (el: HTMLElement | null) => void
+  fillRef: (el: HTMLElement | null) => void
+}) {
+  const shown = useLastNonNull(music)
+  const progress = musicHasProgress(shown)
+  const durationMs = progress ? (shown?.durationMs ?? null) : null
+  const playing = shown?.playing ?? true
+  const appName = shown?.appName ?? ''
+  const height = islandSize(base.platform, 'musicOpen', 0, progress).h
+  const send = (command: MusicCommand) => onMusicCommand?.(command)
   return (
-    <Layer {...base} state="music" className={styles.layerMusic} label="Musique en lecture">
-      <span className={styles.cover} aria-hidden="true" />
-      <span className={styles.eq} aria-hidden="true">
-        {EQ_BASE.map((h, i) => (
-          <i key={i} ref={(el) => eqBarRef(i, el)} style={{ height: h }} />
-        ))}
-      </span>
+    <Layer
+      {...base}
+      state="music"
+      open={open}
+      label={playing ? 'Musique en lecture' : 'Musique en pause'}
+      style={{ height }}
+    >
+      <div className={cx(styles.detail, styles.musicDetail)}>
+        <div className={styles.musicHead}>
+          {/* La pochette visible est l'élément partagé, juste au-dessus : ce bouton porte le clic et le focus. */}
+          <button type="button" className={styles.musicCoverBtn} onClick={() => send('open')} aria-label={appName ? `Ouvrir ${appName}` : 'Ouvrir le lecteur'} />
+          <span className={styles.musicText}>
+            <strong title={shown?.title}>{shown?.title || 'Musique'}</strong>
+            {shown?.artist ? <small title={shown.artist}>{shown.artist}</small> : null}
+            {shown?.appName ? <small className={styles.musicApp}>{shown.appName}</small> : null}
+          </span>
+        </div>
+        {durationMs !== null && (
+          <div className={styles.musicProgress}>
+            <span className={styles.musicTime} ref={elapsedRef} />
+            <span className={styles.musicTrack} aria-hidden="true">
+              <span className={styles.musicFill} ref={fillRef} />
+            </span>
+            <span className={styles.musicTime}>{formatElapsed(durationMs)}</span>
+          </div>
+        )}
+        <div className={styles.musicControls} role="group" aria-label={appName ? `Commandes de ${appName}` : 'Commandes du lecteur'}>
+          <button type="button" className={styles.musicBtn} onClick={() => send('previous')} aria-label="Morceau précédent">
+            <MusicControlIcon name="previous" />
+          </button>
+          <button
+            type="button"
+            className={cx(styles.musicBtn, styles.musicBtnMain)}
+            onClick={() => send('playPause')}
+            aria-label={playing ? 'Pause' : 'Lecture'}
+          >
+            <MusicControlIcon name={playing ? 'pause' : 'play'} />
+          </button>
+          <button type="button" className={styles.musicBtn} onClick={() => send('next')} aria-label="Morceau suivant">
+            <MusicControlIcon name="next" />
+          </button>
+        </div>
+      </div>
     </Layer>
   )
 }

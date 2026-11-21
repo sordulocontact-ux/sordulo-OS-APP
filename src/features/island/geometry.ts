@@ -30,6 +30,9 @@ export interface IslandShapeSize {
 /**
  * Dimensions par clé de taille, en px CSS. Copie exacte de S.
  * `meetOpen` (survol de l'enregistrement, absent du prototype) reprend les dimensions de `agentOpen`.
+ * `musicOpen` (survol de la musique, absent du prototype) : pochette de 56 px, progression, boutons du lecteur
+ * (Windows : 16 + 56 + 12 + 14 + 6 + 32 + 14 ; Mac : 44 sous l'encoche au lieu de 16). Sans progression
+ * connue, la forme perd MUSIC_OPEN.progressRow (voir islandSize).
  * Mac : largeurs calculées depuis l'encoche (186 px dans le prototype).
  */
 export const ISLAND_SIZES: Record<IslandPlatform, Record<IslandSizeKey, IslandShapeSize>> = {
@@ -40,6 +43,7 @@ export const ISLAND_SIZES: Record<IslandPlatform, Record<IslandSizeKey, IslandSh
     meet: { w: 193, h: 40, r: 14 },
     meetOpen: { w: 360, h: 96, r: 24 },
     music: { w: 193, h: 40, r: 14 },
+    musicOpen: { w: 380, h: 150, r: 26 },
     progress: { w: 193, h: 40, r: 14 },
     agent: { w: 193, h: 40, r: 14 },
     agentOpen: { w: 360, h: 96, r: 24 },
@@ -59,6 +63,7 @@ export const ISLAND_SIZES: Record<IslandPlatform, Record<IslandSizeKey, IslandSh
     meet: { w: 370, h: 32, r: 10 },
     meetOpen: { w: 380, h: 124, r: 26 },
     music: { w: 274, h: 32, r: 10 },
+    musicOpen: { w: 400, h: 178, r: 26 },
     progress: { w: 274, h: 32, r: 10 },
     agent: { w: 274, h: 32, r: 10 },
     agentOpen: { w: 380, h: 124, r: 26 },
@@ -83,9 +88,27 @@ export const MEET_BACKGROUND = {
   mac: { rowH: 30, gap: 8 },
 } as const
 
-/** Dimensions d'une clé de taille ; meetOpen grandit avec les lignes « aussi en cours ». */
-export function islandSize(platform: IslandPlatform, key: IslandSizeKey, meetRows = 0): IslandShapeSize {
+/**
+ * Vue ouverte de la musique (musicOpen) : taille de la pochette et hauteur de la ligne de progression
+ * (écart 12 + ligne 14), retirée de la forme quand le lecteur ne donne ni position ni durée.
+ */
+export const MUSIC_OPEN = {
+  coverSize: 56,
+  progressRow: 26,
+} as const
+
+/**
+ * Dimensions d'une clé de taille ; meetOpen grandit avec les lignes « aussi en cours », musicOpen perd la
+ * ligne de progression quand elle n'est pas connue (`musicProgress` faux).
+ */
+export function islandSize(
+  platform: IslandPlatform,
+  key: IslandSizeKey,
+  meetRows = 0,
+  musicProgress = true,
+): IslandShapeSize {
   const size = ISLAND_SIZES[platform][key]
+  if (key === 'musicOpen') return musicProgress ? size : { ...size, h: size.h - MUSIC_OPEN.progressRow }
   const rows = Math.min(Math.max(0, meetRows), MEET_BACKGROUND.maxRows)
   if (key !== 'meetOpen' || rows === 0) return size
   const { rowH, gap } = MEET_BACKGROUND[platform]
@@ -94,13 +117,14 @@ export function islandSize(platform: IslandPlatform, key: IslandSizeKey, meetRow
 
 /**
  * Clé de taille d'un état (prototype : currentKey et keyFor).
- * Survol : repos → peek, meet → meetOpen, agent → agentOpen, multi → multiOpen.
+ * Survol : repos → peek, meet → meetOpen, music → musicOpen, agent → agentOpen, multi → multiOpen.
  * Pendant un appel : notif → notifCall, agentAsk → agentAskCall.
  */
 export function sizeKeyFor(state: IslandState, hover: boolean, withCall: boolean): IslandSizeKey {
   if (hover) {
     if (state === 'repos') return 'peek'
     if (state === 'meet') return 'meetOpen'
+    if (state === 'music') return 'musicOpen'
     if (state === 'agent') return 'agentOpen'
     if (state === 'multi') return 'multiOpen'
   }
@@ -111,10 +135,11 @@ export function sizeKeyFor(state: IslandState, hover: boolean, withCall: boolean
 
 /**
  * Taille d'une couche de contenu (prototype : sizeLayers) : la couche a la taille de l'état ouvert,
- * la forme animée la découpe. meet → meetOpen, agent → agentOpen, multi → multiOpen.
+ * la forme animée la découpe. meet → meetOpen, music → musicOpen, agent → agentOpen, multi → multiOpen.
  */
 export function layerSizeKeyFor(state: IslandState, withCall: boolean): IslandSizeKey {
   if (state === 'meet') return 'meetOpen'
+  if (state === 'music') return 'musicOpen'
   if (state === 'agent') return 'agentOpen'
   if (state === 'multi') return 'multiOpen'
   return sizeKeyFor(state, false, withCall)
@@ -212,12 +237,14 @@ export type SharedElementId =
   | 'seg3'
   | 'seg4'
   | 'dropIcon'
+  | 'musicCover'
+  | 'musicEq'
 
-/** Position depuis le bord d'ancrage de la zone de contenu (x) et le haut (y), taille (s, icône Claude), opacité (o). */
+/** Position depuis le bord d'ancrage de la zone de contenu (x) et le haut (y), taille (s), opacité (o). */
 export interface SharedPosition {
   x: number
   y: number
-  /** Taille de l'icône Claude (px). */
+  /** Taille (px) des éléments carrés qui grandissent : icône Claude, pochette (SIZED_SHARED_ELEMENTS). */
   s?: number
   /** Opacité cible, 1 par défaut. */
   o?: number
@@ -235,6 +262,9 @@ export const MAX_SESSION_ROWS = 5
 
 /** Taille de départ de l'icône Claude partagée (px). */
 export const SHARED_ICON_DEFAULT_SIZE = 22
+
+/** Éléments partagés dont le moteur écrit aussi la largeur et la hauteur (taille `s`). */
+export const SIZED_SHARED_ELEMENTS: ReadonlySet<SharedElementId> = new Set<SharedElementId>(['agentIcon', 'musicCover'])
 
 function segSpec(i: number): SharedElementSpec {
   // Les pastilles de statut descendent devant chaque ligne au survol (une ligne = 30 px).
@@ -295,6 +325,18 @@ export const SHARED_ELEMENTS: Record<SharedElementId, SharedElementSpec> = {
     anchor: 'left',
     win: { dragWake: { x: 16, y: 13 }, dragOver: { x: 16, y: 13 } },
     mac: { dragWake: { x: 16, y: 39 }, dragOver: { x: 16, y: 41 } },
+  },
+  // Musique (ajout) : la pochette grandit de la gauche de l'île compacte vers le haut gauche de musicOpen,
+  // l'égaliseur (23 × 14) reste à droite, centré sur la pochette (Mac : sous l'encoche, comme agentOpen).
+  musicCover: {
+    anchor: 'left',
+    win: { music: { x: 13, y: 6, s: 28 }, musicOpen: { x: 16, y: 16, s: MUSIC_OPEN.coverSize } },
+    mac: { music: { x: 13, y: 5, s: 22 }, musicOpen: { x: 16, y: 44, s: MUSIC_OPEN.coverSize } },
+  },
+  musicEq: {
+    anchor: 'right',
+    win: { music: { x: 13, y: 13 }, musicOpen: { x: 16, y: 37 } },
+    mac: { music: { x: 13, y: 9 }, musicOpen: { x: 16, y: 65 } },
   },
 }
 

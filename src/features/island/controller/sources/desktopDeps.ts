@@ -1,16 +1,21 @@
 /**
- * Accès réels des sources du parcours d'appel : commandes et événements Tauri (src/lib/desktop.ts),
- * Supabase, API, stockage local. Les tests injectent de faux accès à la place.
+ * Accès réels des sources (parcours d'appel, concentration, musique) : commandes et événements Tauri
+ * (src/lib/desktop.ts), Supabase, API, stockage local, URL blob: et canvas. Les tests injectent de faux
+ * accès à la place.
  */
 import { api, ApiRequestError } from '../../../../lib/api'
 import {
   deleteRecording,
   dismissPrompt,
   getFocusMode,
+  getMusic,
+  getMusicArtwork,
   getStatus,
+  musicCommand,
   onAudioLevel,
   onFocusMode,
   onMicState,
+  onMusic,
   onPrompt,
   onRecordingState,
   readRecording,
@@ -29,14 +34,16 @@ import {
   writeLastProjectId,
 } from '../../../desktop/storage'
 import { uploadMeetingRecording } from '../../../inputs/uploadMeeting'
+import { paletteFromImageUrl } from '../../music/artwork'
 import type { AnalysisSourceDeps, PolledInput } from './analysis'
 import type { CallSourceDeps } from './call'
 import type { FocusModeDeps } from './focusMode'
+import type { MusicSourceDeps } from './music'
 import type { UploadSourceDeps } from './upload'
 
 const INPUT_COLUMNS = 'id, project_id, kind, title, raw_text, created_at, status, error_message'
 
-export const desktopDeps: CallSourceDeps & UploadSourceDeps & AnalysisSourceDeps & FocusModeDeps = {
+export const desktopDeps: CallSourceDeps & UploadSourceDeps & AnalysisSourceDeps & FocusModeDeps & MusicSourceDeps = {
   // Appel et enregistrement
   getStatus,
   startRecording,
@@ -100,4 +107,13 @@ export const desktopDeps: CallSourceDeps & UploadSourceDeps & AnalysisSourceDeps
   // Mode concentration
   getFocusMode,
   onFocusMode,
+
+  // Musique
+  getMusic,
+  onMusic,
+  getMusicArtwork,
+  musicCommand,
+  paletteFromImageUrl,
+  createObjectURL: (blob) => URL.createObjectURL(blob),
+  revokeObjectURL: (url) => URL.revokeObjectURL(url),
 }

@@ -7,6 +7,8 @@ use tauri::{AppHandle, Manager, State};
 use crate::claude::{self, ClaudeConnection, ClaudeDecision};
 use crate::dropped;
 use crate::events::WINDOW_PROMPT;
+use crate::music::{self, MusicState};
+use crate::platform::MediaCommand;
 use crate::recording;
 use crate::state::{
     DesktopState, DesktopStatus, FocusModeState, IslandHitRects, IslandRect, PromptReason,
@@ -156,6 +158,38 @@ pub fn copy_text(window: tauri::WebviewWindow, text: String) -> Result<(), Strin
     }
     crate::platform::copy_text(&text)
         .map_err(|e| format!("Impossible de copier dans le presse-papiers : {e}"))
+}
+
+/// Morceau en cours (dernier état émis par `desktop://music`), `null` si rien ou si la musique est masquée.
+#[tauri::command]
+pub fn get_music(app: AppHandle) -> Option<MusicState> {
+    music::current(&app)
+}
+
+/// Octets bruts (PNG ou JPEG) de la pochette `artworkId`. Erreur si ce n'est plus la pochette courante
+/// (le morceau a changé entre-temps).
+#[tauri::command]
+pub async fn get_music_artwork(app: AppHandle, artwork_id: String) -> Result<Response, String> {
+    let bytes = music::artwork(&app, &artwork_id)?;
+    Ok(Response::new(bytes.to_vec()))
+}
+
+/// Précédent, lecture / pause, suivant, ou lecteur au premier plan. Réservé à la fenêtre de l'île.
+/// Asynchrone : la commande au lecteur peut prendre quelques centaines de ms.
+#[tauri::command]
+pub async fn music_command(
+    window: tauri::WebviewWindow,
+    app: AppHandle,
+    command: MediaCommand,
+) -> Result<(), String> {
+    if window.label() != WINDOW_PROMPT {
+        return Err("Seule l'île peut commander le lecteur de musique.".into());
+    }
+    if !app.state::<DesktopState>().shared().music_enabled {
+        return Err("La musique est masquée dans le menu de Sordulo OS.".into());
+    }
+    crate::platform::media_command(command)
+        .map_err(|e| format!("Commande du lecteur impossible : {e:#}"))
 }
 
 #[tauri::command]
