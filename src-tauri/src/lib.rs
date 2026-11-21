@@ -1,5 +1,6 @@
 //! Coque Tauri 2 de Sordulo OS : fenêtres (dont l'île), zone de notification, détection du micro,
-//! musique en cours (`music.rs`, avec Spotify sur un autre appareil : `spotify/`), relais Claude Code
+//! musique en cours (`music.rs`, avec Spotify sur un autre appareil : `spotify/` ; vrai son analysé en
+//! direct : `music_levels/`), relais Claude Code
 //! (`claude/`), commandes IPC.
 //! Contrat avec le front : `src/shared/desktop-contract.ts`. Fonctions système : `platform/` uniquement.
 
@@ -14,6 +15,7 @@ mod island_window;
 mod logging;
 mod monitor;
 mod music;
+mod music_levels;
 mod platform;
 mod recording;
 mod spotify;

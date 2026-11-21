@@ -4,6 +4,8 @@ import { GARDEN, GARDEN_ANGRY_TOKEN, GARDEN_COLOR_TOKENS } from './constants'
 import {
   CALM_MOOD,
   GardenSim,
+  nodPulse,
+  nodPulseAt,
   walkerVisual,
   type GardenFrame,
   type GardenSession,
@@ -344,6 +346,46 @@ describe('musique', () => {
     expect(at(beat * GARDEN.nod.attack, 'done').bodyLift).toBe(0)
     expect(at(beat * GARDEN.nod.attack, 'waiting').bodyLift).toBe(0)
     expect(at(beat * GARDEN.nod.attack, 'working', CALM_MOOD).bodyLift).toBe(0)
+  })
+
+  it('vrais temps de la musique : le hochement suit leur phase ; silence analysé : immobile', () => {
+    const sim = new GardenSim(seeded(3))
+    sim.reset(sessions(1), REDUCED)
+    const w = main(sim, 's0')
+    w.mode = 'pause'
+    const music = { call: false, music: true }
+    const at = (beatPhase: number | undefined, now = 0.3, musicSilent?: boolean) =>
+      walkerVisual(w, 'working', { ...visualCtx, mood: music, now, beatPhase, musicSilent })
+    // Sur le vrai temps (fin de la montée) : tête devant, quel que soit le temps du tempo fixe.
+    expect(at(GARDEN.nod.attack, 0.3).bodyLift).toBeCloseTo(-GARDEN.nod.dip, 5)
+    expect(at(GARDEN.nod.attack, 1.7).bodyLift).toBeCloseTo(-GARDEN.nod.dip, 5)
+    // Juste avant le vrai temps suivant : en arrière.
+    expect(at(0.99).bodyLift).toBeGreaterThan(GARDEN.nod.back * 0.9)
+    // Même forme que le tempo fixe : nodPulse = nodPulseAt de la phase du tempo fixe.
+    const beat = 60 / GARDEN.musicTempoBpm
+    expect(nodPulse(beat * 2.3)).toBeCloseTo(nodPulseAt(0.3), 6)
+    // Sans vraie phase : tempo fixe.
+    expect(at(undefined, beat * GARDEN.nod.attack).bodyLift).toBeCloseTo(-GARDEN.nod.dip, 5)
+    // Silence : pas de hochement.
+    expect(at(GARDEN.nod.attack, 0.3, true).bodyLift).toBe(0)
+    expect(at(undefined, beat * GARDEN.nod.attack, true).bodyLift).toBe(0)
+  })
+
+  it('silence analysé : personne ne hoche la tête, donc pas de notes', () => {
+    const music: GardenFrame = { ...FRAME, mood: { call: false, music: true } }
+    const notesIn = (frame: GardenFrame) => {
+      // Un seul Claude au travail : pas de rencontre, les notes ne viennent que du hochement.
+      const sim = new GardenSim(seeded(31))
+      sim.reset(sessions(1), OPTS)
+      const notes = new Set<number>()
+      run(sim, 20, frame, () => {
+        for (const e of sim.fx) if (e.kind === 'note') notes.add(e.id)
+        return false
+      })
+      return notes.size
+    }
+    expect(notesIn(music)).toBeGreaterThan(0)
+    expect(notesIn({ ...music, musicSilent: true })).toBe(0)
   })
 
   it('en musique : celui qui dort fait des « z » et jamais de note, celui qui travaille fait des notes', () => {

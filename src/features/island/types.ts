@@ -5,7 +5,18 @@
  * le contrôleur Tauri (controller/), le labo (lab/) et le jardin (garden/).
  */
 
-import type { CallService, ClaudeQuestion, MusicCommand } from '../../shared/desktop-contract'
+import type { CallService, ClaudeQuestion, MusicCommand, MusicLevels } from '../../shared/desktop-contract'
+
+export type { MusicLevels }
+
+/**
+ * Dernière analyse du vrai son (Windows), lue à chaque image par la boucle de l'île et par le jardin, hors de
+ * React (≈ 30 par seconde : pas de rendu React par analyse). Objet stable, fourni par la source « musique ».
+ */
+export interface MusicLevelsReader {
+  /** Analyse récente, ou null (pas d'analyse depuis un moment : égaliseur et hochement simulés). */
+  get(nowMs: number): MusicLevels | null
+}
 
 export type { MusicCommand }
 

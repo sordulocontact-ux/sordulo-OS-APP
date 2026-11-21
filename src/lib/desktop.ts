@@ -22,6 +22,7 @@ import {
   type MusicCommand,
   type MusicState,
   type SpotifyStatus,
+  type MusicLevels,
   type NavigatePayload,
   type PromptPayload,
   type RecordingResult,
@@ -166,6 +167,10 @@ export const onMusic = (handler: (state: MusicState | null) => void) =>
 
 export const onSpotify = (handler: (status: SpotifyStatus) => void) =>
   subscribe<SpotifyStatus>(DESKTOP_EVENTS.spotify, handler)
+
+/** Island window: live bands and beat of the music played by this computer (Windows), ~30 per second. */
+export const onMusicLevels = (handler: (levels: MusicLevels) => void) =>
+  subscribe<MusicLevels>(DESKTOP_EVENTS.musicLevels, handler)
 
 export const onClaude = (handler: (event: ClaudeRelayEvent) => void) =>
   subscribe<ClaudeRelayEvent>(DESKTOP_EVENTS.claude, handler)

@@ -1,14 +1,22 @@
 /**
  * Boucle requestAnimationFrame de l'île (prototype : frame) : ressort, rendu de la forme, minuteurs, onde,
- * anneau, égaliseur et progression de la musique, rapport des zones cliquables. Tout s'écrit directement
- * dans le DOM.
+ * anneau, égaliseur (vrai son quand il est là, sinon simulé) et progression de la musique, rapport des zones
+ * cliquables. Tout s'écrit directement dans le DOM.
  */
 import type { IslandRect } from '../../../shared/desktop-contract'
 import { WAVE, progressRatio, ringDashOffset, waveBarHeight } from '../geometry'
-import type { ClaudeSession, IslandMusic, IslandState, ProgressActivity } from '../types'
+import type { ClaudeSession, IslandMusic, IslandState, MusicLevelsReader, ProgressActivity } from '../types'
 import type { IslandEngine } from './engine'
 import { formatElapsed } from './labels'
-import { createEqualizer, musicPosition, musicRatio, stepEqualizer, stillEqualizer } from './music'
+import {
+  createEqualizer,
+  musicBeatPhase,
+  musicPosition,
+  musicRatio,
+  stepEqualizer,
+  stepEqualizerReal,
+  stillEqualizer,
+} from './music'
 
 /** Intervalle minimal entre deux rapports de zones cliquables pendant une animation (ms). */
 export const HIT_RECTS_INTERVAL_MS = 50
@@ -43,6 +51,8 @@ export interface LiveData {
   audioLevels: readonly number[] | undefined
   /** Lecture en cours (égaliseur, progression) ; null : égaliseur en lecture, sans progression. */
   music: IslandMusic | null
+  /** Vrai son (Windows), lu à chaque image ; absent ou sans analyse récente : égaliseur simulé. */
+  musicLevels: MusicLevelsReader | undefined
   onHitRects: (rects: IslandRect[]) => void
 }
 
@@ -204,7 +214,13 @@ export function startIslandLoop(
     if (state === 'music') {
       // Sans données de lecture (scénarios), l'égaliseur joue.
       const playing = d.music?.playing ?? true
-      const scales = d.reduced ? stillEqualizer(playing) : stepEqualizer(eq, now / 1000, dt, playing)
+      // Vrai son seulement en lecture (en pause : à plat, comme la simulation).
+      const levels = playing && !d.reduced ? (d.musicLevels?.get(epoch) ?? null) : null
+      const scales = d.reduced
+        ? stillEqualizer(playing)
+        : levels
+          ? stepEqualizerReal(eq, dt, levels.bands, musicBeatPhase(levels, epoch))
+          : stepEqualizer(eq, now / 1000, dt, playing)
       live.eqBars.forEach((b, j) => {
         const v = Math.round((scales[j] ?? 0) * 1000) / 1000
         if (!b || eqShown.get(b) === v) return

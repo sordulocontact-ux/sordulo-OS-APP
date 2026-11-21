@@ -50,6 +50,8 @@ export interface GardenFrame {
   height: number
   platform: IslandPlatform
   mood: GardenMood
+  /** Vrai son analysé et silencieux (Windows) : personne ne hoche la tête, donc pas de notes. */
+  musicSilent?: boolean
 }
 
 export interface GardenSyncOptions {
@@ -979,7 +981,7 @@ export class GardenSim {
     }
     // Notes de musique : seulement de ceux qui hochent la tête (session qui travaille, au sol, visible).
     // Celui qui dort fait des « z » (plus haut), ceux qui ont fini ou sont en pause ne font rien.
-    if (this.mood.music && this.coin(dt * GARDEN.noteRate)) {
+    if (this.mood.music && !frame.musicSilent && this.coin(dt * GARDEN.noteRate)) {
       const nodding = this.mains().filter((w) => this.nodsToMusic(w))
       const nw = nodding[Math.floor(this.rng() * nodding.length)]
       if (nw) this.addFx('note', '♪', nw.x - 3, this.headY(nw) - 10, GARDEN.fxLife.note)
@@ -1556,20 +1558,31 @@ export interface VisualContext {
   platform: IslandPlatform
   mood: GardenMood
   reduced: boolean
-  /** Temps (s) : hochement de tête sur le tempo de la musique. */
+  /** Temps (s) : hochement de tête sur le tempo fixe de la musique (sans vrai temps). */
   now: number
+  /**
+   * Phase 0..1 du vrai temps de la musique (Windows, analyse du son ; 0 = sur le temps). Absente : tempo fixe
+   * GARDEN.musicTempoBpm à partir de `now`.
+   */
+  beatPhase?: number
+  /** Vrai son analysé et silencieux : pas de hochement, même si le lecteur dit « en lecture ». */
+  musicSilent?: boolean
 }
 
 /**
- * Hochement sur un temps (0 à 1) : coup sec au début du temps (montée pendant GARDEN.nod.attack), puis
- * retour doux jusqu'au temps suivant.
+ * Hochement à la phase `phase` d'un temps (0 à 1) : coup sec au début du temps (montée pendant
+ * GARDEN.nod.attack), puis retour doux jusqu'au temps suivant.
  */
-export function nodPulse(now: number): number {
-  const beat = 60 / GARDEN.musicTempoBpm
-  const p = (((now / beat) % 1) + 1) % 1
+export function nodPulseAt(phase: number): number {
+  const p = ((phase % 1) + 1) % 1
   const a = GARDEN.nod.attack
   if (p < a) return Math.sin(((p / a) * Math.PI) / 2)
   return 0.5 * (1 + Math.cos((Math.PI * (p - a)) / (1 - a)))
+}
+
+/** Hochement au temps `now` (s) sur le tempo fixe GARDEN.musicTempoBpm. */
+export function nodPulse(now: number): number {
+  return nodPulseAt(now / (60 / GARDEN.musicTempoBpm))
 }
 
 /** Pattes posées. */
@@ -1615,17 +1628,19 @@ export function walkerVisual(w: Walker, status: ClaudeSessionStatus, ctx: Visual
   }
 
   // Musique : ceux qui travaillent hochent la tête sur le tempo (à l'arrêt comme en marchant) ; les autres
-  // restent immobiles. Le haut du corps s'incline vers l'avant et descend un peu.
+  // restent immobiles. Le haut du corps s'incline vers l'avant et descend un peu. Vrais temps quand l'analyse
+  // du son les donne, sinon tempo fixe ; silence analysé : pas de hochement.
   let nod = 0
   const nodding =
     ctx.mood.music &&
+    !ctx.musicSilent &&
     status === 'working' &&
     !ctx.reduced &&
     w.mode !== 'interact' &&
     w.delay <= 0 &&
     (w.y === 0 || w.mode === 'ride')
   if (nodding) {
-    const k = nodPulse(ctx.now)
+    const k = ctx.beatPhase === undefined ? nodPulse(ctx.now) : nodPulseAt(ctx.beatPhase)
     // De bas en haut, sans inclinaison : en arrière entre les temps, devant sur le temps.
     nod = 0
     bodyLift = GARDEN.nod.back * (1 - k) - GARDEN.nod.dip * k

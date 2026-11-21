@@ -158,6 +158,22 @@ export interface SpotifyStatus {
   connecting: boolean
 }
 
+/**
+ * Live analysis of the sound the computer is playing (Windows: loopback of the default output device; macOS:
+ * not available, the island keeps its simulated equalizer). Sent about 30 times a second, only while music
+ * plays on this computer and music is on in the tray menu. No event for a while (~400 ms): back to simulated.
+ */
+export interface MusicLevels {
+  /** 8 bands from bass to treble, 0..1, automatic gain (same movement at low or high volume). All near 0: silence. */
+  bands: number[]
+  /** Estimated beat period in ms; null while no steady tempo is found. */
+  beatPeriodMs: number | null
+  /** Unix epoch in ms of the last detected beat; null if none yet. */
+  lastBeatAt: number | null
+  /** Unix epoch in ms of this analysis frame. */
+  at: number
+}
+
 /** Player commands sent from the island (`open`: bring the player's window to the front). */
 export type MusicCommand = 'previous' | 'playPause' | 'next' | 'open'
 
@@ -290,6 +306,8 @@ export const DESKTOP_EVENTS = {
   music: 'desktop://music',
   /** Payload SpotifyStatus, all windows: the Spotify connection changed (connected, disconnected, access lost). */
   spotify: 'desktop://spotify',
+  /** Payload MusicLevels, island window: live bands and beat of the music played by the computer (Windows). */
+  musicLevels: 'desktop://music-levels',
 } as const
 
 /** Commands implemented in Rust (invoke from @tauri-apps/api/core). Arguments are camelCase. */

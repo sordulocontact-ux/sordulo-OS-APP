@@ -147,6 +147,52 @@ pub fn now_playing_artwork() -> anyhow::Result<Option<Vec<u8>>> {
     }
 }
 
+/// Écoute continue du son joué par l'ordinateur (analyse de la musique de l'île, `music_levels`).
+/// S'utilise sur le thread qui l'a ouverte (objets COM sous Windows) ; la fermer = la lâcher (`drop`).
+pub trait OutputTap {
+    /// Fréquence d'échantillonnage du signal rendu par [`OutputTap::read`].
+    fn sample_rate(&self) -> u32;
+    /// Ajoute à la fin de `out` les échantillons mono reçus depuis l'appel précédent ; n'attend jamais
+    /// (rien de neuf : `out` inchangé, ex. loopback quand rien ne joue). Erreur : périphérique perdu,
+    /// l'écoute est à rouvrir plus tard.
+    fn read(&mut self, out: &mut Vec<f32>) -> anyhow::Result<()>;
+}
+
+/// Écoute du son de l'ordinateur non disponible sur ce système (réponse définitive : inutile de réessayer).
+#[cfg_attr(windows, allow(dead_code))]
+#[derive(Debug, thiserror::Error)]
+#[error(
+    "analyse du son de l'ordinateur non disponible sur ce système : l'île garde son égaliseur simulé"
+)]
+pub struct OutputTapUnavailable;
+
+/// Ouvre l'écoute du son joué par l'ordinateur.
+///
+/// - Windows : loopback WASAPI du périphérique de sortie par défaut, mode partagé (`windows/output_tap.rs`),
+///   sans autorisation ni voyant, en parallèle de l'enregistrement d'un appel s'il y en a un.
+/// - macOS : non disponible, par décision de Maël (21/11) : capturer le son du système passe par un « process
+///   tap » Core Audio qui allume le voyant violet d'enregistrement dans la barre des menus pendant toute
+///   l'écoute de musique. L'île garde donc l'égaliseur et le tempo simulés. Exception assumée à la règle
+///   « Windows ET macOS » (ticket `2026-11-21-ile-vrai-son`), à signaler à Sacha.
+/// - Autres systèmes : non disponible.
+///
+/// Erreur [`OutputTapUnavailable`] : définitive ; autre erreur (aucune sortie audio…) : réessayer plus tard.
+pub fn output_tap() -> anyhow::Result<Box<dyn OutputTap>> {
+    #[cfg(windows)]
+    {
+        Ok(Box::new(windows::LoopbackTap::open()?))
+    }
+    #[cfg(target_os = "macos")]
+    {
+        // Volontaire (voir plus haut) : pas de process tap pour la musique, pas de voyant violet.
+        anyhow::bail!(OutputTapUnavailable)
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        anyhow::bail!(OutputTapUnavailable)
+    }
+}
+
 /// Envoie une commande au lecteur rendu en dernier par [`now_playing`]. Bloquant (quelques centaines de ms).
 pub fn media_command(command: MediaCommand) -> anyhow::Result<()> {
     #[cfg(windows)]

@@ -10,6 +10,7 @@ import type {
   ClaudeSession,
   IslandNotification,
   IslandMusic,
+  MusicLevelsReader,
   IslandPlatform,
   IslandSnapshot,
   MusicCommand,
@@ -75,6 +76,8 @@ export interface IslandProps {
   hotZone: IslandDropZone | null
   /** Lecture en cours (états `music` / `musicOpen`, bulle) ; null ou absent : pochette et couleurs par défaut. */
   music?: IslandMusic | null
+  /** Vrai son de la musique (Windows) pour l'égaliseur et le hochement des Claude ; absent : simulés. */
+  musicLevels?: MusicLevelsReader
   /** Jardin des Claude (autre lot), affiché dans `multi` au repos. Sans jardin : compte + pastilles. */
   garden?: ReactNode
   /** Force la réduction des animations (labo) ; par défaut : prefers-reduced-motion. */

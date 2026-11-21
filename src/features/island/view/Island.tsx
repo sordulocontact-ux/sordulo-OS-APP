@@ -6,7 +6,8 @@
  * Rendu React : couches, textes, boutons. Moteur (engine.ts) + boucle (loop.ts) : forme, éléments partagés,
  * bulle, minuteurs, onde, anneau, écrits directement dans le DOM à chaque image.
  * Jardin (prop `garden`) : il reçoit par GardenEnvContext la scène (taille animée réelle du ressort et images
- * de la boucle), sa visibilité, l'état, la plateforme, la réduction des animations et l'humeur.
+ * de la boucle), sa visibilité, l'état, la plateforme, la réduction des animations, l'humeur et le lecteur du
+ * vrai son (`musicLevels`, stable : lu à chaque image, jamais de rendu React par analyse).
  */
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react'
 import { GardenEnvContext, type GardenEnv } from '../garden/context'
@@ -46,6 +47,7 @@ export function Island(props: IslandProps) {
     drop,
     hotZone,
     music: musicProp,
+    musicLevels,
     garden,
     reducedMotion,
     onHoverChange,
@@ -159,6 +161,7 @@ export function Island(props: IslandProps) {
     bubbleProgress,
     audioLevels,
     music,
+    musicLevels,
     onHitRects: onHitRectsChange,
   }
   const liveDataRef = useRef(liveData)
@@ -228,9 +231,10 @@ export function Island(props: IslandProps) {
       platform,
       reduced,
       mood: { call: callOn, music: musicPlaying },
+      musicLevels: musicLevels ?? null,
       agentSessionId,
     }),
-    [stage, gardenVisible, musicGarden, state, platform, reduced, callOn, musicPlaying, agentSessionId],
+    [stage, gardenVisible, musicGarden, state, platform, reduced, callOn, musicPlaying, musicLevels, agentSessionId],
   )
 
   // Nouvelle cible : état, survol, plateforme, jardin, nombre de sessions

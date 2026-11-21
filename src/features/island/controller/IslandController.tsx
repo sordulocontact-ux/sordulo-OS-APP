@@ -167,6 +167,7 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
         drop={view.drop}
         hotZone={view.hotZone}
         music={view.music}
+        musicLevels={view.musicLevels}
         garden={view.garden ?? <Garden sessions={view.sessions} />}
         onHoverChange={applyHover}
         onBubbleClick={() => coordinator.pinSecondary()}

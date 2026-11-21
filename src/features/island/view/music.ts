@@ -1,11 +1,13 @@
 /**
  * Musique dans l'île : position de lecture, couleurs de la pochette posées en variables CSS, et égaliseur
- * animé façon iPhone (pas d'analyse du son : décision du ticket « Île : réagir à la musique écoutée »).
+ * façon iPhone. Sur Windows, quand l'analyse du vrai son arrive (MusicLevels, ticket « Île : vraies basses /
+ * aigus et vrai rythme »), les barres suivent les vraies bandes et le battement les vrais temps ; sinon
+ * (macOS, Spotify sur un autre appareil, analyse absente) l'égaliseur est simulé.
  * Pur (ni React ni DOM) : la boucle (loop.ts) écrit les valeurs dans le DOM.
  */
 import type { CSSProperties } from 'react'
 import { GARDEN } from '../garden/constants'
-import type { IslandMusic, MusicPalette } from '../types'
+import type { IslandMusic, MusicLevels, MusicPalette } from '../types'
 
 // ---------------------------------------------------------------------------
 // Position et progression
@@ -94,6 +96,16 @@ export const EQ = {
   maxDt: 0.05,
   /** Motif immobile (réduction des animations), d'après eqBase du prototype (hauteurs / 14 px). */
   still: [12 / 14, 1, 10 / 14, 6 / 14, 1, 8 / 14, 6 / 14, 1],
+  /**
+   * Vrai son : lissage visuel léger (1/s), pour 60 images par seconde entre deux analyses (environ 30 par
+   * seconde) : montée vive, descente un peu plus douce.
+   */
+  realAttack: 45,
+  realRelease: 20,
+  /** Vrai son : coup de pouce des basses sur chaque vrai temps (fraction de leur niveau). */
+  realKick: 0.25,
+  /** Sous ce niveau, toutes les bandes : silence (barres à plat, pas de hochement). */
+  silence: 0.02,
 } as const
 
 export interface EqualizerState {
@@ -117,10 +129,35 @@ export function createEqualizer(): EqualizerState {
   }
 }
 
-/** Battement des basses 0..1 au temps `t` (s) : un pic à chaque temps, qui décroît. */
+/** Battement 0..1 à la phase `phase` d'un temps (0 = sur le temps) : un pic, qui décroît. */
+export function eqKickAt(phase: number): number {
+  return Math.exp(-(phase - Math.floor(phase)) * EQ.kickDecay)
+}
+
+/** Battement des basses 0..1 au temps `t` (s), tempo fixe (simulation) : un pic à chaque temps, qui décroît. */
 export function eqKick(t: number): number {
-  const beat = (t * EQ.tempoBpm) / 60
-  return Math.exp(-(beat - Math.floor(beat)) * EQ.kickDecay)
+  return eqKickAt((t * EQ.tempoBpm) / 60)
+}
+
+// ---------------------------------------------------------------------------
+// Vrai son (analyse envoyée par Rust, Windows)
+// ---------------------------------------------------------------------------
+
+/** Silence : toutes les bandes à peu près nulles (même si le lecteur dit « en lecture »). */
+export function musicIsSilent(levels: MusicLevels): boolean {
+  return levels.bands.every((v) => !(v > EQ.silence))
+}
+
+/**
+ * Phase 0..1 du vrai temps à l'instant `nowMs` (epoch ms) : 0 sur un temps détecté, puis avance au tempo
+ * détecté (prolongée au-delà du dernier temps). null : pas de tempo stable (le tempo fixe s'applique).
+ * Sans dernier temps connu, le tempo est juste mais la phase arbitraire.
+ */
+export function musicBeatPhase(levels: MusicLevels, nowMs: number): number | null {
+  const period = levels.beatPeriodMs
+  if (period === null || !(period > 0)) return null
+  const p = (nowMs - (levels.lastBeatAt ?? 0)) / period
+  return ((p % 1) + 1) % 1
 }
 
 /**
@@ -159,6 +196,38 @@ export function stepEqualizer(
     }
     const next = value + (goal - value) * (1 - Math.exp(-rate * step))
     state.values[j] = Math.max(EQ.flatScale, Math.min(1, next))
+  }
+  return state.values
+}
+
+/**
+ * Avance l'égaliseur d'une image sur le vrai son : chaque barre suit sa bande (0..1, basses à gauche), de
+ * flatScale (silence, bande sous EQ.silence) à 1, avec un lissage léger ; sur chaque vrai temps (`beatPhase`, null sans tempo
+ * stable), les basses prennent un petit coup de pouce proportionnel à leur niveau (le silence reste à plat).
+ * Modifie `state` et renvoie ses valeurs ; au retour à la simulation, de nouvelles cibles sont tirées tout de suite.
+ */
+export function stepEqualizerReal(
+  state: EqualizerState,
+  dt: number,
+  bands: readonly number[],
+  beatPhase: number | null,
+): readonly number[] {
+  const step = Math.max(0, Math.min(EQ.maxDt, dt))
+  const kick = beatPhase === null ? 0 : eqKickAt(beatPhase)
+  for (let j = 0; j < EQ.bars; j++) {
+    const b = band(j)
+    const raw = bands[j] ?? 0
+    // Sous le seuil du silence : à plat ; au-dessus, la plage restante est étirée (pas de marche).
+    const clamped = Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 0
+    const level = Math.max(0, (clamped - EQ.silence) / (1 - EQ.silence))
+    const boosted = Math.min(1, level * (1 + EQ.realKick * kick * Math.pow(1 - b, 1.5)))
+    const goal = EQ.flatScale + (1 - EQ.flatScale) * boosted
+    const value = state.values[j] ?? EQ.flatScale
+    const rate = goal > value ? EQ.realAttack : EQ.realRelease
+    const next = value + (goal - value) * (1 - Math.exp(-rate * step))
+    state.values[j] = Math.max(EQ.flatScale, Math.min(1, next))
+    state.targets[j] = goal
+    state.nextAt[j] = 0
   }
   return state.values
 }

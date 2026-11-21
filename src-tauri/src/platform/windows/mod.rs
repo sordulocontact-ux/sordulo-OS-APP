@@ -20,6 +20,7 @@
 //! - `clipboard` : copie de texte dans le presse-papiers (chemin d'un fichier déposé sur « Claude Code »).
 //! - `media`    : musique en cours, pochette et commandes (contrôles multimédias du système, WinRT).
 //! - `open_url` : ouverture d'une URL par l'app associée (`ShellExecuteW`, connecteur Spotify).
+//! - `output_tap` : écoute (loopback) du son de l'ordinateur pour l'analyse de la musique de l'île.
 
 mod activity;
 mod capture;
@@ -32,6 +33,7 @@ mod media;
 mod mic;
 mod mixer;
 mod open_url;
+mod output_tap;
 mod pages;
 mod recorder;
 mod timeline;
@@ -45,5 +47,6 @@ pub use editor::{editor_storage_file, open_in_editor};
 pub use media::{media_command, now_playing, now_playing_artwork};
 pub use mic::RegistryMicMonitor;
 pub use open_url::open_url;
+pub use output_tap::LoopbackTap;
 pub use recorder::WasapiRecorder;
 pub use url_scheme::register_url_scheme;

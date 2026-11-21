@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { MusicCommand, MusicState } from '../../../../shared/desktop-contract'
+import type { MusicCommand, MusicLevels, MusicState } from '../../../../shared/desktop-contract'
 import type { MusicPalette } from '../../types'
 import { fakeEvent, flush, setupRuntime } from '../testUtils'
-import { createMusicSource, MUSIC_ACTIVITY_ID, MUSIC_PAUSE_LINGER_MS, type MusicSourceDeps } from './music'
+import {
+  createMusicSource,
+  MUSIC_ACTIVITY_ID,
+  MUSIC_LEVELS_STALE_MS,
+  MUSIC_PAUSE_LINGER_MS,
+  type MusicSourceDeps,
+} from './music'
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).buffer
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]).buffer
@@ -37,11 +43,13 @@ function deferred<T>() {
 
 function setup(initial: MusicState | null = null) {
   const music = fakeEvent<MusicState | null>()
+  const levels = fakeEvent<MusicLevels>()
   const artworks = new Map<string, ReturnType<typeof deferred<ArrayBuffer>>>()
   let urls = 0
   const deps = {
     getMusic: vi.fn(async () => initial),
     onMusic: music.subscribe,
+    onMusicLevels: levels.subscribe,
     getMusicArtwork: vi.fn(({ artworkId }: { artworkId: string }) => {
       const pending = deferred<ArrayBuffer>()
       artworks.set(artworkId, pending)
@@ -64,7 +72,9 @@ function setup(initial: MusicState | null = null) {
     artworks.get(id)?.reject(error)
     await flush()
   }
-  return { ...env, music, deps, view, shown, answer, fail }
+  /** Lecteur du vrai son posé au rendu. */
+  const reader = () => env.runtime.view.get().musicLevels
+  return { ...env, music, levels, deps, view, shown, answer, fail, reader }
 }
 
 afterEach(() => {
@@ -356,5 +366,74 @@ describe('source « musique »', () => {
     expect(t.view()).toMatchObject({ playing: true, positionMs: 30_000, positionAt: 1_000_000 })
     t.runtime.gestures.onMusicCommand('open')
     expect(t.deps.musicCommand).toHaveBeenCalledWith({ command: 'open' })
+  })
+
+  describe('vrai son (lecteur des niveaux)', () => {
+    const analysis = (at: number, fields: Partial<MusicLevels> = {}): MusicLevels => ({
+      bands: [0.9, 0.8, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1],
+      beatPeriodMs: 500,
+      lastBeatAt: at - 100,
+      at,
+      ...fields,
+    })
+
+    it('lecteur posé une fois au rendu ; analyse fraîche lue, périmée après ~400 ms', async () => {
+      const t = setup(track())
+      await flush()
+      const reader = t.reader()
+      expect(reader).toBeDefined()
+      expect(reader?.get(5_000)).toBeNull()
+      const frame = analysis(5_000)
+      t.levels.emit(frame)
+      expect(reader?.get(5_000)).toBe(frame)
+      expect(reader?.get(5_000 + MUSIC_LEVELS_STALE_MS)).toBe(frame)
+      expect(reader?.get(5_000 + MUSIC_LEVELS_STALE_MS + 1)).toBeNull()
+      // Une nouvelle analyse remplace l'ancienne, le lecteur reste le même objet.
+      const next = analysis(5_400)
+      t.levels.emit(next)
+      expect(reader?.get(5_500)).toBe(next)
+      expect(t.reader()).toBe(reader)
+    })
+
+    it('aucun patch du rendu par analyse (pas de rendu React à 30 Hz)', async () => {
+      const t = setup(track())
+      await flush()
+      const listener = vi.fn()
+      const off = t.runtime.view.subscribe(listener)
+      for (let i = 0; i < 30; i++) t.levels.emit(analysis(10_000 + i * 33))
+      expect(listener).not.toHaveBeenCalled()
+      expect(t.reader()?.get(11_000)).toMatchObject({ at: 10_000 + 29 * 33 })
+      off()
+    })
+
+    it('musique non montrée (rien ne joue, pause rangée) : null', async () => {
+      const t = setup(null)
+      await flush()
+      t.levels.emit(analysis(1_000))
+      expect(t.reader()?.get(1_000)).toBeNull()
+      t.music.emit(track())
+      t.levels.emit(analysis(2_000))
+      expect(t.reader()?.get(2_000)).not.toBeNull()
+      // Pause : encore montrée pendant le délai, puis rangée.
+      t.music.emit(track({ playing: false }))
+      expect(t.reader()?.get(2_000)).not.toBeNull()
+      t.clock.advance(MUSIC_PAUSE_LINGER_MS)
+      expect(t.reader()?.get(2_000)).toBeNull()
+      // Arrêt de la musique : l'ancienne analyse est oubliée.
+      t.music.emit(track())
+      t.music.emit(null)
+      t.music.emit(track())
+      expect(t.reader()?.get(2_000)).toBeNull()
+    })
+
+    it('arrêt de la source : désabonné, lecteur muet', async () => {
+      const t = setup(track())
+      await flush()
+      const reader = t.reader()
+      t.levels.emit(analysis(3_000))
+      t.runtime.dispose()
+      expect(t.levels.listeners).toBe(0)
+      expect(reader?.get(3_000)).toBeNull()
+    })
   })
 })

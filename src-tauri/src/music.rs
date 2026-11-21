@@ -21,6 +21,10 @@
 //! Apps d'appel (Teams, Zoom, Discord…) : jamais montrées (`call_apps`). Case « Afficher la musique dans
 //! l'île » du menu du soleil décochée : un `null` est émis une fois, plus aucun sondage, `get_music` rend `null`.
 //!
+//! Vrai son (`music_levels`) : à chaque tour, l'analyse du son de l'ordinateur est démarrée si le morceau
+//! montré est en lecture sur l'ordinateur (pas Spotify à distance, `Tracker::plays_on_computer`), arrêtée
+//! sinon ; arrêtée aussi quand la case est décochée.
+//!
 //! Tout ce qui est pur (nom du lecteur, exclusion, choix de la session, détection des changements, choix entre
 //! l'ordinateur et Spotify : `spotify/player.rs`) est testé
 //! plus bas ; seuls `spawn_music_loop`, `publish`, `clear` et les accès à l'état touchent Tauri.
@@ -34,6 +38,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::call_apps::{self, CallApp};
 use crate::events::{EVENT_MUSIC, WINDOW_PROMPT};
+use crate::music_levels;
 use crate::platform::{self, NowPlaying};
 use crate::spotify::{self, RemotePlayback};
 use crate::state::DesktopState;
@@ -276,6 +281,14 @@ impl Tracker {
         self.artwork.as_ref()
     }
 
+    /// Le morceau émis en dernier est en lecture sur l'ordinateur (lecteur du système, pas Spotify sur un
+    /// autre appareil) : c'est lui que `music_levels` analyse.
+    pub fn plays_on_computer(&self) -> bool {
+        self.emitted
+            .as_ref()
+            .is_some_and(|m| m.playing && m.app_id != spotify::APP_ID)
+    }
+
     fn apply_artwork(&mut self, p: &NowPlaying, fetched: Option<Option<Vec<u8>>>) {
         let key_changed = self.artwork_key != p.artwork_key;
         if key_changed {
@@ -393,6 +406,7 @@ pub fn artwork(app: &AppHandle, artwork_id: &str) -> Result<Arc<Vec<u8>>, String
 /// Musique masquée (case du menu du soleil décochée) : oublie l'état et émet `null` une fois. La boucle
 /// arrête de sonder tant que la case reste décochée (elle lit `Shared::music_enabled`).
 pub fn clear(app: &AppHandle) {
+    music_levels::set_active(app, false);
     let state = app.state::<DesktopState>();
     let mut hub = state.music();
     hub.state = None;
@@ -446,6 +460,7 @@ pub fn spawn_music_loop(app: AppHandle) {
                 let enabled = app.state::<DesktopState>().shared().music_enabled;
                 if !enabled {
                     // Masquée : plus aucun sondage ; on repartira de zéro (le `null` est émis par `clear`).
+                    music_levels::set_active(&app, false);
                     tracker = Tracker::default();
                     errors = 0;
                     thread::sleep(POLL);
@@ -492,6 +507,11 @@ pub fn spawn_music_loop(app: AppHandle) {
                 if let Some(music) = tracker.update_track(track, fetched) {
                     publish(&app, music, tracker.artwork().cloned());
                 }
+                // Vrai son : seulement pour la musique en lecture sur l'ordinateur, case toujours cochée
+                // (relue : elle a pu être décochée pendant ce tour).
+                let analyze = tracker.plays_on_computer()
+                    && app.state::<DesktopState>().shared().music_enabled;
+                music_levels::set_active(&app, analyze);
                 thread::sleep(POLL);
             }
         });
@@ -894,6 +914,30 @@ mod tests {
             .expect("état");
         assert_eq!(state.app_name, "Spotify");
         assert!(serde_json::to_value(&state).unwrap().get("canControl").is_none());
+    }
+
+    #[test]
+    fn analyse_seulement_pour_la_musique_de_l_ordinateur() {
+        let mut t = Tracker::default();
+        assert!(!t.plays_on_computer());
+        let a = track("Around the World");
+        t.update(Some(a.clone()), Some(Some(vec![1])));
+        assert!(t.plays_on_computer());
+        // Pause : arrêt.
+        let paused = NowPlaying {
+            playing: false,
+            ..a.clone()
+        };
+        t.update(Some(paused), None);
+        assert!(!t.plays_on_computer());
+        // Spotify sur un autre appareil, même en lecture : aucun son sur l'ordinateur.
+        t.update_track(Some(Track::remote(&remote("iPhone", true))), None);
+        assert!(!t.plays_on_computer());
+        // Retour au lecteur de l'ordinateur, puis plus rien.
+        t.update(Some(a), None);
+        assert!(t.plays_on_computer());
+        t.update(None, None);
+        assert!(!t.plays_on_computer());
     }
 
     /// Diagnostic manuel, avec de la musique qui joue :

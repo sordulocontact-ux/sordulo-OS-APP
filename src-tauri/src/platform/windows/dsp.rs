@@ -11,15 +11,23 @@ pub const TARGET_RATE: u32 = 16_000;
 
 /// Moyenne des canaux d'un signal entrelacé. Une trame incomplète en fin de tampon est ignorée.
 pub fn interleaved_to_mono(samples: &[f32], channels: usize) -> Vec<f32> {
+    let mut out = Vec::new();
+    append_mono(samples, channels, &mut out);
+    out
+}
+
+/// Comme [`interleaved_to_mono`], en ajoutant à la fin de `out` (sans allocation si sa capacité suffit).
+pub fn append_mono(samples: &[f32], channels: usize, out: &mut Vec<f32>) {
     match channels {
-        0 => Vec::new(),
-        1 => samples.to_vec(),
+        0 => {}
+        1 => out.extend_from_slice(samples),
         n => {
             let scale = 1.0 / n as f32;
-            samples
-                .chunks_exact(n)
-                .map(|frame| frame.iter().sum::<f32>() * scale)
-                .collect()
+            out.extend(
+                samples
+                    .chunks_exact(n)
+                    .map(|frame| frame.iter().sum::<f32>() * scale),
+            );
         }
     }
 }

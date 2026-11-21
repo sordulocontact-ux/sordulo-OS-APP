@@ -16,6 +16,7 @@ import {
   onFocusMode,
   onMicState,
   onMusic,
+  onMusicLevels,
   onPrompt,
   onRecordingState,
   onSpotify,
@@ -114,6 +115,7 @@ export const desktopDeps: CallSourceDeps & UploadSourceDeps & AnalysisSourceDeps
   // Musique
   getMusic,
   onMusic,
+  onMusicLevels,
   getMusicArtwork,
   musicCommand,
   paletteFromImageUrl,

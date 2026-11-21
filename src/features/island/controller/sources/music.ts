@@ -17,13 +17,19 @@
  * - Geste `onMusicCommand` (précédent, lecture / pause, suivant, lecteur au premier plan) : commande Rust.
  *   Lecture / pause change l'île tout de suite (position figée en pause) ; l'événement Rust suivant fait foi,
  *   et un échec de la commande rend l'état d'avant.
+ * - Vrai son (Windows, desktop://music-levels, environ 30 par seconde pendant la musique du PC) : la dernière
+ *   analyse est gardée dans un lecteur stable (`view.musicLevels`, posé UNE fois au démarrage) que la boucle
+ *   de l'île et le jardin lisent à chaque image. Aucun patch du rendu par analyse (pas de rendu React à
+ *   30 Hz). `get(now)` renvoie null si la musique n'est pas montrée ou si l'analyse a plus de
+ *   MUSIC_LEVELS_STALE_MS (macOS, Spotify sur un autre appareil, analyse arrêtée) : égaliseur et hochement
+ *   simulés.
  * - Mode concentration : il ne touche à aucune activité (il ne fait qu'attendre la fin de l'appel pour les
  *   notifications, voir la coordination), donc rien de particulier pour la musique.
  */
-import type { MusicCommand, MusicState } from '../../../../shared/desktop-contract'
+import type { MusicCommand, MusicLevels, MusicState } from '../../../../shared/desktop-contract'
 import type { TimerId } from '../../coordinator/clock'
 import { imageMimeType } from '../../music/artwork'
-import type { IslandMusic, MusicPalette } from '../../types'
+import type { IslandMusic, MusicLevelsReader, MusicPalette } from '../../types'
 import type { IslandSource } from '../source'
 import { listen } from './listen'
 
@@ -31,11 +37,15 @@ import { listen } from './listen'
 export const MUSIC_ACTIVITY_ID = 'music'
 /** En pause, l'île garde la musique ce temps avant de se ranger (décision de Maël). */
 export const MUSIC_PAUSE_LINGER_MS = 10_000
+/** Au-delà de cet âge (ms, d'après `at`), l'analyse du vrai son est périmée : retour à la simulation. */
+export const MUSIC_LEVELS_STALE_MS = 400
 
 /** Accès de la source (Tauri, URL blob:, canvas), remplacés par des faux en test. */
 export interface MusicSourceDeps {
   getMusic: () => Promise<MusicState | null>
   onMusic: (handler: (state: MusicState | null) => void) => Promise<() => void>
+  /** Vrai son (Windows) : bandes et temps, environ 30 par seconde pendant la musique du PC. */
+  onMusicLevels: (handler: (levels: MusicLevels) => void) => Promise<() => void>
   getMusicArtwork: (args: { artworkId: string }) => Promise<ArrayBuffer>
   musicCommand: (args: { command: MusicCommand }) => Promise<void>
   /** Couleurs d'une pochette (URL blob:) ; navigateur : ../../music/artwork.ts. */
@@ -58,6 +68,17 @@ export function createMusicSource(deps: MusicSourceDeps): IslandSource {
       let artworkUrl: string | null = null
       let palette: MusicPalette | null = null
       let artworkToken = 0
+      /** Dernière analyse du vrai son (null : aucune, ou effacée à l'arrêt de la musique). */
+      let levels: MusicLevels | null = null
+
+      // Lecteur stable donné une fois au rendu : lu à chaque image, hors React.
+      const levelsReader: MusicLevelsReader = {
+        get(nowMs) {
+          if (!shown || levels === null || ctx.isDisposed()) return null
+          return nowMs - levels.at > MUSIC_LEVELS_STALE_MS ? null : levels
+        },
+      }
+      ctx.view.patch({ musicLevels: levelsReader })
 
       function clearPauseTimer(): void {
         if (pauseTimer !== null) ctx.clock.clearTimeout(pauseTimer)
@@ -134,6 +155,7 @@ export function createMusicSource(deps: MusicSourceDeps): IslandSource {
         if (state === null) {
           hide()
           releaseArtwork()
+          levels = null
           return
         }
         if (state.playing) {
@@ -180,6 +202,10 @@ export function createMusicSource(deps: MusicSourceDeps): IslandSource {
         changed = true
         apply(state)
       })
+      // Pas de patch du rendu ici : la boucle lit `levelsReader` à chaque image.
+      const stopLevels = listen(ctx, deps.onMusicLevels, (next) => {
+        levels = next
+      })
       deps
         .getMusic()
         .then((state) => {
@@ -191,6 +217,8 @@ export function createMusicSource(deps: MusicSourceDeps): IslandSource {
       return {
         dispose() {
           stop()
+          stopLevels()
+          levels = null
           clearPauseTimer()
           releaseArtwork()
         },

@@ -125,17 +125,19 @@ enum Exit {
     MixerGone,
 }
 
-struct Stream {
+/// Flux WASAPI ouvert (micro, ou loopback de la sortie par défaut pour `Source::System`).
+/// Aussi utilisé par `output_tap` (analyse de la musique pour l'île), qui lit les paquets lui-même.
+pub(super) struct Stream {
     source: Source,
-    client: AudioClient,
+    pub(super) client: AudioClient,
     capture: AudioCaptureClient,
-    device_name: String,
-    rate: u32,
-    channels: usize,
+    pub(super) device_name: String,
+    pub(super) rate: u32,
+    pub(super) channels: usize,
 }
 
 impl Stream {
-    fn open(source: Source) -> Result<Self> {
+    pub(super) fn open(source: Source) -> Result<Self> {
         let enumerator = DeviceEnumerator::new()
             .map_err(|e| anyhow!("Service audio de Windows indisponible ({e})"))?;
         let device = match source {
@@ -236,7 +238,10 @@ impl Stream {
         result
     }
 
-    fn read_available(&self, bytes: &mut VecDeque<u8>) -> std::result::Result<(), WasapiError> {
+    pub(super) fn read_available(
+        &self,
+        bytes: &mut VecDeque<u8>,
+    ) -> std::result::Result<(), WasapiError> {
         while let Some(frames) = self.capture.get_next_packet_size()? {
             if frames == 0 {
                 break;
@@ -248,7 +253,7 @@ impl Stream {
 }
 
 /// Convertit des octets (f32 little-endian) en échantillons ; un reste de moins de 4 octets est ignoré.
-fn append_f32(out: &mut Vec<f32>, bytes: &[u8]) {
+pub(super) fn append_f32(out: &mut Vec<f32>, bytes: &[u8]) {
     out.extend((0..bytes.len() / 4).map(|i| {
         f32::from_le_bytes([
             bytes[4 * i],

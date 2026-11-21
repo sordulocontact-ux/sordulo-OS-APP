@@ -8,7 +8,8 @@
  * - React ne rend que le conteneur ; personnages et effets sont écrits par ./renderer.ts à chaque image de la
  *   boucle de l'île, seulement quand le jardin est visible (abonnement retiré sinon).
  * - Aussi dans la musique quand des sessions Claude tournent (forme `musicGarden`) : ils marchent sous la
- *   pochette et l'égaliseur et ceux qui travaillent hochent la tête sur le tempo (musique en lecture).
+ *   pochette et l'égaliseur et ceux qui travaillent hochent la tête sur le tempo (musique en lecture) : les
+ *   vrais temps quand l'analyse du son (Windows) les donne, sinon le tempo fixe ; silence analysé : immobiles.
  * - Chaque personnage a ses pattes qui marchent, une ombre de contact au sol et un plan de profondeur (au
  *   fond : plus petit, plus sombre, pieds plus haut, derrière les autres).
  * - Passage `agent` → `multi` (ou → musique avec jardin) : le personnage de la session affichée part de l'icône Claude.
@@ -19,7 +20,7 @@
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ISLAND_SIZES, SHARED_ELEMENTS } from '../geometry'
 import type { ClaudeSession, IslandState } from '../types'
-import { GardenEnvContext, type GardenEnv } from './context'
+import { GardenEnvContext, gardenBeat, type GardenEnv } from './context'
 import styles from './Garden.module.css'
 import { GardenRenderer, type GardenClassNames } from './renderer'
 import { GardenSim, type GardenIconStart, type GardenMood, type GardenSyncOptions } from './simulation'
@@ -155,7 +156,17 @@ export function Garden({ sessions, mood }: GardenProps) {
       const renderer = rendererRef.current
       if (!current || !renderer) return
       const m = moodOf(current, moodRef.current)
-      if (!current.reduced) sim.step(frame.dt, { width: frame.width, height: frame.height, platform: current.platform, mood: m })
+      // Hors animations réduites seulement (personne ne hoche la tête sinon).
+      const beat = current.reduced ? {} : gardenBeat(current, m.music, Date.now())
+      if (!current.reduced) {
+        sim.step(frame.dt, {
+          width: frame.width,
+          height: frame.height,
+          platform: current.platform,
+          mood: m,
+          musicSilent: beat.musicSilent,
+        })
+      }
       renderer.render(sim, {
         width: frame.width,
         height: frame.height,
@@ -163,6 +174,7 @@ export function Garden({ sessions, mood }: GardenProps) {
         mood: m,
         reduced: current.reduced,
         now: frame.now / 1000,
+        ...beat,
       })
     })
   }, [sim, stage, visible])
