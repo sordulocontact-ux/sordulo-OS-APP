@@ -1626,8 +1626,9 @@ export function walkerVisual(w: Walker, status: ClaudeSessionStatus, ctx: Visual
     (w.y === 0 || w.mode === 'ride')
   if (nodding) {
     const k = nodPulse(ctx.now)
-    nod = k * GARDEN.nod.angle * (w.dir || 1)
-    bodyLift = -k * GARDEN.nod.dip
+    // De bas en haut, sans inclinaison : en arrière entre les temps, devant sur le temps.
+    nod = 0
+    bodyLift = GARDEN.nod.back * (1 - k) - GARDEN.nod.dip * k
   }
 
   // Pattes repliées sous le corps pendant la sieste (même couleur que lui : elles disparaissent).

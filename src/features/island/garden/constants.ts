@@ -167,11 +167,11 @@ export const GARDEN = {
     settleRate: 10,
   },
   /**
-   * Hochement de tête en musique (sessions qui travaillent) : le haut du corps (corps, yeux) s'incline de
-   * `angle` degrés vers l'avant autour des hanches et descend de `dip` px, un coup sec sur chaque temps
-   * (montée pendant `attack` du temps) puis retour doux.
+   * Hochement de tête en musique (sessions qui travaillent), de bas en haut sans inclinaison : entre deux
+   * temps la tête (haut du corps et yeux) est un peu en arrière, `back` px plus haut ; sur chaque temps elle
+   * revient franchement devant, `dip` px plus bas (coup sec pendant `attack` du temps), puis remonte doucement.
    */
-  nod: { angle: 7, dip: 0.6, attack: 0.14 },
+  nod: { back: 0.7, dip: 1.6, attack: 0.14 },
   /** Tempo de la musique (battements par minute) : hochement de tête des Claude et battement de l'égaliseur. */
   musicTempoBpm: 116,
   /**

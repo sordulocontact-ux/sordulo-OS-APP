@@ -327,24 +327,22 @@ describe('musique', () => {
     const beat = 60 / GARDEN.musicTempoBpm
     const at = (now: number, status: GardenSession['status'] = 'working', mood = music) =>
       walkerVisual(w, status, { ...visualCtx, mood, now })
-    // Coup marqué au début de chaque temps (incliné vers l'avant, le haut du corps descend), puis retour doux.
+    // De bas en haut, sans inclinaison : la tête revient devant (plus bas) sur le temps, en arrière (plus haut) entre.
     const hit = at(beat * GARDEN.nod.attack)
-    expect(hit.nod).toBeCloseTo(GARDEN.nod.angle, 5)
+    expect(hit.nod).toBe(0)
     expect(hit.bodyLift).toBeCloseTo(-GARDEN.nod.dip, 5)
-    expect(at(beat * 0.5).nod).toBeGreaterThan(0)
-    expect(at(beat * 0.5).nod).toBeLessThan(hit.nod)
-    expect(at(beat * 0.99).nod).toBeLessThan(0.1)
+    expect(at(beat * 0.99).bodyLift).toBeGreaterThan(GARDEN.nod.back * 0.9)
+    expect(at(beat * 0.5).bodyLift).toBeGreaterThan(hit.bodyLift)
     // Même coup au temps suivant : sur le tempo
-    expect(at(beat * (3 + GARDEN.nod.attack)).nod).toBeCloseTo(hit.nod, 5)
+    expect(at(beat * (3 + GARDEN.nod.attack)).bodyLift).toBeCloseTo(hit.bodyLift, 5)
     // Le hochement ne déplace pas le personnage (pas de saut) : seuls le haut du corps et la tête bougent.
     expect(hit.top).toBe(at(beat * 0.99).top)
-    // Tourné vers la gauche : il s'incline vers la gauche.
+    // Tourné vers la gauche : même hochement, jamais incliné.
     w.dir = -1
-    expect(at(beat * GARDEN.nod.attack).nod).toBeCloseTo(-GARDEN.nod.angle, 5)
+    expect(at(beat * GARDEN.nod.attack).nod).toBe(0)
     // Fini, en attente : immobiles. Sans musique (ou musique en pause) : pas de hochement.
-    expect(at(beat * GARDEN.nod.attack, 'done').nod).toBe(0)
-    expect(at(beat * GARDEN.nod.attack, 'waiting').nod).toBe(0)
-    expect(at(beat * GARDEN.nod.attack, 'working', CALM_MOOD).nod).toBe(0)
+    expect(at(beat * GARDEN.nod.attack, 'done').bodyLift).toBe(0)
+    expect(at(beat * GARDEN.nod.attack, 'waiting').bodyLift).toBe(0)
     expect(at(beat * GARDEN.nod.attack, 'working', CALM_MOOD).bodyLift).toBe(0)
   })
 
@@ -407,7 +405,7 @@ describe('musique', () => {
     w.gait = Math.PI / 2
     const beat = 60 / GARDEN.musicTempoBpm
     const v = walkerVisual(w, 'working', { ...visualCtx, mood: { call: false, music: true }, now: beat * GARDEN.nod.attack })
-    expect(v.nod).toBeGreaterThan(0)
+    expect(v.bodyLift).toBeCloseTo(-GARDEN.nod.dip, 5)
     expect(v.legs[0].lift).toBeGreaterThan(0)
   })
 })
