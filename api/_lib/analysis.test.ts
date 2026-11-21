@@ -5,11 +5,19 @@ import { AnalysisSchema } from '../../src/shared/analysis-schema.js'
 import { analyzeInput, ANALYSIS_SYSTEM_PROMPT, buildUserMessage, type AnalysisContext } from './analysis.js'
 import * as mistral from './mistral.js'
 
+const MAEL = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const SACHA = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+
 function context(overrides: Partial<AnalysisContext['input']> = {}): AnalysisContext {
   return {
     clientName: 'Ibé',
     projectName: 'App Ibé',
     toneOfVoice: 'Chaleureux, tutoiement',
+    aiInstructions: null,
+    team: [
+      { id: MAEL, name: 'Maël' },
+      { id: SACHA, name: 'Sacha' },
+    ],
     openTickets: [{ id: 'ticket-1', title: 'Refaire\nl’accueil', type: 'modification', status: 'validated' }],
     input: { kind: 'written', title: null, rawText: 'Le bouton est trop petit.', transcript: null, speakerNames: {}, ...overrides },
   }
@@ -55,6 +63,22 @@ describe('buildUserMessage', () => {
   it('indique l’absence de tickets ouverts', () => {
     expect(buildUserMessage({ ...context(), openTickets: [] })).toContain('(aucun)')
   })
+
+  it('ajoute les consignes de l’équipe dans le bloc projet', () => {
+    const message = buildUserMessage({ ...context(), aiInstructions: '  - Maël s’occupe des pages Finance\n- Sacha de l’onboarding  ' })
+    expect(message).toContain("Consignes de l'équipe :\n- Maël s’occupe des pages Finance\n- Sacha de l’onboarding\n</projet>")
+  })
+
+  it('indique « aucune » quand le projet n’a pas de consignes', () => {
+    expect(buildUserMessage(context())).toContain("Consignes de l'équipe : aucune")
+    expect(buildUserMessage({ ...context(), aiInstructions: ' \n ' })).toContain("Consignes de l'équipe : aucune")
+  })
+
+  it('liste l’équipe attribuable avec les ids', () => {
+    const message = buildUserMessage(context())
+    expect(message).toContain(`<equipe>\n- id: ${MAEL} | nom: Maël\n- id: ${SACHA} | nom: Sacha\n</equipe>`)
+    expect(buildUserMessage({ ...context(), team: [] })).toContain('<equipe>\n(personne)\n</equipe>')
+  })
 })
 
 describe('ANALYSIS_SYSTEM_PROMPT', () => {
@@ -70,6 +94,13 @@ describe('ANALYSIS_SYSTEM_PROMPT', () => {
       expect(ANALYSIS_SYSTEM_PROMPT).toContain(section)
     }
     expect(ANALYSIS_SYSTEM_PROMPT).not.toContain('une à cinq phrases')
+  })
+
+  it('dit de suivre les consignes et de désigner seulement une personne de l’équipe', () => {
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("Consignes de l'équipe")
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain('assignee_member_id')
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("N'utilise jamais un id absent de <equipe>")
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain('lever la règle 16')
   })
 
   it('reste stable (aucune date ni identifiant) pour le cache', () => {
@@ -98,6 +129,8 @@ describe('analyzeInput : repli Mistral', () => {
         source_quote: 'Le bouton est trop petit.',
         area: 'Paiement',
         related_ticket_id: null,
+        assignee_member_id: MAEL,
+        assignment_reason: 'Maël s’occupe du paiement',
         tasks: [{ title: 'Agrandir le bouton', description: 'Passer à 48 px.', skill: 'dev', depends_on_index: null, estimate_hours: 1 }],
       },
     ],
@@ -136,7 +169,10 @@ describe('analyzeInput : repli Mistral', () => {
     streamOk()
     const tickets = await analyzeInput(context())
     expect(tickets).toHaveLength(1)
+    expect(tickets[0]).toMatchObject({ assignee_member_id: MAEL, assignment_reason: 'Maël s’occupe du paiement' })
     expect(fallback).not.toHaveBeenCalled()
+    // Hors de l'équipe : la personne désignée est ignorée.
+    await expect(analyzeInput({ ...context(), team: [] })).resolves.toMatchObject([{ assignee_member_id: null, assignment_reason: null }])
   })
 
   it('envoie le ton de voix du projet à Claude, et au repli Mistral', async () => {
@@ -161,6 +197,7 @@ describe('analyzeInput : repli Mistral', () => {
     expect(request.system).toBe(ANALYSIS_SYSTEM_PROMPT)
     expect(request.content).toBe(buildUserMessage(context()))
     expect(request.openTicketIds).toEqual(['ticket-1'])
+    expect(request.teamMemberIds).toEqual([MAEL, SACHA])
   })
 
   it('Claude KO sans clé Mistral : erreur Claude inchangée', async () => {

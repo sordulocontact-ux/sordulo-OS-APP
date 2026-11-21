@@ -144,6 +144,8 @@ export function setupDatabase(extraSql = '') {
     await db.exec(migration('0004_finance_prospection.sql')) // rejouable
     await db.exec(migration('0005_billing_issuers.sql'))
     await db.exec(migration('0005_billing_issuers.sql')) // rejouable
+    await db.exec(migration('0007_project_ai_instructions.sql'))
+    await db.exec(migration('0007_project_ai_instructions.sql')) // rejouable
     if (extraSql) await db.exec(extraSql)
   })
 

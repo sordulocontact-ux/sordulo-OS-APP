@@ -37,13 +37,23 @@ function ticket(title: string): ProcessedTicket {
     source_quote: null,
     area: null,
     related_ticket_id: null,
+    assignee_member_id: null,
+    assignment_reason: null,
     tasks: [{ title, skill: 'dev', estimate_hours: 1, depends_on_index: null }],
   }
 }
 
-function seed(toneOfVoice: string | null): void {
+function seed(toneOfVoice: string | null, aiInstructions: string | null = null): void {
   db.seed('projects', [
-    { id: PROJECT, organization_id: ORG, client_id: null, name: 'App Ibé', status: 'in_progress', tone_of_voice: toneOfVoice },
+    {
+      id: PROJECT,
+      organization_id: ORG,
+      client_id: null,
+      name: 'App Ibé',
+      status: 'in_progress',
+      tone_of_voice: toneOfVoice,
+      ai_instructions: aiInstructions,
+    },
   ])
   db.seed('inputs', [
     {
@@ -134,5 +144,44 @@ describe('processInput : attribution', () => {
     expect(db.rows('inputs')[0]?.status).toBe('ready')
     expect(assignees()).toEqual([null, null, null])
     expect(db.rows('tickets').map((t) => t.assignment_note)).toEqual([null, null, null])
+  })
+})
+
+describe('processInput : mémoire du projet', () => {
+  it('transmet les consignes du projet et l’équipe attribuable à l’analyse', async () => {
+    seed(null, '- Maël s’occupe des pages Finance')
+    await processInput(INPUT)
+    expect(state.contexts[0]?.aiInstructions).toBe('- Maël s’occupe des pages Finance')
+    expect(state.contexts[0]?.team).toEqual([
+      { id: MAEL, name: 'Maël' },
+      { id: SACHA, name: 'Sacha' },
+    ])
+  })
+
+  it('donne le ticket à la personne désignée par la consigne, avec la raison', async () => {
+    seed(null, '- Sacha s’occupe des visuels')
+    state.tickets = [
+      { ...ticket('Refaire le logo'), assignee_member_id: SACHA, assignment_reason: 'Sacha s’occupe des visuels' },
+      { ...ticket('Changer la bannière'), assignee_member_id: SACHA, assignment_reason: null },
+      ticket('Corriger le menu'),
+    ]
+    await processInput(INPUT)
+    const rows = db.rows('tickets')
+    const byTitle = (title: string) => rows.find((t) => t.title === title)
+    expect(byTitle('Refaire le logo')?.assignment_note).toBe('Consigne du projet : Sacha s’occupe des visuels')
+    expect(byTitle('Changer la bannière')?.assignment_note).toBe('Consigne du projet : attribution demandée')
+    // La charge de Sacha a augmenté : le ticket suivant, sans consigne, va à Maël.
+    const taskOf = (title: string) => db.rows('tasks').find((t) => t.ticket_id === byTitle(title)?.id)
+    expect(taskOf('Refaire le logo')?.assignee_member_id).toBe(SACHA)
+    expect(taskOf('Changer la bannière')?.assignee_member_id).toBe(SACHA)
+    expect(taskOf('Corriger le menu')?.assignee_member_id).toBe(MAEL)
+  })
+
+  it('ignore une consigne qui désigne une personne hors des candidats', async () => {
+    seed(null)
+    state.tickets = [{ ...ticket('Refaire le logo'), assignee_member_id: PAUL, assignment_reason: 'Paul fait les logos' }]
+    await processInput(INPUT)
+    expect(db.rows('tasks')[0]?.assignee_member_id).not.toBe(PAUL)
+    expect(String(db.rows('tickets')[0]?.assignment_note)).not.toContain('Consigne')
   })
 })

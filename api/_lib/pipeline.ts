@@ -65,12 +65,15 @@ async function markError(inputId: string, message: string): Promise<void> {
   }
 }
 
-interface LoadedContext {
-  input: Input
+export interface ProjectContext {
   project: Project
   client: Client | null
   /** Personnes qui peuvent recevoir un ticket (voir assignmentCandidates). */
   candidates: Member[]
+}
+
+interface LoadedContext extends ProjectContext {
+  input: Input
 }
 
 async function loadContext(admin: SupabaseClient, inputId: string): Promise<LoadedContext> {
@@ -78,7 +81,11 @@ async function loadContext(admin: SupabaseClient, inputId: string): Promise<Load
   if (inputRes.error) throw new Error(`lecture de l'entrée : ${inputRes.error.message}`)
   if (!inputRes.data) throw new Error('entrée introuvable.')
   const input = inputRes.data as Input
+  return { input, ...(await loadProjectContext(admin, input)) }
+}
 
+/** Projet de l'entrée, son client et les candidats à l'attribution. Partagé avec la révision par note. */
+export async function loadProjectContext(admin: SupabaseClient, input: Pick<Input, 'project_id'>): Promise<ProjectContext> {
   const projectRes = await admin.from('projects').select('*').eq('id', input.project_id).maybeSingle()
   if (projectRes.error) throw new Error(`lecture du projet : ${projectRes.error.message}`)
   if (!projectRes.data) throw new Error('projet introuvable.')
@@ -97,7 +104,6 @@ async function loadContext(admin: SupabaseClient, inputId: string): Promise<Load
   const members = (membersRes.data as Member[] | null) ?? []
   const projectMemberIds = ((projectMembersRes.data as { member_id: string }[] | null) ?? []).map((row) => row.member_id)
   return {
-    input,
     project,
     client: (clientRes.data as Client | null) ?? null,
     candidates: assignmentCandidates(members, projectMemberIds),
@@ -121,7 +127,7 @@ async function loadOpenTickets(admin: SupabaseClient, projectId: string): Promis
  * l'organisation) et habitudes (tickets validés ou faits du projet, par partie). Sert à attribuer
  * chaque nouveau ticket. Renvoie aussi les parties déjà connues du projet, pour l'analyse.
  */
-async function loadWorkload(
+export async function loadWorkload(
   admin: SupabaseClient,
   project: Project,
 ): Promise<{ workload: TeamWorkload; knownAreas: string[] }> {
@@ -187,7 +193,7 @@ async function dropAlreadyValidated(
   return kept
 }
 
-async function nextTaskPosition(admin: SupabaseClient, projectId: string): Promise<number> {
+export async function nextTaskPosition(admin: SupabaseClient, projectId: string): Promise<number> {
   const { data, error } = await admin
     .from('tasks')
     .select('position')
@@ -210,12 +216,18 @@ async function saveTickets(
   if (tickets.length === 0) return { tickets: 0, tasks: 0 }
   const { input, project, candidates } = ctx
 
-  // Un ticket = une personne : la moins chargée, avec un bonus d'habitude sur la même partie.
+  // Un ticket = une personne. Si les consignes du projet la désignent (assignee_member_id de l'IA, parmi
+  // les candidats), c'est elle. Sinon la moins chargée, avec un bonus d'habitude sur la même partie.
   // La charge augmente au fil des tickets de cette analyse, pour les répartir.
   // Aucun candidat (équipe vide, tous retirés ou en prospection) : tickets et tâches sans personne.
+  const candidateById = new Map(candidates.map((m) => [m.id, m]))
   const assignments = tickets.map((t) => {
-    const picked = pickTicketAssignee(candidates, { area: t.area, hours: ticketHours(t.tasks) }, workload, { today: new Date() })
-    if (picked) addToWorkload(workload, picked.member.id, ticketHours(t.tasks), t.area)
+    const hours = ticketHours(t.tasks)
+    const designated = t.assignee_member_id ? candidateById.get(t.assignee_member_id) : undefined
+    const picked = designated
+      ? { member: designated, note: `Consigne du projet : ${t.assignment_reason ?? 'attribution demandée'}` }
+      : pickTicketAssignee(candidates, { area: t.area, hours }, workload, { today: new Date() })
+    if (picked) addToWorkload(workload, picked.member.id, hours, t.area)
     return picked
   })
 
@@ -314,7 +326,7 @@ export async function processInput(inputId: string): Promise<void> {
     console.log(`[process] input=${inputId} début`)
     const admin = getSupabaseAdmin()
     const ctx = await loadContext(admin, inputId)
-    const { input, project, client } = ctx
+    const { input, project, client, candidates } = ctx
 
     let transcript: Transcript | null = input.transcript
     if (input.kind === 'meeting') {
@@ -334,6 +346,8 @@ export async function processInput(inputId: string): Promise<void> {
       clientName: client?.name ?? null,
       projectName: project.name,
       toneOfVoice: project.tone_of_voice,
+      aiInstructions: project.ai_instructions ?? null,
+      team: candidates.map((m) => ({ id: m.id, name: m.name })),
       openTickets,
       knownAreas,
       input: {

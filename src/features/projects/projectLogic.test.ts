@@ -7,7 +7,7 @@ import {
 function p(over: Partial<ProjectWithClient>): ProjectWithClient {
   return {
     id: 'p', organization_id: 'o', client_id: null, name: 'Projet', status: 'in_progress', start_date: null,
-    due_date: null, tone_of_voice: null, created_at: '', updated_at: '', client: null, ...over,
+    due_date: null, tone_of_voice: null, ai_instructions: null, created_at: '', updated_at: '', client: null, ...over,
   }
 }
 const client = { id: 'c1', name: 'Ibé' } as ProjectWithClient['client']

@@ -13,6 +13,9 @@ import type {
   MemberLinkResponse,
   ProcessInputRequest,
   ProcessInputResponse,
+  ReviseTicketsRequest,
+  ReviseTicketsResponse,
+  TranscribeVoiceResponse,
 } from '../shared/api-contract'
 
 export class ApiRequestError extends Error {
@@ -23,7 +26,8 @@ export class ApiRequestError extends Error {
   }
 }
 
-async function post<TReq, TRes>(path: string, body: TReq): Promise<TRes> {
+/** Sends an authenticated POST and returns the JSON response; errors carry the server's French message. */
+async function send<TRes>(path: string, contentType: string, body: BodyInit): Promise<TRes> {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
   if (!token) throw new ApiRequestError('Session expirée, reconnecte-toi.', 401)
@@ -31,8 +35,8 @@ async function post<TReq, TRes>(path: string, body: TReq): Promise<TRes> {
   try {
     response = await fetch(path, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-      body: JSON.stringify(body),
+      headers: { 'content-type': contentType, authorization: `Bearer ${token}` },
+      body,
     })
   } catch {
     throw new ApiRequestError('Serveur injoignable. Vérifie ta connexion.', 0)
@@ -48,6 +52,10 @@ async function post<TReq, TRes>(path: string, body: TReq): Promise<TRes> {
   return payload as TRes
 }
 
+function post<TReq, TRes>(path: string, body: TReq): Promise<TRes> {
+  return send<TRes>(path, 'application/json', JSON.stringify(body))
+}
+
 export const api = {
   createInput: (body: CreateInputRequest) => post<CreateInputRequest, CreateInputResponse>('/api/inputs/create', body),
   processInput: (body: ProcessInputRequest) =>
@@ -59,4 +67,14 @@ export const api = {
     post<InviteMemberRequest, InviteMemberResponse>('/api/members/invite', body),
   /** Admins : nouveau lien de connexion pour un membre actif jamais connecté (409 sinon). */
   memberLink: (body: MemberLinkRequest) => post<MemberLinkRequest, MemberLinkResponse>('/api/members/link', body),
+  /** « Note à l'IA » : réécrit les tickets proposés de l'entrée et met à jour la mémoire du projet. */
+  reviseTickets: (body: ReviseTicketsRequest) =>
+    post<ReviseTicketsRequest, ReviseTicketsResponse>('/api/review/revise', body),
+  /** Transcrit une note vocale (audio brut, pas de stockage). */
+  transcribeVoice: (projectId: string, audio: Blob) =>
+    send<TranscribeVoiceResponse>(
+      `/api/voice/transcribe?projectId=${encodeURIComponent(projectId)}`,
+      audio.type || 'audio/webm',
+      audio,
+    ),
 }

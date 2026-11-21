@@ -3,6 +3,7 @@
  * "drafts vs. what is stored" turned into Supabase operations. No React, no Supabase.
  */
 import { pickAssignee, type AssignableMember } from '../../shared/assignment'
+import type { ReviseTicketState, ReviseTicketsResponse } from '../../shared/api-contract'
 import type { Skill, Task, Ticket, TicketPriority, TicketStatus, TicketType } from '../../shared/types'
 
 export interface TaskDraft {
@@ -229,4 +230,33 @@ export function hasChanges(ticket: Ticket, originalTasks: readonly Task[], draft
 /** Position of the next inserted task: max of the loaded positions + 1. */
 export function nextPosition(tasks: readonly Pick<Task, 'position'>[]): number {
   return tasks.reduce((max, task) => Math.max(max, task.position), -1) + 1
+}
+
+/** Total of the valid task estimates, in hours; null if none of the tasks has one. */
+export function draftHours(draft: Pick<TicketDraft, 'tasks'>): number | null {
+  const values = draft.tasks
+    .map((task) => parseEstimate(task.estimate))
+    .filter((value): value is number => typeof value === 'number')
+  return values.length === 0 ? null : values.reduce((sum, value) => sum + value, 0)
+}
+
+/** State of a ticket as shown on screen (unsaved edits included), sent with a note to the AI. */
+export function toReviseState(ticket: Pick<Ticket, 'id' | 'area'>, draft: TicketDraft): ReviseTicketState {
+  return {
+    id: ticket.id,
+    title: draft.title,
+    description: draft.description,
+    type: draft.type,
+    priority: draft.priority,
+    area: ticket.area,
+    assigneeMemberId: ticketAssigneeOf(draft),
+    estimateHours: draftHours(draft),
+  }
+}
+
+/** Toast after a note to the AI. */
+export function reviseSummary(result: Pick<ReviseTicketsResponse, 'updated' | 'created' | 'deleted' | 'memoryChanged'>): string {
+  const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`
+  const counts = `${plural(result.updated, 'modifié')}, ${plural(result.created, 'créé')}, ${plural(result.deleted, 'supprimé')}`
+  return `Tickets mis à jour (${counts}).${result.memoryChanged ? ' Mémoire du projet mise à jour.' : ''}`
 }

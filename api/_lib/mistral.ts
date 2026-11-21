@@ -19,6 +19,8 @@ export interface MistralAnalysisRequest {
   system: string
   content: string
   openTicketIds: readonly string[]
+  /** Ids du bloc <equipe> : seules personnes que l'IA peut désigner. */
+  teamMemberIds: readonly string[]
 }
 
 /** True when the Mistral fallback is configured. */
@@ -106,7 +108,7 @@ export async function analyzeWithMistral(request: MistralAnalysisRequest): Promi
       console.error(`[analysis] mistral tentative ${attempt} : ${error instanceof Error ? error.message.slice(0, 500) : 'JSON invalide'}`)
       continue
     }
-    return postProcessAnalysis(analysis, request.openTicketIds)
+    return postProcessAnalysis(analysis, request.openTicketIds, request.teamMemberIds)
   }
   throw new Error(`Mistral a renvoyé une réponse invalide deux fois de suite (${lastProblem}).`)
 }

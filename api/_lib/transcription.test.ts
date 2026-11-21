@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { deepgramErrorDetail, deepgramListenUrl, deepgramToTranscript } from './transcription.js'
+import {
+  deepgramErrorDetail,
+  deepgramListenUrl,
+  deepgramToText,
+  deepgramToTranscript,
+  deepgramVoiceListenUrl,
+  NoSpeechError,
+} from './transcription.js'
 
 describe('deepgramToTranscript', () => {
   it('convertit les utterances en Transcript, triées par début', () => {
@@ -50,5 +57,29 @@ describe('deepgram', () => {
   it('retire les URL des messages d’erreur', () => {
     const detail = deepgramErrorDetail(JSON.stringify({ err_msg: 'Could not fetch https://x.supabase.co/a?token=secret' }))
     expect(detail).toBe('Could not fetch [url]')
+  })
+})
+
+describe('note vocale', () => {
+  it('appelle nova-3 en français sans diarisation', () => {
+    const params = new URL(deepgramVoiceListenUrl()).searchParams
+    expect(params.get('model')).toBe('nova-3')
+    expect(params.get('language')).toBe('fr')
+    expect(params.get('punctuate')).toBe('true')
+    expect(params.get('smart_format')).toBe('true')
+    expect(params.get('diarize')).toBeNull()
+  })
+
+  it('renvoie le texte du premier canal, sans espaces autour', () => {
+    expect(deepgramToText({ results: { channels: [{ alternatives: [{ transcript: ' Bonjour. ' }] }] } })).toBe('Bonjour.')
+  })
+
+  it('lève NoSpeechError si le texte est vide', () => {
+    expect(() => deepgramToText({ results: { channels: [{ alternatives: [{ transcript: '  ' }] }] } })).toThrow(NoSpeechError)
+    expect(() => deepgramToText({})).toThrow(NoSpeechError)
+  })
+
+  it('lève une erreur lisible si la réponse est illisible', () => {
+    expect(() => deepgramToText('pas un objet')).toThrow(/illisible/)
   })
 })

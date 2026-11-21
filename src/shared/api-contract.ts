@@ -3,7 +3,7 @@
  * Every request carries `Authorization: Bearer <supabase access token>`.
  * Errors: non-2xx with body { error: string } (French, shown to the user).
  */
-import type { Input, Member, MemberRole } from './types.js'
+import type { Input, Member, MemberRole, TicketPriority, TicketType } from './types.js'
 
 /** POST /api/inputs/create — written feedback: creates the input and starts the analysis. */
 export interface CreateWrittenInputRequest {
@@ -122,3 +122,62 @@ export interface MemberLinkRequest {
 export interface MemberLinkResponse {
   link: string
 }
+
+/**
+ * POST /api/review/revise — « Note à l'IA » de l'écran de validation (rôles admin et membre).
+ * L'IA applique la note aux tickets encore proposés de l'entrée : contenu, regroupement (fusion,
+ * découpage, suppression) et attribution. Elle part de l'état envoyé par l'écran (modifications non
+ * enregistrées comprises), pas seulement de la base. Elle met aussi à jour la mémoire du projet
+ * (`projects.ai_instructions`) avec les préférences durables de la note (qui fait quelles pages…).
+ * Synchrone : répond quand les tickets sont réécrits. 409 si l'entrée est en cours de traitement.
+ */
+export interface ReviseTicketState {
+  /** Id d'un ticket proposé de l'entrée. */
+  id: string
+  title: string
+  description: string
+  type: TicketType
+  priority: TicketPriority
+  area: string | null
+  /** Personne qui a le ticket à l'écran (null = personne). */
+  assigneeMemberId: string | null
+  /** Durée totale du ticket à l'écran, en heures (null = inconnue). */
+  estimateHours: number | null
+}
+
+export interface ReviseTicketsRequest {
+  inputId: string
+  /** Note de l'équipe, tapée ou dictée. */
+  note: string
+  /** État affiché de chaque ticket proposé de l'entrée. Un ticket absent est lu en base. */
+  tickets: ReviseTicketState[]
+}
+
+export interface ReviseTicketsResponse {
+  inputId: string
+  /** Tickets proposés après la note. */
+  updated: number
+  created: number
+  deleted: number
+  /** Mémoire du projet après la note (null = vide). */
+  aiInstructions: string | null
+  /** True si la note a changé la mémoire du projet. */
+  memoryChanged: boolean
+}
+
+/** Longueur maximale d'une note à l'IA. */
+export const AI_NOTE_MAX_LENGTH = 4000
+
+/**
+ * POST /api/voice/transcribe?projectId=<uuid> — transcrit une courte note vocale en texte (Deepgram, français).
+ * Corps = l'audio brut (Content-Type audio/webm, audio/ogg, audio/mp4…), pas de JSON. Réservé aux membres
+ * actifs de l'organisation du projet. 413 au-delà de VOICE_NOTE_MAX_BYTES, 422 si aucune parole.
+ */
+export interface TranscribeVoiceResponse {
+  text: string
+}
+
+/** Sous la limite de corps des fonctions Vercel (4,5 Mo). */
+export const VOICE_NOTE_MAX_BYTES = 4 * 1024 * 1024
+/** Durée maximale d'un enregistrement de note vocale. */
+export const VOICE_NOTE_MAX_SECONDS = 10 * 60

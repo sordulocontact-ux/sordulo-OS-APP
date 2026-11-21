@@ -1,25 +1,30 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { BackLink, Badge, Button, EmptyState, ErrorState, LoadingState, Spinner, useToast } from '../../components/ui'
+import { BackLink, Badge, Button, EmptyState, ErrorState, Icon, LoadingState, Spinner, useToast } from '../../components/ui'
+import micIcon from '../../assets/icons/mic.svg'
 import { useOrgMembers } from '../auth/useOrgMembers'
 import { useProject } from '../projects/useProject'
 import { useProjectTickets } from '../tickets/useProjectTickets'
 import { inputLabel, STATUS_TONE } from '../tickets/format'
 import { countLabel } from '../inputs/inputUtils'
 import { ticketHours } from '../../shared/assignment'
+import { api } from '../../lib/api'
 import { queryKeys } from '../../lib/queryKeys'
-import { LABELS, type Input, type Member, type Task, type Ticket, type TicketStatus } from '../../shared/types'
+import { LABELS, type Input, type Member, type Project, type Task, type Ticket, type TicketStatus } from '../../shared/types'
 import {
   hasChanges,
   makeTicketDraft,
   nextPosition,
   parseEstimate,
   planSave,
+  reviseSummary,
+  toReviseState,
   validateDraft,
   type SavePlan,
   type TicketDraft,
 } from './diff'
+import { AiNoteModal } from './AiNoteModal'
 import { executePlan } from './save'
 import { TicketCard } from './TicketCard'
 import { PROCESSING_STATUSES, useInputTasks, useInputTickets, useReviewInput } from './useReviewData'
@@ -103,7 +108,7 @@ export function ReviewPage() {
 
   return (
     <ReviewBoard
-      projectId={project.data.id}
+      project={project.data}
       input={current}
       tickets={tickets.data ?? []}
       tasks={tasks.data ?? []}
@@ -114,7 +119,7 @@ export function ReviewPage() {
 }
 
 interface ReviewBoardProps {
-  projectId: string
+  project: Pick<Project, 'id' | 'ai_instructions'>
   input: Input
   tickets: Ticket[]
   tasks: Task[]
@@ -122,12 +127,14 @@ interface ReviewBoardProps {
   projectTickets: Ticket[]
 }
 
-function ReviewBoard({ projectId, input, tickets, tasks, members, projectTickets }: ReviewBoardProps) {
+function ReviewBoard({ project, input, tickets, tasks, members, projectTickets }: ReviewBoardProps) {
+  const projectId = project.id
   const queryClient = useQueryClient()
   const toast = useToast()
   const [drafts, setDrafts] = useState<Record<string, TicketDraft>>({})
   const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(new Set())
   const [bulk, setBulk] = useState(false)
+  const [noteOpen, setNoteOpen] = useState(false)
 
   const proposed = tickets.filter((ticket) => ticket.status === 'proposed')
   const processed = tickets.filter((ticket) => ticket.status !== 'proposed')
@@ -244,6 +251,22 @@ function ReviewBoard({ projectId, input, tickets, tasks, members, projectTickets
     else toast.error(`${done} validé${done > 1 ? 's' : ''}, ${failed.length} en échec : ${failed.join(' ; ')}`)
   }
 
+  /** Note à l'IA : part de l'état affiché (brouillons compris). Une erreur remonte à la fenêtre, qui garde la note. */
+  async function applyNote(note: string) {
+    const result = await api.reviseTickets({
+      inputId: input.id,
+      note,
+      tickets: proposed.map((ticket) => toReviseState(ticket, draftOf(ticket))),
+    })
+    // Les brouillons sont intégrés aux tickets réécrits : on repart de la base.
+    setDrafts({})
+    await Promise.all([refresh(), queryClient.invalidateQueries({ queryKey: queryKeys.project(projectId) })])
+    setNoteOpen(false)
+    toast.success(reviseSummary(result))
+  }
+
+  const memory = project.ai_instructions?.trim() ?? ''
+
   return (
     <section className={styles.page} aria-labelledby="review-title">
       <BackLink to={`/projects/${projectId}/inputs/${input.id}`} label="Retour à l'entrée" />
@@ -256,11 +279,35 @@ function ReviewBoard({ projectId, input, tickets, tasks, members, projectTickets
           </p>
         </div>
         {proposed.length > 0 ? (
-          <Button variant="primary" loading={bulk} disabled={busyIds.size > 0} onClick={() => void validateAll()}>
-            Tout valider ({countLabel(proposed.length, 'ticket')})
-          </Button>
+          <div className={styles.actions}>
+            <Button disabled={bulk || busyIds.size > 0} onClick={() => setNoteOpen(true)}>
+              <Icon src={micIcon} />
+              Note à l'IA
+            </Button>
+            <Button variant="primary" loading={bulk} disabled={busyIds.size > 0} onClick={() => void validateAll()}>
+              Tout valider ({countLabel(proposed.length, 'ticket')})
+            </Button>
+          </div>
         ) : null}
       </header>
+
+      <details className={styles.memory}>
+        <summary>Ce que l'IA retient pour ce projet</summary>
+        <div className={styles.memoryBody}>
+          {memory ? (
+            <p className={styles.memoryText}>{memory}</p>
+          ) : (
+            <p className={styles.muted}>
+              Rien pour l'instant. Une note à l'IA peut lui apprendre vos habitudes (qui fait quelles pages, comment
+              regrouper les tickets).
+            </p>
+          )}
+          <p className={styles.muted}>
+            Modifiable dans les infos du projet (<Link to={`/projects/${projectId}`}>page du projet</Link>, bouton
+            Modifier).
+          </p>
+        </div>
+      </details>
 
       {proposed.length === 0 ? (
         <EmptyState
@@ -316,6 +363,7 @@ function ReviewBoard({ projectId, input, tickets, tasks, members, projectTickets
           </ul>
         </details>
       ) : null}
+      <AiNoteModal open={noteOpen} onClose={() => setNoteOpen(false)} projectId={projectId} onApply={applyNote} />
     </section>
   )
 }

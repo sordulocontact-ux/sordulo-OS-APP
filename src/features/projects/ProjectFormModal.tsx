@@ -4,7 +4,7 @@ import { Button, Field, Modal, Select, Textarea, TextInput, useToast } from '../
 import { useCurrentMember, useOrgMembers } from '../auth'
 import { supabase } from '../../lib/supabase'
 import { queryKeys } from '../../lib/queryKeys'
-import { LABELS, PROJECT_STATUSES, type Project, type ProjectStatus } from '../../shared/types'
+import { AI_INSTRUCTIONS_MAX_LENGTH, LABELS, PROJECT_STATUSES, type Project, type ProjectStatus } from '../../shared/types'
 import { diffMembers, TONE_TEMPLATES, validateDates } from './projectLogic'
 import { useClientOptions } from './useClientOptions'
 import { useProjectMembers } from './useProjectMembers'
@@ -43,6 +43,7 @@ function ProjectForm({ open, onClose, project, defaultClientId, onSaved }: Proje
   const [startDate, setStartDate] = useState(project?.start_date ?? '')
   const [dueDate, setDueDate] = useState(project?.due_date ?? '')
   const [tone, setTone] = useState(project?.tone_of_voice ?? '')
+  const [aiInstructions, setAiInstructions] = useState(project?.ai_instructions ?? '')
   const [picked, setPicked] = useState<Set<string> | null>(null)
   const [pendingTone, setPendingTone] = useState<number | null>(null)
   const [nameError, setNameError] = useState<string | null>(null)
@@ -107,6 +108,7 @@ function ProjectForm({ open, onClose, project, defaultClientId, onSaved }: Proje
       start_date: startDate || null,
       due_date: dueDate || null,
       tone_of_voice: tone.trim() || null,
+      ai_instructions: aiInstructions.trim() || null,
     }
     let saved: Project
     if (target) {
@@ -269,6 +271,19 @@ function ProjectForm({ open, onClose, project, defaultClientId, onSaved }: Proje
             </div>
           </div>
         ) : null}
+
+        <Field
+          label="Consignes pour l'IA"
+          hint="Ce que l'IA doit savoir pour rédiger et attribuer les tickets : qui fait quelles pages, préférences de l'équipe. Complété automatiquement par les notes à l'IA."
+        >
+          <Textarea
+            rows={5}
+            value={aiInstructions}
+            maxLength={AI_INSTRUCTIONS_MAX_LENGTH}
+            onChange={(e) => setAiInstructions(e.target.value)}
+            disabled={busy}
+          />
+        </Field>
 
         {error ? (
           <p className={styles.error} role="alert">

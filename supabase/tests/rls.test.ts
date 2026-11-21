@@ -63,6 +63,7 @@ describe('migration 0003 : schéma et reprise des données', () => {
       ],
       projects: [
         'id', 'organization_id', 'client_id', 'name', 'status', 'start_date', 'due_date', 'tone_of_voice',
+        'ai_instructions',
         'created_at', 'updated_at',
       ],
       project_members: ['project_id', 'member_id', 'organization_id', 'created_at'],

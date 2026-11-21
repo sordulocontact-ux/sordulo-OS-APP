@@ -10,6 +10,8 @@ import {
   makeTicketDraft,
   nextPosition,
   planSave,
+  reviseSummary,
+  toReviseState,
   validateDraft,
 } from './diff'
 
@@ -140,5 +142,41 @@ describe('validateDraft', () => {
     expect(errors.tasks.a?.title).toBeDefined()
     expect(errors.tasks.a?.estimate).toBeDefined()
     expect(errors.tasks.b).toBeUndefined()
+  })
+})
+
+describe('toReviseState', () => {
+  it("envoie l'état affiché, modifications non enregistrées comprises", () => {
+    const draft = { ...assignTicket(makeTicketDraft(ticket, tasks), 'mael'), title: 'Bouton revu' }
+    const edited = { ...draft, tasks: draft.tasks.map((t, i) => (i === 0 ? { ...t, estimate: '1,5' } : t)) }
+    expect(toReviseState({ ...ticket, area: 'Accueil' }, edited)).toEqual({
+      id: 't1',
+      title: 'Bouton revu',
+      description: 'desc',
+      type: 'modification',
+      priority: 'medium',
+      area: 'Accueil',
+      assigneeMemberId: 'mael',
+      estimateHours: 3.5,
+    })
+  })
+
+  it('personne et durée inconnues', () => {
+    const draft = makeTicketDraft(ticket, tasks)
+    const noEstimate = { ...draft, tasks: draft.tasks.map((t) => ({ ...t, estimate: '' })) }
+    const state = toReviseState(ticket, noEstimate)
+    expect(state.assigneeMemberId).toBeNull()
+    expect(state.estimateHours).toBeNull()
+  })
+})
+
+describe('reviseSummary', () => {
+  it('résume la note', () => {
+    expect(reviseSummary({ updated: 2, created: 1, deleted: 0, memoryChanged: false })).toBe(
+      'Tickets mis à jour (2 modifiés, 1 créé, 0 supprimé).',
+    )
+    expect(reviseSummary({ updated: 1, created: 0, deleted: 3, memoryChanged: true })).toBe(
+      'Tickets mis à jour (1 modifié, 0 créé, 3 supprimés). Mémoire du projet mise à jour.',
+    )
   })
 })

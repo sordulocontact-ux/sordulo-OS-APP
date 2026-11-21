@@ -93,20 +93,14 @@ function rawDeepgramErrorDetail(body: string): string {
   return body.trim().slice(0, 300) || 'aucun détail'
 }
 
-/** Transcribes the audio at `audioUrl` (a signed URL, never logged). */
-export async function transcribeFromUrl(audioUrl: string): Promise<Transcript> {
-  const apiKey = getEnv('TRANSCRIPTION_API_KEY')
+/** Sends one request to Deepgram and returns the parsed JSON. Errors have a French message, never a URL. */
+async function callDeepgram(url: string, init: RequestInit, timeoutMs: number): Promise<unknown> {
   let response: Response
   try {
-    response = await fetch(deepgramListenUrl(), {
-      method: 'POST',
-      headers: { authorization: `Token ${apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ url: audioUrl }),
-      signal: AbortSignal.timeout(DEEPGRAM_TIMEOUT_MS),
-    })
+    response = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) })
   } catch (error) {
     if (error instanceof DOMException && error.name === 'TimeoutError') {
-      throw new Error(`Deepgram n'a pas répondu en ${DEEPGRAM_TIMEOUT_MS / 1000} s.`, { cause: error })
+      throw new Error(`Deepgram n'a pas répondu en ${timeoutMs / 1000} s.`, { cause: error })
     }
     throw new Error('Deepgram est injoignable (erreur réseau).', { cause: error })
   }
@@ -118,11 +112,70 @@ export async function transcribeFromUrl(audioUrl: string): Promise<Transcript> {
     }
     throw new Error(`Deepgram a répondu ${response.status} : ${deepgramErrorDetail(body)}`)
   }
-  let payload: unknown
   try {
-    payload = JSON.parse(body)
+    return JSON.parse(body)
   } catch {
     throw new Error('réponse de Deepgram vide ou illisible.')
   }
+}
+
+/** Transcribes the audio at `audioUrl` (a signed URL, never logged). */
+export async function transcribeFromUrl(audioUrl: string): Promise<Transcript> {
+  const apiKey = getEnv('TRANSCRIPTION_API_KEY')
+  const payload = await callDeepgram(
+    deepgramListenUrl(),
+    {
+      method: 'POST',
+      headers: { authorization: `Token ${apiKey}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ url: audioUrl }),
+    },
+    DEEPGRAM_TIMEOUT_MS,
+  )
   return deepgramToTranscript(payload)
+}
+
+/** The recording contains no recognizable speech (becomes a 422, not a server error). */
+export class NoSpeechError extends Error {
+  constructor() {
+    super("aucune parole détectée dans l'audio.")
+    this.name = 'NoSpeechError'
+  }
+}
+
+/** Short voice notes: far below Vercel's maxDuration, a recording of a few minutes is transcribed in seconds. */
+const DEEPGRAM_VOICE_TIMEOUT_MS = 60_000
+
+/** Deepgram URL for a plain transcript (no diarization, no utterances). */
+export function deepgramVoiceListenUrl(): string {
+  const params = new URLSearchParams({
+    model: DEEPGRAM_MODEL,
+    language: DEEPGRAM_LANGUAGE,
+    punctuate: 'true',
+    smart_format: 'true',
+  })
+  return `${DEEPGRAM_ENDPOINT}?${params.toString()}`
+}
+
+/** Plain text of a Deepgram response (first channel, first alternative). Throws NoSpeechError if empty. */
+export function deepgramToText(payload: unknown): string {
+  const parsed = DeepgramResponseSchema.safeParse(payload)
+  if (!parsed.success) throw new Error('réponse de Deepgram illisible.')
+  const text = parsed.data.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() ?? ''
+  if (!text) throw new NoSpeechError()
+  return text
+}
+
+/** Transcribes an in-memory audio (nothing is stored). Throws NoSpeechError when there is no speech. */
+export async function transcribeAudio(audio: ArrayBuffer | Uint8Array, contentType: string): Promise<string> {
+  const apiKey = getEnv('TRANSCRIPTION_API_KEY')
+  const payload = await callDeepgram(
+    deepgramVoiceListenUrl(),
+    {
+      method: 'POST',
+      headers: { authorization: `Token ${apiKey}`, 'content-type': contentType },
+      body: audio as BodyInit,
+    },
+    DEEPGRAM_VOICE_TIMEOUT_MS,
+  )
+  return deepgramToText(payload)
 }

@@ -24,6 +24,8 @@ const validAnalysis = {
       source_quote: 'Le bouton est trop petit.',
       area: 'Paiement',
       related_ticket_id: null,
+      assignee_member_id: null,
+      assignment_reason: null,
       tasks: [{ title: 'Agrandir le bouton', description: 'Passer à 48 px.', skill: 'dev', depends_on_index: null, estimate_hours: 1 }],
     },
   ],
@@ -32,7 +34,7 @@ const validAnalysis = {
 function reply(content: string, finishReason = 'stop') {
   return { choices: [{ index: 0, finishReason, message: { content } }], usage: { promptTokens: 10, completionTokens: 5 } }
 }
-const request = { system: 'SYS', content: 'USER', openTicketIds: [] as string[] }
+const request = { system: 'SYS', content: 'USER', openTicketIds: [] as string[], teamMemberIds: [] as string[] }
 
 beforeEach(() => {
   complete.mockReset()
@@ -77,6 +79,18 @@ describe('analyzeWithMistral', () => {
     complete.mockResolvedValue(reply('{"tickets":', 'length'))
     await expect(analyzeWithMistral(request)).rejects.toThrow(/coupée/)
     expect(complete).toHaveBeenCalledTimes(1)
+  })
+
+  it('garde la personne désignée seulement si elle est dans l’équipe', async () => {
+    const mael = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const designated = {
+      tickets: [{ ...validAnalysis.tickets[0], assignee_member_id: mael, assignment_reason: 'Maël s’occupe du paiement' }],
+    }
+    complete.mockResolvedValue(reply(JSON.stringify(designated)))
+    const [kept] = await analyzeWithMistral({ ...request, teamMemberIds: [mael] })
+    expect(kept).toMatchObject({ assignee_member_id: mael, assignment_reason: 'Maël s’occupe du paiement' })
+    const [dropped] = await analyzeWithMistral(request)
+    expect(dropped).toMatchObject({ assignee_member_id: null, assignment_reason: null })
   })
 
   it('traduit une erreur HTTP en message français', async () => {

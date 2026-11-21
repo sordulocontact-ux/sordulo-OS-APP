@@ -316,9 +316,17 @@ export interface Project {
   start_date: string | null
   due_date: string | null
   tone_of_voice: string | null
+  /**
+   * Mémoire de l'IA pour ce projet (migration 0007) : consignes de l'équipe (qui fait quelles pages,
+   * façon de regrouper ou rédiger). Complétée par les notes à l'IA, modifiable à la main, 4000 caractères max.
+   */
+  ai_instructions: string | null
   created_at: string
   updated_at: string
 }
+
+/** Longueur maximale de la mémoire de l'IA d'un projet (contrainte de la migration 0007). */
+export const AI_INSTRUCTIONS_MAX_LENGTH = 4000
 
 /** Membres affectés à un projet. Si un projet en a, l'attribution automatique se limite à eux. */
 export interface ProjectMember {

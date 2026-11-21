@@ -60,7 +60,10 @@ export const TONE_TEMPLATES = [
   { label: 'Créatif', text: 'Ton vivant et imagé, tournures originales, vocabulaire de la marque, humour léger bienvenu.' },
 ] as const
 
-export type ProjectInput = Pick<Project, 'client_id' | 'name' | 'status' | 'start_date' | 'due_date' | 'tone_of_voice'>
+export type ProjectInput = Pick<
+  Project,
+  'client_id' | 'name' | 'status' | 'start_date' | 'due_date' | 'tone_of_voice' | 'ai_instructions'
+>
 
 /** Jours calendaires (heure locale) de `now` à `day` (AAAA-MM-JJ) : positif = à venir, négatif = passé. */
 export function daysUntil(day: string | null, now: Date): number | null {
