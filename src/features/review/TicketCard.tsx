@@ -143,7 +143,7 @@ export function TicketCard({
         <div className={styles.wide}>
           <Field label="Description">
             <Textarea
-              rows={3}
+              rows={10}
               value={draft.description}
               disabled={disabled}
               onChange={(e) => onChange({ ...draft, description: e.target.value })}

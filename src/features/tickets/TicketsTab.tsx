@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { Badge, Card, EmptyState, ErrorState, Field, LoadingState, Select } from '../../components/ui'
+import { Badge, Button, Card, EmptyState, ErrorState, Field, LoadingState, Select, useToast } from '../../components/ui'
+import { useProjectContext } from '../projects/useProjectContext'
 import {
   LABELS,
   TICKET_STATUSES,
@@ -13,6 +14,7 @@ import {
 import { formatTimestamp, speakerLabel } from '../../shared/transcript'
 import { formatDate, inputLabel, PRIORITY_TONE, STATUS_TONE } from './format'
 import { findQuoteUtterance } from './quote'
+import { ticketBrief } from './ticketBrief'
 import { useProjectInputs, useProjectTickets, useTicketTaskStats, type TicketTaskStats } from './useProjectTickets'
 import styles from './TicketsTab.module.css'
 
@@ -43,6 +45,7 @@ function matchesStatus(ticket: Ticket, filter: StatusFilter): boolean {
 
 export function TicketsTab() {
   const { projectId } = useParams()
+  const { project } = useProjectContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const tickets = useProjectTickets(projectId)
   const inputs = useProjectInputs(projectId)
@@ -126,6 +129,8 @@ export function TicketsTab() {
                 input={ticket.input_id ? inputsById.get(ticket.input_id) : undefined}
                 stats={stats.data?.get(ticket.id)}
                 projectId={projectId ?? ''}
+                projectName={project.name}
+                clientName={project.client?.name ?? null}
               />
             </li>
           ))}
@@ -140,15 +145,35 @@ interface TicketItemProps {
   input: Input | undefined
   stats: TicketTaskStats | undefined
   projectId: string
+  projectName: string
+  clientName: string | null
 }
 
-function TicketItem({ ticket, input, stats, projectId }: TicketItemProps) {
+function TicketItem({ ticket, input, stats, projectId, projectName, clientName }: TicketItemProps) {
   const utterance = useMemo(
     () => (input?.kind === 'meeting' ? findQuoteUtterance(input.transcript, ticket.source_quote) : null),
     [input, ticket.source_quote],
   )
   const count = stats?.count ?? 0
   const hours = stats?.hours ?? 0
+  const [expanded, setExpanded] = useState(false)
+  const isLong = ticket.description.length > SHORT_LENGTH
+  const toast = useToast()
+
+  async function copyBrief() {
+    const source = input
+      ? [inputLabel(input), ...(utterance ? [formatTimestamp(utterance.start), speakerLabel(utterance.speaker, input.speaker_names)] : [])].join(
+          ' · ',
+        )
+      : null
+    const text = ticketBrief(ticket, { projectName, clientName, quoteSource: source })
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success('Ticket copié : colle-le dans Claude Code.')
+    } catch {
+      toast.error('Copie impossible : le navigateur bloque le presse-papiers.')
+    }
+  }
 
   return (
     <Card className={styles.item}>
@@ -163,7 +188,16 @@ function TicketItem({ ticket, input, stats, projectId }: TicketItemProps) {
           {ticket.area ? <Badge>{ticket.area}</Badge> : null}
         </div>
       </div>
-      {ticket.description ? <p className={styles.description}>{shortText(ticket.description)}</p> : null}
+      {ticket.description ? (
+        <div className={styles.descriptionBlock}>
+          <p className={styles.description}>{expanded || !isLong ? ticket.description : shortText(ticket.description)}</p>
+          {isLong ? (
+            <Button variant="ghost" size="sm" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
+              {expanded ? 'Réduire' : 'Afficher toute la description'}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       {ticket.source_quote ? (
         <figure className={styles.quote}>
           <blockquote className={styles.quoteText}>{ticket.source_quote}</blockquote>
@@ -189,15 +223,20 @@ function TicketItem({ ticket, input, stats, projectId }: TicketItemProps) {
         <span className={styles.meta}>
           {count === 0 ? 'Aucune tâche' : `${count} ${count > 1 ? 'tâches' : 'tâche'} · ${hours} h estimées`}
         </span>
-        {ticket.status === 'proposed' && ticket.input_id ? (
-          <Link
-            to={`/projects/${projectId}/inputs/${ticket.input_id}/review`}
-            aria-label={`À valider : ${ticket.title}`}
-            className={styles.review}
-          >
-            À valider
-          </Link>
-        ) : null}
+        <div className={styles.actions}>
+          {ticket.status === 'proposed' && ticket.input_id ? (
+            <Link
+              to={`/projects/${projectId}/inputs/${ticket.input_id}/review`}
+              aria-label={`À valider : ${ticket.title}`}
+              className={styles.review}
+            >
+              À valider
+            </Link>
+          ) : null}
+          <Button size="sm" aria-label={`Copier pour /ticket : ${ticket.title}`} onClick={() => void copyBrief()}>
+            Copier pour /ticket
+          </Button>
+        </div>
       </div>
     </Card>
   )

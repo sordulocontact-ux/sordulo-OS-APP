@@ -49,9 +49,17 @@
   gap: var(--space-1);
 }
 
+.descriptionBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
 .description {
   margin: 0;
   color: var(--color-text-muted);
+  white-space: pre-line;
 }
 
 .quote {
@@ -84,6 +92,13 @@
   margin: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 .review {

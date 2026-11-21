@@ -63,6 +63,15 @@ describe('ANALYSIS_SYSTEM_PROMPT', () => {
     expect(ANALYSIS_SYSTEM_PROMPT).toContain('rédige les titres et les descriptions des tickets dans ce ton')
   })
 
+  it('demande une description complète, prête pour le skill /ticket', () => {
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain('skill « /ticket »')
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain('reprends TOUS les détails utiles')
+    for (const section of ['« Contexte : »', '« À faire : »', '« Critères de validation : »', '« Points à préciser : »']) {
+      expect(ANALYSIS_SYSTEM_PROMPT).toContain(section)
+    }
+    expect(ANALYSIS_SYSTEM_PROMPT).not.toContain('une à cinq phrases')
+  })
+
   it('reste stable (aucune date ni identifiant) pour le cache', () => {
     expect(ANALYSIS_SYSTEM_PROMPT).not.toMatch(/\d{4}-\d{2}-\d{2}/)
     expect(ANALYSIS_SYSTEM_PROMPT).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/i)
