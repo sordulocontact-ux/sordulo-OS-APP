@@ -211,10 +211,10 @@ describe('source « Claude Code »', () => {
     expect(notify).not.toHaveBeenCalled()
   })
 
-  it('action showSessions (« Voir » d’un conflit) : l’activité Claude dans la bulle est épinglée', async () => {
+  it('action showSessions (« Voir » d’un conflit) : l’activité Claude dans background est épinglée', async () => {
     const t = setup()
     await flush()
-    // Une progression non exclusive (déploiement, prévu) : la bulle reste possible.
+    // Une progression non exclusive (déploiement, prévu) : elle reste devant, Claude attend dans background.
     t.coordinator.addActivity({
       id: 'prog:deploy',
       kind: 'progress',
@@ -227,7 +227,8 @@ describe('source « Claude Code »', () => {
     t.emit('UserPromptSubmit', { message: 'x' })
     t.emit('UserPromptSubmit', { sessionId: 's-2', message: 'y' })
     t.emit('Stop', { sessionId: 's-2' })
-    expect(t.snap().secondary?.id).toBe(MULTI_ACTIVITY_ID)
+    expect(t.snap().secondary).toBeNull()
+    expect(t.snap().background.map((a) => a.id)).toContain(MULTI_ACTIVITY_ID)
     const done = t.snap().notification!
     t.runtime.runAction({ ...done, action: { type: 'showSessions' } })
     expect(t.snap().pinnedId).toBe(MULTI_ACTIVITY_ID)

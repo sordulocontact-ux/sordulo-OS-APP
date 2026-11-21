@@ -86,6 +86,7 @@ export function ActivityLayers({
         rows={meetRows}
         open={open && state === 'meet'} onStopRecording={handlers.onStopRecording} />
       <MusicLayer
+        rows={meetRows}
         {...base}
         music={music}
         open={open && state === 'music'}

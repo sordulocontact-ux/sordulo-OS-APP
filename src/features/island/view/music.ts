@@ -4,6 +4,7 @@
  * Pur (ni React ni DOM) : la boucle (loop.ts) écrit les valeurs dans le DOM.
  */
 import type { CSSProperties } from 'react'
+import { GARDEN } from '../garden/constants'
 import type { IslandMusic, MusicPalette } from '../types'
 
 // ---------------------------------------------------------------------------
@@ -84,7 +85,8 @@ export const EQ = {
   /** Descente à plat à la pause, et remontée à la reprise. */
   flatRate: 6,
   /** Battement des basses (tempo d'un morceau courant) et sa force. */
-  tempoBpm: 116,
+  /** Même tempo que le hochement de tête des Claude (GARDEN.musicTempoBpm). */
+  tempoBpm: GARDEN.musicTempoBpm,
   kick: 0.4,
   /** Décroissance du battement après chaque temps. */
   kickDecay: 7,

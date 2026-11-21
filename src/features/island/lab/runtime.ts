@@ -251,6 +251,23 @@ export class LabRuntime {
     this.coordinator.addActivity({ id: 'music', kind: 'music' })
   }
 
+  /**
+   * Une session Claude travaille, puis la musique démarre : une seule île, la musique en haut et le Claude qui
+   * part de son icône pour marcher en bas en hochant la tête (pas de bulle). Second appui : plusieurs sessions.
+   */
+  musicWithClaude(count: number): void {
+    const several = this.coordinator.getActivity('agent') !== null && this.coordinator.getActivity('music') !== null
+    this.reset()
+    if (several) {
+      this.setSessions(Math.max(2, count))
+      this.coordinator.addActivity({ id: 'multi', kind: 'multi' })
+      this.addMusic()
+      return
+    }
+    this.addAgent()
+    this.later(GARDEN_FROM_ICON_MS, () => this.addMusic())
+  }
+
   // --- Musique simulée (ce que fera la source « musique » du contrôleur) ---------------------------------------
 
   private clearTrackEnd(): void {

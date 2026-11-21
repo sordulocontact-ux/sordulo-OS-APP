@@ -9,12 +9,13 @@ import { cx } from '../cx'
 import { useLastNonNull } from '../hooks'
 import { IslandIcon, MusicControlIcon } from '../icons'
 import styles from '../Island.module.css'
-import { formatElapsed } from '../labels'
+import { formatElapsed, type BackgroundRow } from '../labels'
 import { Layer } from '../Layer'
 import { musicHasProgress } from '../music'
 import { PROGRESS_VISUALS, toneStyle } from '../tone'
 import type { ActivityOfKind } from '../types'
 import type { BaseLayerProps } from './CallLayers'
+import { ROW_TONE_CLASS } from './rowTone'
 
 /**
  * Musique. Compacte : rien ici (pochette et égaliseur partagés). Ouverte (survol ou focus) : bouton sur la
@@ -23,6 +24,7 @@ import type { BaseLayerProps } from './CallLayers'
  */
 export function MusicLayer({
   music,
+  rows,
   open,
   onMusicCommand,
   elapsedRef,
@@ -30,6 +32,8 @@ export function MusicLayer({
   ...base
 }: BaseLayerProps & {
   music: IslandMusic | null
+  /** Sessions Claude en cours (avec la musique : leurs Claude marchent devant), une ligne chacune au survol. */
+  rows: readonly BackgroundRow[]
   open: boolean
   onMusicCommand?: (command: MusicCommand) => void
   elapsedRef: (el: HTMLElement | null) => void
@@ -40,7 +44,7 @@ export function MusicLayer({
   const durationMs = progress ? (shown?.durationMs ?? null) : null
   const playing = shown?.playing ?? true
   const appName = shown?.appName ?? ''
-  const height = islandSize(base.platform, 'musicOpen', 0, progress).h
+  const height = islandSize(base.platform, 'musicOpen', rows.length, progress).h
   const send = (command: MusicCommand) => onMusicCommand?.(command)
   return (
     <Layer
@@ -85,6 +89,17 @@ export function MusicLayer({
             <MusicControlIcon name="next" />
           </button>
         </div>
+        {rows.length > 0 && (
+          <ul className={styles.meetBackground} aria-label="Sessions Claude en cours">
+            {rows.map((row) => (
+              <li key={row.id} className={cx(styles.row, styles.meetBackgroundRow)}>
+                <b>{row.title}</b>
+                <span className={styles.task}>{row.detail}</span>
+                {row.status && <span className={cx(styles.st, ROW_TONE_CLASS[row.tone])}>{row.status}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </Layer>
   )

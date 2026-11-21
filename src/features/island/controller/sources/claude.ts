@@ -19,8 +19,9 @@
  *   VS Code (ou l'app) de la session passe au premier plan, sur son dossier (commande Rust
  *   `claude_open_session`, qui connaît le dossier et l'éditeur de chaque session).
  * - Action `showSessions` (« Voir » du conflit) : le rendu n'a pas de prop pour
- *   ouvrir agentOpen / multiOpen sans survol, donc on épingle l'activité Claude quand elle est dans la bulle
- *   (elle passe dans l'île) ; si elle est déjà dans l'île, la fermeture de la notification suffit à la montrer.
+ *   ouvrir agentOpen / multiOpen sans survol, donc on épingle l'activité Claude quand elle est dans
+ *   `background` (elle passe devant, par exemple devant la musique), sauf pendant une activité exclusive
+ *   (appel, import, analyse) ; si elle est déjà la principale, la fermeture de la notification suffit à la montrer.
  */
 import { claudeAnswer, claudeOpenSession, onClaude } from '../../../../lib/desktop'
 import {
@@ -222,8 +223,10 @@ export function createClaudeSource(deps: ClaudeSourceDeps): IslandSource {
             openSession(action.sessionId)
           },
           showSessions() {
-            const { secondary } = ctx.coordinator.getSnapshot()
-            if (secondary?.id === AGENT_ACTIVITY_ID || secondary?.id === MULTI_ACTIVITY_ID) ctx.coordinator.pinSecondary()
+            const claude = ctx.coordinator
+              .getSnapshot()
+              .background.find((activity) => activity.id === AGENT_ACTIVITY_ID || activity.id === MULTI_ACTIVITY_ID)
+            if (claude) ctx.coordinator.pin(claude.id)
           },
         },
         gestures: {

@@ -212,19 +212,18 @@
 }
 
 .eq {
-  display: flex;
-  align-items: center;
-  gap: 1px;
+  display: block;
   height: var(--island-size-14);
 }
 
-/* Barres : pleine hauteur, la boucle écrit scaleY ; dégradé horizontal d'une barre à l'autre (--eq-t) */
-.eq i {
+.eq svg {
   display: block;
-  width: var(--island-size-2);
-  height: 100%;
-  border-radius: 1px;
-  background: color-mix(
+}
+
+/* Barres (SVG à bords nets) : pleine hauteur, la boucle écrit scaleY ; dégradé d'une barre à l'autre (--eq-t) */
+.eq rect {
+  transform-box: fill-box;
+  fill: color-mix(
     in oklab,
     var(--music-end, var(--island-music)) calc(var(--eq-t, 0) * 100%),
     var(--music-start, var(--island-music-cover-start))
@@ -869,6 +868,11 @@
 .garden.on {
   opacity: 1;
   transition: opacity var(--island-duration-garden-in) ease var(--island-delay-garden-in);
+}
+
+/* Avec la musique : les Claude passent devant la pochette et l'égaliseur (éléments partagés, dessinés après) */
+.gardenFront {
+  z-index: 1;
 }
 
 /* Bulle de l'activité secondaire */

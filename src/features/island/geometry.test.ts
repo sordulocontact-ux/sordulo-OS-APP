@@ -32,6 +32,19 @@ describe('sizeKeyFor', () => {
     expect(sizeKeyFor('music', false, false)).toBe('music')
   })
 
+  it('keeps the music shape when the Claude walk in front of it, and still opens it on hover', () => {
+    expect(sizeKeyFor('music', false, false, true)).toBe('musicGarden')
+    expect(sizeKeyFor('music', true, false, true)).toBe('musicOpen')
+    expect(sizeKeyFor('multi', false, false, true)).toBe('multi')
+    for (const platform of ['win', 'mac'] as const) {
+      // L'île ne grandit pas : les Claude passent devant la pochette et l'égaliseur.
+      expect(ISLAND_SIZES[platform].musicGarden).toEqual(ISLAND_SIZES[platform].music)
+      expect(sharedPosition('musicCover', platform, 'musicGarden', { hasGarden: true, sessionCount: 1 })).toEqual(
+        sharedPosition('musicCover', platform, 'music', { hasGarden: true, sessionCount: 1 }),
+      )
+    }
+  })
+
   it('keeps the state without hover', () => {
     const states: IslandState[] = ['repos', 'appel', 'meet', 'music', 'progress', 'agent', 'multi', 'dragWake', 'dragOver']
     for (const s of states) expect(sizeKeyFor(s, false, false)).toBe(s)
@@ -76,6 +89,15 @@ describe('ISLAND_SIZES', () => {
 })
 
 describe('musicOpen', () => {
+  it('adds one line per Claude session under the music, like under the call', () => {
+    for (const platform of ['win', 'mac'] as const) {
+      const base = islandSize(platform, 'musicOpen', 0, true).h
+      const { rowH, gap } = MEET_BACKGROUND[platform]
+      expect(islandSize(platform, 'musicOpen', 2, true).h).toBe(base + gap + 2 * rowH)
+      expect(islandSize(platform, 'musicOpen', 2, false).h).toBe(base - MUSIC_OPEN.progressRow + gap + 2 * rowH)
+    }
+  })
+
   it('drops the progress row when the player gives no progress', () => {
     for (const platform of ['win', 'mac'] as const) {
       const full = islandSize(platform, 'musicOpen')
@@ -134,6 +156,17 @@ describe('sharedPosition', () => {
     expect(sharedPosition('seg3', 'win', 'multiOpen', ctx)).toEqual({ x: 16, y: 158 })
     expect(sharedPosition('timer', 'mac', 'notifCall', ctx)).toEqual({ x: 14, y: 9 })
     expect(sharedPosition('dots', 'win', 'repos', ctx)).toBeNull()
+  })
+
+  it('shows no call element for a Claude question outside a call', () => {
+    for (const platform of ['win', 'mac'] as const) {
+      expect(sharedPosition('meetGroup', platform, 'agentQuestion', ctx)).toBeNull()
+      expect(sharedPosition('timer', platform, 'agentQuestion', ctx)).toBeNull()
+      expect(sharedPosition('agentIcon', platform, 'agentQuestion', ctx)).toEqual(
+        sharedPosition('agentIcon', platform, 'agentAsk', ctx),
+      )
+      expect(ISLAND_SIZES[platform].agentQuestion).toEqual(ISLAND_SIZES[platform].agentAskCall)
+    }
   })
 
   it('places the call elements in meetOpen', () => {

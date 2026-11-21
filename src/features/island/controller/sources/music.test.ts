@@ -177,12 +177,13 @@ describe('source « musique »', () => {
     expect(t.clock.pendingTimers).toBe(0)
   })
 
-  it('cède l’île à une activité plus prioritaire et passe dans la bulle', async () => {
+  it('garde l’île devant une session Claude non épinglée, qui passe dans background (pas de bulle)', async () => {
     const t = setup(track())
     await flush()
     t.coordinator.addActivity({ id: 'agent', kind: 'agent', sessionId: 's-1' })
-    expect(t.snap().primary?.id).toBe('agent')
-    expect(t.snap().secondary?.id).toBe(MUSIC_ACTIVITY_ID)
+    expect(t.snap().primary?.id).toBe(MUSIC_ACTIVITY_ID)
+    expect(t.snap().secondary).toBeNull()
+    expect(t.snap().background.map((a) => a.id)).toEqual(['agent'])
   })
 
   it('pochette : URL blob: au bon type, couleurs, puis nouvelle pochette et révocation de l’ancienne', async () => {

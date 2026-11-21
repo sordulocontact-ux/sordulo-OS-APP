@@ -18,7 +18,7 @@ export interface LiveElements {
   timer: HTMLElement | null
   elapsed: HTMLElement | null
   waveBars: (HTMLElement | null)[]
-  eqBars: (HTMLElement | null)[]
+  eqBars: (SVGRectElement | null)[]
   ring: SVGCircleElement | null
   bubbleRing: SVGCircleElement | null
   /** Temps écoulé des sessions qui travaillent, dans multiOpen. */
@@ -130,7 +130,7 @@ export function startIslandLoop(
   let talkLeft = 14
   const eq = createEqualizer()
   // Échelles déjà écrites : on n'écrit le DOM que si une barre bouge.
-  const eqShown = new WeakMap<HTMLElement, number>()
+  const eqShown = new WeakMap<SVGRectElement, number>()
   live.waveBars.forEach((b, j) => {
     if (b) b.style.height = `${wave[j] ?? WAVE.minHeight}px`
   })

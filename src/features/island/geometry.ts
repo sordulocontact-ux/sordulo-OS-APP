@@ -44,11 +44,13 @@ export const ISLAND_SIZES: Record<IslandPlatform, Record<IslandSizeKey, IslandSh
     meetOpen: { w: 360, h: 96, r: 24 },
     music: { w: 193, h: 40, r: 14 },
     musicOpen: { w: 380, h: 150, r: 26 },
+    musicGarden: { w: 193, h: 40, r: 14 },
     progress: { w: 193, h: 40, r: 14 },
     agent: { w: 193, h: 40, r: 14 },
     agentOpen: { w: 360, h: 96, r: 24 },
     agentAsk: { w: 380, h: 156, r: 26 },
     agentAskCall: { w: 380, h: 196, r: 26 },
+    agentQuestion: { w: 380, h: 196, r: 26 },
     multi: { w: 193, h: 40, r: 14 },
     multiOpen: { w: 400, h: 220, r: 26 },
     dragWake: { w: 170, h: 44, r: 16 },
@@ -64,11 +66,13 @@ export const ISLAND_SIZES: Record<IslandPlatform, Record<IslandSizeKey, IslandSh
     meetOpen: { w: 380, h: 124, r: 26 },
     music: { w: 274, h: 32, r: 10 },
     musicOpen: { w: 400, h: 178, r: 26 },
+    musicGarden: { w: 274, h: 32, r: 10 },
     progress: { w: 274, h: 32, r: 10 },
     agent: { w: 274, h: 32, r: 10 },
     agentOpen: { w: 380, h: 124, r: 26 },
     agentAsk: { w: 400, h: 184, r: 26 },
     agentAskCall: { w: 400, h: 184, r: 26 },
+    agentQuestion: { w: 400, h: 184, r: 26 },
     multi: { w: 370, h: 32, r: 10 },
     multiOpen: { w: 420, h: 250, r: 26 },
     dragWake: { w: 240, h: 64, r: 20 },
@@ -108,19 +112,24 @@ export function islandSize(
   musicProgress = true,
 ): IslandShapeSize {
   const size = ISLAND_SIZES[platform][key]
-  if (key === 'musicOpen') return musicProgress ? size : { ...size, h: size.h - MUSIC_OPEN.progressRow }
+  let h = size.h
+  if (key === 'musicOpen' && !musicProgress) h -= MUSIC_OPEN.progressRow
+  // Lignes « aussi en cours » : sous l'appel (meetOpen) et sous la musique (sessions Claude, musicOpen).
   const rows = Math.min(Math.max(0, meetRows), MEET_BACKGROUND.maxRows)
-  if (key !== 'meetOpen' || rows === 0) return size
-  const { rowH, gap } = MEET_BACKGROUND[platform]
-  return { ...size, h: size.h + gap + rows * rowH }
+  if ((key === 'meetOpen' || key === 'musicOpen') && rows > 0) {
+    const { rowH, gap } = MEET_BACKGROUND[platform]
+    h += gap + rows * rowH
+  }
+  return h === size.h ? size : { ...size, h }
 }
 
 /**
  * Clé de taille d'un état (prototype : currentKey et keyFor).
  * Survol : repos → peek, meet → meetOpen, music → musicOpen, agent → agentOpen, multi → multiOpen.
  * Pendant un appel : notif → notifCall, agentAsk → agentAskCall.
+ * Musique avec des sessions Claude (`musicGarden` vrai) : music → musicGarden (les Claude marchent en bas).
  */
-export function sizeKeyFor(state: IslandState, hover: boolean, withCall: boolean): IslandSizeKey {
+export function sizeKeyFor(state: IslandState, hover: boolean, withCall: boolean, musicGarden = false): IslandSizeKey {
   if (hover) {
     if (state === 'repos') return 'peek'
     if (state === 'meet') return 'meetOpen'
@@ -130,6 +139,7 @@ export function sizeKeyFor(state: IslandState, hover: boolean, withCall: boolean
   }
   if (state === 'notif' && withCall) return 'notifCall'
   if (state === 'agentAsk' && withCall) return 'agentAskCall'
+  if (state === 'music' && musicGarden) return 'musicGarden'
   return state
 }
 
@@ -293,6 +303,7 @@ export const SHARED_ELEMENTS: Record<SharedElementId, SharedElementSpec> = {
       agent: { x: 13, y: 9, s: 22 },
       agentOpen: { x: 16, y: 17, s: 28 },
       agentAsk: { x: 16, y: 17, s: 28 },
+      agentQuestion: { x: 16, y: 17, s: 28 },
       agentAskCall: { x: 16, y: 57, s: 28 },
       multiOpen: { x: 16, y: 17, s: 28 },
     },
@@ -300,6 +311,7 @@ export const SHARED_ELEMENTS: Record<SharedElementId, SharedElementSpec> = {
       agent: { x: 13, y: 6, s: 20 },
       agentOpen: { x: 16, y: 47, s: 28 },
       agentAsk: { x: 16, y: 47, s: 28 },
+      agentQuestion: { x: 16, y: 47, s: 28 },
       agentAskCall: { x: 16, y: 47, s: 28 },
       multiOpen: { x: 16, y: 47, s: 28 },
     },
@@ -311,8 +323,8 @@ export const SHARED_ELEMENTS: Record<SharedElementId, SharedElementSpec> = {
   },
   elapsed: {
     anchor: 'right',
-    win: { agent: { x: 13, y: 13, o: 0 }, agentOpen: { x: 16, y: 24 }, agentAsk: { x: 16, y: 24 }, agentAskCall: { x: 16, y: 64 } },
-    mac: { agent: { x: 13, y: 9, o: 0 }, agentOpen: { x: 16, y: 54 }, agentAsk: { x: 16, y: 54 }, agentAskCall: { x: 16, y: 54 } },
+    win: { agent: { x: 13, y: 13, o: 0 }, agentOpen: { x: 16, y: 24 }, agentAsk: { x: 16, y: 24 }, agentQuestion: { x: 16, y: 24 }, agentAskCall: { x: 16, y: 64 } },
+    mac: { agent: { x: 13, y: 9, o: 0 }, agentOpen: { x: 16, y: 54 }, agentAsk: { x: 16, y: 54 }, agentQuestion: { x: 16, y: 54 }, agentAskCall: { x: 16, y: 54 } },
   },
   // Le prototype ne place jamais le compte (le jardin occupe multi au repos) : voir sharedPosition sans jardin.
   count: { anchor: 'left', win: {}, mac: {} },
@@ -330,13 +342,21 @@ export const SHARED_ELEMENTS: Record<SharedElementId, SharedElementSpec> = {
   // l'égaliseur (23 × 14) reste à droite, centré sur la pochette (Mac : sous l'encoche, comme agentOpen).
   musicCover: {
     anchor: 'left',
-    win: { music: { x: 13, y: 6, s: 28 }, musicOpen: { x: 16, y: 16, s: MUSIC_OPEN.coverSize } },
-    mac: { music: { x: 13, y: 5, s: 22 }, musicOpen: { x: 16, y: 44, s: MUSIC_OPEN.coverSize } },
+    win: {
+      music: { x: 13, y: 6, s: 28 },
+      musicGarden: { x: 13, y: 6, s: 28 },
+      musicOpen: { x: 16, y: 16, s: MUSIC_OPEN.coverSize },
+    },
+    mac: {
+      music: { x: 13, y: 5, s: 22 },
+      musicGarden: { x: 13, y: 5, s: 22 },
+      musicOpen: { x: 16, y: 44, s: MUSIC_OPEN.coverSize },
+    },
   },
   musicEq: {
     anchor: 'right',
-    win: { music: { x: 13, y: 13 }, musicOpen: { x: 16, y: 37 } },
-    mac: { music: { x: 13, y: 9 }, musicOpen: { x: 16, y: 65 } },
+    win: { music: { x: 13, y: 13 }, musicGarden: { x: 13, y: 13 }, musicOpen: { x: 16, y: 37 } },
+    mac: { music: { x: 13, y: 9 }, musicGarden: { x: 13, y: 9 }, musicOpen: { x: 16, y: 65 } },
   },
 }
 

@@ -142,6 +142,8 @@ export const GARDEN = {
   // --- Rendu (prototype : renderGarden) ----------------------------------------------------------------------
   /** Balancement de la marche : fréquence (rad/s) et amplitude (px) ; pendant un appel : 0,5 px. */
   bob: { mainFreq: 7, subFreq: 18, amplitude: 1.2, callAmplitude: 0.5, musicAmplitude: 2 },
+  /** Tempo de la musique (battements par minute) : hochement de tête des Claude et battement de l'égaliseur. */
+  musicTempoBpm: 116,
   /** Accroupi (bloqué, assis en file) : échelle horizontale et verticale. */
   squash: { x: 1.08, y: 0.8 },
   /** Session en pause : personnage estompé. */

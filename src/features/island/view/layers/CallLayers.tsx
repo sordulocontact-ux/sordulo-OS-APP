@@ -11,6 +11,7 @@ import styles from '../Island.module.css'
 import { Layer } from '../Layer'
 import { cx } from '../cx'
 import type { BackgroundRow } from '../labels'
+import { ROW_TONE_CLASS } from './rowTone'
 import type { IslandCallPrompt, IslandProjectOption } from '../types'
 
 export interface BaseLayerProps {
@@ -239,14 +240,6 @@ export function AppelLayer({
       </div>
     </Layer>
   )
-}
-
-const ROW_TONE_CLASS: Record<BackgroundRow['tone'], string | undefined> = {
-  muted: undefined,
-  done: styles.stDone,
-  conflict: styles.stConflict,
-  error: styles.stError,
-  waiting: styles.stWaiting,
 }
 
 /**

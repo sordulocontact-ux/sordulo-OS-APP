@@ -16,7 +16,8 @@
  * change et en prend une nouvelle à chaque changement. `subscribe(listener)` renvoie la désinscription.
  * Ces deux méthodes sont des propriétés liées : on peut les passer telles quelles (useSyncExternalStore).
  *
- * Activités (une principale dans l'île, la suivante dans la bulle, `activityCount` pour le badge « +N »)
+ * Activités (une seule île, jamais de bulle : une principale, toutes les autres dans `background`,
+ * `activityCount` pour le badge « +N »)
  * - `addActivity(input)` : ajoute, ou remplace si l'id existe (elle devient alors la plus récente).
  * - `updateActivity(id, patch)` : mise à jour partielle, garde le rang d'arrivée. Null si l'id est inconnu.
  * - `removeActivity(id)` : retire (et désépingle). Les progressions ne finissent jamais seules : le
@@ -24,11 +25,14 @@
  * - `endMeet()` : fin d'appel. Retire l'activité appel ; si le mode concentration a mis des notifications
  *   de côté, met en file « Pendant l'appel : N notifications ». N'ajoute aucune progression : c'est le
  *   contrôleur qui ajoute « Import de l'audio ».
- * - `pinSecondary()` : clic sur la bulle, la secondaire est épinglée et passe devant.
+ * - `pin(id)` : épingle l'activité `id`, qui passe devant (refusé pendant une activité exclusive).
+ * - `pinSecondary()` : épingle la suivante dans l'ordre de priorité (héritage du clic sur la bulle).
  * Ordre : épinglée, puis appel, progression, Claude (agent, multi), musique ; à rang égal, la plus récente.
+ * Exception : avec une musique, et sans Claude épinglé, la musique est la principale devant Claude (les
+ * sessions marchent en bas de l'île, dans `background`).
  * Pendant un enregistrement, puis pendant l'import et l'analyse qui le suivent (écart au prototype, demande
  * de Maël) : l'appel, puis sa progression, reste seul dans l'île, même si une autre activité est épinglée,
- * et il n'y a pas de bulle. Les autres activités passent dans `background` (affichées sous l'appel au
+ * Les autres activités passent dans `background` (affichées sous l'appel au
  * survol, meetOpen ; la progression n'a pas de survol).
  *
  * Par-dessus la principale, une seule chose à la fois : notification, demande d'autorisation ou overlay.
@@ -246,7 +250,23 @@ export class IslandCoordinator {
     this.commit()
   }
 
-  /** Clic sur la bulle : épingle la secondaire, qui passe devant. Renvoie l'id épinglé (null sans bulle). */
+  /**
+   * Épingle l'activité `id`, qui passe devant les autres (même la musique devant Claude). Refuse (faux) si
+   * l'id est inconnu ou pendant une activité exclusive (appel, import, analyse), qui reste seule devant.
+   */
+  pin(id: string): boolean {
+    if (!this.activities.has(id)) return false
+    if (exclusiveActivity(this.activities.values())) return false
+    this.pinnedId = id
+    this.commit()
+    return true
+  }
+
+  /**
+   * Épingle la suivante dans l'ordre de priorité, qui passe devant (héritage du clic sur l'ancienne bulle,
+   * encore utilisé par le laboratoire). Renvoie l'id épinglé, null s'il n'y en a pas ou pendant une
+   * activité exclusive.
+   */
   pinSecondary(): string | null {
     if (exclusiveActivity(this.activities.values())) return null
     const secondary = this.sorted()[1]
@@ -487,7 +507,12 @@ export class IslandCoordinator {
     const sorted = this.sorted()
     // Appel en cours, ou import / analyse : seul dans l'île, devant tout, même une activité épinglée.
     const exclusive = exclusiveActivity(sorted)
-    const primary = exclusive ?? sorted[0] ?? null
+    let primary = exclusive ?? sorted[0] ?? null
+    // Une seule île, jamais de bulle (décision de Maël, 21/11) : avec de la musique, la musique tient l'île et
+    // les sessions Claude marchent en bas (jardin dans l'état music), sauf si Claude a été épinglé.
+    if (!exclusive && primary && (primary.kind === 'agent' || primary.kind === 'multi') && primary.id !== this.pinnedId) {
+      primary = sorted.find((activity) => activity.kind === 'music') ?? primary
+    }
     const others = sorted.filter((activity) => activity !== primary)
     const current = this.current
     let state: IslandState = stateOfActivity(primary)
@@ -500,8 +525,8 @@ export class IslandCoordinator {
     return Object.freeze({
       state,
       primary,
-      secondary: exclusive ? null : (others[0] ?? null),
-      background: Object.freeze(exclusive ? others : []),
+      secondary: null,
+      background: Object.freeze(others),
       activityCount: sorted.length,
       pinnedId: this.pinnedId,
       notification,

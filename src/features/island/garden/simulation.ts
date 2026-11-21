@@ -797,10 +797,24 @@ export class GardenSim {
     for (const id of [...this.sessions.keys()]) if (!live.has(id)) this.sessions.delete(id)
   }
 
+  /**
+   * Le sol suit le bas de l'île. Il descend (l'île s'ouvre au survol pendant la musique) : les personnages
+   * restent où ils sont et tombent, la gravité les ramène au nouveau sol. Il remonte : ils sont posés dessus.
+   */
+  private followGround(dh: number): void {
+    if (dh === 0) return
+    for (const w of this.list) {
+      if (w.dead || w.mode === 'ride') continue
+      w.y = Math.max(0, w.y + dh)
+      if (w.y === 0 && w.vy < 0) w.vy = 0
+    }
+  }
+
   /** Avance la simulation (prototype : updateGarden). */
   step(dtSeconds: number, frame: GardenFrame): void {
     const dt = Math.min(Math.max(0, dtSeconds), GARDEN.maxDt)
     const width = frame.width
+    this.followGround(frame.height - this.height)
     this.height = frame.height
     this.platform = frame.platform
     this.mood = frame.mood
@@ -1371,11 +1385,14 @@ export interface VisualContext {
 export function walkerVisual(w: Walker, status: ClaudeSessionStatus, ctx: VisualContext): WalkerVisual {
   const ground = ctx.height - groundOffset(ctx.platform)
   let bob = 0
-  if (w.mode === 'walk' && w.y === 0 && !ctx.reduced) {
-    bob = ctx.mood.music
-      ? Math.abs(Math.sin(ctx.now * Math.PI * 2)) * GARDEN.bob.musicAmplitude
-      : Math.abs(Math.sin(ctx.now * (w.sub ? GARDEN.bob.subFreq : GARDEN.bob.mainFreq) + w.size)) *
-        (ctx.mood.call ? GARDEN.bob.callAmplitude : GARDEN.bob.amplitude)
+  // Musique : ceux qui travaillent hochent la tête sur le tempo, même à l'arrêt ; les autres restent immobiles.
+  const nod = ctx.mood.music && status === 'working' && w.y === 0 && !ctx.reduced && w.mode !== 'interact'
+  if (nod) {
+    bob = Math.abs(Math.sin((ctx.now * Math.PI * GARDEN.musicTempoBpm) / 60)) * GARDEN.bob.musicAmplitude
+  } else if (w.mode === 'walk' && w.y === 0 && !ctx.reduced && !ctx.mood.music) {
+    bob =
+      Math.abs(Math.sin(ctx.now * (w.sub ? GARDEN.bob.subFreq : GARDEN.bob.mainFreq) + w.size)) *
+      (ctx.mood.call ? GARDEN.bob.callAmplitude : GARDEN.bob.amplitude)
   }
   const low = w.sad || w.sit
   const top = ground - w.size * GARDEN.footRatio - w.y - bob

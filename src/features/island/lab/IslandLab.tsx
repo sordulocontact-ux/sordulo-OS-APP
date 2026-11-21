@@ -106,7 +106,9 @@ export default function IslandLab() {
     build(runtime)
   }
 
-  const sizeKey = sizeKeyFor(snapshot.state, view.hover, snapshot.withCall)
+  const musicGarden =
+    snapshot.state === 'music' && showGarden && snapshot.background.some((a) => a.kind === 'agent' || a.kind === 'multi')
+  const sizeKey = sizeKeyFor(snapshot.state, view.hover, snapshot.withCall, musicGarden)
   const size = islandSize(platform, sizeKey, 0, musicHasProgress(view.music))
   const label = islandLabel(snapshot, view.sessions.length, view.call?.appName ?? null, view.music)
 
@@ -307,6 +309,9 @@ export default function IslandLab() {
           <div className={styles.buttons}>
             <Button size="sm" onClick={() => apply((r) => r.addMusic())}>
               Musique
+            </Button>
+            <Button size="sm" onClick={() => runtime.musicWithClaude(sessionCount)}>
+              Musique pendant Claude
             </Button>
             <Button size="sm" disabled={!view.music} onClick={() => runtime.toggleMusicPause()}>
               Pause ou reprise

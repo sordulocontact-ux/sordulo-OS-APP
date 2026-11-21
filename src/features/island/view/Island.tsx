@@ -77,7 +77,11 @@ export function Island(props: IslandProps) {
   const progress = findActivity('progress', primary)
   const bubbleProgress = findActivity('progress', secondary)
   const agentActivity = findActivity('agent', primary, secondary)
-  const musicOn = findActivity('music', primary, secondary) !== null
+  const musicOn =
+    findActivity('music', primary, secondary) !== null || snapshot.background.some((a) => a.kind === 'music')
+  // Musique + sessions Claude : une seule île, les Claude marchent sous la musique (jamais de bulle).
+  const musicGarden =
+    state === 'music' && hasGarden && snapshot.background.some((a) => a.kind === 'agent' || a.kind === 'multi')
   // Les Claude du jardin ne dansent qu'en lecture (sans données : comme en lecture).
   const musicPlaying = musicOn && music?.playing !== false
   const musicProgress = musicHasProgress(music)
@@ -98,11 +102,12 @@ export function Island(props: IslandProps) {
   if (liveService !== undefined && liveService !== keptService) setKeptService(liveService)
   const callService = liveService === undefined ? keptService : liveService
 
-  // Question à choix de Claude : la taille haute de la demande (celle de l'appel), pour loger les choix.
-  const questionAsk = state === 'agentAsk' && Boolean(snapshot.ask?.questions)
+  // Question à choix de Claude : taille haute pour loger les choix (agentQuestion, la hauteur de agentAskCall
+  // sans la ligne de l'appel, donc sans l'icône ni le minuteur d'appel). Pendant un vrai appel : agentAskCall.
+  const questionAsk = state === 'agentAsk' && Boolean(snapshot.ask?.questions) && !withCall
   const target: EngineTarget = useMemo(
     () => ({
-      key: sizeKeyFor(state, open, withCall || questionAsk),
+      key: questionAsk ? 'agentQuestion' : sizeKeyFor(state, open, withCall, musicGarden),
       platform,
       reduced,
       hasGarden,
@@ -110,7 +115,7 @@ export function Island(props: IslandProps) {
       meetRows: meetRows.length,
       musicProgress,
     }),
-    [state, open, withCall, questionAsk, platform, reduced, hasGarden, sessionCount, meetRows.length, musicProgress],
+    [state, open, withCall, questionAsk, musicGarden, platform, reduced, hasGarden, sessionCount, meetRows.length, musicProgress],
   )
 
   // Éléments du DOM pilotés hors de React
@@ -208,20 +213,22 @@ export function Island(props: IslandProps) {
   }, [stage])
 
   // Contexte du jardin : change avec l'état, le survol, la plateforme, l'humeur, jamais à chaque image
-  const gardenVisible = state === 'multi' && !open
+  // Avec la musique, les Claude restent visibles au survol : l'île s'ouvre et ils tombent jusqu'en bas.
+  const gardenVisible = (state === 'multi' && !open) || musicGarden
   const callOn = meet !== null
   const agentSessionId = agentSession?.id ?? null
   const gardenEnv: GardenEnv = useMemo(
     () => ({
       stage,
       visible: gardenVisible,
+      sizeKey: musicGarden ? 'musicGarden' : 'multi',
       state,
       platform,
       reduced,
       mood: { call: callOn, music: musicPlaying },
       agentSessionId,
     }),
-    [stage, gardenVisible, state, platform, reduced, callOn, musicPlaying, agentSessionId],
+    [stage, gardenVisible, musicGarden, state, platform, reduced, callOn, musicPlaying, agentSessionId],
   )
 
   // Nouvelle cible : état, survol, plateforme, jardin, nombre de sessions
@@ -302,7 +309,7 @@ export function Island(props: IslandProps) {
   const waveBarRef = useCallback((i: number, el: HTMLElement | null) => {
     liveRef.current.waveBars[i] = el
   }, [])
-  const eqBarRef = useCallback((i: number, el: HTMLElement | null) => {
+  const eqBarRef = useCallback((i: number, el: SVGRectElement | null) => {
     liveRef.current.eqBars[i] = el
   }, [])
   const ringRef = useCallback((el: SVGCircleElement | null) => {
@@ -384,7 +391,7 @@ export function Island(props: IslandProps) {
               onMusicCommand,
             }}
           />
-          <div className={cx(styles.garden, gardenVisible && styles.on)} aria-hidden="true">
+          <div className={cx(styles.garden, gardenVisible && styles.on, musicGarden && styles.gardenFront)} aria-hidden="true">
             <GardenEnvContext.Provider value={gardenEnv}>{garden}</GardenEnvContext.Provider>
           </div>
           <SharedElements

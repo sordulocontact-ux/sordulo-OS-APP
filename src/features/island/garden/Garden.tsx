@@ -7,7 +7,9 @@
  * animée réelle, ses images, la visibilité, l'humeur (appel en cours, musique) et la réduction des animations.
  * - React ne rend que le conteneur ; personnages et effets sont écrits par ./renderer.ts à chaque image de la
  *   boucle de l'île, seulement quand le jardin est visible (abonnement retiré sinon).
- * - Passage `agent` → `multi` : le personnage de la session affichée part de l'icône Claude.
+ * - Aussi dans la musique quand des sessions Claude tournent (forme `musicGarden`) : ils marchent sous la
+ *   pochette et l'égaliseur et hochent la tête sur le tempo.
+ * - Passage `agent` → `multi` (ou → musique avec jardin) : le personnage de la session affichée part de l'icône Claude.
  * - Bords en portail : un personnage qui sort à droite rentre déjà à gauche (jumeau dessiné par renderer.ts).
  * - Animations réduites (prefers-reduced-motion ou prop `reducedMotion` de l'île) : personnages immobiles,
  *   pas d'effets.
@@ -69,6 +71,7 @@ export function Garden({ sessions, mood }: GardenProps) {
   const envRef = useRef(env)
   const moodRef = useRef(mood)
   const prevStateRef = useRef<IslandState | null>(null)
+  const prevOnRef = useRef(false)
   const agentRef = useRef<string | null>(null)
   const reducedRef = useRef(false)
 
@@ -95,21 +98,26 @@ export function Garden({ sessions, mood }: GardenProps) {
   const visible = env?.visible ?? false
   const agentSessionId = env?.agentSessionId ?? null
   const stage = env?.stage ?? null
+  const sizeKey = env?.sizeKey ?? 'multi'
+  // Le jardin occupe l'île : état multi, ou musique avec des sessions Claude.
+  const gardenOn = state === 'multi' || (state === 'music' && sizeKey === 'musicGarden')
 
   // Sessions et état de l'île → simulation (arrivées, fins, conflits, sous-agents, départ depuis l'icône)
   useLayoutEffect(() => {
     if (state === 'agent' && agentSessionId) agentRef.current = agentSessionId
     const size = stage?.size() ?? null
     const opts: GardenSyncOptions = {
-      width: ISLAND_SIZES[platform].multi.w,
-      height: size?.height ?? ISLAND_SIZES[platform].multi.h,
+      width: ISLAND_SIZES[platform][sizeKey].w,
+      height: size?.height ?? ISLAND_SIZES[platform][sizeKey].h,
       platform,
       reduced,
       live: visible,
     }
     const prev = prevStateRef.current
+    const wasOn = prevOnRef.current
     prevStateRef.current = state
-    if (state === 'multi' && prev !== 'multi') {
+    prevOnRef.current = gardenOn
+    if (gardenOn && !wasOn) {
       if (prev === 'agent' && agentRef.current && !reduced) {
         const icon = SHARED_ELEMENTS.agentIcon[platform].agent
         const start: GardenIconStart | null = icon
@@ -126,7 +134,7 @@ export function Garden({ sessions, mood }: GardenProps) {
     }
     if (reduced && !reducedRef.current) sim.settle()
     reducedRef.current = reduced
-  }, [sim, sessions, state, platform, reduced, visible, agentSessionId, stage])
+  }, [sim, sessions, state, gardenOn, sizeKey, platform, reduced, visible, agentSessionId, stage])
 
   // Boucle : abonnée aux images de l'île seulement quand le jardin est visible
   useEffect(() => {

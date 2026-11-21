@@ -55,8 +55,56 @@ describe('activités', () => {
     island.removeActivity('meet')
     island.removeActivity('prog:upload')
     island.addActivity(multi)
+    // Une musique existe et rien n'est épinglé : elle prend l'île devant Claude, qui passe dans background.
+    expect(snap().primary?.id).toBe('music')
+    expect(snap().secondary).toBeNull()
+    expect(snap().background.map((a) => a.id)).toEqual(['multi', 'agent'])
+    island.removeActivity('music')
     expect(snap().primary?.id).toBe('multi')
-    expect(snap().secondary?.id).toBe('agent')
+    expect(snap().background.map((a) => a.id)).toEqual(['agent'])
+  })
+
+  it('jamais de bulle : toutes les autres activités vont dans background, dans l’ordre', () => {
+    const { island, snap } = setup()
+    island.addActivity(music)
+    island.addActivity(deploy)
+    island.addActivity(agent)
+    expect(snap()).toMatchObject({ state: 'progress', secondary: null, activityCount: 3 })
+    expect(snap().background.map((a) => a.id)).toEqual(['agent', 'music'])
+  })
+
+  it('musique + session Claude : la musique est la principale, Claude dans background, pas de bulle', () => {
+    const { island, snap } = setup()
+    island.addActivity(agent)
+    island.addActivity(music)
+    expect(snap()).toMatchObject({ state: 'music', secondary: null, pinnedId: null })
+    expect(snap().primary?.id).toBe('music')
+    expect(snap().background.map((a) => a.id)).toEqual(['agent'])
+    island.addActivity(multi)
+    expect(snap().primary?.id).toBe('music')
+    expect(snap().secondary).toBeNull()
+    expect(snap().background.map((a) => a.id)).toEqual(['multi', 'agent'])
+  })
+
+  it('Claude épinglé : Claude reste la principale devant la musique', () => {
+    const { island, snap } = setup()
+    island.addActivity(agent)
+    island.addActivity(music)
+    expect(island.pin('agent')).toBe(true)
+    expect(snap()).toMatchObject({ state: 'agent', pinnedId: 'agent', secondary: null })
+    expect(snap().background.map((a) => a.id)).toEqual(['music'])
+  })
+
+  it('pin : refuse un id inconnu et pendant une activité exclusive', () => {
+    const { island, snap } = setup()
+    island.addActivity(agent)
+    expect(island.pin('inconnue')).toBe(false)
+    island.addActivity(upload)
+    expect(island.pin('agent')).toBe(false)
+    expect(snap().pinnedId).toBeNull()
+    island.removeActivity('prog:upload')
+    island.addActivity(meet)
+    expect(island.pin('agent')).toBe(false)
   })
 
   it('remplace une activité de même id, qui devient la plus récente', () => {
@@ -79,19 +127,19 @@ describe('activités', () => {
     expect(island.removeActivity('inconnue')).toBe(false)
   })
 
-  it('épingle la secondaire, qui passe devant, puis la désépingle quand elle est retirée', () => {
+  it('épingle la suivante, qui passe devant, puis la désépingle quand elle est retirée', () => {
     const { island, snap } = setup()
     island.addActivity(agent)
     island.addActivity(music)
     expect(island.pinSecondary()).toBe('music')
-    expect(snap()).toMatchObject({ state: 'music', pinnedId: 'music' })
-    expect(snap().secondary?.id).toBe('agent')
+    expect(snap()).toMatchObject({ state: 'music', pinnedId: 'music', secondary: null })
+    expect(snap().background.map((a) => a.id)).toEqual(['agent'])
     island.addActivity(deploy)
     expect(snap().primary?.id).toBe('music')
-    expect(snap().secondary?.id).toBe('prog:deploy')
+    expect(snap().background.map((a) => a.id)).toEqual(['prog:deploy', 'agent'])
     island.removeActivity('music')
-    expect(snap()).toMatchObject({ state: 'progress', pinnedId: null })
-    expect(snap().secondary?.id).toBe('agent')
+    expect(snap()).toMatchObject({ state: 'progress', pinnedId: null, secondary: null })
+    expect(snap().background.map((a) => a.id)).toEqual(['agent'])
   })
 
   it('import ou analyse : seule dans l’île, devant l’épinglée, sans bulle', () => {
@@ -104,8 +152,8 @@ describe('activités', () => {
     expect(snap().background.map((a) => a.id)).toEqual(['music', 'agent'])
     expect(island.pinSecondary()).toBeNull()
     island.removeActivity('prog:upload')
-    expect(snap()).toMatchObject({ state: 'music', background: [] })
-    expect(snap().secondary?.id).toBe('agent')
+    expect(snap()).toMatchObject({ state: 'music', secondary: null })
+    expect(snap().background.map((a) => a.id)).toEqual(['agent'])
   })
 
   it('pendant un appel : l’appel passe devant l’épinglée, sans bulle, et l’épingle revient après', () => {
@@ -118,8 +166,8 @@ describe('activités', () => {
     expect(snap().background.map((a) => a.id)).toEqual(['music', 'agent'])
     expect(island.pinSecondary()).toBeNull()
     island.endMeet()
-    expect(snap()).toMatchObject({ state: 'music', background: [] })
-    expect(snap().secondary?.id).toBe('agent')
+    expect(snap()).toMatchObject({ state: 'music', secondary: null })
+    expect(snap().background.map((a) => a.id)).toEqual(['agent'])
   })
 
   it('n’épingle rien sans bulle', () => {

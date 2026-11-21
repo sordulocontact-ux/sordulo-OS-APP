@@ -291,6 +291,43 @@ describe('humeur appel', () => {
   })
 })
 
+describe('musique', () => {
+  it('l’île s’ouvre au survol : le sol descend, les personnages tombent jusqu’en bas puis s’y posent', () => {
+    const sim = new GardenSim(seeded(5))
+    sim.reset(sessions(2), OPTS)
+    run(sim, 2)
+    for (const w of sim.walkers) w.y = 0
+    const tall: GardenFrame = { ...FRAME, height: FRAME.height + 110 }
+    sim.step(DT, tall)
+    // Juste après l'ouverture : en l'air, au-dessus du nouveau sol.
+    expect(sim.walkers.filter((w) => !w.sub).every((w) => w.y > 50)).toBe(true)
+    run(sim, 2, tall)
+    expect(sim.walkers.filter((w) => !w.sub && w.mode !== 'interact').every((w) => w.y < 20)).toBe(true)
+    // Retour à l'île fermée : posés sur le sol remonté, jamais sous terre.
+    sim.step(DT, FRAME)
+    expect(sim.walkers.every((w) => w.y >= 0)).toBe(true)
+  })
+
+  it('ceux qui travaillent hochent la tête sur le tempo, même à l’arrêt ; les autres restent immobiles', () => {
+    const sim = new GardenSim(seeded(3))
+    sim.reset(sessions(1), REDUCED)
+    const w = main(sim, 's0')
+    w.mode = 'pause'
+    const music = { call: false, music: true }
+    // Un demi-battement plus loin, la tête n'est pas à la même hauteur.
+    const beat = 60 / GARDEN.musicTempoBpm
+    const a = walkerVisual(w, 'working', { ...visualCtx, mood: music, now: beat / 4 })
+    const b = walkerVisual(w, 'working', { ...visualCtx, mood: music, now: beat })
+    expect(a.top).not.toBe(b.top)
+    const doneA = walkerVisual(w, 'done', { ...visualCtx, mood: music, now: beat / 4 })
+    const doneB = walkerVisual(w, 'done', { ...visualCtx, mood: music, now: beat })
+    expect(doneA.top).toBe(doneB.top)
+    // Sans musique, un Claude arrêté ne bouge pas.
+    const still = walkerVisual(w, 'working', { ...visualCtx, now: beat / 4 })
+    expect(still.top).toBe(walkerVisual(w, 'working', { ...visualCtx, now: beat }).top)
+  })
+})
+
 describe('animations réduites', () => {
   it('pose les personnages au sol, visibles tout de suite, sous-agents rangés à droite du parent', () => {
     const sim = new GardenSim(seeded(17))

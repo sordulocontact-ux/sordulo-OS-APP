@@ -45,9 +45,13 @@ export type IslandSizeKey =
   | 'agentOpen'
   | 'agentAsk'
   | 'agentAskCall'
+  /** Question à choix de Claude hors appel : la hauteur de agentAskCall, sans la ligne de l'appel. */
+  | 'agentQuestion'
   | 'multi'
   | 'multiOpen'
   | 'musicOpen'
+  /** Musique avec des sessions Claude : même forme que music, les Claude marchent devant la pochette et les barres. */
+  | 'musicGarden'
   | 'dragWake'
   | 'dragOver'
   | 'notif'
@@ -296,9 +300,15 @@ export interface IslandSnapshot {
   state: IslandState
   /** Activité principale (dans l'île) ; null au repos. */
   primary: Activity | null
-  /** Activité secondaire (dans la bulle à droite) ; null : pas de bulle. Toujours null pendant un appel, un import ou une analyse. */
+  /**
+   * Toujours null : plus de deuxième bulle à côté de l'île (décision de Maël, 21/11). Champ gardé pour le rendu
+   * de la bulle, qui ne s'affiche donc plus.
+   */
   secondary: Activity | null
-  /** Pendant un appel, un import ou une analyse : les autres activités, dans l'ordre (sous l'appel au survol). Vide sinon. */
+  /**
+   * Les autres activités, dans l'ordre : sous l'appel au survol (meetOpen) ; avec la musique, les sessions
+   * Claude marchent en bas de l'île (jardin).
+   */
   background: readonly Activity[]
   /** Nombre total d'activités ; badge « +N » de la bulle = activityCount - 2 quand > 2. */
   activityCount: number

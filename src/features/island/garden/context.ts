@@ -6,14 +6,16 @@
  * La valeur ne change qu'avec ces réglages, jamais à chaque image : aucun rendu React par image.
  */
 import { createContext } from 'react'
-import type { IslandPlatform, IslandState } from '../types'
+import type { IslandPlatform, IslandSizeKey, IslandState } from '../types'
 import type { IslandStage } from '../view/loop'
 import type { GardenMood } from './simulation'
 
 export interface GardenEnv {
   stage: IslandStage
-  /** Jardin à l'écran : `multi` au repos, sans survol. */
+  /** Jardin à l'écran : `multi` au repos sans survol, ou musique avec des sessions Claude (survol compris). */
   visible: boolean
+  /** Forme qui accueille le jardin : `multi`, ou `musicGarden` (les Claude marchent sous la musique). */
+  sizeKey: Extract<IslandSizeKey, 'multi' | 'musicGarden'>
   state: IslandState
   platform: IslandPlatform
   reduced: boolean

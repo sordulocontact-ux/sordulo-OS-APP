@@ -231,16 +231,16 @@ describe('scénarios de priorité', () => {
     expect(snap()).toMatchObject({ state: 'multi', secondary: null, background: [] })
   })
 
-  it('E : la musique cède la place au jardin', () => {
+  it('E : la musique garde l’île, le jardin marche en bas (pas de bulle)', () => {
     const { clock, island, snap } = setup()
     island.addActivity(music)
     expect(snap()).toMatchObject({ state: 'music', secondary: null })
 
     clock.advanceTo(1500)
     island.addActivity(multi)
-    expect(snap()).toMatchObject({ state: 'multi', activityCount: 2 })
-    expect(snap().primary?.id).toBe('multi')
-    expect(snap().secondary?.id).toBe('music')
+    expect(snap()).toMatchObject({ state: 'music', activityCount: 2, secondary: null })
+    expect(snap().primary?.id).toBe('music')
+    expect(snap().background.map((a) => a.id)).toEqual(['multi'])
   })
 
   it('F : Claude demande une autorisation pendant qu’un rappel de call arrive', () => {
@@ -248,8 +248,8 @@ describe('scénarios de priorité', () => {
     island.addActivity(agent)
     clock.advanceTo(1000)
     island.addActivity(music)
-    expect(snap()).toMatchObject({ state: 'agent' })
-    expect(snap().secondary?.id).toBe('music')
+    expect(snap()).toMatchObject({ state: 'music', secondary: null })
+    expect(snap().background.map((a) => a.id)).toEqual(['agent'])
 
     clock.advanceTo(3000)
     const rappel = createNotification('rappel', {
@@ -266,7 +266,7 @@ describe('scénarios de priorité', () => {
     // « Autoriser »
     clock.advanceTo(6680)
     island.resolveAsk('ask-1')
-    expect(snap()).toMatchObject({ state: 'agent', ask: null, askPosition: null })
+    expect(snap()).toMatchObject({ state: 'music', ask: null, askPosition: null })
 
     clock.advanceTo(7130)
     expect(snap().state).toBe('notif')
@@ -281,7 +281,7 @@ describe('scénarios de priorité', () => {
     // « Rejoindre » : le contrôleur ouvre le lien ; l'île revient à Claude.
     clock.advanceTo(8780)
     island.endNotification(rappel.id)
-    expect(snap()).toMatchObject({ state: 'agent', notification: null })
+    expect(snap()).toMatchObject({ state: 'music', notification: null })
   })
 
   it('F, sans clic : le rappel reste 7 s', () => {
@@ -298,6 +298,6 @@ describe('scénarios de priorité', () => {
     clock.advanceTo(14_129)
     expect(snap().state).toBe('notif')
     clock.advanceTo(14_130)
-    expect(snap().state).toBe('agent')
+    expect(snap().state).toBe('music')
   })
 })
