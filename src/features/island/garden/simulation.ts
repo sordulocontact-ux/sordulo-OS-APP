@@ -102,7 +102,22 @@ export interface Walker {
   y: number
   vy: number
   dir: number
+  /** Vitesse de croisière visée (px/s). */
   speed: number
+  /** Personnage principal : vitesse courante (px/s), qui accélère et freine vers la vitesse visée. */
+  vel: number
+  /** Temps avant la prochaine vitesse de croisière (s). */
+  cruiseT: number
+  /** Freine avant une pause. */
+  stopping: boolean
+  /** Phase des pattes (rad, une demi-période par pas) et amplitude du pas (0 : pattes posées, 1 : il marche). */
+  gait: number
+  stepAmp: number
+  /** Position à l'image précédente (NaN : pas encore mesurée), pour la cadence des pas. */
+  px: number
+  /** Plan de profondeur attitré (0 devant) et profondeur courante (glisse vers le plan visé). */
+  plane: number
+  depth: number
   mode: WalkerMode
   /** Minuteur du mode courant (s). */
   t: number
@@ -116,6 +131,8 @@ export interface Walker {
   hidden: boolean
   blush: boolean
   sit: boolean
+  /** Sieste : 0 debout, 1 posé sur le ventre (pattes repliées). */
+  rest: number
   /** Bloqué (session en erreur), tant que personne n'est venu le consoler. */
   sad: boolean
   comforted: boolean
@@ -182,6 +199,12 @@ export type GardenEvent = 'handoff' | 'queue'
 
 export type BubbleKind = 'wait' | 'done' | 'err'
 
+/** Pose d'une patte : levée (px, vers le haut) et avancée (px, dans le sens de la marche). */
+export interface LegPose {
+  lift: number
+  shift: number
+}
+
 /** Comment dessiner un personnage à cette image. */
 export interface WalkerVisual {
   /** Translation du sprite (coin haut gauche, px), rotation (deg), échelle. */
@@ -200,7 +223,22 @@ export interface WalkerVisual {
   opacity: number
   /** Hauteur des paupières (% du sprite). */
   lid: number
+  /** Yeux fermés (sieste, clignement) : dessinés en traits. */
+  closed: boolean
   bubble: BubbleKind | null
+  /** Profondeur courante (0 devant, GARDEN.depth.planes - 1 au fond) : assombrissement (--garden-depth). */
+  depth: number
+  /** Ordre d'affichage : profondeur d'abord (devant par-dessus), puis sous-agents, puis ceux qui sont perchés. */
+  zIndex: number
+  /** Pattes des colonnes 3, 5, 10, 12 du masque (paires 3 + 10 et 5 + 12 en alternance). */
+  legs: readonly [LegPose, LegPose, LegPose, LegPose]
+  /** Haut du corps (corps, yeux, paupières) : montée (px, négatif : il descend) et inclinaison (deg). */
+  bodyLift: number
+  nod: number
+  /** Ombre de contact au sol : haut de sa boîte (même boîte que le sprite posé au sol), échelle, opacité. */
+  shadowTop: number
+  shadowScale: number
+  shadowOpacity: number
 }
 
 export const BUBBLE_TEXT: Record<BubbleKind, string> = { wait: '!', done: '✓', err: '?' }
@@ -281,6 +319,7 @@ export class GardenSim {
 
   private makeWalker(sessionId: string, parent: Walker | null, colorSlot: number): Walker {
     const sub = parent !== null
+    const plane = parent ? parent.plane : this.freePlane()
     return {
       id: this.nextId++,
       sessionId,
@@ -293,6 +332,14 @@ export class GardenSim {
       vy: 0,
       dir: this.randomDir(),
       speed: this.rnd(sub ? GARDEN.walkSpeed.sub : GARDEN.walkSpeed.main),
+      vel: 0,
+      cruiseT: this.rnd(GARDEN.walk.cruiseEvery),
+      stopping: false,
+      gait: 0,
+      stepAmp: 0,
+      px: NaN,
+      plane,
+      depth: parent ? parent.depth : plane,
       mode: 'walk',
       t: sub ? this.rnd(GARDEN.sub.firstTurn) : 0,
       op: 0,
@@ -305,6 +352,7 @@ export class GardenSim {
       hidden: false,
       blush: false,
       sit: false,
+      rest: 0,
       sad: false,
       comforted: false,
       sulk: 0,
@@ -331,12 +379,30 @@ export class GardenSim {
     return this.list.filter((w) => !w.sub).length % GARDEN_COLOR_TOKENS.length
   }
 
+  /** Plan le moins occupé par les personnages principaux (le plus en avant à égalité : seul, il est devant). */
+  private freePlane(): number {
+    const count = Array.from({ length: GARDEN.depth.planes }, () => 0)
+    for (const w of this.list) {
+      if (!w.sub && !w.dead && !w.retiring) count[w.plane] = (count[w.plane] ?? 0) + 1
+    }
+    let best = 0
+    count.forEach((c, i) => {
+      if (c < (count[best] ?? 0)) best = i
+    })
+    return best
+  }
+
   private settleStill(w: Walker): void {
     w.delay = 0
     w.op = 1
     w.sc = 1
     w.y = 0
     w.vy = 0
+    w.vel = 0
+    w.stopping = false
+    w.stepAmp = 0
+    w.px = NaN
+    w.depth = w.parent ? w.parent.plane : w.plane
   }
 
   /**
@@ -704,10 +770,12 @@ export class GardenSim {
   }
 
   private startInteraction(a: Walker, b: Walker, type: InteractionType): void {
-    a.mode = 'interact'
-    b.mode = 'interact'
-    a.vy = 0
-    b.vy = 0
+    for (const w of [a, b]) {
+      w.mode = 'interact'
+      w.vy = 0
+      w.vel = 0
+      w.stopping = false
+    }
     a.dir = sign(b.x - a.x) || 1
     b.dir = -a.dir
     const sa = a.x < b.x ? -1 : 1
@@ -731,6 +799,8 @@ export class GardenSim {
   private endInteraction(ia: Interaction): void {
     for (const w of [ia.a, ia.b]) {
       w.mode = 'walk'
+      // Il repart doucement ; après une course, il garde son allure de croisière.
+      w.vel = ia.type === 'race' ? w.speed : 0
       w.rot = 0
       w.shake = 0
       w.angry = false
@@ -861,13 +931,21 @@ export class GardenSim {
       w.sc += (1 - w.sc) * Math.min(1, dt * GARDEN.growRate)
       if (w.sub) this.subStep(w, dt, width)
       else if (st === 'working' || w.conflictWith) this.mainStep(w, dt, width)
-      else if (w.mode !== 'interact') w.mode = 'stand'
-      // Sieste : il s'allonge et des « z » s'envolent ; sinon il se redresse
+      else if (w.mode !== 'interact') {
+        w.mode = 'stand'
+        w.vel = 0
+        w.stopping = false
+      }
+      // Sieste : il se pose sur le ventre, pattes repliées, et des « z » s'envolent ; sinon il se relève
       if (!w.sub) {
         if (st === 'sleep' && w.mode !== 'interact') {
-          w.rot += (GARDEN.sleep.angle - w.rot) * Math.min(1, dt * GARDEN.sleep.rate)
+          w.rest += (1 - w.rest) * Math.min(1, dt * GARDEN.sleep.rate)
           if (this.coin(dt * GARDEN.sleep.zRate)) this.addFx('z', 'z', w.x - 8, this.headY(w) + 2, GARDEN.fxLife.z)
-        } else if (w.mode !== 'interact' && w.rot) {
+        } else if (w.rest > 0) {
+          w.rest += -w.rest * Math.min(1, dt * GARDEN.sleep.standRate)
+          if (w.rest < 0.02) w.rest = 0
+        }
+        if (w.mode !== 'interact' && w.rot) {
           w.rot += -w.rot * Math.min(1, dt * GARDEN.sleep.standRate)
           if (Math.abs(w.rot) < 0.5) w.rot = 0
         }
@@ -888,6 +966,8 @@ export class GardenSim {
     }
     this.updateInteractions(dt, width)
     this.prune()
+    this.updateDepths(dt)
+    for (const w of this.list) this.updateGait(w, dt, width)
 
     // Événements spontanés : relais ou file d'attente (le prototype les déclenche par des boutons)
     if (!this.mood.call) {
@@ -897,9 +977,11 @@ export class GardenSim {
         this.trigger(this.coin(0.5) ? 'handoff' : 'queue')
       }
     }
+    // Notes de musique : seulement de ceux qui hochent la tête (session qui travaille, au sol, visible).
+    // Celui qui dort fait des « z » (plus haut), ceux qui ont fini ou sont en pause ne font rien.
     if (this.mood.music && this.coin(dt * GARDEN.noteRate)) {
-      const mains = this.mains()
-      const nw = mains[Math.floor(this.rng() * mains.length)]
+      const nodding = this.mains().filter((w) => this.nodsToMusic(w))
+      const nw = nodding[Math.floor(this.rng() * nodding.length)]
       if (nw) this.addFx('note', '♪', nw.x - 3, this.headY(nw) - 10, GARDEN.fxLife.note)
     }
     for (const e of this.effects) e.age += dt
@@ -914,12 +996,16 @@ export class GardenSim {
     // Bloqué : il s'assoit et attend de l'aide
     if (w.sad) {
       w.mode = 'stand'
+      w.vel = 0
+      w.stopping = false
       return
     }
     // Fête ou accueil : il se tourne vers l'autre et saute
     if (w.cheer > 0) {
       w.cheer -= dt
       w.mode = 'walk'
+      w.vel = 0
+      w.stopping = false
       if (w.cheerAt) w.dir = sign(w.cheerAt.x - w.x) || w.dir
       if (w.y === 0 && this.coin(dt * GARDEN.cheerHopRate)) w.vy = GARDEN.cheerHopSpeed
       return
@@ -944,7 +1030,9 @@ export class GardenSim {
       if (o.mode !== 'interact') {
         const d = o.x - w.x
         w.dir = sign(d) || 1
-        w.x += w.dir * GARDEN.meetSpeed * dt
+        w.stopping = false
+        this.accelerate(w, GARDEN.meetSpeed, dt)
+        w.x += w.dir * w.vel * dt
         w.mode = 'walk'
         if (Math.abs(d) < GARDEN.meetDistance && w.y === 0 && o.y === 0) {
           const type = w.meet.type
@@ -960,7 +1048,9 @@ export class GardenSim {
       if (o.mode !== 'interact') {
         const d = o.x - w.x
         w.dir = sign(d) || 1
-        w.x += w.dir * GARDEN.conflictSpeed * dt
+        w.stopping = false
+        this.accelerate(w, GARDEN.conflictSpeed, dt)
+        w.x += w.dir * w.vel * dt
         w.mode = 'walk'
         if (Math.abs(d) < GARDEN.conflictDistance && w.y === 0 && o.y === 0) this.startInteraction(w, o, 'conflict')
       }
@@ -974,12 +1064,27 @@ export class GardenSim {
       }
       return
     }
+    // Marche vivante : il accélère en repartant, change un peu d'allure, freine avant de s'arrêter, et pousse
+    // un peu plus à chaque pas.
     w.mode = 'walk'
-    w.x += w.dir * w.speed * spd * dt
+    w.cruiseT -= dt
+    if (w.cruiseT <= 0) {
+      w.speed = this.rnd(GARDEN.walkSpeed.main)
+      w.cruiseT = this.rnd(GARDEN.walk.cruiseEvery)
+    }
+    this.accelerate(w, w.stopping ? 0 : w.speed * spd, dt)
+    const surge = 1 + GARDEN.walk.stepSurge * w.stepAmp * Math.cos(2 * w.gait)
+    w.x += w.dir * w.vel * surge * dt
     w.cool -= dt
-    if (this.coin(dt * GARDEN.pauseRate)) {
-      w.mode = 'pause'
-      w.t = this.rnd(GARDEN.pauseDuration)
+    if (w.stopping) {
+      if (w.vel <= GARDEN.walk.stopBelow) {
+        w.vel = 0
+        w.stopping = false
+        w.mode = 'pause'
+        w.t = this.rnd(GARDEN.pauseDuration)
+      }
+    } else if (this.coin(dt * GARDEN.pauseRate)) {
+      w.stopping = true
     } else if (!mood.call && w.y === 0 && this.coin(dt * GARDEN.hopRate)) w.vy = GARDEN.hopSpeed
     this.wrap(w, width)
     if (w.cool > 0 || w.y !== 0) return
@@ -1029,7 +1134,8 @@ export class GardenSim {
       }
       const ahead = (o.x - w.x) * w.dir
       if (ahead > min && ahead < max && this.coin(dt * GARDEN.followRate)) {
-        if (this.coin(GARDEN.leapChance)) {
+        // Saute-mouton seulement sur le même plan (sinon il sauterait par-dessus quelqu'un devant ou derrière lui).
+        if (this.coin(GARDEN.leapChance) && o.plane === w.plane) {
           w.leap = GARDEN.leap.duration
           w.vy = GARDEN.leap.jump
           w.cool = this.rnd(GARDEN.leap.cooldown)
@@ -1043,6 +1149,70 @@ export class GardenSim {
         }
       }
     }
+  }
+
+  /** Hoche la tête en musique, donc peut faire des notes : même règle que walkerVisual (sans la réduction). */
+  private nodsToMusic(w: Walker): boolean {
+    return (
+      this.statusOf(w) === 'working' &&
+      w.mode !== 'interact' &&
+      w.delay <= 0 &&
+      !w.hidden &&
+      w.op > 0 &&
+      (w.y === 0 || w.mode === 'ride')
+    )
+  }
+
+  /** Vitesse courante vers `target` : accélération au départ, freinage plus franc. */
+  private accelerate(w: Walker, target: number, dt: number): void {
+    if (target > w.vel) w.vel = Math.min(target, w.vel + GARDEN.walk.accel * dt)
+    else w.vel = Math.max(target, w.vel - GARDEN.walk.decel * dt)
+  }
+
+  /**
+   * Profondeur : chaque personnage principal glisse vers son plan, ou vers le plan le plus en avant des deux
+   * quand il interagit (rencontre, rendez-vous, conflit) ; les sous-agents suivent leur parent.
+   */
+  private updateDepths(dt: number): void {
+    const target = new Map<Walker, number>()
+    const mains = this.list.filter((w) => !w.sub && !w.dead)
+    for (const w of mains) target.set(w, w.plane)
+    const share = (a: Walker, b: Walker) => {
+      const p = Math.min(a.plane, b.plane)
+      target.set(a, Math.min(target.get(a) ?? a.plane, p))
+      target.set(b, Math.min(target.get(b) ?? b.plane, p))
+    }
+    for (const ia of this.ias) share(ia.a, ia.b)
+    for (const w of mains) {
+      if (w.meet) share(w, w.meet.to)
+      if (w.conflictWith) share(w, w.conflictWith)
+    }
+    const k = GARDEN.depth.rate * dt
+    for (const w of mains) {
+      const t = target.get(w) ?? w.plane
+      w.depth = w.depth < t ? Math.min(t, w.depth + k) : Math.max(t, w.depth - k)
+    }
+    for (const w of this.list) if (w.sub && w.parent) w.depth = w.parent.depth
+  }
+
+  /**
+   * Pattes : la phase avance avec le chemin parcouru (cadence proportionnelle à la vitesse, plafonnée) ; à
+   * l'arrêt ou en l'air, l'amplitude retombe et les pattes se posent.
+   */
+  private updateGait(w: Walker, dt: number, width: number): void {
+    let dx = Number.isNaN(w.px) ? 0 : w.x - w.px
+    if (width > 0 && Math.abs(dx) > width / 2) dx -= Math.sign(dx) * width
+    if (Math.abs(dx) > w.size) dx = 0 // téléportation (réapparition ailleurs)
+    w.px = w.x
+    if (dt <= 0) return
+    const L = w.sub ? GARDEN.legs.sub : GARDEN.legs.main
+    const speed = Math.abs(dx) / dt
+    const moving = w.y === 0 && w.mode !== 'ride' && !w.dead && speed > L.minSpeed
+    if (moving) {
+      w.gait = (w.gait + Math.min(speed / L.stepLength, L.maxSteps) * Math.PI * dt) % (2 * Math.PI)
+    }
+    w.stepAmp += ((moving ? 1 : 0) - w.stepAmp) * Math.min(1, dt * GARDEN.legs.settleRate)
+    if (!moving && w.stepAmp < 0.01) w.stepAmp = 0
   }
 
   /** Haut de la pile de sous-agents perchés sur le parent (prototype : stackTop). */
@@ -1386,25 +1556,87 @@ export interface VisualContext {
   platform: IslandPlatform
   mood: GardenMood
   reduced: boolean
-  /** Temps (s) pour le balancement de la marche. */
+  /** Temps (s) : hochement de tête sur le tempo de la musique. */
   now: number
 }
+
+/**
+ * Hochement sur un temps (0 à 1) : coup sec au début du temps (montée pendant GARDEN.nod.attack), puis
+ * retour doux jusqu'au temps suivant.
+ */
+export function nodPulse(now: number): number {
+  const beat = 60 / GARDEN.musicTempoBpm
+  const p = (((now / beat) % 1) + 1) % 1
+  const a = GARDEN.nod.attack
+  if (p < a) return Math.sin(((p / a) * Math.PI) / 2)
+  return 0.5 * (1 + Math.cos((Math.PI * (p - a)) / (1 - a)))
+}
+
+/** Pattes posées. */
+const LEGS_DOWN: WalkerVisual['legs'] = [
+  { lift: 0, shift: 0 },
+  { lift: 0, shift: 0 },
+  { lift: 0, shift: 0 },
+  { lift: 0, shift: 0 },
+]
 
 /** Comment dessiner un personnage (prototype : renderGarden). */
 export function walkerVisual(w: Walker, status: ClaudeSessionStatus, ctx: VisualContext): WalkerVisual {
   const ground = ctx.height - groundOffset(ctx.platform)
-  let bob = 0
-  // Musique : ceux qui travaillent hochent la tête sur le tempo, même à l'arrêt ; les autres restent immobiles.
-  const nod = ctx.mood.music && status === 'working' && w.y === 0 && !ctx.reduced && w.mode !== 'interact'
-  if (nod) {
-    bob = Math.abs(Math.sin((ctx.now * Math.PI * GARDEN.musicTempoBpm) / 60)) * GARDEN.bob.musicAmplitude
-  } else if (w.mode === 'walk' && w.y === 0 && !ctx.reduced && !ctx.mood.music) {
-    bob =
-      Math.abs(Math.sin(ctx.now * (w.sub ? GARDEN.bob.subFreq : GARDEN.bob.mainFreq) + w.size)) *
-      (ctx.mood.call ? GARDEN.bob.callAmplitude : GARDEN.bob.amplitude)
+  const D = GARDEN.depth
+  // Profondeur : au fond, un peu plus petit, pieds un peu plus haut (et assombri par le CSS).
+  const depth = Math.max(0, Math.min(D.planes - 1, w.depth))
+  const depthScale = 1 - depth * D.shrink
+  const groundTop = ground - depth * D.rise - w.size * GARDEN.footRatio
+  const cell = w.size / 16
+  // Sieste : posé sur le ventre, le corps descend jusqu'au sol (pattes repliées dessous, voir plus bas).
+  const rest = w.sub ? 0 : ctx.reduced ? (status === 'sleep' ? 1 : 0) : w.rest
+  const sink = rest * GARDEN.sleep.sink * cell
+  // La hauteur en l'air suit l'échelle : un sous-agent perché reste posé sur la tête de son parent au fond.
+  const top = groundTop - w.y * depthScale + sink * depthScale
+
+  // Pattes par paires (3 + 10 puis 5 + 12) : la paire levée avance, l'autre recule sous le corps.
+  const moving = !ctx.reduced && w.stepAmp > 0
+  const s = Math.sin(w.gait)
+  const c = Math.cos(w.gait)
+  const L = w.sub ? GARDEN.legs.sub : GARDEN.legs.main
+  let legs = LEGS_DOWN
+  let bodyLift = 0
+  if (moving) {
+    const amp = w.stepAmp
+    const liftA = amp * Math.max(0, s) * GARDEN.legs.lift * cell
+    const liftB = amp * Math.max(0, -s) * GARDEN.legs.lift * cell
+    const shiftA = -amp * c * GARDEN.legs.reach * cell * w.dir
+    const a: LegPose = { lift: liftA, shift: shiftA }
+    const b: LegPose = { lift: liftB, shift: -shiftA }
+    legs = [a, b, a, b]
+    // Balancement du corps avec les pas (le corps monte un peu quand une patte passe), pieds au sol.
+    bodyLift = amp * Math.abs(s) * (ctx.mood.call ? L.callSway : L.sway)
   }
+
+  // Musique : ceux qui travaillent hochent la tête sur le tempo (à l'arrêt comme en marchant) ; les autres
+  // restent immobiles. Le haut du corps s'incline vers l'avant et descend un peu.
+  let nod = 0
+  const nodding =
+    ctx.mood.music &&
+    status === 'working' &&
+    !ctx.reduced &&
+    w.mode !== 'interact' &&
+    w.delay <= 0 &&
+    (w.y === 0 || w.mode === 'ride')
+  if (nodding) {
+    const k = nodPulse(ctx.now)
+    nod = k * GARDEN.nod.angle * (w.dir || 1)
+    bodyLift = -k * GARDEN.nod.dip
+  }
+
+  // Pattes repliées sous le corps pendant la sieste (même couleur que lui : elles disparaissent).
+  if (rest > 0) {
+    const fold = (pose: LegPose): LegPose => ({ lift: pose.lift + sink, shift: pose.shift * (1 - rest) })
+    legs = [fold(legs[0]), fold(legs[1]), fold(legs[2]), fold(legs[3])]
+  }
+
   const low = w.sad || w.sit
-  const top = ground - w.size * GARDEN.footRatio - w.y - bob
   const colorToken = w.angry
     ? GARDEN_ANGRY_TOKEN
     : w.blush
@@ -1414,12 +1646,12 @@ export function walkerVisual(w: Walker, status: ClaudeSessionStatus, ctx: Visual
   if (w.delay > 0 || w.hidden) opacity = 0
   else if (!w.sub && status === 'idle') opacity = Math.min(w.op, GARDEN.idleOpacity)
   if (ctx.reduced && w.sub && status !== 'working') opacity = 0
+  opacity = Math.max(0, Math.min(1, opacity))
+  const closed = w.blink > 0 || (!w.sub && status === 'sleep')
   const lid =
-    w.blink > 0 || (!w.sub && status === 'sleep')
-      ? GARDEN.lidClosed
-      : !w.sub && (status === 'done' || status === 'idle' || status === 'background' || w.sad || w.sulk > 0)
-        ? GARDEN.lidHalf
-        : 0
+    !closed && !w.sub && (status === 'done' || status === 'idle' || status === 'background' || w.sad || w.sulk > 0)
+      ? GARDEN.lidHalf
+      : 0
   const bubble: BubbleKind | null = w.sub
     ? null
     : status === 'waiting'
@@ -1430,17 +1662,35 @@ export function walkerVisual(w: Walker, status: ClaudeSessionStatus, ctx: Visual
           ? 'err'
           : null
   const left = w.x - w.size / 2 + w.shake
+
+  // Ombre de contact : rétrécit et s'éclaircit quand il quitte le sol ; aucune quand il est perché.
+  const air = Math.min(1, w.y / GARDEN.shadow.fadeHeight)
+  const shadowScale = depthScale * (1 - air * (1 - GARDEN.shadow.minScale))
+  const shadowOpacity = w.mode === 'ride' ? 0 : opacity * (1 - air * (1 - GARDEN.shadow.minOpacity))
+
+  // Devant par-dessus ; à profondeur égale, les sous-agents par-dessus, ceux qui sont perchés encore au-dessus.
+  const zIndex = 1 + Math.round((D.planes - 1 - depth) * D.zSteps) * 4 + (w.sub ? 2 : 0) + (w.mode === 'ride' ? 1 : 0)
+
   return {
     left,
     twinLeft: twinLeftOf(left, w.size, ctx.width),
     top,
     rot: w.rot,
-    scaleX: w.sc * (low ? GARDEN.squash.x : 1),
-    scaleY: w.sc * (low ? GARDEN.squash.y : 1),
+    scaleX: w.sc * depthScale * (low ? GARDEN.squash.x : 1),
+    scaleY: w.sc * depthScale * (low ? GARDEN.squash.y : 1),
     colorToken,
-    opacity: Math.max(0, Math.min(1, opacity)),
+    opacity,
     lid,
+    closed,
     bubble,
+    depth,
+    zIndex,
+    legs,
+    bodyLift,
+    nod,
+    shadowTop: groundTop,
+    shadowScale: w.sc * shadowScale,
+    shadowOpacity: Math.max(0, Math.min(1, shadowOpacity)),
   }
 }
 

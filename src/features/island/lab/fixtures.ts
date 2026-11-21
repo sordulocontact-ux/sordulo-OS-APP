@@ -340,6 +340,16 @@ export const LAB_TRACKS: readonly LabTrack[] = [
     motif: "sun",
   },
   {
+    // Plusieurs artistes : la ligne dépasse et défile dans la vue ouverte (après 5 s, comme sur iPhone).
+    title: "Nuits blanches (version longue enregistrée en public à Lyon)",
+    artist: "Lou, Ibé, Les Ondes Claires, Noé Lune feat. Atelier Vert",
+    album: "Live",
+    appName: "Spotify sur iPhone de Maël",
+    durationMs: 251_000,
+    palette: { start: "rgb(250, 200, 70)", end: "rgb(230, 90, 60)" },
+    motif: "sun",
+  },
+  {
     title: "Marée basse",
     artist: "Noé Lune",
     album: "Littoral",

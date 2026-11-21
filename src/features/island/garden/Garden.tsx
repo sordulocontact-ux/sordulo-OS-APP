@@ -8,11 +8,13 @@
  * - React ne rend que le conteneur ; personnages et effets sont écrits par ./renderer.ts à chaque image de la
  *   boucle de l'île, seulement quand le jardin est visible (abonnement retiré sinon).
  * - Aussi dans la musique quand des sessions Claude tournent (forme `musicGarden`) : ils marchent sous la
- *   pochette et l'égaliseur et hochent la tête sur le tempo.
+ *   pochette et l'égaliseur et ceux qui travaillent hochent la tête sur le tempo (musique en lecture).
+ * - Chaque personnage a ses pattes qui marchent, une ombre de contact au sol et un plan de profondeur (au
+ *   fond : plus petit, plus sombre, pieds plus haut, derrière les autres).
  * - Passage `agent` → `multi` (ou → musique avec jardin) : le personnage de la session affichée part de l'icône Claude.
  * - Bords en portail : un personnage qui sort à droite rentre déjà à gauche (jumeau dessiné par renderer.ts).
  * - Animations réduites (prefers-reduced-motion ou prop `reducedMotion` de l'île) : personnages immobiles,
- *   pas d'effets.
+ *   pattes posées, pas de hochement, pas d'effets.
  */
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ISLAND_SIZES, SHARED_ELEMENTS } from '../geometry'
@@ -32,13 +34,22 @@ export interface GardenProps {
 function classNames(): GardenClassNames {
   const c = (name: string) => styles[name] ?? ''
   return {
+    crowd: c('crowd'),
     mascot: c('mascot'),
     fig: c('fig'),
+    upper: c('upper'),
     body: c('body'),
+    leg: c('leg'),
+    leg1: c('leg1'),
+    leg2: c('leg2'),
+    leg3: c('leg3'),
+    leg4: c('leg4'),
     eye: c('eye'),
     lid: c('lid'),
+    closed: c('closed'),
     left: c('left'),
     right: c('right'),
+    shadow: c('shadow'),
     bubble: c('bubble'),
     wait: c('wait'),
     done: c('done'),

@@ -109,7 +109,7 @@ describe('attribution des personnages', () => {
     sim.reset(sessions(2), OPTS, { sessionId: 's0', left: icon.x, top: icon.y, size: icon.s ?? 22 })
     const w = main(sim, 's0')
     expect(w.x).toBe(13 + 11)
-    expect(w.y).toBeCloseTo(40 - 6 - (9 + 22 * 0.81), 5)
+    expect(w.y).toBeCloseTo(40 - GARDEN.groundOffset.win - (9 + 22 * GARDEN.footRatio), 5)
     expect(w.op).toBe(1)
     expect(w.delay).toBe(0)
     expect(main(sim, 's1').delay).toBeGreaterThan(0)
@@ -151,7 +151,7 @@ describe('états des sessions', () => {
     expect(sim.fx.some((e) => e.kind === 'spark')).toBe(true)
   })
 
-  it('allonge une session inactive, avec des « z », et la réveille d’un saut', () => {
+  it('pose une session inactive sur le ventre, yeux fermés, avec des « z », et la réveille d’un saut', () => {
     const sim = new GardenSim(seeded(9))
     sim.reset([session(0, { status: 'sleep' }), session(1)], OPTS)
     let sawZ = false
@@ -160,9 +160,14 @@ describe('états des sessions', () => {
       return false
     })
     const w = main(sim, 's0')
-    expect(w.rot).toBeLessThan(-80)
+    // Posé, pas couché : aucune rotation, corps descendu au sol, yeux en traits.
+    expect(w.rot).toBe(0)
+    expect(w.rest).toBeGreaterThan(0.9)
     expect(sawZ).toBe(true)
-    expect(walkerVisual(w, 'sleep', visualCtx).lid).toBe(GARDEN.lidClosed)
+    const asleep = walkerVisual(w, 'sleep', visualCtx)
+    expect(asleep.closed).toBe(true)
+    expect(asleep.lid).toBe(0)
+    expect(asleep.top).toBeGreaterThan(walkerVisual(main(sim, 's1'), 'working', visualCtx).top)
     sim.sync(sessions(2), OPTS)
     expect(w.vy).toBe(GARDEN.wakeJump)
     expect(sim.fx.some((e) => e.kind === 'say' && e.text === '!')).toBe(true)
@@ -284,10 +289,14 @@ describe('humeur appel', () => {
     sim.reset(sessions(1), REDUCED)
     const w = main(sim, 's0')
     w.mode = 'walk'
-    const calm = walkerVisual(w, 'working', { ...visualCtx, now: 0.2 })
-    const call = walkerVisual(w, 'working', { ...visualCtx, now: 0.2, mood: { call: true, music: false } })
-    // 1,2 px → 0,5 px : le personnage monte moins haut
-    expect(calm.top).toBeLessThan(call.top)
+    w.stepAmp = 1
+    w.gait = Math.PI / 2
+    const calm = walkerVisual(w, 'working', visualCtx)
+    const call = walkerVisual(w, 'working', { ...visualCtx, mood: { call: true, music: false } })
+    // Le haut du corps monte moins (1 px au plus), les pieds restent au sol : pas de saut.
+    expect(calm.bodyLift).toBeGreaterThan(call.bodyLift)
+    expect(calm.bodyLift).toBeLessThanOrEqual(1)
+    expect(calm.top).toBe(call.top)
   })
 })
 
@@ -313,18 +322,237 @@ describe('musique', () => {
     sim.reset(sessions(1), REDUCED)
     const w = main(sim, 's0')
     w.mode = 'pause'
+    w.dir = 1
     const music = { call: false, music: true }
-    // Un demi-battement plus loin, la tête n'est pas à la même hauteur.
     const beat = 60 / GARDEN.musicTempoBpm
-    const a = walkerVisual(w, 'working', { ...visualCtx, mood: music, now: beat / 4 })
-    const b = walkerVisual(w, 'working', { ...visualCtx, mood: music, now: beat })
-    expect(a.top).not.toBe(b.top)
-    const doneA = walkerVisual(w, 'done', { ...visualCtx, mood: music, now: beat / 4 })
-    const doneB = walkerVisual(w, 'done', { ...visualCtx, mood: music, now: beat })
-    expect(doneA.top).toBe(doneB.top)
-    // Sans musique, un Claude arrêté ne bouge pas.
-    const still = walkerVisual(w, 'working', { ...visualCtx, now: beat / 4 })
-    expect(still.top).toBe(walkerVisual(w, 'working', { ...visualCtx, now: beat }).top)
+    const at = (now: number, status: GardenSession['status'] = 'working', mood = music) =>
+      walkerVisual(w, status, { ...visualCtx, mood, now })
+    // Coup marqué au début de chaque temps (incliné vers l'avant, le haut du corps descend), puis retour doux.
+    const hit = at(beat * GARDEN.nod.attack)
+    expect(hit.nod).toBeCloseTo(GARDEN.nod.angle, 5)
+    expect(hit.bodyLift).toBeCloseTo(-GARDEN.nod.dip, 5)
+    expect(at(beat * 0.5).nod).toBeGreaterThan(0)
+    expect(at(beat * 0.5).nod).toBeLessThan(hit.nod)
+    expect(at(beat * 0.99).nod).toBeLessThan(0.1)
+    // Même coup au temps suivant : sur le tempo
+    expect(at(beat * (3 + GARDEN.nod.attack)).nod).toBeCloseTo(hit.nod, 5)
+    // Le hochement ne déplace pas le personnage (pas de saut) : seuls le haut du corps et la tête bougent.
+    expect(hit.top).toBe(at(beat * 0.99).top)
+    // Tourné vers la gauche : il s'incline vers la gauche.
+    w.dir = -1
+    expect(at(beat * GARDEN.nod.attack).nod).toBeCloseTo(-GARDEN.nod.angle, 5)
+    // Fini, en attente : immobiles. Sans musique (ou musique en pause) : pas de hochement.
+    expect(at(beat * GARDEN.nod.attack, 'done').nod).toBe(0)
+    expect(at(beat * GARDEN.nod.attack, 'waiting').nod).toBe(0)
+    expect(at(beat * GARDEN.nod.attack, 'working', CALM_MOOD).nod).toBe(0)
+    expect(at(beat * GARDEN.nod.attack, 'working', CALM_MOOD).bodyLift).toBe(0)
+  })
+
+  it('en musique : celui qui dort fait des « z » et jamais de note, celui qui travaille fait des notes', () => {
+    const music: GardenFrame = { ...FRAME, mood: { call: false, music: true } }
+    const notesOver = (sim: GardenSim, w: Walker) =>
+      sim.fx.filter((e) => e.kind === 'note' && Math.abs(e.x + 3 - w.x) < 1).length
+    const zOver = (sim: GardenSim, w: Walker) => sim.fx.filter((e) => e.kind === 'z' && Math.abs(e.x + 8 - w.x) < 1).length
+
+    // Seul, endormi (immobile) : des « z », aucune note, pas de hochement.
+    const alone = new GardenSim(seeded(30))
+    alone.reset([session(0, { status: 'sleep' })], OPTS)
+    const z = new Set<number>()
+    let notes = 0
+    run(alone, 12, music, () => {
+      for (const e of alone.fx) if (e.kind === 'z') z.add(e.id)
+      notes += alone.fx.filter((e) => e.kind === 'note').length
+      return false
+    })
+    expect(z.size).toBeGreaterThan(0)
+    expect(notes).toBe(0)
+    const sleeper = main(alone, 's0')
+    expect(walkerVisual(sleeper, 'sleep', { ...visualCtx, mood: music.mood, now: 0.05 }).nod).toBe(0)
+
+    // Avec un Claude qui travaille et un qui a fini : les notes ne partent que de celui qui travaille.
+    const sim = new GardenSim(seeded(31))
+    sim.reset([session(0, { status: 'sleep' }), session(1), session(2, { status: 'done' })], OPTS)
+    const asleep = main(sim, 's0')
+    const worker = main(sim, 's1')
+    const done = main(sim, 's2')
+    const workerNotes = new Set<number>()
+    const sleepZ = new Set<number>()
+    run(sim, 20, music, () => {
+      // Un seul Claude au travail : aucune rencontre ; une note naît au-dessus de lui (positions du moment).
+      expect(sim.interactions).toHaveLength(0)
+      for (const e of sim.fx) {
+        if (e.kind === 'note' && !workerNotes.has(e.id)) {
+          expect(Math.abs(e.x + 3 - worker.x)).toBeLessThan(1)
+          workerNotes.add(e.id)
+        }
+        if (e.kind === 'z' && !sleepZ.has(e.id)) {
+          expect(Math.abs(e.x + 8 - asleep.x)).toBeLessThan(1)
+          sleepZ.add(e.id)
+        }
+      }
+      expect(notesOver(sim, asleep) + notesOver(sim, done) + zOver(sim, done)).toBe(0)
+      return false
+    })
+    expect(workerNotes.size).toBeGreaterThan(0)
+    expect(sleepZ.size).toBeGreaterThan(0)
+  })
+
+  it('en marchant sur la musique : hochement et pattes en même temps', () => {
+    const sim = new GardenSim(seeded(3))
+    sim.reset(sessions(1), REDUCED)
+    const w = main(sim, 's0')
+    w.mode = 'walk'
+    w.dir = 1
+    w.stepAmp = 1
+    w.gait = Math.PI / 2
+    const beat = 60 / GARDEN.musicTempoBpm
+    const v = walkerVisual(w, 'working', { ...visualCtx, mood: { call: false, music: true }, now: beat * GARDEN.nod.attack })
+    expect(v.nod).toBeGreaterThan(0)
+    expect(v.legs[0].lift).toBeGreaterThan(0)
+  })
+})
+
+describe('marche', () => {
+  /** Hasard fixe : jamais de pause ni de saut spontanés, vitesse de croisière au plus haut. */
+  const steady: Rng = () => 0.99
+
+  it('accélère au départ, puis freine avant de s’arrêter', () => {
+    const sim = new GardenSim(steady)
+    sim.reset(sessions(1), OPTS)
+    const w = main(sim, 's0')
+    run(sim, GARDEN.appearDelay.main + 0.1)
+    expect(w.vel).toBeGreaterThan(0)
+    expect(w.vel).toBeLessThan(w.speed / 2)
+    run(sim, 3)
+    expect(w.vel).toBeCloseTo(w.speed, 5)
+    // Freinage : plusieurs images de ralentissement, jamais d'accélération, puis la pause.
+    w.stopping = true
+    const speeds: number[] = []
+    run(sim, 3, FRAME, () => {
+      speeds.push(w.vel)
+      return w.mode === 'pause'
+    })
+    expect(w.mode).toBe('pause')
+    expect(w.vel).toBe(0)
+    expect(speeds.length).toBeGreaterThan(20)
+    for (let i = 1; i < speeds.length; i++) expect(speeds[i]).toBeLessThanOrEqual(speeds[i - 1] ?? Infinity)
+  })
+
+  it('les pattes alternent par paires en marchant et se posent à l’arrêt', () => {
+    const sim = new GardenSim(steady)
+    sim.reset(sessions(1), OPTS)
+    const w = main(sim, 's0')
+    run(sim, 3)
+    let sawA = false
+    let sawB = false
+    run(sim, 1, FRAME, () => {
+      const v = walkerVisual(w, 'working', visualCtx)
+      const [l3, l5, l10, l12] = v.legs
+      // Paires 3 + 10 et 5 + 12 : jamais les deux paires en l'air en même temps.
+      expect(l3.lift).toBe(l10.lift)
+      expect(l5.lift).toBe(l12.lift)
+      expect(l3.lift > 0 && l5.lift > 0).toBe(false)
+      expect(Math.max(l3.lift, l5.lift)).toBeLessThanOrEqual((GARDEN.legs.lift * w.size) / 16 + 1e-9)
+      sawA ||= l3.lift > 0
+      sawB ||= l5.lift > 0
+      // Le corps reste à hauteur constante (pas de sautillement), seul le haut se balance de moins de 1 px.
+      expect(v.top).toBeCloseTo(SIZE.h - GARDEN.groundOffset.win - w.size * GARDEN.footRatio - w.depth * GARDEN.depth.rise, 5)
+      expect(v.bodyLift).toBeLessThanOrEqual(1)
+      return false
+    })
+    expect(sawA && sawB).toBe(true)
+    // À l'arrêt : pattes posées, corps immobile.
+    w.stopping = true
+    run(sim, 3, FRAME, () => w.mode === 'pause')
+    run(sim, 0.8)
+    expect(w.mode).toBe('pause')
+    const still = walkerVisual(w, 'working', visualCtx)
+    expect(still.legs.every((l) => l.lift === 0 && l.shift === 0)).toBe(true)
+    expect(still.bodyLift).toBe(0)
+  })
+
+  it('la cadence des pas suit la vitesse', () => {
+    const cadence = (frame: GardenFrame) => {
+      const sim = new GardenSim(steady)
+      sim.reset(sessions(1), OPTS)
+      const w = main(sim, 's0')
+      run(sim, 3, frame)
+      let turns = 0
+      let prev = w.gait
+      run(sim, 2, frame, () => {
+        turns += (w.gait - prev + 2 * Math.PI) % (2 * Math.PI)
+        prev = w.gait
+        return false
+      })
+      return turns
+    }
+    const calm = cadence(FRAME)
+    const slow = cadence({ ...FRAME, mood: { call: true, music: false } })
+    expect(calm).toBeGreaterThan(0)
+    // Pendant un appel, il marche deux fois moins vite : deux fois moins de pas.
+    expect(slow / calm).toBeGreaterThan(0.4)
+    expect(slow / calm).toBeLessThan(0.6)
+  })
+})
+
+describe('profondeur', () => {
+  it('répartit les sessions sur les plans ; seule, une session est devant', () => {
+    const one = new GardenSim(seeded(20))
+    one.reset(sessions(1), OPTS)
+    expect(main(one, 's0').plane).toBe(0)
+    const sim = new GardenSim(seeded(20))
+    sim.reset(sessions(3), OPTS)
+    expect(new Set(['s0', 's1', 's2'].map((id) => main(sim, id).plane)).size).toBe(GARDEN.depth.planes)
+  })
+
+  it('au fond : plus petit, posé sur le même bord bas, dessiné derrière ; les sous-agents suivent leur parent', () => {
+    const sim = new GardenSim(seeded(21))
+    sim.reset([session(0), session(1), session(2, { subagents: 1 })], REDUCED)
+    const front = main(sim, 's0')
+    const back = main(sim, 's2')
+    expect(front.plane).toBe(0)
+    expect(back.plane).toBe(2)
+    const vf = walkerVisual(front, 'working', visualCtx)
+    const vb = walkerVisual(back, 'working', visualCtx)
+    expect(vb.scaleY).toBeLessThan(vf.scaleY)
+    // Tous posés sur le bas de l'île (demande de Maël) : la profondeur se lit à la taille, la teinte, l'ordre.
+    expect(vb.shadowTop).toBeCloseTo(vf.shadowTop, 5)
+    expect(vb.depth).toBe(2)
+    expect(vf.depth).toBe(0)
+    expect(vb.zIndex).toBeLessThan(vf.zIndex)
+    const [sub] = sim.subsOf(back)
+    expect(sub).toBeDefined()
+    if (!sub) return
+    const vs = walkerVisual(sub, 'working', visualCtx)
+    expect(vs.depth).toBe(vb.depth)
+    expect(vs.zIndex).toBeGreaterThan(vb.zIndex)
+    expect(vs.zIndex).toBeLessThan(vf.zIndex)
+  })
+
+  it('deux personnages qui interagissent passent doucement sur le même plan, puis retrouvent le leur', () => {
+    const sim = new GardenSim(seeded(22))
+    sim.reset(sessions(2), OPTS)
+    run(sim, 1)
+    const a = main(sim, 's0')
+    const b = main(sim, 's1')
+    expect(a.plane).not.toBe(b.plane)
+    const shared = Math.min(a.plane, b.plane)
+    const behind = a.plane > b.plane ? a : b
+    a.meet = { to: b, type: 'handoff' }
+    const depths: number[] = []
+    run(sim, 20, FRAME, () => {
+      depths.push(behind.depth)
+      return sim.interactions.length > 0 && behind.depth === shared
+    })
+    expect(behind.depth).toBe(shared)
+    // Transition douce : plusieurs images entre les deux plans.
+    expect(depths.filter((d) => d > shared && d < behind.plane).length).toBeGreaterThan(5)
+    // Fin de l'interaction (temps de repos ensuite : pas de nouvelle rencontre tout de suite).
+    run(sim, 15, FRAME, () => sim.interactions.length === 0)
+    expect(sim.interactions).toHaveLength(0)
+    run(sim, 2)
+    expect(sim.interactions).toHaveLength(0)
+    expect(behind.depth).toBe(behind.plane)
   })
 })
 
@@ -348,9 +576,19 @@ describe('animations réduites', () => {
     expect(sim.fx).toHaveLength(0)
     expect(sim.walkers.every((w) => !w.conflictWith && w.cheer === 0)).toBe(true)
     const w = main(sim, 's1')
-    const a = walkerVisual(w, 'working', { ...visualCtx, reduced: true, now: 0.1 })
-    const b = walkerVisual(w, 'working', { ...visualCtx, reduced: true, now: 0.37 })
+    w.mode = 'walk'
+    w.stepAmp = 1
+    w.gait = Math.PI / 2
+    const music = { call: false, music: true }
+    const a = walkerVisual(w, 'working', { ...visualCtx, reduced: true, mood: music, now: 0.1 })
+    const b = walkerVisual(w, 'working', { ...visualCtx, reduced: true, mood: music, now: 0.37 })
     expect(a.top).toBe(b.top)
+    // Pattes posées, pas de balancement ni de hochement, même en musique.
+    for (const v of [a, b]) {
+      expect(v.legs.every((l) => l.lift === 0 && l.shift === 0)).toBe(true)
+      expect(v.bodyLift).toBe(0)
+      expect(v.nod).toBe(0)
+    }
   })
 
   it('settle arrête les interactions et retire les effets en cours', () => {

@@ -38,7 +38,7 @@ export const GARDEN = {
   /** Taille des personnages (px, carrés) : session, sous-agent. */
   size: { main: 22, sub: 13 },
   /** Hauteur du sol au-dessus du bas de la forme (prototype : gOff). */
-  groundOffset: { win: 6, mac: 5 } satisfies Record<IslandPlatform, number>,
+  groundOffset: { win: 1, mac: 1 } satisfies Record<IslandPlatform, number>,
   /** Bas des pieds dans le sprite (transform-origin 50% 81%) et haut de la tête (on se pose à 62 %). */
   footRatio: 0.81,
   headRatio: 0.62,
@@ -67,7 +67,14 @@ export const GARDEN = {
   wakeJump: 90,
 
   // --- Marche (prototype : mainStep) ------------------------------------------------------------------------
+  /** Vitesse de croisière (px/s) : tirée au hasard, renouvelée de temps en temps pour les personnages principaux. */
   walkSpeed: { main: [12, 20] as Range, sub: [50, 75] as Range },
+  /**
+   * Allure vivante des personnages principaux : accélération au départ (px/s²), freinage avant de s'arrêter
+   * (px/s²), arrêt sous `stopBelow` px/s, nouvelle vitesse de croisière toutes les 2 à 5 s, petite poussée à
+   * chaque pas (fraction de la vitesse, en phase avec les pattes).
+   */
+  walk: { accel: 14, decel: 20, stopBelow: 1, cruiseEvery: [2, 5] as Range, stepSurge: 0.15 },
   /** Facteurs de vitesse : pendant un appel, en bouderie. */
   callSlowdown: 0.5,
   sulkSlowdown: 0.6,
@@ -75,8 +82,8 @@ export const GARDEN = {
   pauseRate: 0.08,
   pauseDuration: [1, 2.6] as Range,
   pauseTurnChance: 0.35,
-  /** Petit saut spontané : probabilité par seconde, vitesse verticale. */
-  hopRate: 0.12,
+  /** Petit saut spontané (rare) : probabilité par seconde, vitesse verticale. */
+  hopRate: 0.04,
   hopSpeed: 75,
   /** Saut pendant une fête : probabilité par seconde, vitesse verticale. */
   cheerHopRate: 5,
@@ -145,10 +152,37 @@ export const GARDEN = {
   maxDt: 0.05,
 
   // --- Rendu (prototype : renderGarden) ----------------------------------------------------------------------
-  /** Balancement de la marche : fréquence (rad/s) et amplitude (px) ; pendant un appel : 0,5 px. */
-  bob: { mainFreq: 7, subFreq: 18, amplitude: 1.2, callAmplitude: 0.5, musicAmplitude: 2 },
+  /**
+   * Pattes (les 4 pattes du masque, rangées 11-12, colonnes 3, 5, 10, 12), par paires en alternance (3 + 10
+   * puis 5 + 12). Un pas = une demi-période ; cadence = vitesse / longueur du pas (px), plafonnée à `maxSteps`
+   * pas par seconde ; patte levée d'une case (`lift`, en cases de la grille de 16) et avancée de `reach` case ;
+   * `minSpeed` (px/s) : en dessous, il est arrêté ; `settleRate` : vitesse à laquelle les pattes se posent ou
+   * reprennent le pas. Balancement du corps avec les pas (px, au plus 1) ; pendant un appel : réduit.
+   */
+  legs: {
+    main: { stepLength: 3.5, maxSteps: 7, minSpeed: 2, sway: 0.6, callSway: 0.3 },
+    sub: { stepLength: 6, maxSteps: 9, minSpeed: 4, sway: 0.4, callSway: 0.2 },
+    lift: 1,
+    reach: 0.5,
+    settleRate: 10,
+  },
+  /**
+   * Hochement de tête en musique (sessions qui travaillent) : le haut du corps (corps, yeux) s'incline de
+   * `angle` degrés vers l'avant autour des hanches et descend de `dip` px, un coup sec sur chaque temps
+   * (montée pendant `attack` du temps) puis retour doux.
+   */
+  nod: { angle: 7, dip: 0.6, attack: 0.14 },
   /** Tempo de la musique (battements par minute) : hochement de tête des Claude et battement de l'égaliseur. */
   musicTempoBpm: 116,
+  /**
+   * Profondeur : 3 plans (0 devant, 2 au fond). Par plan vers le fond : échelle réduite de `shrink`, pieds
+   * remontés de `rise` px (0 : tous posés sur le bas de l'île, demande de Maël) (assombrissement : token --island-garden-depth-shade). Passage d'un plan à l'autre à
+   * `rate` plans par seconde (deux personnages qui interagissent se mettent sur le plan le plus en avant des
+   * deux). `zSteps` : finesse de l'ordre d'affichage pendant une transition.
+   */
+  depth: { planes: 3, shrink: 0.08, rise: 0, rate: 2.5, zSteps: 10 },
+  /** Ombre de contact : rétrécit jusqu'à `minScale` et s'éclaircit jusqu'à `minOpacity` à `fadeHeight` px du sol. */
+  shadow: { fadeHeight: 24, minScale: 0.4, minOpacity: 0.25 },
   /** Accroupi (bloqué, assis en file) : échelle horizontale et verticale. */
   squash: { x: 1.08, y: 0.8 },
   /** Session en pause : personnage estompé. */
@@ -158,8 +192,11 @@ export const GARDEN = {
   lidHalf: 6.25,
   /** Clignement des yeux : durée, intervalle (session, sous-agent), premier clignement. */
   blink: { duration: 0.14, main: [2.5, 6] as Range, sub: [1.5, 4] as Range, first: [1, 5] as Range },
-  /** Sieste : allongé à -90°, vitesse de bascule, « z » par seconde. */
-  sleep: { angle: -90, rate: 4, zRate: 1.1, standRate: 10 },
+  /**
+   * Sieste : posé sur le ventre (pattes repliées, le corps descend de `sink` cases de la grille de 16 jusqu'au
+   * sol), yeux fermés en traits ; vitesse pour s'installer et se relever, « z » par seconde.
+   */
+  sleep: { sink: 2, rate: 4, zRate: 1.1, standRate: 10 },
 
   // --- Effets (prototype : fx, say, showSpark) ---------------------------------------------------------------
   /** Durée de vie des effets (s) : identique aux animations CSS des tokens --island-garden-duration-*. */

@@ -1,7 +1,11 @@
 /**
  * Dessin du jardin dans le DOM (prototype : sprite, fx, renderGarden). Les éléments des personnages et des
  * effets sont créés et retirés ici, hors de React, et leurs styles écrits à chaque image seulement s'ils
- * changent. La logique (positions, couleurs, bulles) vient de ./simulation.ts.
+ * changent. La logique (positions, couleurs, bulles, pattes, hochement, profondeur, ombre) vient de
+ * ./simulation.ts.
+ *
+ * Un personnage : ombre de contact (au sol, sous tous les personnages) + sprite = pattes séparées (colonnes
+ * 3, 5, 10, 12 du masque) sous le haut du corps (corps, yeux, paupières), qui se balance et hoche la tête.
  */
 import {
   BUBBLE_TEXT,
@@ -15,13 +19,22 @@ import {
 
 /** Classes du module CSS (Garden.module.css). */
 export interface GardenClassNames {
+  crowd: string
   mascot: string
   fig: string
+  upper: string
   body: string
+  leg: string
+  leg1: string
+  leg2: string
+  leg3: string
+  leg4: string
   eye: string
   lid: string
+  closed: string
   left: string
   right: string
+  shadow: string
   bubble: string
   wait: string
   done: string
@@ -43,17 +56,29 @@ export interface GardenClassNames {
 
 /** Variable CSS de la couleur du corps (lue par Garden.module.css). */
 export const BODY_COLOR_VAR = '--garden-color'
+/** Variable CSS de la profondeur (0 devant) : assombrit le personnage et son ombre (Garden.module.css). */
+export const DEPTH_VAR = '--garden-depth'
 
 /** Un sprite dessiné (styles écrits seulement quand ils changent). */
 interface Sprite {
   el: HTMLDivElement
+  upper: HTMLElement
+  legs: HTMLElement[]
   lids: HTMLElement[]
   bubble: HTMLElement
+  shadow: HTMLElement
   transform: string
+  upperTransform: string
+  legTransforms: string[]
   color: string
+  depth: string
+  z: string
   opacity: string
   lid: number
+  closed: boolean
   bubbleKind: BubbleKind | null | undefined
+  shadowTransform: string
+  shadowOpacity: string
 }
 
 /** Un personnage : son sprite et son jumeau de l'autre bord (portail, visible seulement à cheval sur un bord). */
@@ -67,41 +92,87 @@ const fixed = (v: number, digits = 1) => v.toFixed(digits)
 export class GardenRenderer {
   private readonly walkers = new Map<number, WalkerNode>()
   private readonly effects = new Map<number, HTMLElement>()
+  /** Calque des personnages et de leurs ombres : leur ordre (z-index) reste sous l'encoche et les effets. */
+  private readonly crowd: HTMLDivElement
 
   constructor(
     private readonly layer: HTMLElement,
     private readonly cls: GardenClassNames,
-  ) {}
+  ) {
+    this.crowd = document.createElement('div')
+    this.crowd.className = cls.crowd
+    layer.appendChild(this.crowd)
+  }
 
   private createSprite(size: number): Sprite {
     const { cls } = this
+    const shadow = document.createElement('div')
+    shadow.className = cls.shadow
+    shadow.style.width = `${size}px`
+    shadow.style.height = `${size}px`
+    this.crowd.appendChild(shadow)
     const el = document.createElement('div')
     el.className = cls.mascot
     el.style.width = `${size}px`
     el.style.height = `${size}px`
     const fig = document.createElement('div')
     fig.className = cls.fig
+    // Pattes (colonnes 3, 5, 10, 12 du masque) sous le haut du corps, qui les recouvre en haut.
+    const legs: HTMLElement[] = []
+    for (const col of [cls.leg1, cls.leg2, cls.leg3, cls.leg4]) {
+      const leg = document.createElement('i')
+      leg.className = `${cls.leg} ${col}`
+      fig.appendChild(leg)
+      legs.push(leg)
+    }
+    const upper = document.createElement('div')
+    upper.className = cls.upper
     const body = document.createElement('div')
     body.className = cls.body
-    fig.appendChild(body)
+    upper.appendChild(body)
     const lids: HTMLElement[] = []
     for (const side of [cls.left, cls.right]) {
       const eye = document.createElement('i')
       eye.className = `${cls.eye} ${side}`
-      fig.appendChild(eye)
+      upper.appendChild(eye)
     }
     for (const side of [cls.left, cls.right]) {
       const lid = document.createElement('i')
       lid.className = `${cls.lid} ${side}`
-      fig.appendChild(lid)
+      upper.appendChild(lid)
       lids.push(lid)
     }
+    fig.appendChild(upper)
     el.appendChild(fig)
     const bubble = document.createElement('span')
     bubble.className = cls.bubble
     el.appendChild(bubble)
-    this.layer.appendChild(el)
-    return { el, lids, bubble, transform: '', color: '', opacity: '', lid: -1, bubbleKind: undefined }
+    this.crowd.appendChild(el)
+    return {
+      el,
+      upper,
+      legs,
+      lids,
+      bubble,
+      shadow,
+      transform: '',
+      upperTransform: '',
+      legTransforms: legs.map(() => ''),
+      color: '',
+      depth: '',
+      z: '',
+      opacity: '',
+      lid: -1,
+      closed: false,
+      bubbleKind: undefined,
+      shadowTransform: '',
+      shadowOpacity: '',
+    }
+  }
+
+  private removeSprite(sprite: Sprite): void {
+    sprite.el.remove()
+    sprite.shadow.remove()
   }
 
   private fxClass(e: Fx): string {
@@ -135,20 +206,59 @@ export class GardenRenderer {
       sprite.opacity = opacity
       st.opacity = opacity
     }
+    const shadowOpacity = left === null ? fixed(0, 3) : fixed(v.shadowOpacity, 3)
+    if (shadowOpacity !== sprite.shadowOpacity) {
+      sprite.shadowOpacity = shadowOpacity
+      sprite.shadow.style.opacity = shadowOpacity
+    }
     if (left === null || v.opacity <= 0) return
     const transform = `translate(${fixed(left)}px,${fixed(v.top)}px) rotate(${fixed(v.rot)}deg) scale(${fixed(v.scaleX, 3)},${fixed(v.scaleY, 3)})`
     if (transform !== sprite.transform) {
       sprite.transform = transform
       st.transform = transform
     }
+    const shadowTransform = `translate(${fixed(left)}px,${fixed(v.shadowTop)}px) scale(${fixed(v.shadowScale, 3)})`
+    if (shadowTransform !== sprite.shadowTransform) {
+      sprite.shadowTransform = shadowTransform
+      sprite.shadow.style.transform = shadowTransform
+    }
+    const upperTransform = `translateY(${fixed(-v.bodyLift, 2)}px) rotate(${fixed(v.nod)}deg)`
+    if (upperTransform !== sprite.upperTransform) {
+      sprite.upperTransform = upperTransform
+      sprite.upper.style.transform = upperTransform
+    }
+    v.legs.forEach((pose, i) => {
+      const legTransform = `translate(${fixed(pose.shift, 2)}px,${fixed(-pose.lift, 2)}px)`
+      if (legTransform !== sprite.legTransforms[i]) {
+        sprite.legTransforms[i] = legTransform
+        const leg = sprite.legs[i]
+        if (leg) leg.style.transform = legTransform
+      }
+    })
+    const z = String(v.zIndex)
+    if (z !== sprite.z) {
+      sprite.z = z
+      st.zIndex = z
+    }
     const color = `var(${v.colorToken})`
     if (color !== sprite.color) {
       sprite.color = color
       st.setProperty(BODY_COLOR_VAR, color)
+      sprite.shadow.style.setProperty(BODY_COLOR_VAR, color)
+    }
+    const depth = fixed(v.depth, 2)
+    if (depth !== sprite.depth) {
+      sprite.depth = depth
+      st.setProperty(DEPTH_VAR, depth)
+      sprite.shadow.style.setProperty(DEPTH_VAR, depth)
     }
     if (v.lid !== sprite.lid) {
       sprite.lid = v.lid
       for (const lid of sprite.lids) lid.style.height = `${v.lid}%`
+    }
+    if (v.closed !== sprite.closed) {
+      sprite.closed = v.closed
+      sprite.upper.classList.toggle(this.cls.closed, v.closed)
     }
     if (v.bubble !== sprite.bubbleKind) {
       sprite.bubbleKind = v.bubble
@@ -174,8 +284,8 @@ export class GardenRenderer {
     }
     for (const [id, node] of this.walkers) {
       if (!seen.has(id)) {
-        node.main.el.remove()
-        node.twin.el.remove()
+        this.removeSprite(node.main)
+        this.removeSprite(node.twin)
         this.walkers.delete(id)
       }
     }
@@ -207,10 +317,11 @@ export class GardenRenderer {
   /** Retire tout ce que le moteur de rendu a créé. */
   dispose(): void {
     for (const node of this.walkers.values()) {
-      node.main.el.remove()
-      node.twin.el.remove()
+      this.removeSprite(node.main)
+      this.removeSprite(node.twin)
     }
     for (const el of this.effects.values()) el.remove()
+    this.crowd.remove()
     this.walkers.clear()
     this.effects.clear()
   }

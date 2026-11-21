@@ -11,6 +11,7 @@ import { IslandIcon, MusicControlIcon } from "../icons";
 import styles from "../Island.module.css";
 import { formatElapsed, type BackgroundRow } from "../labels";
 import { Layer } from "../Layer";
+import { Marquee } from "../Marquee";
 import { musicHasProgress } from "../music";
 import { PROGRESS_VISUALS, toneStyle } from "../tone";
 import type { ActivityOfKind } from "../types";
@@ -72,12 +73,18 @@ export function MusicLayer({
             aria-label={appName ? `Ouvrir ${appName}` : "Ouvrir le lecteur"}
           />
           <span className={styles.musicText}>
-            <strong title={shown?.title}>{shown?.title || "Musique"}</strong>
+            <strong>
+              <Marquee text={shown?.title || "Musique"} active={open} />
+            </strong>
             {shown?.artist ? (
-              <small title={shown.artist}>{shown.artist}</small>
+              <small>
+                <Marquee text={shown.artist} active={open} />
+              </small>
             ) : null}
             {shown?.appName ? (
-              <small className={styles.musicApp}>{shown.appName}</small>
+              <small className={styles.musicApp}>
+                <Marquee text={shown.appName} active={open} />
+              </small>
             ) : null}
           </span>
         </div>

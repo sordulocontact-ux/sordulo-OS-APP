@@ -293,6 +293,34 @@
   font-size: var(--island-font-size-xs);
 }
 
+/* Texte trop long (Marquee.tsx) : coupé par « … » au repos, défile comme sur iPhone dans la vue ouverte */
+.marquee {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.marqueeTrack {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.marqueeOn {
+  -webkit-mask-image: linear-gradient(to right, var(--island-bg) calc(100% - var(--island-space-16)), transparent);
+  mask-image: linear-gradient(to right, var(--island-bg) calc(100% - var(--island-space-16)), transparent);
+}
+
+.marqueeOn .marqueeTrack {
+  display: inline-flex;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.marqueeCopy {
+  padding-left: var(--island-space-38);
+}
+
 .musicProgress {
   display: flex;
   align-items: center;

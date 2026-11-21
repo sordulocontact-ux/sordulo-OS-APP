@@ -352,12 +352,20 @@
   /* En colère (conflit), rougissant (chuchotement) */
   --island-garden-angry: #e5484d;
   --island-garden-blush: #ff8fb1;
-  /* Contour, yeux, texte des bulles, blanc des bulles et effets */
-  --island-garden-outline: #000000;
-  /* Contour de 1 px autour de la silhouette (4 ombres portées) */
-  --island-garden-outline-filter: drop-shadow(1px 0 0 var(--island-garden-outline))
-    drop-shadow(-1px 0 0 var(--island-garden-outline)) drop-shadow(0 1px 0 var(--island-garden-outline))
-    drop-shadow(0 -1px 0 var(--island-garden-outline));
+  /*
+   * Liseré, profondeur et ombre de contact, mélangés à la couleur du personnage (Garden.module.css) :
+   * teinte d'assombrissement ; liseré de 1 px = couleur du personnage mêlée à 55 % de cette teinte ;
+   * assombrissement par plan vers le fond (2 plans au plus : 32 %) ; ombre de contact = couleur du personnage
+   * à 30 %, ellipse de 64 % × 12 % du sprite sous les pieds.
+   */
+  --island-garden-shade: #000000;
+  --island-garden-rim-width: 1px;
+  --island-garden-rim-shade: 55%;
+  --island-garden-depth-shade: 16%;
+  --island-garden-shadow-mix: 30%;
+  --island-garden-shadow-width: 64%;
+  --island-garden-shadow-height: 12%;
+  /* Yeux, texte des bulles, blanc des bulles et effets */
   --island-garden-eye: #000000;
   --island-garden-ink: #000000;
   --island-garden-light: #ffffff;

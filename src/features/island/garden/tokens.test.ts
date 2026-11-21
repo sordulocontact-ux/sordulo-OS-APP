@@ -12,8 +12,8 @@ const strip = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, '')
 const defined = new Set(Array.from(tokens.matchAll(/(--[a-z0-9-]+)\s*:/g), (m: RegExpExecArray) => m[1]))
 
 describe('Garden.module.css', () => {
-  it('only uses defined tokens (besides the variables set by the renderer)', () => {
-    const local = new Set(['--garden-color', '--garden-dx', '--garden-dy'])
+  it('only uses defined tokens (besides the variables set by the renderer or computed in the module)', () => {
+    const local = new Set(['--garden-color', '--garden-depth', '--garden-dx', '--garden-dy', '--garden-tint', '--garden-rim'])
     const used = Array.from(css.matchAll(/var\((--[a-z0-9-]+)/g), (m: RegExpExecArray) => m[1] ?? '')
     expect(used.filter((v) => !local.has(v) && !defined.has(v))).toEqual([])
   })
@@ -26,6 +26,16 @@ describe('Garden.module.css', () => {
   it('has no hard-coded px or rem value (besides 0 and 1px)', () => {
     const lengths = strip(css).match(/-?\d+(\.\d+)?(px|rem)\b/g) ?? []
     expect(lengths.filter((v) => v !== '1px')).toEqual([])
+  })
+
+  it('draws no black outline: the rim is a darker tint of the character color', () => {
+    expect(css).not.toMatch(/--island-garden-outline/)
+    expect(defined.has('--island-garden-outline-filter')).toBe(false)
+    expect(strip(css)).toMatch(/drop-shadow\(.*var\(--garden-rim\)/)
+  })
+
+  it('has no letter-spacing', () => {
+    expect(strip(css)).not.toMatch(/letter-spacing/)
   })
 })
 
