@@ -10,6 +10,7 @@ import {
   type GardenSyncOptions,
   type Rng,
   type Walker,
+  twinLeftOf,
 } from './simulation'
 
 /** Hasard reproductible (mulberry32). */
@@ -52,7 +53,7 @@ function main(sim: GardenSim, id: string): Walker {
   return w
 }
 
-const visualCtx = { height: SIZE.h, platform: 'win' as const, mood: CALM_MOOD, reduced: false, now: 0 }
+const visualCtx = { width: SIZE.w, height: SIZE.h, platform: 'win' as const, mood: CALM_MOOD, reduced: false, now: 0 }
 
 describe('attribution des personnages', () => {
   it('donne un personnage aux 5 premières sessions, chacun sa couleur', () => {
@@ -324,5 +325,38 @@ describe('animations réduites', () => {
     expect(sim.interactions).toHaveLength(0)
     expect(sim.fx).toHaveLength(0)
     expect(sim.walkers.every((w) => w.y === 0 && w.op === 1 && !w.hidden && !w.angry)).toBe(true)
+  })
+})
+
+describe('bords en portail', () => {
+  it('le jumeau apparaît de l’autre côté seulement quand le sprite chevauche un bord', () => {
+    expect(twinLeftOf(10, 20, 200)).toBeNull()
+    expect(twinLeftOf(180, 20, 200)).toBeNull()
+    expect(twinLeftOf(190, 20, 200)).toBe(-10)
+    expect(twinLeftOf(-5, 20, 200)).toBe(195)
+    expect(twinLeftOf(-5, 20, 0)).toBeNull()
+  })
+
+  it('un personnage qui sort à droite rentre à gauche sans disparaître', () => {
+    const sim = new GardenSim(seeded(11))
+    sim.reset([session(0)], OPTS)
+    const w = main(sim, 's0')
+    run(sim, 1)
+    // Au bord droit, en marche vers la droite : la partie qui dépasse est déjà dessinée à gauche.
+    w.x = SIZE.w - w.size / 4
+    w.dir = 1
+    w.mode = 'walk'
+    const edge = walkerVisual(w, 'working', visualCtx)
+    expect(edge.twinLeft).not.toBeNull()
+    expect(edge.twinLeft ?? 0).toBeLessThan(0)
+    expect((edge.twinLeft ?? 0) + w.size).toBeGreaterThan(0)
+    // La position boucle sur la largeur : jamais de temps mort hors de la forme.
+    for (let t = 0; t < 20; t += DT) {
+      sim.step(DT, FRAME)
+      if (w.mode === 'walk') {
+        expect(w.x).toBeGreaterThanOrEqual(0)
+        expect(w.x).toBeLessThan(SIZE.w)
+      }
+    }
   })
 })

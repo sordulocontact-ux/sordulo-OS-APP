@@ -8,6 +8,7 @@
  * - React ne rend que le conteneur ; personnages et effets sont écrits par ./renderer.ts à chaque image de la
  *   boucle de l'île, seulement quand le jardin est visible (abonnement retiré sinon).
  * - Passage `agent` → `multi` : le personnage de la session affichée part de l'icône Claude.
+ * - Bords en portail : un personnage qui sort à droite rentre déjà à gauche (jumeau dessiné par renderer.ts).
  * - Animations réduites (prefers-reduced-motion ou prop `reducedMotion` de l'île) : personnages immobiles,
  *   pas d'effets.
  */
@@ -137,6 +138,7 @@ export function Garden({ sessions, mood }: GardenProps) {
       const m = moodOf(current, moodRef.current)
       if (!current.reduced) sim.step(frame.dt, { width: frame.width, height: frame.height, platform: current.platform, mood: m })
       renderer.render(sim, {
+        width: frame.width,
         height: frame.height,
         platform: current.platform,
         mood: m,

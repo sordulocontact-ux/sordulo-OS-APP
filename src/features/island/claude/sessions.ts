@@ -149,13 +149,24 @@ export function findPendingAsk(state: ClaudeState, requestId: string): Permissio
  * Activité Claude de l'île : une session → `agent`, plusieurs → `multi`. Rien tant qu'aucune session ne
  * travaille ni n'attend de réponse (demande de Maël : rien ne tourne, rien dans l'île) ; la fin d'un tour
  * est annoncée par la notification « Claude a terminé ».
+ *
+ * Une session seule qui a des sous-agents passe aussi en `multi` : le jardin montre son personnage et ses
+ * sous-agents qui se promènent (demande de Maël, 21/11). `keepGarden` : elle vient d'en avoir, on reste
+ * dans le jardin un moment (la source gère le délai) pour ne pas faire changer l'île de taille entre deux
+ * sous-agents lancés l'un après l'autre.
  */
 export type ClaudeActivityTarget = { kind: 'agent'; sessionId: string } | { kind: 'multi' } | null
 
-export function claudeActivityFor(sessions: readonly ClaudeSession[]): ClaudeActivityTarget {
+export function claudeActivityFor(sessions: readonly ClaudeSession[], keepGarden = false): ClaudeActivityTarget {
   if (!sessions.some((s) => s.status === 'working' || s.status === 'waiting')) return null
-  if (sessions.length === 1 && sessions[0]) return { kind: 'agent', sessionId: sessions[0].id }
+  const only = sessions.length === 1 ? sessions[0] : undefined
+  if (only && only.subagents === 0 && !keepGarden) return { kind: 'agent', sessionId: only.id }
   return { kind: 'multi' }
+}
+
+/** Session seule qui a des sous-agents en cours (le jardin la montre avec eux). */
+export function soloWithSubagents(sessions: readonly ClaudeSession[]): boolean {
+  return sessions.length === 1 && (sessions[0]?.subagents ?? 0) > 0
 }
 
 // ---------------------------------------------------------------------------

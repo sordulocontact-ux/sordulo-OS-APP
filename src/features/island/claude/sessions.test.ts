@@ -3,6 +3,7 @@ import type { ClaudeHookEventName, ClaudeRelayEvent } from '../../../shared/desk
 import { CLAUDE_PERMISSION_TIMEOUT_MS } from '../../../shared/desktop-contract'
 import {
   claudeActivityFor,
+  soloWithSubagents,
   FORGET_AFTER_MS,
   INITIAL_CLAUDE_STATE,
   pendingAskOf,
@@ -314,5 +315,16 @@ describe('activité Claude de l’île', () => {
     const asking = run([prompt('s-1'), ev('PermissionRequest', { requestId: 'r-1', toolName: 'Bash' })]).sessions
     expect(claudeActivityFor(asking)).toEqual({ kind: 'agent', sessionId: 's-1' })
     expect(claudeActivityFor([])).toBeNull()
+  })
+
+  it('une session seule avec des sous-agents → multi (le jardin les montre), ou si on garde le jardin', () => {
+    const prompt = ev('UserPromptSubmit', { message: 'x' })
+    const crew = run([prompt, ev('PreToolUse', { toolName: 'Agent', toolSummary: 'Explorer' })]).sessions
+    expect(soloWithSubagents(crew)).toBe(true)
+    expect(claudeActivityFor(crew)).toEqual({ kind: 'multi' })
+    const back = run([prompt, ev('PreToolUse', { toolName: 'Agent' }), ev('SubagentStop')]).sessions
+    expect(soloWithSubagents(back)).toBe(false)
+    expect(claudeActivityFor(back)).toEqual({ kind: 'agent', sessionId: 's-1' })
+    expect(claudeActivityFor(back, true)).toEqual({ kind: 'multi' })
   })
 })

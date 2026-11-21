@@ -184,6 +184,11 @@ export type BubbleKind = 'wait' | 'done' | 'err'
 export interface WalkerVisual {
   /** Translation du sprite (coin haut gauche, px), rotation (deg), échelle. */
   left: number
+  /**
+   * Portail : position du jumeau quand le sprite dépasse un bord (même image décalée d'une largeur : la partie
+   * qui sort d'un côté rentre de l'autre) ; null quand il est entier dans la forme.
+   */
+  twinLeft: number | null
   top: number
   rot: number
   scaleX: number
@@ -587,9 +592,14 @@ export class GardenSim {
     return this.height - groundOffset(this.platform) - w.size * GARDEN.headRatio - w.y
   }
 
+  /**
+   * Bords en portail : la position boucle sur la largeur, sans temps mort hors de la forme. Le personnage qui
+   * dépasse d'un côté est déjà visible de l'autre (jumeau dessiné par renderer.ts, voir walkerVisual).
+   */
   private wrap(w: Walker, width: number): void {
-    if (w.x > width + w.size) w.x = -w.size
-    else if (w.x < -w.size) w.x = width + w.size
+    if (width <= 0) return
+    if (w.x >= width) w.x -= width
+    else if (w.x < 0) w.x += width
   }
 
   /** Libre pour une rencontre (prototype : freeW). */
@@ -1346,6 +1356,8 @@ export class GardenSim {
 }
 
 export interface VisualContext {
+  /** Largeur courante de la forme (px) : bords en portail. */
+  width: number
   /** Hauteur courante de la forme (px). */
   height: number
   platform: IslandPlatform
@@ -1391,8 +1403,10 @@ export function walkerVisual(w: Walker, status: ClaudeSessionStatus, ctx: Visual
         : w.sad
           ? 'err'
           : null
+  const left = w.x - w.size / 2 + w.shake
   return {
-    left: w.x - w.size / 2 + w.shake,
+    left,
+    twinLeft: twinLeftOf(left, w.size, ctx.width),
     top,
     rot: w.rot,
     scaleX: w.sc * (low ? GARDEN.squash.x : 1),
@@ -1402,4 +1416,12 @@ export function walkerVisual(w: Walker, status: ClaudeSessionStatus, ctx: Visual
     lid,
     bubble,
   }
+}
+
+/** Jumeau du portail : le sprite [left, left + size] chevauche un bord → la même image de l'autre côté. */
+export function twinLeftOf(left: number, size: number, width: number): number | null {
+  if (width <= 0) return null
+  if (left < 0) return left + width
+  if (left + size > width) return left - width
+  return null
 }

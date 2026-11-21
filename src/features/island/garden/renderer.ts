@@ -3,7 +3,15 @@
  * effets sont créés et retirés ici, hors de React, et leurs styles écrits à chaque image seulement s'ils
  * changent. La logique (positions, couleurs, bulles) vient de ./simulation.ts.
  */
-import { BUBBLE_TEXT, walkerVisual, type BubbleKind, type Fx, type GardenSim, type VisualContext } from './simulation'
+import {
+  BUBBLE_TEXT,
+  walkerVisual,
+  type BubbleKind,
+  type Fx,
+  type GardenSim,
+  type VisualContext,
+  type WalkerVisual,
+} from './simulation'
 
 /** Classes du module CSS (Garden.module.css). */
 export interface GardenClassNames {
@@ -36,7 +44,8 @@ export interface GardenClassNames {
 /** Variable CSS de la couleur du corps (lue par Garden.module.css). */
 export const BODY_COLOR_VAR = '--garden-color'
 
-interface WalkerNode {
+/** Un sprite dessiné (styles écrits seulement quand ils changent). */
+interface Sprite {
   el: HTMLDivElement
   lids: HTMLElement[]
   bubble: HTMLElement
@@ -45,6 +54,12 @@ interface WalkerNode {
   opacity: string
   lid: number
   bubbleKind: BubbleKind | null | undefined
+}
+
+/** Un personnage : son sprite et son jumeau de l'autre bord (portail, visible seulement à cheval sur un bord). */
+interface WalkerNode {
+  main: Sprite
+  twin: Sprite
 }
 
 const fixed = (v: number, digits = 1) => v.toFixed(digits)
@@ -58,7 +73,7 @@ export class GardenRenderer {
     private readonly cls: GardenClassNames,
   ) {}
 
-  private createWalker(size: number): WalkerNode {
+  private createSprite(size: number): Sprite {
     const { cls } = this
     const el = document.createElement('div')
     el.className = cls.mascot
@@ -112,6 +127,36 @@ export class GardenRenderer {
     return el
   }
 
+  /** Écrit un sprite à la position `left` ; `left` null : sprite caché (jumeau hors bord). */
+  private paint(sprite: Sprite, v: WalkerVisual, left: number | null): void {
+    const st = sprite.el.style
+    const opacity = left === null ? fixed(0, 3) : fixed(v.opacity, 3)
+    if (opacity !== sprite.opacity) {
+      sprite.opacity = opacity
+      st.opacity = opacity
+    }
+    if (left === null || v.opacity <= 0) return
+    const transform = `translate(${fixed(left)}px,${fixed(v.top)}px) rotate(${fixed(v.rot)}deg) scale(${fixed(v.scaleX, 3)},${fixed(v.scaleY, 3)})`
+    if (transform !== sprite.transform) {
+      sprite.transform = transform
+      st.transform = transform
+    }
+    const color = `var(${v.colorToken})`
+    if (color !== sprite.color) {
+      sprite.color = color
+      st.setProperty(BODY_COLOR_VAR, color)
+    }
+    if (v.lid !== sprite.lid) {
+      sprite.lid = v.lid
+      for (const lid of sprite.lids) lid.style.height = `${v.lid}%`
+    }
+    if (v.bubble !== sprite.bubbleKind) {
+      sprite.bubbleKind = v.bubble
+      sprite.bubble.className = v.bubble ? `${this.cls.bubble} ${this.cls[v.bubble]}` : this.cls.bubble
+      sprite.bubble.textContent = v.bubble ? BUBBLE_TEXT[v.bubble] : ''
+    }
+  }
+
   /** Écrit l'image courante. */
   render(sim: GardenSim, ctx: VisualContext): void {
     const seen = new Set<number>()
@@ -120,41 +165,17 @@ export class GardenRenderer {
       seen.add(w.id)
       let node = this.walkers.get(w.id)
       if (!node) {
-        node = this.createWalker(w.size)
+        node = { main: this.createSprite(w.size), twin: this.createSprite(w.size) }
         this.walkers.set(w.id, node)
       }
       const v = walkerVisual(w, sim.statusOf(w), ctx)
-      const st = node.el.style
-      const opacity = fixed(v.opacity, 3)
-      if (opacity !== node.opacity) {
-        node.opacity = opacity
-        st.opacity = opacity
-      }
-      if (v.opacity > 0) {
-        const transform = `translate(${fixed(v.left)}px,${fixed(v.top)}px) rotate(${fixed(v.rot)}deg) scale(${fixed(v.scaleX, 3)},${fixed(v.scaleY, 3)})`
-        if (transform !== node.transform) {
-          node.transform = transform
-          st.transform = transform
-        }
-      }
-      const color = `var(${v.colorToken})`
-      if (color !== node.color) {
-        node.color = color
-        st.setProperty(BODY_COLOR_VAR, color)
-      }
-      if (v.lid !== node.lid) {
-        node.lid = v.lid
-        for (const lid of node.lids) lid.style.height = `${v.lid}%`
-      }
-      if (v.bubble !== node.bubbleKind) {
-        node.bubbleKind = v.bubble
-        node.bubble.className = v.bubble ? `${this.cls.bubble} ${this.cls[v.bubble]}` : this.cls.bubble
-        node.bubble.textContent = v.bubble ? BUBBLE_TEXT[v.bubble] : ''
-      }
+      this.paint(node.main, v, v.left)
+      this.paint(node.twin, v, v.twinLeft)
     }
     for (const [id, node] of this.walkers) {
       if (!seen.has(id)) {
-        node.el.remove()
+        node.main.el.remove()
+        node.twin.el.remove()
         this.walkers.delete(id)
       }
     }
@@ -185,7 +206,10 @@ export class GardenRenderer {
 
   /** Retire tout ce que le moteur de rendu a créé. */
   dispose(): void {
-    for (const node of this.walkers.values()) node.el.remove()
+    for (const node of this.walkers.values()) {
+      node.main.el.remove()
+      node.twin.el.remove()
+    }
     for (const el of this.effects.values()) el.remove()
     this.walkers.clear()
     this.effects.clear()

@@ -5,6 +5,9 @@
  *
  * - Sessions : poussées au rendu (`view.sessions`). Une session → activité `agent` {sessionId} ; deux et
  *   plus → `multi` (sans `agent`) ; aucune, ou toutes inactives → aucune activité (l'île se repose).
+ *   Une session seule avec des sous-agents → `multi` aussi (le jardin les montre), et elle y reste
+ *   SUBAGENT_GARDEN_LINGER_MS après le dernier, pour ne pas faire changer l'île de taille entre deux
+ *   sous-agents lancés l'un après l'autre.
  * - Demande d'autorisation (PermissionRequest) : `requestAsk`, minuteur jusqu'à `expiresAt` (60 s) puis
  *   `resolveAsk`. Fermée aussi par PermissionCancelled ou un événement qui prouve qu'elle est passée
  *   (PostToolUse du même outil, Stop, nouveau prompt, fin de session).
@@ -29,6 +32,7 @@ import { createNotification } from '../../catalog'
 import {
   claudeActivityFor,
   findRecord,
+  soloWithSubagents,
   INITIAL_CLAUDE_STATE,
   pendingAskOf,
   reduceClaude,
@@ -48,6 +52,8 @@ export const AGENT_ACTIVITY_ID = 'agent'
 export const MULTI_ACTIVITY_ID = 'multi'
 /** Tant qu'il y a des sessions : on regarde toutes les 30 s lesquelles sont inactives ou oubliées. */
 export const CLAUDE_TICK_MS = 30_000
+/** Session seule : le jardin reste affiché ce temps après la fin de son dernier sous-agent. */
+export const SUBAGENT_GARDEN_LINGER_MS = 8_000
 
 /** Accès Tauri de la source (src/lib/desktop.ts), remplacés par des faux en test. */
 export interface ClaudeSourceDeps {
@@ -56,9 +62,9 @@ export interface ClaudeSourceDeps {
   claudeOpenSession: (args: { sessionId: string }) => Promise<void>
 }
 
-function syncActivity(ctx: IslandSourceContext, sessions: readonly ClaudeSession[]): void {
+function syncActivity(ctx: IslandSourceContext, sessions: readonly ClaudeSession[], keepGarden: boolean): void {
   const { coordinator } = ctx
-  const target = claudeActivityFor(sessions)
+  const target = claudeActivityFor(sessions, keepGarden)
   if (target?.kind !== 'agent') coordinator.removeActivity(AGENT_ACTIVITY_ID)
   if (target?.kind !== 'multi') coordinator.removeActivity(MULTI_ACTIVITY_ID)
   if (target?.kind === 'agent') {
@@ -80,6 +86,33 @@ export function createClaudeSource(deps: ClaudeSourceDeps): IslandSource {
       let shown: readonly ClaudeSession[] = []
       const askTimers = new Map<string, TimerId>()
       let tickTimer: TimerId | null = null
+      // Session seule avec sous-agents : jardin jusqu'à `gardenUntil` après le dernier (0 : pas de délai).
+      let soloCrew = false
+      let gardenUntil = 0
+      let lingerTimer: TimerId | null = null
+
+      function clearLinger(): void {
+        if (lingerTimer !== null) ctx.clock.clearTimeout(lingerTimer)
+        lingerTimer = null
+      }
+
+      /** Jardin gardé pour une session seule dont les sous-agents viennent de finir ; minuteur de retour. */
+      function keepGardenFor(sessions: readonly ClaudeSession[]): boolean {
+        const now = ctx.clock.now()
+        const crew = soloWithSubagents(sessions)
+        if (soloCrew && !crew) gardenUntil = now + SUBAGENT_GARDEN_LINGER_MS
+        if (crew) gardenUntil = 0
+        soloCrew = crew
+        const keep = !crew && sessions.length === 1 && now < gardenUntil
+        if (!keep) clearLinger()
+        else if (lingerTimer === null) {
+          lingerTimer = ctx.clock.setTimeout(() => {
+            lingerTimer = null
+            if (!ctx.isDisposed()) publish()
+          }, gardenUntil - now)
+        }
+        return keep
+      }
 
       function publish(): void {
         const sessions = sessionsOf(state)
@@ -88,7 +121,7 @@ export function createClaudeSource(deps: ClaudeSourceDeps): IslandSource {
           shown = sessions
           ctx.view.patch({ sessions })
         }
-        syncActivity(ctx, sessions)
+        syncActivity(ctx, sessions, keepGardenFor(sessions))
       }
 
       function clearAskTimer(requestId: string): void {
@@ -182,6 +215,7 @@ export function createClaudeSource(deps: ClaudeSourceDeps): IslandSource {
           askTimers.clear()
           if (tickTimer !== null) ctx.clock.clearTimeout(tickTimer)
           tickTimer = null
+          clearLinger()
         },
         actions: {
           openSession(action) {

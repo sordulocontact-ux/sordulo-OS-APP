@@ -5,7 +5,14 @@ import { SLEEP_AFTER_MS } from '../../claude'
 import { relayEvent } from '../../claude/testEvents'
 import { NEXT_IN_QUEUE_DELAY_MS } from '../../coordinator'
 import { fakeEvent, flush, setupRuntime } from '../testUtils'
-import { AGENT_ACTIVITY_ID, CLAUDE_TICK_MS, createClaudeSource, MULTI_ACTIVITY_ID, type ClaudeSourceDeps } from './claude'
+import {
+  AGENT_ACTIVITY_ID,
+  CLAUDE_TICK_MS,
+  createClaudeSource,
+  MULTI_ACTIVITY_ID,
+  SUBAGENT_GARDEN_LINGER_MS,
+  type ClaudeSourceDeps,
+} from './claude'
 
 function setup(options: { projects?: { id: string; name: string }[] } = {}) {
   const claude = fakeEvent<ClaudeRelayEvent>()
@@ -50,7 +57,27 @@ describe('source « Claude Code »', () => {
     expect(t.sessions()).toHaveLength(0)
   })
 
-  it('l’étape suit le dernier outil sans recréer l’activité', async () => {
+  it('session seule avec sous-agents : jardin (multi), gardé un moment après le dernier, puis agent', async () => {
+    const t = setup()
+    await flush()
+    t.emit('UserPromptSubmit', { message: 'x' })
+    expect(t.snap().state).toBe('agent')
+    t.emit('PreToolUse', { toolName: 'Agent', toolSummary: 'Explorer' })
+    expect(t.snap().primary).toMatchObject({ id: MULTI_ACTIVITY_ID, kind: 'multi' })
+    expect(t.coordinator.getActivity(AGENT_ACTIVITY_ID)).toBeNull()
+    t.emit('SubagentStop')
+    // Un autre sous-agent peut suivre : l'île ne change pas de taille tout de suite.
+    expect(t.snap().primary).toMatchObject({ id: MULTI_ACTIVITY_ID })
+    t.clock.advance(SUBAGENT_GARDEN_LINGER_MS / 2)
+    t.emit('PreToolUse', { toolName: 'Agent', toolSummary: 'Relire' })
+    t.emit('SubagentStop')
+    t.clock.advance(SUBAGENT_GARDEN_LINGER_MS - 1)
+    expect(t.snap().primary).toMatchObject({ id: MULTI_ACTIVITY_ID })
+    t.clock.advance(1)
+    expect(t.snap().primary).toMatchObject({ id: AGENT_ACTIVITY_ID, kind: 'agent', sessionId: 's-1' })
+  })
+
+    it('l’étape suit le dernier outil sans recréer l’activité', async () => {
     const t = setup()
     await flush()
     t.emit('UserPromptSubmit', { message: 'Corrige le kanban' })
