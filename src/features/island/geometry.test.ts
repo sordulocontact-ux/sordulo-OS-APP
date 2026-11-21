@@ -89,6 +89,13 @@ describe('ISLAND_SIZES', () => {
 })
 
 describe('musicOpen', () => {
+  it('drops the controls row when the island cannot control the player', () => {
+    for (const platform of ['win', 'mac'] as const) {
+      const full = islandSize(platform, 'musicOpen', 0, true, true).h
+      expect(islandSize(platform, 'musicOpen', 0, true, false).h).toBe(full - MUSIC_OPEN.controlsRow)
+    }
+  })
+
   it('adds one line per Claude session under the music, like under the call', () => {
     for (const platform of ['win', 'mac'] as const) {
       const base = islandSize(platform, 'musicOpen', 0, true).h
@@ -109,7 +116,7 @@ describe('musicOpen', () => {
 
   it('grows the cover from the compact island to the open view, below the notch on Mac', () => {
     const ctx = { hasGarden: true, sessionCount: 0 }
-    expect(sharedPosition('musicCover', 'win', 'music', ctx)).toEqual({ x: 13, y: 6, s: 28 })
+    expect(sharedPosition('musicCover', 'win', 'music', ctx)).toEqual({ x: 8, y: 8, s: 24 })
     expect(sharedPosition('musicCover', 'win', 'musicOpen', ctx)?.s).toBe(MUSIC_OPEN.coverSize)
     expect(sharedPosition('musicCover', 'mac', 'musicOpen', ctx)?.y).toBeGreaterThanOrEqual(ISLAND_SIZES.mac.repos.h)
     expect(sharedPosition('musicEq', 'mac', 'musicOpen', ctx)).not.toBeNull()

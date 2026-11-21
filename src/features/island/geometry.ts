@@ -93,12 +93,15 @@ export const MEET_BACKGROUND = {
 } as const
 
 /**
- * Vue ouverte de la musique (musicOpen) : taille de la pochette et hauteur de la ligne de progression
- * (écart 12 + ligne 14), retirée de la forme quand le lecteur ne donne ni position ni durée.
+ * Vue ouverte de la musique (musicOpen) : taille de la pochette, hauteur de la ligne de progression
+ * (écart 12 + ligne 14), retirée de la forme quand le lecteur ne donne ni position ni durée, et de la ligne
+ * des boutons (écart 6 + boutons 32), retirée quand l'île ne peut pas commander le lecteur (Spotify sur un
+ * autre appareil sans Premium).
  */
 export const MUSIC_OPEN = {
   coverSize: 56,
   progressRow: 26,
+  controlsRow: 38,
 } as const
 
 /**
@@ -110,10 +113,12 @@ export function islandSize(
   key: IslandSizeKey,
   meetRows = 0,
   musicProgress = true,
+  musicControls = true,
 ): IslandShapeSize {
   const size = ISLAND_SIZES[platform][key]
   let h = size.h
   if (key === 'musicOpen' && !musicProgress) h -= MUSIC_OPEN.progressRow
+  if (key === 'musicOpen' && !musicControls) h -= MUSIC_OPEN.controlsRow
   // Lignes « aussi en cours » : sous l'appel (meetOpen) et sous la musique (sessions Claude, musicOpen).
   const rows = Math.min(Math.max(0, meetRows), MEET_BACKGROUND.maxRows)
   if ((key === 'meetOpen' || key === 'musicOpen') && rows > 0) {
@@ -343,20 +348,21 @@ export const SHARED_ELEMENTS: Record<SharedElementId, SharedElementSpec> = {
   musicCover: {
     anchor: 'left',
     win: {
-      music: { x: 13, y: 6, s: 28 },
-      musicGarden: { x: 13, y: 6, s: 28 },
+      // Même marge à gauche et en bas (8 px, Mac 5 px) : la pochette suit l'arrondi de l'île.
+      music: { x: 8, y: 8, s: 24 },
+      musicGarden: { x: 8, y: 8, s: 24 },
       musicOpen: { x: 16, y: 16, s: MUSIC_OPEN.coverSize },
     },
     mac: {
-      music: { x: 13, y: 5, s: 22 },
-      musicGarden: { x: 13, y: 5, s: 22 },
+      music: { x: 5, y: 5, s: 22 },
+      musicGarden: { x: 5, y: 5, s: 22 },
       musicOpen: { x: 16, y: 44, s: MUSIC_OPEN.coverSize },
     },
   },
   musicEq: {
     anchor: 'right',
-    win: { music: { x: 13, y: 13 }, musicGarden: { x: 13, y: 13 }, musicOpen: { x: 16, y: 37 } },
-    mac: { music: { x: 13, y: 9 }, musicGarden: { x: 13, y: 9 }, musicOpen: { x: 16, y: 65 } },
+    win: { music: { x: 11, y: 13 }, musicGarden: { x: 11, y: 13 }, musicOpen: { x: 16, y: 37 } },
+    mac: { music: { x: 8, y: 9 }, musicGarden: { x: 8, y: 9 }, musicOpen: { x: 16, y: 65 } },
   },
 }
 
