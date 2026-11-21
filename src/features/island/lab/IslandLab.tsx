@@ -314,6 +314,9 @@ export default function IslandLab() {
             <Button size="sm" onClick={() => runtime.gardenWait()}>
               Attente d’autorisation
             </Button>
+            <Button size="sm" onClick={() => runtime.gardenBackground()}>
+              Patiente (arrière-plan) ou reprise
+            </Button>
             <Button size="sm" onClick={() => runtime.gardenFinish()}>
               Fin de session
             </Button>

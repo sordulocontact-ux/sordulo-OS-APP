@@ -5,6 +5,7 @@
  */
 import type { CallService } from '../../../shared/desktop-contract'
 import { callBrand } from '../brands'
+import { claudeActivityFor } from '../claude'
 import { IslandCoordinator, systemClock, type TimerId } from '../coordinator'
 import type { ClaudeSession, IslandNotification, IslandSnapshot, PermissionDecision, ProgressStage } from '../types'
 import type { IslandCallPrompt, IslandDropInfo, IslandDropZone } from '../view'
@@ -348,6 +349,17 @@ export class LabRuntime {
     this.emit()
   }
 
+  /** Tour fini mais un shell tourne en arrière-plan : la première session patiente, ou reprend le travail. */
+  gardenBackground(): void {
+    const i = this.firstIndex((s) => s.status === 'working')
+    if (i >= 0) this.patchSession(i, { status: 'background', step: 'Patiente : npm run dev', subagents: 0 })
+    else {
+      const b = this.firstIndex((s) => s.status === 'background')
+      if (b >= 0) this.patchSession(b, { status: 'working', step: 'Lit le journal du serveur' })
+    }
+    this.emit()
+  }
+
   /** Une session termine : les autres la fêtent. */
   gardenFinish(): void {
     const i = this.firstIndex((s) => s.status === 'working')
@@ -399,7 +411,27 @@ export class LabRuntime {
       const s = this.sessions[i]
       if (s) this.patchSession(i, { subagents: s.subagents - 1 })
     }
+    this.syncSoloActivity()
     this.emit()
+  }
+
+  /**
+   * Session seule : avec des sous-agents → jardin, sans → icône (même règle que l'app, claudeActivityFor,
+   * sans le délai de retour). Seulement si une activité Claude est déjà là (bouton « Session Claude »).
+   */
+  private syncSoloActivity(): void {
+    if (this.sessions.length !== 1) return
+    const agent = this.coordinator.getActivity('agent')
+    const multi = this.coordinator.getActivity('multi')
+    if (!agent && !multi) return
+    const target = claudeActivityFor(this.sessions)
+    if (target?.kind === 'multi' && agent) {
+      this.coordinator.removeActivity('agent')
+      this.coordinator.addActivity({ id: 'multi', kind: 'multi' })
+    } else if (target?.kind === 'agent' && multi) {
+      this.coordinator.removeActivity('multi')
+      this.coordinator.addActivity({ id: 'agent', kind: 'agent', sessionId: target.sessionId })
+    }
   }
 
   /** Nouvelle session (jusqu'à 5) ou départ de la dernière. */

@@ -21,6 +21,8 @@ function agentTitle(session: ClaudeSession | null): string {
       return 'Claude attend tes consignes'
     case 'waiting':
       return 'Claude demande l’autorisation'
+    case 'background':
+      return 'Claude patiente'
     case 'sleep':
       return 'Session inactive'
     default:
@@ -242,6 +244,7 @@ function SessionStatus({
       </button>
     )
   }
+  if (status === 'background') return <span className={styles.st}>Patiente</span>
   if (status === 'done') return <span className={cx(styles.st, styles.stDone)}>Terminé</span>
   if (status === 'idle') return <span className={styles.st}>En pause</span>
   return <span className={styles.st}>Inactive</span>

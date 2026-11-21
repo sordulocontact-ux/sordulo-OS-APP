@@ -14,9 +14,15 @@
  * - Statut : `working` pendant le travail ; `waiting` pendant une demande d'autorisation (et après « Plus
  *   tard » ou un délai écoulé, tant que Claude Code attend la réponse dans le terminal) ; `done` après Stop ;
  *   `idle` (« En pause ») après un refus, et pour une session qui vient de démarrer sans prompt ; `sleep`
- *   (« Inactive ») après SLEEP_AFTER_MS sans événement. `error` : commande refusée (le relais ne dit pas
+ *   (« Inactive ») après SLEEP_AFTER_MS sans événement. `background` (« Patiente ») : Stop alors qu'un shell ou
+ *   un sous-agent lancé en arrière-plan (`background` du relais) tourne encore ; pas de « Claude a terminé ». `error` : commande refusée (le relais ne dit pas
  *   quand un outil échoue : PostToolUse n'arrive qu'en cas de succès et le contrat ne porte pas l'erreur).
  * - Sous-agents : PreToolUse Task / Agent → +1, SubagentStop → -1, Stop → 0.
+ * - Arrière-plan (demande de Maël, 21/11) : PreToolUse en arrière-plan → shells ou sous-agents en attente +1 ;
+ *   KillShell / TaskStop → -1 ; jamais plus de sous-agents en attente que de sous-agents en cours. Aucun hook
+ *   ne dit quand un shell finit, mais Claude est réveillé à ce moment-là : le premier événement d'un nouveau
+ *   tour après le Stop (prompt, outil) remet les compteurs à zéro, les lancements suivants recomptent.
+ *   Approximation : si un seul de plusieurs shells finit, le Stop suivant dit « terminé ».
  * - Fichiers modifiés : chemins distincts écrits (PostToolUse Edit / Write / MultiEdit / NotebookEdit)
  *   pendant le tour, du prompt au Stop (« Claude a terminé : N fichiers modifiés »).
  * - Conflit : deux sessions éveillées, chacune en plein tour (depuis son dernier prompt, avant son Stop), ont
@@ -32,12 +38,15 @@ import { matchProject, type ClaudeProjectRef } from './projects'
 import {
   askSummary,
   askTitle,
+  describeBackgroundStep,
   describeStep,
   fileName,
   filesModifiedLabel,
+  isBackgroundStopTool,
   isSubagentTool,
   isWaitingForInput,
   isWriteTool,
+  patienceLabel,
   refusalLabel,
   TASK_MAX_CHARS,
   truncate,
@@ -67,6 +76,12 @@ export interface ClaudeSessionRecord {
   readonly handedToTerminal: boolean
   /** « Claude attend tes consignes » déjà montré pendant ce tour. */
   readonly idleNotified: boolean
+  /** Shells lancés en arrière-plan qu'on croit encore en cours. */
+  readonly backgroundShells: number
+  /** Sous-agents lancés en arrière-plan qu'on croit encore en cours. */
+  readonly backgroundAgents: number
+  /** Commande du dernier shell lancé en arrière-plan (« Patiente : npm run dev »). */
+  readonly lastBackgroundShell: string | null
 }
 
 export interface ClaudeState {
@@ -147,7 +162,7 @@ export function findPendingAsk(state: ClaudeState, requestId: string): Permissio
 
 /**
  * Activité Claude de l'île : une session → `agent`, plusieurs → `multi`. Rien tant qu'aucune session ne
- * travaille ni n'attend de réponse (demande de Maël : rien ne tourne, rien dans l'île) ; la fin d'un tour
+ * travaille, ne patiente (arrière-plan) ni n'attend de réponse (demande de Maël : rien ne tourne, rien dans l'île) ; la fin d'un tour
  * est annoncée par la notification « Claude a terminé ».
  *
  * Une session seule qui a des sous-agents passe aussi en `multi` : le jardin montre son personnage et ses
@@ -158,7 +173,7 @@ export function findPendingAsk(state: ClaudeState, requestId: string): Permissio
 export type ClaudeActivityTarget = { kind: 'agent'; sessionId: string } | { kind: 'multi' } | null
 
 export function claudeActivityFor(sessions: readonly ClaudeSession[], keepGarden = false): ClaudeActivityTarget {
-  if (!sessions.some((s) => s.status === 'working' || s.status === 'waiting')) return null
+  if (!sessions.some((s) => s.status === 'working' || s.status === 'waiting' || s.status === 'background')) return null
   const only = sessions.length === 1 ? sessions[0] : undefined
   if (only && only.subagents === 0 && !keepGarden) return { kind: 'agent', sessionId: only.id }
   return { kind: 'multi' }
@@ -229,7 +244,30 @@ function createRecord(event: ClaudeRelayEvent, projects: readonly ClaudeProjectR
     pending: [],
     handedToTerminal: false,
     idleNotified: false,
+    ...NO_BACKGROUND,
   }
+}
+
+const NO_BACKGROUND = { backgroundShells: 0, backgroundAgents: 0, lastBackgroundShell: null } as const
+
+/** Événement d'un nouveau tour après un Stop qui patientait : la tâche attendue a fini, on recompte. */
+function resumeFromBackground(record: ClaudeSessionRecord): ClaudeSessionRecord {
+  return record.session.status === 'background' ? { ...record, ...NO_BACKGROUND } : record
+}
+
+/** Compteurs d'arrière-plan après un PreToolUse (lancement ou arrêt d'une tâche en arrière-plan). */
+function backgroundAfterTool(record: ClaudeSessionRecord, event: ClaudeRelayEvent): ClaudeSessionRecord {
+  if (event.background && isSubagentTool(event.toolName)) {
+    return { ...record, backgroundAgents: record.backgroundAgents + 1 }
+  }
+  if (event.background) {
+    return { ...record, backgroundShells: record.backgroundShells + 1, lastBackgroundShell: event.toolSummary }
+  }
+  if (isBackgroundStopTool(event.toolName)) {
+    if (record.backgroundShells > 0) return { ...record, backgroundShells: record.backgroundShells - 1 }
+    if (record.backgroundAgents > 0) return { ...record, backgroundAgents: record.backgroundAgents - 1 }
+  }
+  return record
 }
 
 /** Dossier, branche, heure du dernier événement ; le projet suit le dossier. */
@@ -288,14 +326,18 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
         pending: [],
         handedToTerminal: false,
         idleNotified: false,
+        ...NO_BACKGROUND,
       }
       break
 
     case 'PreToolUse':
+      record = backgroundAfterTool(resumeFromBackground(record), event)
       record = {
         ...withSession(record, {
           status: statusAfterAsks(record.pending),
-          step: describeStep(event.toolName, event.toolSummary, record.session.cwd || null) ?? session.step,
+          step: event.background
+            ? describeBackgroundStep(event.toolName, event.toolSummary)
+            : (describeStep(event.toolName, event.toolSummary, record.session.cwd || null) ?? session.step),
           error: false,
           subagents: session.subagents + (isSubagentTool(event.toolName) ? 1 : 0),
         }),
@@ -315,7 +357,7 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
         if (!turnFiles.has(key)) turnFiles = new Map(turnFiles).set(key, event.filePath)
       }
       record = {
-        ...withSession(record, { status: statusAfterAsks(pending), error: false }),
+        ...withSession(resumeFromBackground(record), { status: statusAfterAsks(pending), error: false }),
         pending,
         turnFiles,
         inTurn: true,
@@ -360,6 +402,22 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
 
     case 'Stop': {
       resolveAll(record, effects)
+      const { backgroundShells, backgroundAgents, lastBackgroundShell } = record
+      if (backgroundShells + backgroundAgents > 0) {
+        // Tour fini, mais Claude attend son shell ou son sous-agent : il patiente, sans « Claude a terminé ».
+        record = {
+          ...withSession(record, {
+            status: 'background',
+            step: patienceLabel(backgroundShells, backgroundAgents, lastBackgroundShell),
+            subagents: 0,
+            error: false,
+          }),
+          pending: [],
+          inTurn: false,
+          handedToTerminal: false,
+        }
+        break
+      }
       const files = record.turnFiles.size
       record = {
         ...withSession(record, { status: 'done', step: null, subagents: 0, error: false }),
@@ -391,6 +449,10 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
 
     case 'SubagentStop':
       record = withSession(record, { subagents: Math.max(0, session.subagents - 1) })
+      // Un sous-agent d'arrière-plan qui finit pendant le tour : pas plus en attente qu'en cours.
+      if (record.session.status !== 'background' && record.backgroundAgents > record.session.subagents) {
+        record = { ...record, backgroundAgents: record.session.subagents }
+      }
       if (record.session.status === 'sleep') record = withSession(record, { status: 'working' })
       break
   }

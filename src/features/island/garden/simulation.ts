@@ -1391,7 +1391,7 @@ export function walkerVisual(w: Walker, status: ClaudeSessionStatus, ctx: Visual
   const lid =
     w.blink > 0 || (!w.sub && status === 'sleep')
       ? GARDEN.lidClosed
-      : !w.sub && (status === 'done' || status === 'idle' || w.sad || w.sulk > 0)
+      : !w.sub && (status === 'done' || status === 'idle' || status === 'background' || w.sad || w.sulk > 0)
         ? GARDEN.lidHalf
         : 0
   const bubble: BubbleKind | null = w.sub

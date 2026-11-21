@@ -16,6 +16,7 @@ const SEG_IDS: SharedElementId[] = ['seg0', 'seg1', 'seg2', 'seg3', 'seg4']
 function segClass(status: ClaudeSessionStatus): string | undefined {
   if (status === 'working') return styles.segWorking
   if (status === 'waiting') return styles.segWaiting
+  if (status === 'background') return styles.segBackground
   if (status === 'done') return styles.segDone
   return undefined
 }

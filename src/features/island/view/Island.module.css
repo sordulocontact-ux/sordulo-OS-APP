@@ -539,6 +539,11 @@
   background: var(--island-success);
 }
 
+/* Patiente (shell ou sous-agent en arrière-plan) : couleur de Claude, sans battement */
+.segBackground {
+  background: var(--island-claude);
+}
+
 @keyframes beat {
   50% {
     transform: scale(0.6);

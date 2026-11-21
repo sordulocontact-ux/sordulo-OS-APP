@@ -14,17 +14,20 @@ export function formatElapsed(ms: number): string {
 export function sessionsSummary(sessions: readonly ClaudeSession[]): string {
   let working = 0
   let waiting = 0
+  let patient = 0
   let idle = 0
   let done = 0
   for (const s of sessions) {
     if (s.status === 'working') working++
     else if (s.status === 'waiting') waiting++
+    else if (s.status === 'background') patient++
     else if (s.status === 'idle') idle++
     else if (s.status === 'done') done++
   }
   const parts: string[] = []
   if (working) parts.push(`${working} en cours`)
   if (waiting) parts.push(`${waiting} à autoriser`)
+  if (patient) parts.push(`${patient} ${patient > 1 ? 'patientent' : 'patiente'}`)
   if (idle) parts.push(`${idle} en pause`)
   if (done) parts.push(`${done} ${done > 1 ? 'terminées' : 'terminée'}`)
   return parts.join(', ')
@@ -50,6 +53,7 @@ function sessionStatus(session: ClaudeSession): Pick<BackgroundRow, 'status' | '
   if (session.status === 'working' && session.error) return { status: 'Bloquée', tone: 'error' }
   if (session.status === 'working') return { status: 'En cours', tone: 'muted' }
   if (session.status === 'waiting') return { status: 'Attend ta réponse', tone: 'waiting' }
+  if (session.status === 'background') return { status: 'Patiente', tone: 'muted' }
   if (session.status === 'done') return { status: 'Terminé', tone: 'done' }
   if (session.status === 'idle') return { status: 'En pause', tone: 'muted' }
   return { status: 'Inactive', tone: 'muted' }

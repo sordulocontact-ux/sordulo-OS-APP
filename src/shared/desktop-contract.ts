@@ -179,6 +179,11 @@ export interface ClaudeRelayEvent {
   message: string | null
   /** PermissionRequest of the AskUserQuestion tool: Claude's multiple-choice questions, answered from the island. */
   questions?: ClaudeQuestion[]
+  /**
+   * Shell (Bash, PowerShell) or subagent (Agent, Task) started with `run_in_background: true`: Claude will end
+   * its turn but keeps waiting for it. Absent (false) otherwise.
+   */
+  background?: boolean
   /** Unix epoch in ms. */
   at: number
 }

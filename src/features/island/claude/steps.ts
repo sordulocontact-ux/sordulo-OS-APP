@@ -87,8 +87,34 @@ export function isSubagentTool(toolName: string | null): boolean {
   return toolName === 'Task' || toolName === 'Agent'
 }
 
-function isShellTool(toolName: string): boolean {
+export function isShellTool(toolName: string | null): boolean {
   return toolName === 'Bash' || toolName === 'PowerShell'
+}
+
+/** Outils qui arrêtent une tâche lancée en arrière-plan (shell ou sous-agent). */
+export function isBackgroundStopTool(toolName: string | null): boolean {
+  return toolName === 'KillShell' || toolName === 'KillBash' || toolName === 'TaskStop'
+}
+
+/** Étape d'un shell ou d'un sous-agent lancé en arrière-plan. */
+export function describeBackgroundStep(toolName: string | null, summary: string | null): string {
+  const short = summary?.trim() ? truncate(summary, STEP_TEXT_MAX_CHARS) : null
+  if (isSubagentTool(toolName)) {
+    return short ? `Lance un sous-agent en arrière-plan : ${short}` : 'Lance un sous-agent en arrière-plan'
+  }
+  return short ? `Lance en arrière-plan : ${short}` : 'Lance une commande en arrière-plan'
+}
+
+/**
+ * Ce que Claude attend une fois son tour fini : « Patiente : npm run dev » (un seul shell dont on connaît la
+ * commande), sinon « Patiente : 2 shells et un sous-agent en cours ».
+ */
+export function patienceLabel(shells: number, agents: number, lastShell: string | null): string {
+  if (shells === 1 && agents === 0 && lastShell?.trim()) return `Patiente : ${truncate(lastShell, STEP_TEXT_MAX_CHARS)}`
+  const parts: string[] = []
+  if (shells > 0) parts.push(shells === 1 ? 'un shell' : `${shells} shells`)
+  if (agents > 0) parts.push(agents === 1 ? 'un sous-agent' : `${agents} sous-agents`)
+  return parts.length > 0 ? `Patiente : ${parts.join(' et ')} en cours` : 'Patiente'
 }
 
 /** Sépare « motif dans dossier » (résumé de Grep par le relais) ; le dernier « dans » sépare. */

@@ -122,7 +122,46 @@ describe('sessions Claude Code', () => {
     expect(run([ev('SubagentStop'), ev('SubagentStop')]).sessions[0]?.subagents).toBe(0)
   })
 
-  it('Notification « attend tes consignes » : une fois par tour ; les autorisations sont ignorées', () => {
+  it('shell en arrière-plan : Stop → « patiente », sans « Claude a terminé » ; réveil puis vrai Stop', () => {
+    const shell = ev('PreToolUse', { toolName: 'Bash', toolSummary: 'npm run dev', background: true })
+    const launched = run([ev('UserPromptSubmit', { message: 'Lance le serveur' }), shell])
+    expect(launched.sessions[0]).toMatchObject({ status: 'working', step: 'Lance en arrière-plan : npm run dev' })
+    const patient = run([ev('PostToolUse', { toolName: 'Bash' }), ev('Stop')], launched.state)
+    expect(patient.sessions[0]).toMatchObject({ status: 'background', step: 'Patiente : npm run dev' })
+    expect(notifs(patient.effects)).toEqual([])
+    expect(claudeActivityFor(patient.sessions)).toEqual({ kind: 'agent', sessionId: 's-1' })
+    // Le shell a fini, Claude est réveillé : il travaille, puis son Stop est un vrai « terminé ».
+    const woken = run([ev('PreToolUse', { toolName: 'Read', toolSummary: 'log.txt' }), ev('Stop')], patient.state)
+    expect(woken.sessions[0]?.status).toBe('done')
+    expect(notifs(woken.effects).map((e) => e.type === 'notify' && e.kind)).toEqual(['claudeDone'])
+  })
+
+  it('arrière-plan : compte shells et sous-agents, KillShell en retire un, un nouveau prompt remet à zéro', () => {
+    const { sessions, state } = run([
+      ev('UserPromptSubmit', { message: 'x' }),
+      ev('PreToolUse', { toolName: 'Bash', toolSummary: 'npm run dev', background: true }),
+      ev('PreToolUse', { toolName: 'Bash', toolSummary: 'npm test -- --watch', background: true }),
+      ev('PreToolUse', { toolName: 'Agent', toolSummary: 'Explorer', background: true }),
+      ev('PreToolUse', { toolName: 'KillShell' }),
+      ev('PreToolUse', { toolName: 'Bash', toolSummary: 'ls' }),
+      ev('Stop'),
+    ])
+    expect(sessions[0]).toMatchObject({ status: 'background', step: 'Patiente : un shell et un sous-agent en cours' })
+    const again = run([ev('UserPromptSubmit', { message: 'y' }), ev('Stop')], state)
+    expect(again.sessions[0]?.status).toBe('done')
+  })
+
+  it('sous-agent d’arrière-plan fini pendant le tour : le Stop dit « terminé »', () => {
+    const { sessions } = run([
+      ev('UserPromptSubmit', { message: 'x' }),
+      ev('PreToolUse', { toolName: 'Agent', toolSummary: 'Explorer', background: true }),
+      ev('SubagentStop'),
+      ev('Stop'),
+    ])
+    expect(sessions[0]?.status).toBe('done')
+  })
+
+    it('Notification « attend tes consignes » : une fois par tour ; les autorisations sont ignorées', () => {
     const { effects } = run([
       ev('UserPromptSubmit', { message: 'x' }),
       ev('Stop'),

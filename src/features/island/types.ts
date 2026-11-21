@@ -211,7 +211,8 @@ export interface IslandNotification {
 // Claude Code
 // ---------------------------------------------------------------------------
 
-export type ClaudeSessionStatus = 'working' | 'waiting' | 'done' | 'idle' | 'sleep'
+/** `background` : tour fini mais Claude patiente (shell ou sous-agent lancé en arrière-plan). */
+export type ClaudeSessionStatus = 'working' | 'waiting' | 'background' | 'done' | 'idle' | 'sleep'
 
 export interface ClaudeSession {
   /** session_id de Claude Code. */

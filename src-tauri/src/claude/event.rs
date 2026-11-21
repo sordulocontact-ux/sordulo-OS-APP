@@ -87,6 +87,10 @@ pub struct ClaudeRelayEvent {
     /// depuis l'île. Absent pour tout le reste.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub questions: Option<Vec<ClaudeQuestion>>,
+    /// Shell ou sous-agent lancé en arrière-plan (`tool_input.run_in_background`) : Claude finira son tour
+    /// mais patientera. Absent (faux) pour tout le reste.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub background: bool,
     /// Epoch Unix en ms.
     pub at: u64,
 }
@@ -212,6 +216,8 @@ pub fn build_event(
         (ClaudeHookEventName::PermissionRequest, Some(ASK_USER_QUESTION)) => questions_of(tool_input),
         _ => None,
     };
+    let background = event != ClaudeHookEventName::PermissionCancelled
+        && tool_name.as_deref().is_some_and(|tool| runs_in_background(tool, tool_input));
     ClaudeRelayEvent {
         event,
         session_id: str_field(input, "session_id").unwrap_or_default(),
@@ -223,8 +229,18 @@ pub fn build_event(
         request_id,
         message,
         questions,
+        background,
         at,
     }
+}
+
+/// Outils qui peuvent tourner en arrière-plan : shells et sous-agents.
+const BACKGROUND_TOOLS: [&str; 4] = ["Bash", "PowerShell", "Agent", "Task"];
+
+/// L'outil est lancé en arrière-plan (`run_in_background: true`).
+pub fn runs_in_background(tool: &str, tool_input: &Value) -> bool {
+    BACKGROUND_TOOLS.contains(&tool)
+        && tool_input.get("run_in_background").and_then(Value::as_bool).unwrap_or(false)
 }
 
 /// Chaîne non vide (après trim) d'un champ.
@@ -575,6 +591,27 @@ mod tests {
                 "at": 42
             })
         );
+    }
+
+    #[test]
+    fn background_shells_and_subagents() {
+        let bash = json!({ "session_id": "s", "tool_name": "Bash",
+            "tool_input": { "command": "npm run dev", "run_in_background": true } });
+        let event = build_event(ClaudeHookEventName::PreToolUse, &bash, 1, None, None);
+        assert!(event.background);
+        assert_eq!(serde_json::to_value(&event).unwrap()["background"], json!(true));
+        let agent = json!({ "session_id": "s", "tool_name": "Agent",
+            "tool_input": { "prompt": "x", "run_in_background": true } });
+        assert!(build_event(ClaudeHookEventName::PreToolUse, &agent, 1, None, None).background);
+        // Premier plan, autre outil ou annulation : pas d'arrière-plan, et le champ n'est pas envoyé.
+        let front = json!({ "session_id": "s", "tool_name": "Bash", "tool_input": { "command": "ls" } });
+        let event = build_event(ClaudeHookEventName::PreToolUse, &front, 1, None, None);
+        assert!(!event.background);
+        assert!(serde_json::to_value(&event).unwrap().get("background").is_none());
+        let read = json!({ "session_id": "s", "tool_name": "Read",
+            "tool_input": { "file_path": "a", "run_in_background": true } });
+        assert!(!build_event(ClaudeHookEventName::PreToolUse, &read, 1, None, None).background);
+        assert!(!build_event(ClaudeHookEventName::PermissionCancelled, &bash, 1, None, None).background);
     }
 
     #[test]
