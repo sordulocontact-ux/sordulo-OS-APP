@@ -5,6 +5,10 @@
 
 .mascot {
   --garden-color: var(--island-claude);
+  /* Le corps et les paupières (.body, .lid du jardin) se peignent en --garden-tint, que le jardin calcule
+     seulement sur son propre .mascot : sans cette ligne, le Claude de l'île est transparent. Pas de
+     profondeur ici, donc la teinte est la couleur Claude telle quelle. */
+  --garden-tint: var(--garden-color);
   position: relative;
   display: block;
   width: 100%;
