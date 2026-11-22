@@ -1,6 +1,6 @@
 [package]
 name = "sordulo-os"
-version = "0.2.3"
+version = "0.2.4"
 description = "Sordulo OS — app de bureau (Tauri 2) autour du front React/Vite"
 authors = ["Sordulo"]
 edition = "2021"
