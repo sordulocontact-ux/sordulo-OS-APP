@@ -138,6 +138,7 @@ pub fn run() {
             // Aussi la relance après une mise à jour sous macOS ; sous Windows, voir `updater`.
             recording::stop_before_exit(app);
             claude::shutdown(app);
+            platform::stop_media();
             log::info!("Sordulo OS s'arrête");
         }
         // macOS : le lien de connexion arrive par un événement, pas en argument (voir auth_link).

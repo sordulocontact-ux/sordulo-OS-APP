@@ -81,7 +81,8 @@ pub struct Notch {
 pub const RECORDING_EXTENSION: &str = "mp3";
 
 /// Morceau en cours dans un lecteur du système (Windows : contrôles multimédias du système, tous les
-/// lecteurs ; macOS : Spotify et Musique par AppleScript). Les apps d'appel sont écartées (`music::is_excluded`).
+/// lecteurs ; macOS : MediaRemote par l'adaptateur Perl, tous les lecteurs, repli Spotify et Musique par
+/// AppleScript). Les apps d'appel sont écartées (`music::is_excluded`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NowPlaying {
     /// Identifiant du lecteur : AppUserModelId sous Windows, bundle id sous macOS.
@@ -190,6 +191,15 @@ pub fn output_tap() -> anyhow::Result<Box<dyn OutputTap>> {
     #[cfg(not(any(windows, target_os = "macos")))]
     {
         anyhow::bail!(OutputTapUnavailable)
+    }
+}
+
+/// Arrête la lecture de « ce qui joue » à la sortie de l'app. macOS : tue le processus `perl` de
+/// l'adaptateur MediaRemote. Windows : rien à arrêter (les contrôles multimédias sont lus à la demande).
+pub fn stop_media() {
+    #[cfg(target_os = "macos")]
+    {
+        macos::stop_media();
     }
 }
 

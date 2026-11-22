@@ -1,7 +1,11 @@
-//! macOS — musique en cours dans Spotify et Musique, par AppleScript (JXA via `osascript`).
+//! macOS — musique en cours.
 //!
-//! MediaRemote (« À l'écoute » du centre de contrôle) est fermé aux apps tierces depuis macOS 15.4 : on
-//! demande donc directement aux deux lecteurs, comme `pages.rs` le fait pour les onglets des navigateurs.
+//! Source principale : MediaRemote par l'adaptateur Perl (`media_remote.rs`), qui voit tous les lecteurs,
+//! navigateurs compris, sans autorisation. Tant qu'il répond, il fait foi (morceau, pochette, commandes).
+//!
+//! Repli, si l'adaptateur ne démarre pas : Spotify et Musique par AppleScript (JXA via `osascript`), décrit
+//! ci-dessous. MediaRemote étant fermé aux apps tierces depuis macOS 15.4 (hors adaptateur), on demande alors
+//! directement aux deux lecteurs, comme `pages.rs` le fait pour les onglets des navigateurs.
 //! macOS demande une fois à l'utilisateur d'autoriser Sordulo OS à contrôler Spotify, puis Musique (en dev,
 //! la demande est faite au nom du terminal qui a lancé l'app). Refusé : cette app est ignorée 10 min (pas de
 //! boucle de demandes), l'autre continue. Une app fermée n'est jamais lancée : `running()` est vérifié dans
@@ -372,6 +376,10 @@ fn cache() -> MutexGuard<'static, Cache> {
 }
 
 pub fn now_playing() -> Result<Option<NowPlaying>> {
+    if let Some(playing) = super::media_remote::now_playing() {
+        cache().current = None;
+        return Ok(playing);
+    }
     let now = Instant::now();
     let due = {
         let cache = cache();
@@ -525,6 +533,9 @@ fn run_osascript(args: &[&str], timeout: Duration) -> Result<String, String> {
 }
 
 pub fn now_playing_artwork() -> Result<Option<Vec<u8>>> {
+    if super::media_remote::active() {
+        return Ok(super::media_remote::artwork());
+    }
     let (current, cached) = {
         let cache = cache();
         (cache.current.clone(), cache.artwork.clone())
@@ -609,6 +620,9 @@ fn music_artwork() -> Result<Option<Vec<u8>>> {
 }
 
 pub fn media_command(command: MediaCommand) -> Result<()> {
+    if super::media_remote::active() {
+        return super::media_remote::command(command);
+    }
     let bundle_id = cache()
         .current
         .as_ref()
@@ -634,7 +648,7 @@ pub fn media_command(command: MediaCommand) -> Result<()> {
 }
 
 /// Met le lecteur au premier plan (`open -b`, comme `editor.rs`).
-fn open_player(bundle_id: &str) -> Result<()> {
+pub(super) fn open_player(bundle_id: &str) -> Result<()> {
     let status = Command::new("/usr/bin/open")
         .arg("-b")
         .arg(bundle_id)

@@ -3,7 +3,8 @@
 //! - `audio.rs` : apps qui utilisent le micro ou jouent du son (processus Core Audio, macOS 14+).
 //! - `pages.rs` : titres des onglets des navigateurs (AppleScript), pour reconnaître Meet, Discord…
 //! - `editor.rs` : rouvrir la fenêtre VS Code (ou l'app) d'une session Claude Code.
-//! - `media.rs` : musique en cours dans Spotify et Musique (AppleScript), pochette, commandes.
+//! - `media.rs` : musique en cours, pochette, commandes ; source principale `media_remote.rs` (MediaRemote par
+//!   l'adaptateur Perl, tous les lecteurs et navigateurs), repli Spotify et Musique par AppleScript.
 //! - `open_url.rs` : ouverture d'une URL par l'app associée (`/usr/bin/open`, connecteur Spotify).
 //! - Presse-papiers par `pbcopy`.
 //!
@@ -19,6 +20,7 @@ mod audio;
 mod capture;
 mod editor;
 mod island;
+mod media_remote;
 mod media;
 mod open_url;
 mod pages;
@@ -41,6 +43,7 @@ pub use recorder::WasapiRecorder as CoreAudioRecorder;
 pub use editor::{editor_storage_file, open_in_editor};
 pub use island::{cursor_state, primary_notch, raise_island_window};
 pub use media::{media_command, now_playing, now_playing_artwork};
+pub use media_remote::shutdown as stop_media;
 pub use open_url::open_url;
 pub use pages::browser_page_titles;
 

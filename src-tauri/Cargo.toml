@@ -66,6 +66,11 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_
 # Core Audio). objc2 : mêmes versions que celles déjà tirées par Tauri (tao, wry). Encodage MP3 et
 # rééchantillonnage : mêmes crates que Windows (chaîne partagée, voir src/platform/macos/mod.rs).
 [target.'cfg(target_os = "macos")'.dependencies]
+# Musique en cours de tous les lecteurs, navigateurs compris (src/platform/macos/media_remote.rs) : MediaRemote
+# par l'adaptateur Perl embarqué (/usr/bin/perl a le droit MediaRemote depuis macOS 15.4). La fonction
+# `artwork` (par défaut) donne la pochette ; `image` la réduit à 256 px (JPEG). Même version que Tauri.
+media-remote = "0.5"
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
 mp3lame-encoder = "0.3"
 rubato = "5"
 objc2 = "0.6"
