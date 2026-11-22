@@ -24,7 +24,9 @@ jobs:
   build:
     name: Compilation ${{ matrix.name }}
     strategy:
-      fail-fast: true
+      # Chaque système va au bout : un échec Mac n'annule pas le build Windows (et inversement). La
+      # publication attend quand même les deux.
+      fail-fast: false
       matrix:
         include:
           - name: macOS

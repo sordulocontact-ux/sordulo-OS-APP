@@ -201,6 +201,15 @@ function main() {
     fail('TAURI_SIGNING_PRIVATE_KEY manquante : une release sans mise à jour signée est inutile.')
   }
 
+  // 0. Front embarqué : `generate_context!` exige `dist/` dès la compilation du relais (même paquet), donc
+  //    avant l'étape 1. `tauri build` ne le refait pas (beforeBuildCommand vidé plus bas).
+  //    npm_execpath : le npm qui a lancé ce script (`npm run desktop:build`), sans passer par un shell
+  //    (npm.cmd sous Windows).
+  const npmCli = process.env.npm_execpath
+  if (npmCli) run(process.execPath, [npmCli, 'run', 'build'], { dryRun, env })
+  else if (!isWindows) run('npm', ['run', 'build'], { dryRun, env })
+  else fail('Lancer ce script par npm run desktop:build.')
+
   // 1. Relais Claude Code, une copie par cible dans `src-tauri/binaries/` (externalBin). Pour l'app
   //    universelle : aussi la version assemblée (lipo) en `binaries/` et dans
   //    `target/universal-apple-darwin/release/`, où Tauri cherche chaque `[[bin]]` du paquet (il n'assemble
@@ -236,6 +245,7 @@ function main() {
 
   // 2. App + installeurs.
   const tauriArgs = ['build', '--config', RELEASE_CONFIG]
+  tauriArgs.push('--config', JSON.stringify({ build: { beforeBuildCommand: '' } }))
   if (!env.TAURI_SIGNING_PRIVATE_KEY) {
     console.warn(
       '\n! TAURI_SIGNING_PRIVATE_KEY absente : build local sans fichiers de mise à jour (createUpdaterArtifacts désactivé).',
