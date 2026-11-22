@@ -195,7 +195,7 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
                 }
             }
         }
-        ID_UPDATE_CHECK => updater::check_from_menu(app),
+        ID_UPDATE_CHECK => updater::menu_action(app),
         ID_CLAUDE_TOGGLE => claude::toggle_connection(app),
         ID_QUIT => {
             log::info!("« Quitter » depuis la zone de notification");

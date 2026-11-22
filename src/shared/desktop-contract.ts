@@ -404,6 +404,11 @@ export const DESKTOP_COMMANDS = {
   /** () => UpdateStatus */
   getUpdateStatus: 'get_update_status',
   /**
+   * () => UpdateStatus — checks and downloads the newest version without installing it (Settings > desktop app:
+   * the user then chooses installUpdateNow). Refused in dev.
+   */
+  checkUpdate: 'check_update',
+  /**
    * () => UpdateStatus — checks, downloads and installs the newest version now, even while the main window is
    * shown (the app restarts). Refused with a French message while a call is being recorded. Used when the API
    * requires a newer desktop version (DESKTOP_MIN_VERSION).

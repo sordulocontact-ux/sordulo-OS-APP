@@ -142,6 +142,9 @@ export const getAppVersion = () => getVersion()
 
 export const getUpdateStatus = () => call<UpdateStatus>(DESKTOP_COMMANDS.getUpdateStatus)
 
+/** Checks and downloads the newest version without installing it. Rejects with a French message in dev. */
+export const checkUpdate = () => call<UpdateStatus>(DESKTOP_COMMANDS.checkUpdate)
+
 /**
  * Checks, downloads and installs the newest version now (the app restarts). Rejects with a French message,
  * e.g. while a call is being recorded.

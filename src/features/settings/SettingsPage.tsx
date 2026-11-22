@@ -7,6 +7,8 @@ import { queryKeys } from '../../lib/queryKeys'
 import type { Organization } from '../../shared/types'
 import { buildPatch, formatIban, isZeroVat, LEGAL_FORMS, toForm, type SettingsErrors, type SettingsForm } from './settingsLogic'
 import { IssuersCard } from './IssuersCard'
+import { DesktopAppCard } from './DesktopAppCard'
+import { isDesktop } from '../../lib/desktop'
 import styles from './SettingsPage.module.css'
 
 function useOrganization(organizationId: string | undefined) {
@@ -43,6 +45,7 @@ export function SettingsPage() {
           <IssuersCard organizationId={data.id} />
         </>
       )}
+      {isDesktop() && <DesktopAppCard />}
     </section>
   )
 }

@@ -127,6 +127,7 @@ pub fn run() {
             commands::spotify_connect,
             commands::spotify_disconnect,
             commands::get_update_status,
+            commands::check_update,
             commands::install_update_now,
         ])
         .build(tauri::generate_context!())

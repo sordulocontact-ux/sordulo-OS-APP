@@ -16,8 +16,13 @@
 //!   `install_update_now`).
 //! - Après une mise à jour, notification « Sordulo OS est à jour » (témoin `last-version`).
 //!
-//! État envoyé à la fenêtre principale (`desktop://update-status`) et affiché dans le menu du
-//! soleil.
+//! État envoyé à la fenêtre principale (`desktop://update-status`), affiché dans le menu du soleil et
+//! dans Paramètres > Application de bureau (`check_update`, `install_update_now`).
+//!
+//! Menu du soleil : un menu se ferme dès qu'on clique (comportement du système, impossible à garder
+//! ouvert). Le résultat d'une recherche lancée depuis le menu arrive donc par une notification (à jour,
+//! prête, échec), et une mise à jour prête change la ligne en « Installer la mise à jour X et
+//! redémarrer », qui installe tout de suite.
 
 use std::fs;
 use std::path::PathBuf;
@@ -149,41 +154,67 @@ pub fn status(app: &AppHandle) -> UpdateStatus {
     }
 }
 
-/// Textes du menu du soleil : ligne d'état et « Rechercher une mise à jour » (activé ou non).
-pub fn menu_texts(app: &AppHandle) -> (String, &'static str, bool) {
+/// Textes du menu du soleil : ligne d'état et action (rechercher, ou installer la version prête),
+/// activée ou non.
+pub fn menu_texts(app: &AppHandle) -> (String, String, bool) {
     let status = status(app);
-    let check_text = if enabled() {
-        "Rechercher une mise à jour"
-    } else {
-        "Rechercher une mise à jour (version installée)"
-    };
-    (status_line(&status), check_text, can_check(&status))
+    (status_line(&status), action_text(&status, enabled()), can_check(&status))
 }
 
-/// « Rechercher une mise à jour » du menu : vérification immédiate dans un thread à part. Une
-/// version trouvée suit le chemin habituel (installation au prochain moment calme).
-pub fn check_from_menu(app: &AppHandle) {
+/// Action du menu du soleil, dans un thread à part (le menu est déjà fermé) : mise à jour prête →
+/// installation immédiate ; sinon recherche, avec le résultat en notification.
+pub fn menu_action(app: &AppHandle) {
     if !enabled() {
         return;
     }
+    let ready = status(app).state == UpdateState::Ready;
     let app = app.clone();
     let spawned = thread::Builder::new()
-        .name("updater-check".into())
+        .name("updater-menu".into())
         .spawn(move || {
-            {
-                let state = app.state::<UpdaterState>();
-                let Some(_work) = state.try_work() else {
-                    log::info!("mise à jour : vérification déjà en cours");
-                    return;
-                };
-                log::info!("mise à jour : vérification demandée depuis le menu");
-                check_and_download(&app);
+            if ready {
+                log::info!("mise à jour : installation demandée depuis le menu");
+                if let Err(message) = install_now(&app) {
+                    notify(&app, "Mise à jour non installée", &message);
+                }
+            } else {
+                check_from_menu(&app);
             }
-            install_if_quiet(&app);
         });
     if let Err(e) = spawned {
-        log::error!("mise à jour : thread de vérification impossible : {e}");
+        log::error!("mise à jour : thread du menu impossible : {e}");
     }
+}
+
+/// Recherche demandée depuis le menu : vérifie, télécharge, installe si le moment est calme, sinon
+/// donne le résultat en notification (le menu fermé ne peut pas le montrer).
+fn check_from_menu(app: &AppHandle) {
+    {
+        let state = app.state::<UpdaterState>();
+        let Some(_work) = state.try_work() else {
+            log::info!("mise à jour : vérification déjà en cours");
+            return;
+        };
+        log::info!("mise à jour : vérification demandée depuis le menu");
+        check_and_download(app);
+    }
+    install_if_quiet(app);
+    if let Some((title, body)) = check_notification(&status(app)) {
+        notify(app, title, &body);
+    }
+}
+
+/// `check_update` (Paramètres) : vérifie et télécharge, sans installer (la fenêtre est ouverte :
+/// l'utilisateur choisit « Installer et redémarrer »). Bloquant : hors du thread principal.
+pub fn check_now(app: &AppHandle) -> Result<UpdateStatus, String> {
+    if !enabled() {
+        return Err("Les mises à jour ne concernent que la version installée de Sordulo OS.".into());
+    }
+    let state = app.state::<UpdaterState>();
+    let _work = state.lock_work();
+    log::info!("mise à jour : vérification demandée depuis les paramètres");
+    check_and_download(app);
+    Ok(status(app))
 }
 
 /// `install_update_now` : vérifie, télécharge et installe tout de suite, même fenêtre ouverte
@@ -485,6 +516,11 @@ fn notify_if_updated(app: &AppHandle, current: &str) {
 }
 
 fn show_updated_notification(app: &AppHandle, version: &str) {
+    notify(app, NOTIFICATION_TITLE, &format!("Version {version} installée."));
+}
+
+/// Notification système (demande l'autorisation la première fois).
+fn notify(app: &AppHandle, title: &str, body: &str) {
     let notification = app.notification();
     let granted = match notification.permission_state() {
         Ok(PermissionState::Granted) => true,
@@ -494,13 +530,48 @@ fn show_updated_notification(app: &AppHandle, version: &str) {
         log::info!("mise à jour : notifications refusées par le système");
         return;
     }
-    if let Err(e) = notification
-        .builder()
-        .title(NOTIFICATION_TITLE)
-        .body(format!("Version {version} installée."))
-        .show()
-    {
+    if let Err(e) = notification.builder().title(title).body(body).show() {
         log::warn!("mise à jour : notification impossible : {e}");
+    }
+}
+
+/// Notification après une recherche lancée depuis le menu ; None pendant l'installation (l'app
+/// redémarre et dira « Sordulo OS est à jour »).
+fn check_notification(status: &UpdateStatus) -> Option<(&'static str, String)> {
+    let available = status.available.as_deref().unwrap_or(&status.current);
+    match status.state {
+        UpdateState::UpToDate => Some((
+            NOTIFICATION_TITLE,
+            format!("Version {}, la plus récente.", status.current),
+        )),
+        UpdateState::Ready => Some((
+            "Mise à jour prête",
+            format!(
+                "Version {available} téléchargée. Menu du soleil > Installer la mise à jour, ou elle \
+                 s'installera quand la fenêtre de Sordulo OS sera fermée."
+            ),
+        )),
+        UpdateState::Error => Some((
+            "Mise à jour impossible",
+            status
+                .message
+                .clone()
+                .unwrap_or_else(|| "La recherche a échoué. Nouvel essai plus tard.".into()),
+        )),
+        _ => None,
+    }
+}
+
+/// Texte de l'action du menu : installer la version prête, sinon rechercher.
+fn action_text(status: &UpdateStatus, enabled: bool) -> String {
+    if !enabled {
+        return "Rechercher une mise à jour (version installée)".into();
+    }
+    match (status.state, status.available.as_deref()) {
+        (UpdateState::Ready, Some(version)) => {
+            format!("Installer la mise à jour {version} et redémarrer")
+        }
+        _ => "Rechercher une mise à jour".into(),
     }
 }
 
@@ -675,5 +746,38 @@ mod tests {
         assert!(can_check(&status(UpdateState::Error, None)));
         assert!(!can_check(&status(UpdateState::Disabled, None)));
         assert!(!can_check(&status(UpdateState::Downloading, Some("0.3.0"))));
+    }
+
+    #[test]
+    fn menu_action_installs_a_ready_update() {
+        let text = |state, available| action_text(&status(state, available), true);
+        assert_eq!(text(UpdateState::UpToDate, None), "Rechercher une mise à jour");
+        assert_eq!(text(UpdateState::Error, None), "Rechercher une mise à jour");
+        assert_eq!(
+            text(UpdateState::Ready, Some("0.3.0")),
+            "Installer la mise à jour 0.3.0 et redémarrer"
+        );
+        assert_eq!(
+            action_text(&status(UpdateState::Disabled, None), false),
+            "Rechercher une mise à jour (version installée)"
+        );
+    }
+
+    #[test]
+    fn notifies_the_result_of_a_menu_check() {
+        let note = |state, available| check_notification(&status(state, available));
+        let (title, body) = note(UpdateState::UpToDate, None).unwrap();
+        assert_eq!(title, "Sordulo OS est à jour");
+        assert!(body.contains("0.2.0"));
+        let (title, body) = note(UpdateState::Ready, Some("0.3.0")).unwrap();
+        assert_eq!(title, "Mise à jour prête");
+        assert!(body.contains("0.3.0"));
+        assert!(note(UpdateState::Error, None).is_some());
+        assert!(note(UpdateState::Installing, Some("0.3.0")).is_none());
+        assert!(note(UpdateState::Checking, None).is_none());
+        for state in [UpdateState::UpToDate, UpdateState::Ready, UpdateState::Error] {
+            let (title, body) = note(state, Some("0.3.0")).unwrap();
+            assert!(!title.contains('—') && !body.contains('—'));
+        }
     }
 }

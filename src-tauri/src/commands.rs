@@ -299,6 +299,15 @@ pub fn get_update_status(app: AppHandle) -> UpdateStatus {
     updater::status(&app)
 }
 
+/// Paramètres > Application de bureau : vérifie et télécharge la dernière version, sans l'installer
+/// (réseau sur un thread bloquant). Refusé en dev.
+#[tauri::command]
+pub async fn check_update(app: AppHandle) -> Result<UpdateStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || updater::check_now(&app))
+        .await
+        .map_err(|e| format!("Recherche de mise à jour impossible : {e}"))?
+}
+
 /// Vérifie, télécharge et installe la dernière version tout de suite, même fenêtre ouverte (l'app
 /// redémarre). Refusé pendant un enregistrement. Le travail (réseau, installation) tourne sur un
 /// thread bloquant : l'installation macOS peut demander le thread principal.
