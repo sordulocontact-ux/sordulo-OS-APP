@@ -8,12 +8,14 @@
  * - Quantification simple par teinte (24 secteurs de 15°). Chaque secteur cumule la chroma de ses pixels
  *   (une couleur vive pèse plus qu'une couleur terne) et leur couleur moyenne pondérée par cette chroma.
  * - Première couleur : le secteur le plus lourd. Seconde : le plus lourd dont la teinte s'écarte d'au moins
- *   MIN_HUE_GAP de la première et qui pèse assez (MIN_SECOND_SHARE) ; sinon une variante plus claire de la
- *   première.
- * - Lisibilité sur le fond noir : saturation relevée jusqu'à MIN_SATURATION et luminosité jusqu'à un
- *   contraste MIN_CONTRAST avec le noir, au minimum nécessaire (une couleur déjà lisible ne bouge pas).
- * - Pochette toute grise, noire ou blanche (moins de MIN_COLORFUL_SHARE de pixels colorés) : null, le rendu
- *   garde les tokens --island-music* par défaut.
+ *   MIN_HUE_GAP de la première et qui pèse vraiment (MIN_SECOND_SHARE, pas un petit détail de la pochette) ;
+ *   sinon une variante plus claire de la première.
+ * - Fidèle à la pochette : la saturation n'est jamais relevée (un brun reste brun, pas orange vif). Seule la
+ *   luminosité monte, au minimum, jusqu'au contraste MIN_CONTRAST avec le noir de l'île (3:1, le seuil WCAG
+ *   des éléments graphiques ; une couleur déjà lisible ne bouge pas).
+ * - Pochette grise, noire ou blanche (moins de MIN_COLORFUL_SHARE de pixels colorés) : dégradé neutre tiré de
+ *   la teinte moyenne de la pochette (gris, ou gris chaud d'une photo sépia), pas l'orange par défaut.
+ *   Image vide ou transparente : null, le rendu garde les tokens --island-music*.
  */
 import type { MusicPalette } from '../types'
 
@@ -32,13 +34,15 @@ export const HUE_BINS = 24
 /** Écart de teinte minimal entre les deux couleurs, en degrés. */
 export const MIN_HUE_GAP = 30
 /** Poids minimal de la seconde couleur, en part du poids coloré total. */
-export const MIN_SECOND_SHARE = 0.06
-/** Saturation HSL minimale des couleurs rendues (0 à 1). */
-export const MIN_SATURATION = 0.45
-/** Contraste minimal (WCAG) des couleurs rendues avec le noir. */
-export const MIN_CONTRAST = 4.5
+export const MIN_SECOND_SHARE = 0.15
+/** Contraste minimal (WCAG 1.4.11, éléments graphiques) des couleurs rendues avec le noir. */
+export const MIN_CONTRAST = 3
 /** Luminosité HSL ajoutée pour la variante claire, quand la pochette n'a qu'une couleur. */
 export const LIGHTER_STEP = 0.15
+/** Saturation HSL maximale du dégradé neutre (pochette sans couleur) : un gris à peine teinté. */
+export const NEUTRAL_MAX_SATURATION = 0.1
+/** Luminosité HSL minimale du dégradé neutre : un gris clair. */
+export const NEUTRAL_MIN_LIGHTNESS = 0.6
 /** Luminosité HSL maximale des couleurs rendues : au-delà, la couleur tourne au blanc. */
 export const MAX_LIGHTNESS = 0.9
 
@@ -111,9 +115,9 @@ function hueGap(a: number, b: number): number {
   return gap > 180 ? 360 - gap : gap
 }
 
-/** Saturation puis luminosité relevées au minimum pour rester lisible sur le noir de l'île. */
+/** Luminosité relevée au minimum pour rester lisible sur le noir de l'île ; teinte et saturation gardées. */
 function readable(hsl: Hsl): Hsl {
-  const s = Math.max(hsl.s, MIN_SATURATION)
+  const s = hsl.s
   const start = { h: hsl.h, s, l: hsl.l }
   if (contrastOnBlack(hslToRgb(start)) >= MIN_CONTRAST || hsl.l >= MAX_LIGHTNESS) return start
   // Recherche par dichotomie de la plus petite luminosité qui atteint le contraste voulu.
@@ -137,9 +141,27 @@ function binColor(bin: Bin): Hsl {
   return rgbToHsl({ r: bin.r / bin.weight, g: bin.g / bin.weight, b: bin.b / bin.weight })
 }
 
+/** Pochette sans couleur : gris (ou gris teinté) de la pochette, lisible, et sa variante plus claire. */
+function neutralPalette(visible: { count: number; r: number; g: number; b: number }): MusicPalette {
+  // Toute noire : gris moyen.
+  const average =
+    visible.count > 0
+      ? rgbToHsl({ r: visible.r / visible.count, g: visible.g / visible.count, b: visible.b / visible.count })
+      : { h: 0, s: 0, l: 0.5 }
+  // Saturation plafonnée : près du blanc, un écart infime de composantes donne une saturation HSL forte, que
+  // l'éclaircissement rendrait visible (un blanc cassé virerait au bleu pâle).
+  const s = Math.min(average.s, NEUTRAL_MAX_SATURATION)
+  // Gris clair au minimum : sur le noir de l'île, une vague gris foncé paraît éteinte (comme en pause).
+  const l = Math.min(Math.max(average.l, NEUTRAL_MIN_LIGHTNESS), MAX_LIGHTNESS - LIGHTER_STEP)
+  const start = readable({ ...average, s, l })
+  const end = readable({ ...start, l: Math.min(MAX_LIGHTNESS, start.l + LIGHTER_STEP) })
+  return { start: toCss(start), end: toCss(end) }
+}
+
 /**
- * Deux couleurs vives et représentatives d'une image (pixels RGBA, comme ImageData.data) pour un dégradé
- * lisible sur fond noir ; null si l'image n'a pas de couleur (grise, noire, blanche, transparente).
+ * Deux couleurs représentatives d'une image (pixels RGBA, comme ImageData.data) pour un dégradé
+ * lisible sur fond noir ; dégradé neutre si elle n'a pas de couleur (grise, noire, blanche) ; null si elle est
+ * vide ou transparente.
  */
 export function paletteFromPixels(data: Uint8ClampedArray, width: number, height: number): MusicPalette | null {
   const count = Math.min(Math.max(0, Math.floor(width) * Math.floor(height)), Math.floor(data.length / 4))
@@ -147,6 +169,8 @@ export function paletteFromPixels(data: Uint8ClampedArray, width: number, height
   let opaque = 0
   let colorful = 0
   let totalWeight = 0
+  // Couleur moyenne des pixels visibles (hors quasi-noir) : teinte du dégradé neutre d'une pochette sans couleur.
+  const visible = { count: 0, r: 0, g: 0, b: 0 }
 
   for (let i = 0; i < count; i++) {
     const o = i * 4
@@ -156,6 +180,12 @@ export function paletteFromPixels(data: Uint8ClampedArray, width: number, height
     const max = Math.max(color.r, color.g, color.b)
     const min = Math.min(color.r, color.g, color.b)
     const chroma = max - min
+    if (max >= BLACK_MAX) {
+      visible.count++
+      visible.r += color.r
+      visible.g += color.g
+      visible.b += color.b
+    }
     if (max < BLACK_MAX || min > WHITE_MIN || chroma < GREY_CHROMA) continue
     colorful++
     const { h } = rgbToHsl(color)
@@ -168,7 +198,8 @@ export function paletteFromPixels(data: Uint8ClampedArray, width: number, height
     totalWeight += chroma
   }
 
-  if (colorful === 0 || colorful < opaque * MIN_COLORFUL_SHARE) return null
+  if (opaque === 0) return null
+  if (colorful === 0 || colorful < opaque * MIN_COLORFUL_SHARE) return neutralPalette(visible)
 
   const ranked = bins.filter((bin) => bin.weight > 0).sort((a, b) => b.weight - a.weight)
   const top = ranked[0]

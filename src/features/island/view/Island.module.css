@@ -896,7 +896,7 @@
   transition: opacity var(--island-duration-garden-in) ease var(--island-delay-garden-in);
 }
 
-/* Avec la musique : les Claude passent devant la pochette et l'égaliseur (éléments partagés, dessinés après) */
+/* Calque des sous-agents : devant la pochette et l'égaliseur (les personnages principaux passent derrière) */
 .gardenFront {
   z-index: 1;
 }

@@ -94,23 +94,32 @@ export class GardenRenderer {
   private readonly effects = new Map<number, HTMLElement>()
   /** Calque des personnages et de leurs ombres : leur ordre (z-index) reste sous l'encoche et les effets. */
   private readonly crowd: HTMLDivElement
+  /** Calque des sous-agents, dans `front` (devant la pochette) ; null : avec les autres dans `crowd`. */
+  private readonly frontCrowd: HTMLDivElement | null
 
   constructor(
     private readonly layer: HTMLElement,
     private readonly cls: GardenClassNames,
+    front: HTMLElement | null = null,
   ) {
     this.crowd = document.createElement('div')
     this.crowd.className = cls.crowd
     layer.appendChild(this.crowd)
+    this.frontCrowd = front ? document.createElement('div') : null
+    if (front && this.frontCrowd) {
+      this.frontCrowd.className = cls.crowd
+      front.appendChild(this.frontCrowd)
+    }
   }
 
-  private createSprite(size: number): Sprite {
+  private createSprite(size: number, sub: boolean): Sprite {
     const { cls } = this
+    const crowd = sub && this.frontCrowd ? this.frontCrowd : this.crowd
     const shadow = document.createElement('div')
     shadow.className = cls.shadow
     shadow.style.width = `${size}px`
     shadow.style.height = `${size}px`
-    this.crowd.appendChild(shadow)
+    crowd.appendChild(shadow)
     const el = document.createElement('div')
     el.className = cls.mascot
     el.style.width = `${size}px`
@@ -147,7 +156,7 @@ export class GardenRenderer {
     const bubble = document.createElement('span')
     bubble.className = cls.bubble
     el.appendChild(bubble)
-    this.crowd.appendChild(el)
+    crowd.appendChild(el)
     return {
       el,
       upper,
@@ -275,7 +284,7 @@ export class GardenRenderer {
       seen.add(w.id)
       let node = this.walkers.get(w.id)
       if (!node) {
-        node = { main: this.createSprite(w.size), twin: this.createSprite(w.size) }
+        node = { main: this.createSprite(w.size, w.sub), twin: this.createSprite(w.size, w.sub) }
         this.walkers.set(w.id, node)
       }
       const v = walkerVisual(w, sim.statusOf(w), ctx)
@@ -322,6 +331,7 @@ export class GardenRenderer {
     }
     for (const el of this.effects.values()) el.remove()
     this.crowd.remove()
+    this.frontCrowd?.remove()
     this.walkers.clear()
     this.effects.clear()
   }

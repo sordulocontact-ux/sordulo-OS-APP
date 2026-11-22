@@ -677,24 +677,42 @@ export class GardenSim {
    * Mac : l'encoche de la caméra cache le milieu du bord haut. Celui qui y entre en ressort aussitôt de l'autre
    * côté, dans le sens où il avançait (sinon dans son sens de marche), au lieu de disparaître derrière. Seulement
    * à hauteur de l'encoche (île au repos) : île ouverte, le sol est bien plus bas. Pas pendant une interaction
-   * (les deux se placent l'un par rapport à l'autre) ni perché sur un parent (il suit le parent).
+   * (les deux se placent l'un par rapport à l'autre) ni perché sur un parent (il suit le parent). Il ressort à
+   * GARDEN.notch.gap px de l'encoche, et personne ne reste arrêté plus près (voir nearNotch).
    * Le saut n'a pas de pas de marche : updateGait le prend pour une téléportation.
    */
-  private skipNotch(width: number): void {
+  private skipNotch(dt: number, width: number): void {
     if (this.platform !== 'mac' || width <= 0) return
+    const { gap } = GARDEN.notch
     const left = (width - GARDEN.notch.width) / 2
     const right = (width + GARDEN.notch.width) / 2
     for (const w of this.list) {
       if (w.dead || w.mode === 'interact' || w.mode === 'ride') continue
       if (this.headY(w) >= GARDEN.notch.height) continue
       const half = w.size / 2
-      if (w.x + half <= left || w.x - half >= right) continue
+      if (w.x + half <= left || w.x - half >= right) {
+        // Personnage principal arrêté à moins de `gap` px de l'encoche (session qui ne travaille plus, pause,
+        // fin d'interaction) : il s'en écarte à pied, du côté où il est déjà.
+        if (!w.sub && w.vel === 0 && w.y === 0 && this.nearNotch(w, width)) {
+          const out = w.x < width / 2 ? -1 : 1
+          const edge = out < 0 ? left - gap - half : right + gap + half
+          w.dir = out
+          w.x = out < 0 ? Math.max(edge, w.x - GARDEN.notch.exitSpeed * dt) : Math.min(edge, w.x + GARDEN.notch.exitSpeed * dt)
+        }
+        continue
+      }
       let dx = Number.isNaN(w.px) ? 0 : w.x - w.px
       if (Math.abs(dx) > width / 2) dx -= Math.sign(dx) * width
       const rightward = dx !== 0 ? dx > 0 : w.dir >= 0
-      w.x = rightward ? right + half : left - half
+      w.x = rightward ? right + gap + half : left - gap - half
       this.wrap(w, width)
     }
+  }
+
+  /** Mac, île au repos : à moins de GARDEN.notch.gap px de l'encoche (ou dessous). */
+  private nearNotch(w: Walker, width: number): boolean {
+    if (this.platform !== 'mac' || width <= 0 || this.headY(w) >= GARDEN.notch.height) return false
+    return Math.abs(w.x - width / 2) < GARDEN.notch.width / 2 + GARDEN.notch.gap + w.size / 2
   }
 
   /** Libre pour une rencontre (prototype : freeW). */
@@ -991,7 +1009,7 @@ export class GardenSim {
       }
     }
     this.updateInteractions(dt, width)
-    this.skipNotch(width)
+    this.skipNotch(dt, width)
     this.prune()
     this.updateDepths(dt)
     for (const w of this.list) this.updateGait(w, dt, width)
@@ -1104,7 +1122,10 @@ export class GardenSim {
     w.x += w.dir * w.vel * surge * dt
     w.cool -= dt
     if (w.stopping) {
-      if (w.vel <= GARDEN.walk.stopBelow) {
+      // Pas d'arrêt contre l'encoche : il repart et s'arrêtera plus loin, de l'autre côté.
+      if (w.vel <= GARDEN.walk.stopBelow && this.nearNotch(w, width)) {
+        w.stopping = false
+      } else if (w.vel <= GARDEN.walk.stopBelow) {
         w.vel = 0
         w.stopping = false
         w.mode = 'pause'

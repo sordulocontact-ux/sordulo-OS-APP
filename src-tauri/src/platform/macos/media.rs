@@ -632,7 +632,7 @@ pub fn media_command(command: MediaCommand) -> Result<()> {
         MediaCommand::Previous => "previousTrack",
         MediaCommand::Next => "nextTrack",
         MediaCommand::PlayPause => "playpause",
-        MediaCommand::Open => return open_player(bundle_id),
+        MediaCommand::Open => return open_player(bundle_id, None),
     };
     let reply = run_osascript(
         &["-l", "JavaScript", "-e", COMMAND_SCRIPT, bundle_id, action],
@@ -648,7 +648,68 @@ pub fn media_command(command: MediaCommand) -> Result<()> {
 }
 
 /// Met le lecteur au premier plan (`open -b`, comme `editor.rs`).
-pub(super) fn open_player(bundle_id: &str) -> Result<()> {
+/// Délai maximal pour trouver et afficher l'onglet du navigateur qui joue (une demande d'autorisation
+/// « Automatisation » affichée le bloque).
+const TAB_TIMEOUT: Duration = Duration::from_secs(20);
+
+/// JXA : affiche l'onglet qui joue la musique (`argv` : bundle id, `arc` / `safari` / `chromium`, titre du
+/// morceau). Score d'un onglet : titre qui contient le morceau (2), adresse d'un site de musique (1) ; le
+/// meilleur est sélectionné, sa fenêtre passe devant et le navigateur est activé. Lecture des titres et des
+/// adresses en bloc (`w.tabs.title()`) : Arc refuse `w.tabs()` un par un. Ne lance jamais le navigateur.
+const FOCUS_TAB_SCRIPT: &str = r#"function run(argv) {
+  const app = Application(argv[0]);
+  const kind = argv[1];
+  const want = String(argv[2] || "").toLowerCase();
+  if (!app.running()) return "closed";
+  const music = /(open\.spotify\.com|music\.youtube\.com|youtube\.com\/watch|deezer\.com|soundcloud\.com|music\.apple\.com|tidal\.com|music\.amazon\.)/i;
+  let best = null;
+  const count = app.windows.length;
+  for (let wi = 0; wi < count; wi++) {
+    const w = app.windows[wi];
+    let titles = [];
+    let urls = [];
+    try {
+      titles = kind === "safari" ? w.tabs.name() : w.tabs.title();
+      urls = w.tabs.url();
+    } catch (e) {
+      continue;
+    }
+    for (let ti = 0; ti < titles.length; ti++) {
+      const title = String(titles[ti] || "").toLowerCase();
+      const score = (want && title.includes(want) ? 2 : 0) + (music.test(String(urls[ti] || "")) ? 1 : 0);
+      if (score > 0 && (!best || score > best.score)) best = { wi, ti, score };
+    }
+  }
+  if (!best) return "none";
+  const w = app.windows[best.wi];
+  const tab = w.tabs[best.ti];
+  if (kind === "arc") {
+    tab.select();
+  } else if (kind === "safari") {
+    w.currentTab = tab;
+    w.index = 1;
+  } else {
+    w.activeTabIndex = best.ti + 1;
+    w.index = 1;
+  }
+  app.activate();
+  return "ok";
+}"#;
+
+/// Ouvre le lecteur au premier plan. Navigateur (Arc, Chrome, Safari…) avec le titre du morceau : affiche
+/// l'onglet qui joue (`FOCUS_TAB_SCRIPT`), pas seulement le navigateur ; onglet introuvable, Firefox (pas
+/// d'onglets par AppleScript) ou autorisation refusée : le navigateur est simplement activé.
+pub(super) fn open_player(bundle_id: &str, title: Option<&str>) -> Result<()> {
+    if let (Some(kind), Some(title)) = (tab_kind(bundle_id), title.map(str::trim).filter(|t| !t.is_empty())) {
+        match run_osascript(
+            &["-l", "JavaScript", "-e", FOCUS_TAB_SCRIPT, bundle_id, kind, title],
+            TAB_TIMEOUT,
+        ) {
+            Ok(reply) if reply == "ok" => return Ok(()),
+            Ok(reply) => log::info!("musique : onglet du lecteur introuvable ({reply}), navigateur activé"),
+            Err(e) => log::info!("musique : onglet du lecteur non affiché ({e}), navigateur activé"),
+        }
+    }
     let status = Command::new("/usr/bin/open")
         .arg("-b")
         .arg(bundle_id)
@@ -664,9 +725,32 @@ pub(super) fn open_player(bundle_id: &str) -> Result<()> {
     Ok(())
 }
 
+/// Famille du navigateur pour `FOCUS_TAB_SCRIPT` ; None : pas un navigateur, ou Firefox (pas d'onglets).
+fn tab_kind(bundle_id: &str) -> Option<&'static str> {
+    let short = crate::call_apps::short_name(bundle_id);
+    crate::call_apps::browser_bundle_id(&short)?;
+    match short.as_str() {
+        "firefox" => None,
+        "arc" => Some("arc"),
+        "safari" => Some("safari"),
+        _ => Some("chromium"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn famille_des_navigateurs_pour_l_onglet() {
+        assert_eq!(tab_kind("company.thebrowser.Browser"), Some("arc"));
+        assert_eq!(tab_kind("com.apple.Safari"), Some("safari"));
+        assert_eq!(tab_kind("com.google.Chrome"), Some("chromium"));
+        assert_eq!(tab_kind("com.brave.Browser"), Some("chromium"));
+        assert_eq!(tab_kind("org.mozilla.firefox"), None);
+        assert_eq!(tab_kind("com.spotify.client"), None);
+        assert_eq!(tab_kind("com.apple.Music"), None);
+    }
 
     fn reply(json: &str) -> AppReply {
         serde_json::from_str(json).unwrap()

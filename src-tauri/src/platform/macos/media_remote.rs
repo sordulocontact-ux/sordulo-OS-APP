@@ -247,15 +247,16 @@ pub fn command(command: MediaCommand) -> Result<()> {
         MediaCommand::Next => remote.perl.next(),
         MediaCommand::Previous => remote.perl.previous(),
         MediaCommand::Open => {
-            let bundle_id = lock(&remote.state)
+            let current = lock(&remote.state)
                 .current
                 .as_ref()
-                .map(|s| s.now.app_id.clone())
-                .filter(|id| !id.is_empty());
-            let Some(bundle_id) = bundle_id else {
+                .map(|s| (s.now.app_id.clone(), s.now.title.clone()))
+                .filter(|(id, _)| !id.is_empty());
+            let Some((bundle_id, title)) = current else {
                 bail!("aucune musique en cours");
             };
-            return super::media::open_player(&bundle_id);
+            // Navigateur : l'onglet qui joue (titre du morceau), pas seulement le navigateur.
+            return super::media::open_player(&bundle_id, Some(&title));
         }
     };
     ensure!(sent, "commande refusée par MediaRemote");

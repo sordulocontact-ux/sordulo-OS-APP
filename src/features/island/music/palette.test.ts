@@ -41,6 +41,17 @@ function lightness(css: string): number {
   return (Math.max(r, g, b) + Math.min(r, g, b)) / 2
 }
 
+function saturation(css: string): number {
+  const { r, g, b } = parse(css)
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const l = (max + min) / 2
+  return max === min ? 0 : (max - min) / (1 - Math.abs(2 * l - 1))
+}
+
+const rgbCss = ({ r, g, b }: { r: number; g: number; b: number }) =>
+  `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`
+
 const isWarm = (css: string) => {
   const h = hue(css)
   return h <= 60 || h >= 330
@@ -55,13 +66,38 @@ describe('paletteFromPixels', () => {
     expect(palette!.start).not.toBe(palette!.end)
   })
 
-  it('pochette toute noire, grise, blanche ou transparente : null', () => {
-    expect(paletteFromPixels(image([[0, 0, 0], 1]), SIZE, SIZE)).toBeNull()
-    expect(paletteFromPixels(image([[10, 12, 8], 0.5], [[25, 20, 30], 0.5]), SIZE, SIZE)).toBeNull()
-    expect(paletteFromPixels(image([[128, 128, 128], 0.5], [[90, 95, 100], 0.5]), SIZE, SIZE)).toBeNull()
-    expect(paletteFromPixels(image([[250, 250, 252], 1]), SIZE, SIZE)).toBeNull()
+  it('pochette noire, grise ou blanche : dégradé gris lisible, pas l’orange par défaut', () => {
+    for (const data of [
+      image([[0, 0, 0], 1]),
+      image([[10, 12, 8], 0.5], [[25, 20, 30], 0.5]),
+      image([[128, 128, 128], 0.5], [[90, 95, 100], 0.5]),
+      image([[250, 250, 252], 1]),
+      // Photo en noir et blanc : surtout du noir, un visage gris
+      image([[5, 5, 5], 0.7], [[120, 120, 120], 0.2], [[200, 200, 200], 0.1]),
+    ]) {
+      const palette = paletteFromPixels(data, SIZE, SIZE)
+      expect(palette).not.toBeNull()
+      for (const css of [palette!.start, palette!.end]) {
+        expect(saturation(css)).toBeLessThan(0.15)
+        expect(contrastOnBlack(parse(css))).toBeGreaterThanOrEqual(MIN_CONTRAST - 0.05)
+      }
+      expect(lightness(palette!.end)).toBeGreaterThan(lightness(palette!.start))
+    }
+  })
+
+  it('image vide ou transparente : null (tokens par défaut)', () => {
     expect(paletteFromPixels(image([[220, 20, 20, 0], 1]), SIZE, SIZE)).toBeNull()
     expect(paletteFromPixels(new Uint8ClampedArray(0), 0, 0)).toBeNull()
+  })
+
+  it('couleur terne de la pochette : gardée terne (saturation jamais relevée)', () => {
+    // Peau brune en majorité, petit texte rouge : brun, pas orange vif ; le rouge marginal ne prend pas la fin.
+    const brown = { r: 150 / 255, g: 105 / 255, b: 85 / 255 }
+    const palette = paletteFromPixels(image([[150, 105, 85], 0.85], [[220, 30, 40], 0.08], [[0, 0, 0], 0.07]), SIZE, SIZE)
+    expect(palette).not.toBeNull()
+    expect(saturation(palette!.start)).toBeCloseTo(saturation(rgbCss(brown)), 1)
+    expect(Math.abs(hue(palette!.start) - hue(rgbCss(brown)))).toBeLessThan(5)
+    expect(Math.abs(hue(palette!.end) - hue(palette!.start))).toBeLessThan(5)
   })
 
   it('deux couleurs dominantes bien distinctes : deux couleurs différentes, dans l’ordre du poids', () => {

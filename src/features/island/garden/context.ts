@@ -29,6 +29,11 @@ export interface GardenEnv {
   musicLevels: MusicLevelsReader | null
   /** Session affichée dans `agent` (null hors de cet état ou sans session). */
   agentSessionId: string | null
+  /**
+   * Calque posé devant la pochette et l'égaliseur : les sous-agents (petits Claude) y sont dessinés, les
+   * personnages principaux restent derrière pour ne pas cacher la pochette. null : tout dans le jardin.
+   */
+  front: HTMLElement | null
 }
 
 export const GardenEnvContext = createContext<GardenEnv | null>(null)

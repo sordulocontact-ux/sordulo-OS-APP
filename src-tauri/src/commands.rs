@@ -197,7 +197,11 @@ pub async fn music_command(
             .await
             .map_err(|e| format!("Commande Spotify interrompue : {e}"))?;
     }
-    crate::platform::media_command(command)
+    // Bloquant aussi : sur Mac, afficher l'onglet du navigateur qui joue passe par AppleScript (jusqu'à 20 s
+    // si macOS demande l'autorisation « Automatisation »).
+    tauri::async_runtime::spawn_blocking(move || crate::platform::media_command(command))
+        .await
+        .map_err(|e| format!("Commande du lecteur interrompue : {e}"))?
         .map_err(|e| format!("Commande du lecteur impossible : {e:#}"))
 }
 

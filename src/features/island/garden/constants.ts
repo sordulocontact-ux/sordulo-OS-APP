@@ -40,9 +40,11 @@ export const GARDEN = {
   /**
    * Encoche de la caméra du Mac (px), centrée sur le bord haut : mêmes valeurs que les tokens
    * --island-garden-notch-width / -height (vérifié par tokens.test.ts). Un Claude qui y entre ressort aussitôt
-   * de l'autre côté (simulation.ts, skipNotch).
+   * de l'autre côté (simulation.ts, skipNotch). `gap` : aucun Claude ne s'arrête à moins de 4 px de l'encoche
+   * (il s'arrête avant, ou continue et s'arrête après) ; `exitSpeed` : allure (px/s) de celui qui s'y trouvait
+   * arrêté et en sort à pied.
    */
-  notch: { width: 186, height: 32 },
+  notch: { width: 186, height: 32, gap: 4, exitSpeed: 24 },
   /** Hauteur du sol au-dessus du bas de la forme (prototype : gOff). */
   groundOffset: { win: 1, mac: 1 } satisfies Record<IslandPlatform, number>,
   /** Bas des pieds dans le sprite (transform-origin 50% 81%) et haut de la tête (on se pose à 62 %). */

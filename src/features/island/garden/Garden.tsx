@@ -92,17 +92,18 @@ export function Garden({ sessions, mood }: GardenProps) {
     moodRef.current = mood
   })
 
-  // Moteur de rendu : possède les éléments des personnages et des effets
+  // Moteur de rendu : possède les éléments des personnages et des effets (sous-agents dans le calque de devant)
+  const front = env?.front ?? null
   useLayoutEffect(() => {
     const layer = layerRef.current
     if (!layer) return
-    const renderer = new GardenRenderer(layer, classNames())
+    const renderer = new GardenRenderer(layer, classNames(), front)
     rendererRef.current = renderer
     return () => {
       renderer.dispose()
       rendererRef.current = null
     }
-  }, [])
+  }, [front])
 
   const state = env?.state ?? null
   const platform = env?.platform ?? 'win'

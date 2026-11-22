@@ -709,12 +709,36 @@ describe('encoche du Mac', () => {
     w.px = left - w.size / 2 - 1
     w.x = left - w.size / 2 + 1
     sim.step(0, MAC_FRAME)
-    expect(w.x).toBeCloseTo(right + w.size / 2, 5)
+    expect(w.x).toBeCloseTo(right + GARDEN.notch.gap + w.size / 2, 5)
     w.dir = -1
     w.px = right + w.size / 2 + 1
     w.x = right + w.size / 2 - 1
     sim.step(0, MAC_FRAME)
-    expect(w.x).toBeCloseTo(left - w.size / 2, 5)
+    expect(w.x).toBeCloseTo(left - GARDEN.notch.gap - w.size / 2, 5)
+  })
+
+  it('personne ne reste arrêté à moins de 4 px de l’encoche', () => {
+    // Sessions qui attendent ou ont fini : elles restent sur place, sauf contre l'encoche, d'où elles s'écartent.
+    const sim = new GardenSim(seeded(25))
+    sim.reset(
+      [session(0), session(1, { status: 'waiting' }), session(2, { status: 'done' }), session(3)],
+      MAC_OPTS,
+    )
+    const tooClose = (w: Walker) =>
+      Math.abs(w.x - MAC.w / 2) < GARDEN.notch.width / 2 + GARDEN.notch.gap + w.size / 2 - 0.01
+    const idle = main(sim, 's1')
+    run(sim, 1, MAC_FRAME)
+    idle.x = right + 1
+    let stoppedClose = 0
+    for (let t = 0; t < 40; t += DT) {
+      sim.step(DT, MAC_FRAME)
+      for (const w of sim.walkers) {
+        if (w.sub || w.dead || w.delay > 0 || w.mode === 'interact' || w.y !== 0) continue
+        if (w.vel === 0 && tooClose(w) && t > 3) stoppedClose += 1
+      }
+    }
+    expect(stoppedClose).toBe(0)
+    expect(tooClose(idle)).toBe(false)
   })
 
   it('île ouverte (sol sous l’encoche) ou Windows : rien ne change', () => {

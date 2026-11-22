@@ -102,6 +102,8 @@ export function Island(props: IslandProps) {
   // du fondu de sortie pour que la couleur ne repasse pas au jaune avant la fin.
   const liveService: CallService | null | undefined = meet ? meet.service : call ? call.service : undefined
   const [keptService, setKeptService] = useState<CallService | null>(null)
+  // Calque des sous-agents, devant la pochette (voir GardenEnv.front)
+  const [gardenFront, setGardenFront] = useState<HTMLDivElement | null>(null)
   if (liveService !== undefined && liveService !== keptService) setKeptService(liveService)
   const callService = liveService === undefined ? keptService : liveService
 
@@ -233,8 +235,9 @@ export function Island(props: IslandProps) {
       mood: { call: callOn, music: musicPlaying },
       musicLevels: musicLevels ?? null,
       agentSessionId,
+      front: gardenFront,
     }),
-    [stage, gardenVisible, musicGarden, state, platform, reduced, callOn, musicPlaying, musicLevels, agentSessionId],
+    [stage, gardenVisible, musicGarden, state, platform, reduced, callOn, musicPlaying, musicLevels, agentSessionId, gardenFront],
   )
 
   // Nouvelle cible : état, survol, plateforme, jardin, nombre de sessions
@@ -397,7 +400,8 @@ export function Island(props: IslandProps) {
               onMusicCommand,
             }}
           />
-          <div className={cx(styles.garden, gardenVisible && styles.on, musicGarden && styles.gardenFront)} aria-hidden="true">
+          {/* Personnages principaux : derrière la pochette et l'égaliseur (éléments partagés, dessinés après) */}
+          <div className={cx(styles.garden, gardenVisible && styles.on)} aria-hidden="true">
             <GardenEnvContext.Provider value={gardenEnv}>{garden}</GardenEnvContext.Provider>
           </div>
           <SharedElements
@@ -412,6 +416,14 @@ export function Island(props: IslandProps) {
             agentWorking={agentSession?.status === 'working'}
             reduced={reduced}
           />
+          {/* Sous-agents : devant la pochette, ils sont petits et ne la cachent pas */}
+          {hasGarden && (
+            <div
+              ref={setGardenFront}
+              className={cx(styles.garden, gardenVisible && styles.on, styles.gardenFront)}
+              aria-hidden="true"
+            />
+          )}
         </div>
       </div>
       <button
