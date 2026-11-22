@@ -1,0 +1,3 @@
+# Vercel compte chaque fichier .ts de api/ (hors _lib) comme une fonction, tests compris : 12 au plus sur
+# l'offre Hobby. Les tests ne sont jamais déployés.
+api/**/*.test.ts
