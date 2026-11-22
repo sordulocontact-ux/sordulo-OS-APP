@@ -200,14 +200,15 @@
   }
 }
 
-/* Encoche du Mac : les Claude passent derrière */
+/* Encoche du Mac : les Claude passent derrière. Hauteur de l'encoche seulement : avec la musique, le jardin
+   reste affiché devant l'île ouverte, et une bande pleine hauteur masquerait le titre et la progression. */
 .notch {
   position: absolute;
   top: 0;
-  bottom: 0;
   left: 50%;
   z-index: 2;
   width: var(--island-garden-notch-width);
+  height: var(--island-garden-notch-height);
   background: var(--island-bg);
   transform: translateX(-50%);
 }

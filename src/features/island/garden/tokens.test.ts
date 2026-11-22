@@ -40,6 +40,12 @@ describe('Garden.module.css', () => {
 })
 
 describe('garden tokens', () => {
+  it('keeps the notch size of the simulation equal to the notch tokens', () => {
+    const px = (name: string) => Number(new RegExp(`${name}:\\s*(\\d+)px`).exec(tokens)?.[1])
+    expect(px('--island-garden-notch-width')).toBe(GARDEN.notch.width)
+    expect(px('--island-garden-notch-height')).toBe(GARDEN.notch.height)
+  })
+
   it('gives every session color, angry and blush a token', () => {
     expect(GARDEN_COLOR_TOKENS).toHaveLength(GARDEN.maxSessions)
     for (const token of [...GARDEN_COLOR_TOKENS, GARDEN_ANGRY_TOKEN, GARDEN_BLUSH_TOKEN]) {

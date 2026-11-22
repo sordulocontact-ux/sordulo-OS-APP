@@ -220,15 +220,13 @@
   display: block;
 }
 
-/* Barres (SVG à bords nets) : pleine hauteur, la boucle écrit scaleY ; dégradé d'une barre à l'autre (--eq-t) */
+/* Barres aux bouts arrondis : la boucle écrit leur hauteur (y, height) ; dégradé d'une barre à l'autre (--eq-t) */
 .eq rect {
-  transform-box: fill-box;
   fill: color-mix(
     in oklab,
     var(--music-end, var(--island-music)) calc(var(--eq-t, 0) * 100%),
     var(--music-start, var(--island-music-cover-start))
   );
-  transform-origin: center;
 }
 
 .detail.musicDetail {

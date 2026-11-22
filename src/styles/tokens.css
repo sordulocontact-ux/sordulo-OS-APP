@@ -398,8 +398,9 @@
   --island-garden-paper-width: 6px;
   --island-garden-paper-height: 7px;
   --island-garden-spark-size: 10px;
-  /* Encoche du Mac */
+  /* Encoche du Mac (hauteur = l'île Mac au repos, celle de l'encoche de la caméra) */
   --island-garden-notch-width: 186px;
+  --island-garden-notch-height: 32px;
   /* Déplacements des animations : rebond de la bulle, montée des effets, des paroles, de l'étincelle */
   --island-garden-bob: -2px;
   --island-garden-rise-start: 2px;

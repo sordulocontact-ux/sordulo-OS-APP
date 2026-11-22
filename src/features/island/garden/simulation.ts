@@ -673,6 +673,30 @@ export class GardenSim {
     else if (w.x < 0) w.x += width
   }
 
+  /**
+   * Mac : l'encoche de la caméra cache le milieu du bord haut. Celui qui y entre en ressort aussitôt de l'autre
+   * côté, dans le sens où il avançait (sinon dans son sens de marche), au lieu de disparaître derrière. Seulement
+   * à hauteur de l'encoche (île au repos) : île ouverte, le sol est bien plus bas. Pas pendant une interaction
+   * (les deux se placent l'un par rapport à l'autre) ni perché sur un parent (il suit le parent).
+   * Le saut n'a pas de pas de marche : updateGait le prend pour une téléportation.
+   */
+  private skipNotch(width: number): void {
+    if (this.platform !== 'mac' || width <= 0) return
+    const left = (width - GARDEN.notch.width) / 2
+    const right = (width + GARDEN.notch.width) / 2
+    for (const w of this.list) {
+      if (w.dead || w.mode === 'interact' || w.mode === 'ride') continue
+      if (this.headY(w) >= GARDEN.notch.height) continue
+      const half = w.size / 2
+      if (w.x + half <= left || w.x - half >= right) continue
+      let dx = Number.isNaN(w.px) ? 0 : w.x - w.px
+      if (Math.abs(dx) > width / 2) dx -= Math.sign(dx) * width
+      const rightward = dx !== 0 ? dx > 0 : w.dir >= 0
+      w.x = rightward ? right + half : left - half
+      this.wrap(w, width)
+    }
+  }
+
   /** Libre pour une rencontre (prototype : freeW). */
   private isFree(w: Walker): boolean {
     return (
@@ -967,6 +991,7 @@ export class GardenSim {
       }
     }
     this.updateInteractions(dt, width)
+    this.skipNotch(width)
     this.prune()
     this.updateDepths(dt)
     for (const w of this.list) this.updateGait(w, dt, width)

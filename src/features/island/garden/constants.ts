@@ -37,6 +37,12 @@ export const GARDEN = {
 
   /** Taille des personnages (px, carrés) : session, sous-agent. */
   size: { main: 22, sub: 13 },
+  /**
+   * Encoche de la caméra du Mac (px), centrée sur le bord haut : mêmes valeurs que les tokens
+   * --island-garden-notch-width / -height (vérifié par tokens.test.ts). Un Claude qui y entre ressort aussitôt
+   * de l'autre côté (simulation.ts, skipNotch).
+   */
+  notch: { width: 186, height: 32 },
   /** Hauteur du sol au-dessus du bas de la forme (prototype : gOff). */
   groundOffset: { win: 1, mac: 1 } satisfies Record<IslandPlatform, number>,
   /** Bas des pieds dans le sprite (transform-origin 50% 81%) et haut de la tête (on se pose à 62 %). */

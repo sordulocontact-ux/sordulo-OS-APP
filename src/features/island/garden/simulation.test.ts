@@ -675,3 +675,68 @@ describe('bords en portail', () => {
     }
   })
 })
+
+describe('encoche du Mac', () => {
+  const MAC = ISLAND_SIZES.mac.multi
+  const MAC_OPTS: GardenSyncOptions = { width: MAC.w, height: MAC.h, platform: 'mac', reduced: false, live: true }
+  const MAC_FRAME: GardenFrame = { width: MAC.w, height: MAC.h, platform: 'mac', mood: CALM_MOOD }
+  const left = (MAC.w - GARDEN.notch.width) / 2
+  const right = (MAC.w + GARDEN.notch.width) / 2
+  const behindNotch = (w: Walker) => w.x + w.size / 2 > left && w.x - w.size / 2 < right
+
+  it('au repos, personne ne reste caché derrière l’encoche : qui y entre ressort de l’autre côté', () => {
+    const sim = new GardenSim(seeded(21))
+    sim.reset(sessions(3), MAC_OPTS)
+    let seen = 0
+    for (let t = 0; t < 30; t += DT) {
+      sim.step(DT, MAC_FRAME)
+      for (const w of sim.walkers) {
+        if (w.dead || w.delay > 0 || w.mode === 'interact' || w.mode === 'ride') continue
+        seen += 1
+        expect(behindNotch(w)).toBe(false)
+      }
+    }
+    expect(seen).toBeGreaterThan(0)
+  })
+
+  it('ressort du côté vers lequel il avançait', () => {
+    const sim = new GardenSim(seeded(22))
+    sim.reset([session(0)], MAC_OPTS)
+    const w = main(sim, 's0')
+    run(sim, 1, MAC_FRAME)
+    w.mode = 'walk'
+    w.dir = 1
+    w.px = left - w.size / 2 - 1
+    w.x = left - w.size / 2 + 1
+    sim.step(0, MAC_FRAME)
+    expect(w.x).toBeCloseTo(right + w.size / 2, 5)
+    w.dir = -1
+    w.px = right + w.size / 2 + 1
+    w.x = right + w.size / 2 - 1
+    sim.step(0, MAC_FRAME)
+    expect(w.x).toBeCloseTo(left - w.size / 2, 5)
+  })
+
+  it('île ouverte (sol sous l’encoche) ou Windows : rien ne change', () => {
+    const sim = new GardenSim(seeded(23))
+    sim.reset([session(0)], MAC_OPTS)
+    const w = main(sim, 's0')
+    run(sim, 1, MAC_FRAME)
+    const open: GardenFrame = { ...MAC_FRAME, height: ISLAND_SIZES.mac.multiOpen.h }
+    run(sim, 2, open)
+    w.mode = 'walk'
+    w.px = MAC.w / 2 - 1
+    w.x = MAC.w / 2
+    sim.step(0, open)
+    expect(w.x).toBe(MAC.w / 2)
+    const win = new GardenSim(seeded(24))
+    win.reset([session(0)], OPTS)
+    const v = main(win, 's0')
+    run(win, 1)
+    v.mode = 'walk'
+    v.px = SIZE.w / 2 - 1
+    v.x = SIZE.w / 2
+    win.step(0, FRAME)
+    expect(v.x).toBe(SIZE.w / 2)
+  })
+})

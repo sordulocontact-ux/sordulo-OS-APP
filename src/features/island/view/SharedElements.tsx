@@ -10,7 +10,7 @@ import { cx } from "./cx";
 import { ClaudeMascot } from "./ClaudeMascot";
 import { CallIcon, DropIcon, MusicCover } from "./icons";
 import styles from "./Island.module.css";
-import { EQ, eqBarStyle } from "./music";
+import { EQ, EQ_BAR, eqBarGeometry, eqBarStyle } from "./music";
 
 const SEG_IDS: SharedElementId[] = ["seg0", "seg1", "seg2", "seg3", "seg4"];
 
@@ -24,11 +24,9 @@ function segClass(status: ClaudeSessionStatus): string | undefined {
 
 const WAVE_INDEXES = Array.from({ length: WAVE.bars }, (_, i) => i);
 const EQ_INDEXES = Array.from({ length: EQ.bars }, (_, i) => i);
-/** Égaliseur (unités SVG = px CSS) : barres de 2, espacées de 1, hautes de 14 (23 × 14 pour 8 barres). */
-const EQ_BAR_WIDTH = 2;
-const EQ_BAR_GAP = 1;
-const EQ_HEIGHT = 14;
-const EQ_WIDTH = EQ.bars * EQ_BAR_WIDTH + (EQ.bars - 1) * EQ_BAR_GAP;
+const EQ_WIDTH = EQ.bars * EQ_BAR.width + (EQ.bars - 1) * EQ_BAR.gap;
+/** Hauteur de départ (avant la première image de la boucle) : la barre à plat. */
+const EQ_START = eqBarGeometry(EQ.flatScale);
 
 export interface SharedElementsProps {
   sessions: readonly ClaudeSession[];
@@ -134,13 +132,13 @@ export function SharedElements({
         className={cx(styles.sh, styles.eq)}
         ref={(el) => register("musicEq", el)}
       >
-        {/* SVG à bords nets : chaque barre se cale sur les pixels de l'écran (à 125 ou 150 %, des barres
-            de 2 px en div tombaient sur des demi-pixels et laissaient des traits clairs sur leurs bords). */}
+        {/* SVG, barres à x entiers (en div, des barres de 2 px tombaient sur des demi-pixels à 125 ou
+            150 %). Bouts entièrement arrondis : la boucle écrit y et height (eqBarGeometry), pas un scaleY
+            qui écraserait l'arrondi ; pas de crispEdges, qui rendrait l'arrondi en escalier. */}
         <svg
           width={EQ_WIDTH}
-          height={EQ_HEIGHT}
-          viewBox={`0 0 ${EQ_WIDTH} ${EQ_HEIGHT}`}
-          shapeRendering="crispEdges"
+          height={EQ_BAR.height}
+          viewBox={`0 0 ${EQ_WIDTH} ${EQ_BAR.height}`}
           aria-hidden="true"
         >
           {EQ_INDEXES.map((i) => (
@@ -148,10 +146,11 @@ export function SharedElements({
               key={i}
               ref={(el) => eqBarRef(i, el)}
               style={eqBarStyle(i)}
-              x={i * (EQ_BAR_WIDTH + EQ_BAR_GAP)}
-              y={0}
-              width={EQ_BAR_WIDTH}
-              height={EQ_HEIGHT}
+              x={i * (EQ_BAR.width + EQ_BAR.gap)}
+              y={EQ_START.y}
+              width={EQ_BAR.width}
+              height={EQ_START.height}
+              rx={EQ_BAR.width / 2}
             />
           ))}
         </svg>

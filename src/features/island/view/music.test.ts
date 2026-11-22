@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { IslandMusic, MusicLevels } from '../types'
 import {
   EQ,
+  EQ_BAR,
+  eqBarGeometry,
   createEqualizer,
   eqBarStyle,
   eqKick,
@@ -73,6 +75,16 @@ describe('musicStyle', () => {
     expect(musicStyle(null)).toEqual({})
     expect(eqBarStyle(0)).toEqual({ '--eq-t': '0.000' })
     expect(eqBarStyle(EQ.bars - 1)).toEqual({ '--eq-t': '1.000' })
+  })
+})
+
+describe('barres de l’égaliseur', () => {
+  it('centrées, bouts arrondis : jamais plus courtes que leur largeur, jamais plus hautes que l’égaliseur', () => {
+    expect(eqBarGeometry(1)).toEqual({ y: 0, height: EQ_BAR.height })
+    expect(eqBarGeometry(0.5)).toEqual({ y: EQ_BAR.height / 4, height: EQ_BAR.height / 2 })
+    expect(eqBarGeometry(0)).toEqual({ y: (EQ_BAR.height - EQ_BAR.width) / 2, height: EQ_BAR.width })
+    expect(eqBarGeometry(2).height).toBe(EQ_BAR.height)
+    expect(eqBarGeometry(EQ.flatScale).height).toBeGreaterThanOrEqual(EQ_BAR.width)
   })
 })
 

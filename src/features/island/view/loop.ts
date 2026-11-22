@@ -10,6 +10,7 @@ import type { IslandEngine } from './engine'
 import { formatElapsed } from './labels'
 import {
   createEqualizer,
+  eqBarGeometry,
   musicBeatPhase,
   musicPosition,
   musicRatio,
@@ -225,7 +226,9 @@ export function startIslandLoop(
         const v = Math.round((scales[j] ?? 0) * 1000) / 1000
         if (!b || eqShown.get(b) === v) return
         eqShown.set(b, v)
-        b.style.transform = `scaleY(${v})`
+        const bar = eqBarGeometry(v)
+        b.setAttribute('y', bar.y.toFixed(2))
+        b.setAttribute('height', bar.height.toFixed(2))
       })
       if (d.music) {
         const position = musicPosition(d.music, epoch)

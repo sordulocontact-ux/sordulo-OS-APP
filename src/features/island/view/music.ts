@@ -50,6 +50,19 @@ export function musicStyle(palette: MusicPalette | null | undefined): CSSPropert
   return style as CSSProperties
 }
 
+/** Dessin de l'égaliseur (unités SVG = px CSS) : barres de 2, espacées de 1, hautes de 14 (23 × 14 pour 8). */
+export const EQ_BAR = { width: 2, gap: 1, height: 14 } as const
+
+/**
+ * Hauteur et haut d'une barre pour une échelle 0..1, centrée verticalement. Bouts entièrement arrondis
+ * (rx = demi-largeur) : on change la hauteur au lieu d'un scaleY, qui écraserait l'arrondi. Jamais plus
+ * courte que sa largeur, pour rester une pastille ronde à plat.
+ */
+export function eqBarGeometry(scale: number): { y: number; height: number } {
+  const height = Math.max(EQ_BAR.width, Math.min(1, Math.max(0, scale)) * EQ_BAR.height)
+  return { y: (EQ_BAR.height - height) / 2, height }
+}
+
 /** Position 0..1 d'une barre dans le dégradé horizontal de l'égaliseur (variable CSS --eq-t). */
 export function eqBarStyle(index: number): CSSProperties {
   const style: Record<string, string> = { '--eq-t': (EQ.bars > 1 ? index / (EQ.bars - 1) : 0).toFixed(3) }
@@ -64,7 +77,7 @@ export function eqBarStyle(index: number): CSSProperties {
  * Égaliseur : 8 barres, des basses (à gauche) aux aigus (à droite). Les basses bougent plus amples et plus
  * lentement et prennent un battement régulier (tempo), les aigus changent plus vite avec moins d'amplitude.
  * Chaque barre vise une hauteur tirée au hasard, l'atteint vite (attaque) et redescend plus doucement
- * (relâche), comme un vumètre. Valeurs : échelle verticale de la barre (scaleY), 1 = pleine hauteur.
+ * (relâche), comme un vumètre. Valeurs : hauteur relative de la barre (voir eqBarGeometry), 1 = pleine hauteur.
  */
 export const EQ = {
   bars: 8,
