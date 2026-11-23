@@ -217,11 +217,13 @@ export function startIslandLoop(
       const playing = d.music?.playing ?? true
       // Vrai son seulement en lecture (en pause : à plat, comme la simulation).
       const levels = playing && !d.reduced ? (d.musicLevels?.get(epoch) ?? null) : null
+      // Tempo du morceau (Deezer) d'après sa position : quand le vrai son ne donne pas de temps.
+      const tempoPhase = playing && !d.reduced ? (d.musicLevels?.tempoPhase(epoch) ?? null) : null
       const scales = d.reduced
         ? stillEqualizer(playing)
         : levels
-          ? stepEqualizerReal(eq, dt, levels.bands, musicBeatPhase(levels, epoch))
-          : stepEqualizer(eq, now / 1000, dt, playing)
+          ? stepEqualizerReal(eq, dt, levels.bands, musicBeatPhase(levels, epoch) ?? tempoPhase)
+          : stepEqualizer(eq, now / 1000, dt, playing, Math.random, tempoPhase)
       live.eqBars.forEach((b, j) => {
         const v = Math.round((scales[j] ?? 0) * 1000) / 1000
         if (!b || eqShown.get(b) === v) return

@@ -202,6 +202,12 @@ export interface MusicState {
    * free account: the Web API player commands need Spotify Premium). Absent: true.
    */
   canControl?: boolean
+  /**
+   * Tempo of the track in beats per minute, from Deezer's public API (looked up by artist and title, cached).
+   * Absent: unknown or not found yet (a new MusicChanged follows when it arrives). The island uses it with the
+   * position when the computer's sound is not analyzed (music on another device, macOS).
+   */
+  tempoBpm?: number
 }
 
 /**

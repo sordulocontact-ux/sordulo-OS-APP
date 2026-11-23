@@ -17,6 +17,7 @@ mod logging;
 mod monitor;
 mod music;
 mod music_levels;
+mod music_tempo;
 mod platform;
 mod recording;
 mod spotify;

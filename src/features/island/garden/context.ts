@@ -24,7 +24,8 @@ export interface GardenEnv {
   mood: GardenMood
   /**
    * Vrai son de la musique (Windows), lu à chaque image par le jardin : hochement sur les vrais temps, pas de
-   * hochement dans le silence. null (ou pas d'analyse récente) : tempo fixe GARDEN.musicTempoBpm.
+   * hochement dans le silence. Sans vrai temps : tempo du morceau (Deezer) d'après sa position ; sinon (null,
+   * pas d'analyse récente ni de tempo) : tempo fixe GARDEN.musicTempoBpm.
    */
   musicLevels: MusicLevelsReader | null
   /** Session affichée dans `agent` (null hors de cet état ou sans session). */
@@ -53,13 +54,14 @@ export interface GardenBeat {
 }
 
 /**
- * Vrai son → hochement (lu à chaque image, `nowMs` epoch ms) : sans analyse récente, rien (tempo fixe) ;
- * silence : pas de hochement ; tempo détecté : phase des vrais temps ; sinon tempo fixe.
+ * Vrai son → hochement (lu à chaque image, `nowMs` epoch ms) : silence analysé : pas de hochement ; tempo
+ * détecté : phase des vrais temps ; sinon tempo du morceau (Deezer) d'après sa position ; sinon tempo fixe.
  */
 export function gardenBeat(env: Pick<GardenEnv, 'musicLevels'>, music: boolean, nowMs: number): GardenBeat {
-  const levels = music ? (env.musicLevels?.get(nowMs) ?? null) : null
-  if (!levels) return {}
-  if (musicIsSilent(levels)) return { musicSilent: true }
-  const phase = musicBeatPhase(levels, nowMs)
+  const reader = music ? env.musicLevels : null
+  if (!reader) return {}
+  const levels = reader.get(nowMs)
+  if (levels && musicIsSilent(levels)) return { musicSilent: true }
+  const phase = (levels ? musicBeatPhase(levels, nowMs) : null) ?? reader.tempoPhase(nowMs)
   return phase === null ? {} : { beatPhase: phase }
 }

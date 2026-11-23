@@ -45,6 +45,8 @@ use crate::state::DesktopState;
 use crate::time::now_ms;
 
 use api::{ApiError, PlayerCommand};
+/// Encodage des paramètres d'URL, repris par `music_tempo` (recherche Deezer).
+pub use pkce::form_body;
 pub use player::{prefer_remote, RemotePlayback, APP_ID};
 pub use store::SpotifyStatus;
 use store::Stored;

@@ -436,4 +436,23 @@ describe('source « musique »', () => {
       expect(reader?.get(3_000)).toBeNull()
     })
   })
+
+  describe('tempo du morceau (Deezer)', () => {
+    it('phase des temps d’après la position ; null sans tempo, en pause ou musique rangée', async () => {
+      // 120 BPM : un temps toutes les 500 ms ; position 30 000 ms à 1 000 000 = pile sur un temps.
+      const t = setup(track())
+      await flush()
+      const reader = t.reader()
+      expect(reader?.tempoPhase(1_000_000)).toBeNull()
+      t.music.emit(track({ tempoBpm: 120 }))
+      expect(reader?.tempoPhase(1_000_000)).toBeCloseTo(0)
+      expect(reader?.tempoPhase(1_000_250)).toBeCloseTo(0.5)
+      expect(reader?.tempoPhase(1_000_500)).toBeCloseTo(0)
+      t.music.emit(track({ tempoBpm: 120, playing: false }))
+      expect(reader?.tempoPhase(1_000_250)).toBeNull()
+      t.clock.advance(MUSIC_PAUSE_LINGER_MS)
+      t.music.emit(null)
+      expect(reader?.tempoPhase(1_000_250)).toBeNull()
+    })
+  })
 })

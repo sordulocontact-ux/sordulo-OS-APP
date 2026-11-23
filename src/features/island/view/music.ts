@@ -22,7 +22,10 @@ export function musicHasProgress(music: IslandMusic | null | undefined): boolean
  * Position affichée (ms) à l'instant `now` (epoch ms) : en lecture, elle avance depuis `positionAt` ;
  * bornée à la durée quand elle est connue. null : le lecteur ne donne pas la position.
  */
-export function musicPosition(music: IslandMusic, now: number): number | null {
+export function musicPosition(
+  music: Pick<IslandMusic, 'playing' | 'positionMs' | 'durationMs' | 'positionAt'>,
+  now: number,
+): number | null {
   if (music.positionMs === null) return null
   const position = music.playing ? music.positionMs + Math.max(0, now - music.positionAt) : music.positionMs
   const max = music.durationMs !== null && music.durationMs > 0 ? music.durationMs : Infinity
@@ -156,6 +159,23 @@ export function eqKick(t: number): number {
 // Vrai son (analyse envoyée par Rust, Windows)
 // ---------------------------------------------------------------------------
 
+/**
+ * Phase 0..1 du temps d'après le tempo du morceau (`tempoBpm`, Deezer) et sa position à `nowMs` : un temps
+ * tous les 60 / BPM s depuis le début du morceau (le décalage du premier temps n'est pas connu : la vitesse
+ * est juste, le coup peut tomber un peu à côté). null : en pause, tempo ou position inconnus.
+ */
+export function musicTempoPhase(
+  music: Pick<IslandMusic, 'playing' | 'positionMs' | 'durationMs' | 'positionAt'> & { tempoBpm?: number | null },
+  nowMs: number,
+): number | null {
+  const bpm = music.tempoBpm
+  if (!music.playing || bpm == null || !(bpm > 0)) return null
+  const position = musicPosition(music, nowMs)
+  if (position === null) return null
+  const beats = position / (60_000 / bpm)
+  return beats - Math.floor(beats)
+}
+
 /** Silence : toutes les bandes à peu près nulles (même si le lecteur dit « en lecture »). */
 export function musicIsSilent(levels: MusicLevels): boolean {
   return levels.bands.every((v) => !(v > EQ.silence))
@@ -175,7 +195,8 @@ export function musicBeatPhase(levels: MusicLevels, nowMs: number): number | nul
 
 /**
  * Avance l'égaliseur d'une image : `t` temps de la boucle (s), `dt` pas (s), `playing` faux = descente à plat.
- * `random` est injecté pour les tests. Modifie `state` et renvoie ses valeurs.
+ * `random` est injecté pour les tests. `beatPhase` : phase des temps d'après le tempo du morceau (Deezer) ;
+ * null : tempo fixe. Modifie `state` et renvoie ses valeurs.
  */
 export function stepEqualizer(
   state: EqualizerState,
@@ -183,9 +204,10 @@ export function stepEqualizer(
   dt: number,
   playing: boolean,
   random: () => number = Math.random,
+  beatPhase: number | null = null,
 ): readonly number[] {
   const step = Math.max(0, Math.min(EQ.maxDt, dt))
-  const kick = playing ? eqKick(t) : 0
+  const kick = playing ? (beatPhase === null ? eqKick(t) : eqKickAt(beatPhase)) : 0
   for (let j = 0; j < EQ.bars; j++) {
     const b = band(j)
     const value = state.values[j] ?? EQ.flatScale
@@ -215,8 +237,8 @@ export function stepEqualizer(
 
 /**
  * Avance l'égaliseur d'une image sur le vrai son : chaque barre suit sa bande (0..1, basses à gauche), de
- * flatScale (silence, bande sous EQ.silence) à 1, avec un lissage léger ; sur chaque vrai temps (`beatPhase`, null sans tempo
- * stable), les basses prennent un petit coup de pouce proportionnel à leur niveau (le silence reste à plat).
+ * flatScale (silence, bande sous EQ.silence) à 1, avec un lissage léger ; sur chaque temps (`beatPhase` : vrai
+ * temps, sinon tempo du morceau, null sans l'un ni l'autre), les basses prennent un petit coup de pouce proportionnel à leur niveau (le silence reste à plat).
  * Modifie `state` et renvoie ses valeurs ; au retour à la simulation, de nouvelles cibles sont tirées tout de suite.
  */
 export function stepEqualizerReal(

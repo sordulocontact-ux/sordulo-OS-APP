@@ -16,6 +16,12 @@ export type { MusicLevels }
 export interface MusicLevelsReader {
   /** Analyse récente, ou null (pas d'analyse depuis un moment : égaliseur et hochement simulés). */
   get(nowMs: number): MusicLevels | null
+  /**
+   * Phase 0..1 du temps d'après le tempo du morceau (Deezer, `tempoBpm`) et sa position, pour quand le vrai
+   * son n'en donne pas (musique sur un autre appareil, macOS, vrai son sans tempo stable). null : musique non
+   * montrée, en pause, tempo ou position inconnus (tempo fixe).
+   */
+  tempoPhase(nowMs: number): number | null
 }
 
 export type { MusicCommand }

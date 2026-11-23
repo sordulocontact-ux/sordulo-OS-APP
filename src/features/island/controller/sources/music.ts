@@ -23,6 +23,9 @@
  *   30 Hz). `get(now)` renvoie null si la musique n'est pas montrée ou si l'analyse a plus de
  *   MUSIC_LEVELS_STALE_MS (macOS, Spotify sur un autre appareil, analyse arrêtée) : égaliseur et hochement
  *   simulés.
+ * - Tempo du morceau (`tempoBpm`, trouvé par Rust chez Deezer) : `tempoPhase(now)` du même lecteur donne la
+ *   phase des temps d'après la position, pour le hochement et l'égaliseur quand le vrai son n'en donne pas
+ *   (musique sur le téléphone, macOS). null en pause, sans tempo, ou musique non montrée.
  * - Mode concentration : il ne touche à aucune activité (il ne fait qu'attendre la fin de l'appel pour les
  *   notifications, voir la coordination), donc rien de particulier pour la musique.
  */
@@ -30,6 +33,7 @@ import type { MusicCommand, MusicLevels, MusicState } from '../../../../shared/d
 import type { TimerId } from '../../coordinator/clock'
 import { imageMimeType } from '../../music/artwork'
 import type { IslandMusic, MusicLevelsReader, MusicPalette } from '../../types'
+import { musicTempoPhase } from '../../view/music'
 import type { IslandSource } from '../source'
 import { listen } from './listen'
 
@@ -76,6 +80,10 @@ export function createMusicSource(deps: MusicSourceDeps): IslandSource {
         get(nowMs) {
           if (!shown || levels === null || ctx.isDisposed()) return null
           return nowMs - levels.at > MUSIC_LEVELS_STALE_MS ? null : levels
+        },
+        tempoPhase(nowMs) {
+          if (!shown || current === null || ctx.isDisposed()) return null
+          return musicTempoPhase(current, nowMs)
         },
       }
       ctx.view.patch({ musicLevels: levelsReader })

@@ -25,6 +25,9 @@
 //! montré est en lecture sur l'ordinateur (pas Spotify à distance, `Tracker::plays_on_computer`), arrêtée
 //! sinon ; arrêtée aussi quand la case est décochée.
 //!
+//! Tempo (`music_tempo`) : à chaque tour, le tempo du morceau montré est demandé à Deezer (réponse au tour
+//! suivant, gardée en cache) et part dans `tempoBpm` ; son arrivée suffit à émettre un nouvel état.
+//!
 //! Tout ce qui est pur (nom du lecteur, exclusion, choix de la session, détection des changements, choix entre
 //! l'ordinateur et Spotify : `spotify/player.rs`) est testé
 //! plus bas ; seuls `spawn_music_loop`, `publish`, `clear` et les accès à l'état touchent Tauri.
@@ -39,6 +42,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::call_apps::{self, CallApp};
 use crate::events::{EVENT_MUSIC, WINDOW_PROMPT};
 use crate::music_levels;
+use crate::music_tempo;
 use crate::platform::{self, NowPlaying};
 use crate::spotify::{self, RemotePlayback};
 use crate::state::DesktopState;
@@ -57,7 +61,7 @@ const ERRORS_BEFORE_CLEAR: u32 = 5;
 // ---------------------------------------------------------------------------
 
 /// `MusicState` du contrat (`src/shared/desktop-contract.ts`).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MusicState {
     /// AppUserModelId (Windows) ou bundle id (macOS).
@@ -77,6 +81,9 @@ pub struct MusicState {
     /// Spotify sur un autre appareil sans Premium (ou appareil qui refuse les commandes).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub can_control: Option<bool>,
+    /// Tempo du morceau d'après Deezer (`music_tempo`). Absent : inconnu, ou pas encore trouvé.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tempo_bpm: Option<f64>,
 }
 
 /// Pochette courante : identifiant donné au front et octets bruts (PNG ou JPEG).
@@ -192,12 +199,13 @@ pub fn pick_session(candidates: &[(&str, Playback)]) -> Option<usize> {
 // Pur : détection des changements et pochette
 // ---------------------------------------------------------------------------
 
-/// Morceau à montrer, avec ce qui dépend de sa source (nom affiché, commandes possibles).
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Morceau à montrer, avec ce qui dépend de sa source (nom affiché, commandes possibles) et son tempo.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Track {
     pub now: NowPlaying,
     pub app_name: String,
     pub can_control: Option<bool>,
+    pub tempo_bpm: Option<f64>,
 }
 
 impl Track {
@@ -206,6 +214,7 @@ impl Track {
         Self {
             app_name: player_name(&now.app_id),
             can_control: None,
+            tempo_bpm: None,
             now,
         }
     }
@@ -216,7 +225,13 @@ impl Track {
             now: playback.track.clone(),
             app_name: playback.app_name.clone(),
             can_control: Some(playback.can_control),
+            tempo_bpm: None,
         }
+    }
+
+    /// Le même morceau avec son tempo (`music_tempo`).
+    pub fn with_tempo(self, tempo_bpm: Option<f64>) -> Self {
+        Self { tempo_bpm, ..self }
     }
 }
 
@@ -344,6 +359,7 @@ impl Tracker {
             position_at: p.position_at,
             artwork_id: self.artwork.as_ref().map(|a| a.id.clone()),
             can_control: track.can_control,
+            tempo_bpm: track.tempo_bpm,
         }
     }
 }
@@ -363,6 +379,7 @@ fn should_emit(previous: Option<&MusicState>, next: Option<&MusicState>) -> bool
                 || a.playing != b.playing
                 || a.duration_ms != b.duration_ms
                 || a.artwork_id != b.artwork_id
+                || a.tempo_bpm != b.tempo_bpm
                 || position_jumped(a, b)
         }
     }
@@ -498,6 +515,11 @@ pub fn spawn_music_loop(app: AppHandle) {
                     Some(r) => (Some(Track::remote(&r.playback)), Some(r.artwork)),
                     None => (local.map(Track::system), None),
                 };
+                // Tempo connu (sinon demandé à Deezer, pour un prochain tour).
+                let track = track.map(|t| {
+                    let bpm = music_tempo::bpm(t.now.artist.as_deref(), &t.now.title);
+                    t.with_tempo(bpm)
+                });
                 let fetched = tracker
                     .wants_artwork(track.as_ref().map(|t| &t.now))
                     .then(|| match remote_artwork {
@@ -851,6 +873,23 @@ mod tests {
     }
 
     #[test]
+    fn tempo_emis_quand_il_arrive() {
+        let mut t = Tracker::default();
+        t.update(Some(track("Harder")), None).expect("émis");
+        // Même morceau, tempo trouvé au tour suivant : nouvel état avec `tempoBpm`.
+        let with = Track::system(later(&track("Harder"), 1_000, 1_000)).with_tempo(Some(123.4));
+        let state = t
+            .update_track(Some(with), None)
+            .expect("émis")
+            .expect("état");
+        assert_eq!(state.tempo_bpm, Some(123.4));
+        assert_eq!(serde_json::to_value(&state).unwrap()["tempoBpm"], 123.4);
+        // Rien de neuf ensuite.
+        let again = Track::system(later(&track("Harder"), 2_000, 2_000)).with_tempo(Some(123.4));
+        assert!(t.update_track(Some(again), None).is_none());
+    }
+
+    #[test]
     fn commandes_du_contrat() {
         for (text, command) in [
             ("previous", MediaCommand::Previous),
@@ -913,7 +952,10 @@ mod tests {
             .expect("lecteur émis")
             .expect("état");
         assert_eq!(state.app_name, "Spotify");
-        assert!(serde_json::to_value(&state).unwrap().get("canControl").is_none());
+        assert!(serde_json::to_value(&state)
+            .unwrap()
+            .get("canControl")
+            .is_none());
     }
 
     #[test]

@@ -14,6 +14,7 @@ import {
   musicPosition,
   musicRatio,
   musicStyle,
+  musicTempoPhase,
   stepEqualizer,
   stepEqualizerReal,
   stillEqualizer,
@@ -42,6 +43,22 @@ function seeded(seed = 1): () => number {
     return x / 2_147_483_648
   }
 }
+
+describe('musicTempoPhase', () => {
+  it('un temps tous les 60 / BPM s depuis le début du morceau', () => {
+    // 120 BPM : 500 ms par temps ; 30 000 ms = pile sur un temps.
+    expect(musicTempoPhase({ ...music(), tempoBpm: 120 }, 1_000)).toBeCloseTo(0)
+    expect(musicTempoPhase({ ...music(), tempoBpm: 120 }, 1_125)).toBeCloseTo(0.25)
+    expect(musicTempoPhase({ ...music(), tempoBpm: 120 }, 1_500)).toBeCloseTo(0)
+  })
+
+  it('null en pause, sans tempo ou sans position', () => {
+    expect(musicTempoPhase({ ...music({ playing: false }), tempoBpm: 120 }, 1_125)).toBeNull()
+    expect(musicTempoPhase(music(), 1_125)).toBeNull()
+    expect(musicTempoPhase({ ...music(), tempoBpm: 0 }, 1_125)).toBeNull()
+    expect(musicTempoPhase({ ...music({ positionMs: null }), tempoBpm: 120 }, 1_125)).toBeNull()
+  })
+})
 
 describe('musicPosition', () => {
   it('avance en lecture, reste figée en pause, bornée à la durée', () => {
@@ -129,6 +146,17 @@ describe('égaliseur', () => {
   it('bat la mesure sur chaque temps', () => {
     expect(eqKick(0)).toBeCloseTo(1)
     expect(eqKick(60 / EQ.tempoBpm / 2)).toBeLessThan(0.1)
+  })
+
+  it('bat sur le tempo du morceau quand il est donné', () => {
+    // Même instant, même hasard : sur le temps, les basses montent plus qu'à mi-temps.
+    const at = (phase: number) => {
+      const eq = createEqualizer()
+      let v: readonly number[] = []
+      for (let i = 1; i <= 30; i++) v = stepEqualizer(eq, 10 + i / 60, 1 / 60, true, seeded(3), phase)
+      return v[0] ?? 0
+    }
+    expect(at(0)).toBeGreaterThan(at(0.5))
   })
 
   it('immobile sous réduction des animations : motif en lecture, à plat en pause', () => {
