@@ -277,6 +277,32 @@ describe('islandSize', () => {
   })
 })
 
+describe('goutte du glisser (detach)', () => {
+  it('garde la forme collée au bord à 0 et devient un rond détaché à 1', () => {
+    expect(shapeGeometry(193, 40, 14, 'win', 0)).toEqual(shapeGeometry(193, 40, 14, 'win'))
+    const blob = shapeGeometry(44, 44, 22, 'win', 1)
+    expect(blob.edge).toBe(0)
+    expect(blob.cap).toBe(22)
+    expect(blob.radius).toBe(22)
+    expect(blob.width).toBe(44)
+    // À mi-chemin : ni arrondi concave, ni coin côté bord (le chemin reste continu).
+    const half = shapeGeometry(193, 40, 14, 'win', 0.5)
+    expect(half.edge).toBe(0)
+    expect(half.cap).toBe(0)
+    // Premier quart : les arrondis concaves ont rentré de moitié.
+    expect(shapeGeometry(193, 40, 14, 'win', 0.25).edge).toBe(5)
+  })
+
+  it('se détache aussi sur les autres bords', () => {
+    for (const edge of ['bottom', 'left', 'right'] as const) {
+      const g = edgeShapeGeometry(44, 44, 22, 'win', edge, 1)
+      expect(g.width).toBe(44)
+      expect(g.height).toBe(44)
+      expect(g.d).not.toContain('NaN')
+    }
+  })
+})
+
 describe('edges', () => {
   const root = { width: 1000, height: 600 }
 

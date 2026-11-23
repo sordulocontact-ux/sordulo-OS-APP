@@ -66,6 +66,13 @@
   overflow: hidden;
   /* Ordre propre au contenu : l'égaliseur (z-index négatif) passe sous tout le reste, au-dessus de la forme */
   isolation: isolate;
+  transition: opacity var(--island-duration-layer-in) ease;
+}
+
+/* Glisser : l'île devient une goutte noire (moteur), son contenu s'efface puis revient à l'arrivée */
+.root[data-dragging='true'] .content {
+  opacity: 0;
+  transition: opacity var(--island-duration-layer-out) ease;
 }
 
 .layer {

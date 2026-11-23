@@ -6,7 +6,7 @@
  * h en profondeur, voir edgeFrameSize) ; la forme est reportée dans le repère de l'écran (edgeShapeGeometry).
  * La boîte est placée au milieu du bord par la CSS (data-edge) : elle suit la taille écrite à chaque image.
  */
-import type { IslandDragStart, IslandRect } from '../../../shared/desktop-contract'
+import { ISLAND_DRAG_BLOB, type IslandDragStart, type IslandRect } from '../../../shared/desktop-contract'
 import {
   BUBBLE_GAP,
   BUBBLE_HIDDEN,
@@ -62,6 +62,8 @@ export interface EngineTarget {
   musicProgress: boolean
   /** Boutons de la musique affichés (faux : Spotify sur un autre appareil sans Premium). */
   musicControls: boolean
+  /** Glisser en cours : l'île devient une goutte ronde détachée du bord (ISLAND_DRAG_BLOB). */
+  dragging?: boolean
 }
 
 interface SharedItem {
@@ -89,8 +91,9 @@ function contentRadius(edge: IslandEdge, r: number): string {
   return `0 0 ${v} ${v}`
 }
 
-/** Taille d'un état (repère du bord) pour une cible. */
+/** Taille d'un état (repère du bord) pour une cible ; pendant un glisser, la goutte. */
 function frameSize(t: EngineTarget): IslandShapeSize {
+  if (t.dragging) return { w: ISLAND_DRAG_BLOB, h: ISLAND_DRAG_BLOB, r: ISLAND_DRAG_BLOB / 2 }
   const platform = edgePlatform(t.platform, t.edge)
   return edgeFrameSize(islandSize(platform, t.key, t.meetRows, t.musicProgress, t.musicControls), t.edge, t.key)
 }
@@ -101,6 +104,8 @@ export class IslandEngine {
   private readonly w: Spring
   private readonly h: Spring
   private readonly r: Spring
+  /** Détachement du bord : 0 collée, 1 goutte du glisser (forme liquide, voir shapeGeometry). */
+  private readonly detach: Spring
   private readonly bw: Spring
   private readonly bh: Spring
   private readonly bo: Spring
@@ -121,6 +126,7 @@ export class IslandEngine {
     this.w = createSpring(size.w)
     this.h = createSpring(size.h)
     this.r = createSpring(size.r)
+    this.detach = createSpring(target.dragging ? 1 : 0)
     this.bw = createSpring(BUBBLE_HIDDEN.w)
     this.bh = createSpring(BUBBLE_HIDDEN.h)
     this.bo = createSpring(0)
@@ -150,7 +156,8 @@ export class IslandEngine {
     this.w.t = t.w
     this.h.t = t.h
     this.r.t = t.r
-    if (target.reduced) [this.w, this.h, this.r].forEach(snapSpring)
+    this.detach.t = target.dragging ? 1 : 0
+    if (target.reduced) [this.w, this.h, this.r, this.detach].forEach(snapSpring)
     if (platformChanged || edgeChanged) this.applyBubbleTarget()
     // Changement de bord : les éléments partagés se posent directement à leur place (la fenêtre a changé).
     this.retargetShared(edgeChanged)
@@ -240,6 +247,7 @@ export class IslandEngine {
       stepSpring(this.w, h, k, c)
       stepSpring(this.h, h, k, c)
       stepSpring(this.r, h, k, c)
+      stepSpring(this.detach, h, k, c)
       stepSpring(this.bw, h, k, c)
       stepSpring(this.bh, h, k, c)
       stepSpring(this.bo, h, op.stiffness, op.damping)
@@ -262,7 +270,7 @@ export class IslandEngine {
   }
 
   private springs(): Spring[] {
-    const list = [this.w, this.h, this.r, this.bw, this.bh, this.bo]
+    const list = [this.w, this.h, this.r, this.detach, this.bw, this.bh, this.bo]
     for (const it of this.items) list.push(it.x, it.y, it.s, it.o)
     return list
   }
@@ -272,7 +280,7 @@ export class IslandEngine {
     if (!this.dirty) return
     this.dirty = false
     const { edge } = this.target
-    const g = edgeShapeGeometry(this.w.x, this.h.x, this.r.x, this.platform(), edge)
+    const g = edgeShapeGeometry(this.w.x, this.h.x, this.r.x, this.platform(), edge, this.detach.x)
     const { island, svg, path, content } = this.els
     island.style.width = px(g.width)
     island.style.height = px(g.height)
@@ -350,7 +358,7 @@ export class IslandEngine {
 
   /** Taille cible actuelle dans le repère du bord, envoyée au début d'un glisser. */
   dragSize(key: IslandSizeKey = this.target.key): IslandDragStart {
-    return dragStartSize(frameSize({ ...this.target, key }))
+    return dragStartSize(frameSize({ ...this.target, key, dragging: false }))
   }
 
   /** Zones cliquables : union de la taille courante et de la cible, forme et bulle. */

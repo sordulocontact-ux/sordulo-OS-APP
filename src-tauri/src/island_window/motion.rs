@@ -163,8 +163,12 @@ enum Mode {
 }
 
 struct Drag {
-    /// Point de prise : curseur − coin de la fenêtre, en px CSS (reste juste si l'échelle change).
+    /// Point de prise au départ : curseur − coin de la fenêtre, en px CSS (reste juste si l'échelle change).
     grab: (f64, f64),
+    /// Centre de la goutte dans la fenêtre (px CSS) : la prise y glisse au début (`geometry::eased_grab`).
+    blob: (f64, f64),
+    /// Début du glisser (s, repère de `secs`).
+    started: f64,
     samples: VecDeque<Sample>,
     along: f64,
     depth: f64,
@@ -353,15 +357,26 @@ impl Island {
             (point.0 - self.pos.0) / scale,
             (point.1 - self.pos.1) / scale,
         );
-        self.depth = request.depth;
+        // Pendant le glisser, l'île devient une goutte (front) : au lâcher, c'est son centre qui est gardé.
+        self.depth = geometry::DRAG_BLOB;
+        let edge = place_state().current.edge;
+        let (window_w, window_h) = if edge.is_vertical() {
+            geometry::VERTICAL_SIZE
+        } else {
+            geometry::HORIZONTAL_SIZE
+        };
+        let blob = geometry::shape_center(edge, window_w, window_h, geometry::DRAG_BLOB);
+        let started = self.secs(now);
         let mut samples = VecDeque::new();
         samples.push_back(Sample {
-            t: self.secs(now),
+            t: started,
             x: point.0,
             y: point.1,
         });
         self.mode = Mode::Drag(Drag {
             grab,
+            blob,
+            started,
             samples,
             along: request.along,
             depth: request.depth,
@@ -426,9 +441,10 @@ impl Island {
         }
 
         let scale = window_unit_scale(self.space);
+        let grab = geometry::eased_grab(drag.grab, drag.blob, t - drag.started);
         let next = (
-            (point.0 - drag.grab.0 * scale).round(),
-            (point.1 - drag.grab.1 * scale).round(),
+            (point.0 - grab.0 * scale).round(),
+            (point.1 - grab.1 * scale).round(),
         );
         if next != self.pos {
             if let Err(e) =

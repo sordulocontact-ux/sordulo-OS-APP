@@ -27,6 +27,19 @@ pub const STICKY_RATIO: f64 = 0.75;
 /// Et seulement si elle reste visée ce temps (s) : l'aperçu ne suit pas chaque à-coup de la vitesse.
 pub const AIM_SETTLE_SECS: f64 = 0.12;
 
+/// Diamètre de la goutte que devient l'île pendant un glisser (px CSS) : `ISLAND_DRAG_BLOB` du contrat.
+pub const DRAG_BLOB: f64 = 44.0;
+/// Temps pour que la goutte vienne se centrer sous le curseur au début du glisser (s).
+pub const GRAB_EASE_SECS: f64 = 0.16;
+
+/// Point de prise pendant les premiers instants du glisser : glisse de `from` (là où l'utilisateur a saisi la
+/// forme) à `to` (centre de la goutte), avec une sortie douce, en GRAB_EASE_SECS.
+pub fn eased_grab(from: (f64, f64), to: (f64, f64), elapsed: f64) -> (f64, f64) {
+    let t = (elapsed / GRAB_EASE_SECS).clamp(0.0, 1.0);
+    let k = 1.0 - (1.0 - t).powi(3);
+    (from.0 + (to.0 - from.0) * k, from.1 + (to.1 - from.1) * k)
+}
+
 /// Raideur du ressort de la fenêtre (1/s²) : pulsation propre ≈ 17,9 rad/s.
 pub const SPRING_STIFFNESS: f64 = 320.0;
 /// Amortissement du ressort (1/s) : rapport ≈ 0,7, léger dépassement (≈ 5 % depuis l'arrêt).
@@ -436,6 +449,18 @@ mod tests {
             Some((1, IslandEdge::Left))
         );
         assert_eq!(nearest_place(&[], (0.0, 0.0)), None);
+    }
+
+    #[test]
+    fn grab_eases_to_the_blob_center() {
+        let from = (300.0, 30.0);
+        let to = (320.0, 22.0);
+        assert_eq!(eased_grab(from, to, 0.0), from);
+        assert_eq!(eased_grab(from, to, GRAB_EASE_SECS), to);
+        assert_eq!(eased_grab(from, to, 10.0), to);
+        let mid = eased_grab(from, to, GRAB_EASE_SECS / 2.0);
+        // Sortie douce : plus de la moitié du chemin à mi-temps.
+        assert!(mid.0 > 310.0 && mid.0 < 320.0);
     }
 
     #[test]

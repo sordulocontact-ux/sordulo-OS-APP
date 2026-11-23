@@ -139,8 +139,24 @@ export function Island(props: IslandProps) {
       meetRows: meetRows.length,
       musicProgress,
       musicControls,
+      dragging,
     }),
-    [state, open, withCall, questionAsk, musicGarden, platform, edge, reduced, hasGarden, sessionCount, meetRows.length, musicProgress, musicControls],
+    [
+      state,
+      open,
+      withCall,
+      questionAsk,
+      musicGarden,
+      platform,
+      edge,
+      reduced,
+      hasGarden,
+      sessionCount,
+      meetRows.length,
+      musicProgress,
+      musicControls,
+      dragging,
+    ],
   )
 
   // Éléments du DOM pilotés hors de React

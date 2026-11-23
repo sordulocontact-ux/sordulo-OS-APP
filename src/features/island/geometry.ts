@@ -261,6 +261,8 @@ export interface IslandShapeGeometry {
   radius: number
   /** Largeur de la zone de contenu (w). */
   innerWidth: number
+  /** Rayon des coins côté bord quand la forme s'en détache (goutte du glisser) ; 0 collée au bord. */
+  cap: number
 }
 
 function n(v: number): string {
@@ -271,17 +273,44 @@ function n(v: number): string {
  * Forme de l'île ou de la bulle (prototype : render, renderBubble) : bord haut droit sur toute la largeur,
  * arrondis concaves de rayon e en haut à gauche et à droite, côtés droits, coins bas de rayon r.
  */
-export function shapeGeometry(w: number, h: number, r: number, platform: IslandPlatform): IslandShapeGeometry {
+export function shapeGeometry(
+  w: number,
+  h: number,
+  r: number,
+  platform: IslandPlatform,
+  detach = 0,
+): IslandShapeGeometry {
   const width0 = Math.max(0, w)
   const height = Math.max(1, h)
-  const e = edgeFor(platform, height)
-  const radius = Math.max(0, Math.min(r, height - e, width0 / 2))
+  const { e, radius, cap } = detachedCorners(width0, height, r, edgeFor(platform, height), detach)
   const W = width0 + 2 * e
+  const top = Math.max(e, cap)
+  const right = cap > 0 ? `A${n(cap)} ${n(cap)} 0 0 1 ${n(W)} ${n(cap)}` : `A${n(e)} ${n(e)} 0 0 0 ${n(W - e)} ${n(e)}`
+  const left = cap > 0 ? `A${n(cap)} ${n(cap)} 0 0 1 ${n(cap)} 0` : `A${n(e)} ${n(e)} 0 0 0 0 0`
   const d =
-    `M0 0H${n(W)}A${n(e)} ${n(e)} 0 0 0 ${n(W - e)} ${n(e)}V${n(height - radius)}` +
+    `M${n(cap)} 0H${n(W - cap)}${right}V${n(height - radius)}` +
     `A${n(radius)} ${n(radius)} 0 0 1 ${n(W - e - radius)} ${n(height)}H${n(e + radius)}` +
-    `A${n(radius)} ${n(radius)} 0 0 1 ${n(e)} ${n(height - radius)}V${n(e)}A${n(e)} ${n(e)} 0 0 0 0 0Z`
-  return { d, width: W, height, edge: e, radius, innerWidth: width0 }
+    `A${n(radius)} ${n(radius)} 0 0 1 ${n(e)} ${n(height - radius)}V${n(top)}${left}Z`
+  return { d, width: W, height, edge: e, radius, innerWidth: width0, cap }
+}
+
+/**
+ * Coins de la forme selon `detach` (0 collée au bord, 1 détachée : goutte du glisser). Première moitié : les
+ * arrondis concaves qui la relient au bord rentrent ; seconde moitié : les coins côté bord s'arrondissent,
+ * jusqu'à une pilule (un rond si la forme est carrée). Le chemin reste continu, d'où l'effet liquide.
+ */
+function detachedCorners(
+  width: number,
+  height: number,
+  r: number,
+  edge: number,
+  detach: number,
+): { e: number; radius: number; cap: number } {
+  const t = Math.max(0, Math.min(1, detach))
+  const e = t < 0.5 ? edge * (1 - 2 * t) : 0
+  const radius = Math.max(0, Math.min(r, height - e, width / 2))
+  const cap = t > 0.5 ? Math.max(0, Math.min(radius, height - radius, width / 2)) * (2 * t - 1) : 0
+  return { e, radius, cap }
 }
 
 /**
@@ -361,9 +390,10 @@ export function edgeShapeGeometry(
   r: number,
   platform: IslandPlatform,
   edge: IslandEdge,
+  detach = 0,
 ): EdgeShapeGeometry {
-  const g = shapeGeometry(along, depth, r, edgePlatform(platform, edge))
-  const { edge: e, radius, height: D, innerWidth: L } = g
+  const g = shapeGeometry(along, depth, r, edgePlatform(platform, edge), detach)
+  const { edge: e, radius, height: D, innerWidth: L, cap } = g
   const W = g.width
   const side = isSideEdge(edge)
   const width = side ? D : W
@@ -379,10 +409,13 @@ export function edgeShapeGeometry(
   }
   const arc = (rad: number, sweep: 0 | 1, u: number, v: number) =>
     `A${n(rad)} ${n(rad)} 0 0 ${flip ? 1 - sweep : sweep} ${p(u, v)}`
+  const top = Math.max(e, cap)
+  const right = cap > 0 ? arc(cap, 1, W, cap) : arc(e, 0, W - e, e)
+  const left = cap > 0 ? arc(cap, 1, cap, 0) : arc(e, 0, 0, 0)
   const d =
-    `M${p(0, 0)}L${p(W, 0)}${arc(e, 0, W - e, e)}L${p(W - e, D - radius)}` +
+    `M${p(cap, 0)}L${p(W - cap, 0)}${right}L${p(W - e, D - radius)}` +
     `${arc(radius, 1, W - e - radius, D)}L${p(e + radius, D)}` +
-    `${arc(radius, 1, e, D - radius)}L${p(e, e)}${arc(e, 0, 0, 0)}Z`
+    `${arc(radius, 1, e, D - radius)}L${p(e, top)}${left}Z`
   return { d, width, height, edge: e, radius, along: L, depth: D, content }
 }
 

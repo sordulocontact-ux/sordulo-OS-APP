@@ -48,6 +48,13 @@ export const ISLAND_WINDOW_SIZE = {
   vertical: { width: 520, height: 480 },
 } as const
 
+/**
+ * Diameter (CSS px) of the round drop the island becomes while it is dragged: the front morphs the shape into
+ * it, Rust centres it under the cursor at the start of the drag and keeps its centre when the window is resized
+ * for the target edge.
+ */
+export const ISLAND_DRAG_BLOB = 44
+
 /** Where the island sits (DESKTOP_EVENTS.islandPlacement, DESKTOP_COMMANDS.getIslandPlacement). */
 export interface IslandPlacement {
   edge: IslandEdge
