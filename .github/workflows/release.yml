@@ -4,13 +4,25 @@
 #   https://github.com/sordulocontact-ux/sordulo-OS-APP/releases/latest/download/Sordulo-OS-macOS.dmg
 #   https://github.com/sordulocontact-ux/sordulo-OS-APP/releases/latest/download/Sordulo-OS-Windows-setup.exe
 #
-# Déclenchement : tag vX.Y.Z poussé (créé par `npm run release`). Lancé à la main sur une branche
-# (workflow_dispatch), il compile seulement : les installeurs restent dans les artefacts du run.
+# Déclenchement :
+#   - push sur main : version suivante calculée toute seule (patch + 1 après la plus haute entre
+#     package.json et les tags vX.Y.Z), tag créé par la release, rien n'est commité. Les apps installées
+#     se mettent à jour seules. Un push plus récent annule la compilation en cours (il contient tout).
+#     Pas de release si le push ne touche que la doc, les tickets, l'API ou la base (pas dans l'app).
+#   - tag vX.Y.Z poussé (créé par `npm run release`, pour choisir la version, ex. minor).
+#   - à la main sur une branche (workflow_dispatch) : compile seulement, installeurs dans les artefacts.
 name: Release app de bureau
 
 on:
   push:
+    branches: [main]
     tags: ['v*']
+    # Ignoré pour les tags (GitHub n'applique pas les filtres de chemins aux tags).
+    paths-ignore:
+      - '**.md'
+      - '.tickets/**'
+      - 'api/**'
+      - 'supabase/**'
   workflow_dispatch:
 
 permissions:
@@ -18,11 +30,48 @@ permissions:
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
 
 jobs:
+  prepare:
+    name: Version
+    # Le commit de `npm run release` arrive avec son tag : c'est le run du tag qui publie.
+    if: github.ref != 'refs/heads/main' || !startsWith(github.event.head_commit.message, 'chore(release)')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      publish: ${{ steps.version.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags compris
+
+      - id: version
+        shell: bash
+        run: |
+          current=$(node -p "require('./package.json').version")
+          case "$GITHUB_REF" in
+            refs/tags/v*)
+              version="${GITHUB_REF_NAME#v}"
+              if [ "$version" != "$current" ]; then
+                echo "::error::Tag $GITHUB_REF_NAME mais package.json en $current : utiliser npm run release."
+                exit 1
+              fi
+              publish=true ;;
+            refs/heads/main)
+              version=$(node scripts/release.mjs --next-auto)
+              publish=true ;;
+            *)
+              version="$current"
+              publish=false ;;
+          esac
+          echo "Version $version (publication : $publish)"
+          { echo "version=$version"; echo "tag=v$version"; echo "publish=$publish"; } >> "$GITHUB_OUTPUT"
+
   build:
     name: Compilation ${{ matrix.name }}
+    needs: prepare
     strategy:
       # Chaque système va au bout : un échec Mac n'annule pas le build Windows (et inversement). La
       # publication attend quand même les deux.
@@ -57,15 +106,9 @@ jobs:
 
       - run: npm ci
 
-      - name: Version du tag = version de package.json
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: |
-          version=$(node -p "require('./package.json').version")
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME mais package.json en $version : utiliser npm run release."
-            exit 1
-          fi
+      - name: Version ${{ needs.prepare.outputs.version }}
+        # Push sur main : la version n'est écrite que dans la copie du run (package.json, Cargo.toml/lock).
+        run: node scripts/release.mjs ${{ needs.prepare.outputs.version }} --files-only
 
       - name: Compilation et installeurs
         run: npm run desktop:build -- --target ${{ matrix.target }} --out release-assets
@@ -91,8 +134,8 @@ jobs:
 
   publish:
     name: Publication de la release
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [prepare, build]
+    if: needs.prepare.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -107,7 +150,7 @@ jobs:
         shell: bash
         env:
           REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           node --input-type=module - <<'EOF'
           import { readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -134,12 +177,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
             # Relance du workflow : on remplace les fichiers de la release existante.
             gh release upload "$TAG" release-assets/* --clobber
             gh release edit "$TAG" --draft=false --latest
           else
-            gh release create "$TAG" release-assets/* --verify-tag --title "Sordulo OS $TAG" --generate-notes --latest
+            # Tag poussé : déjà là (--target ignoré). Push sur main : le tag est créé sur le commit compilé.
+            gh release create "$TAG" release-assets/* --target "$GITHUB_SHA" --title "Sordulo OS $TAG" --generate-notes --latest
           fi

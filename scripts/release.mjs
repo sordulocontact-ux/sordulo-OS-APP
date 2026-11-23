@@ -2,6 +2,10 @@
 // Le tag `vX.Y.Z` poussé déclenche .github/workflows/release.yml (build Mac + Windows, release GitHub).
 //
 // Usage : npm run release -- <X.Y.Z | patch | minor | major> [--dry-run]
+//
+// Utilisé aussi par la CI (.github/workflows/release.yml, push sur main) :
+//   node scripts/release.mjs --next-auto              affiche la version suivante (patch + 1)
+//   node scripts/release.mjs <X.Y.Z> --files-only     écrit la version dans les fichiers, sans git
 import { spawnSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -59,6 +63,19 @@ function isGreater(a, b) {
   return false
 }
 
+/**
+ * Version de départ : la plus haute entre package.json et les tags vX.Y.Z. Les releases faites à
+ * chaque push sur main créent un tag sans toucher à package.json : sans ça, on repartirait en arrière.
+ */
+function baseVersion() {
+  const fromPackage = JSON.parse(readFileSync(path.join(ROOT_DIR, FILES.package), 'utf8')).version
+  const tags = git(['tag', '--list', 'v*'], { allowFailure: true }).out.split(/\r?\n/)
+  return tags
+    .map((tag) => tag.trim().replace(/^v/, ''))
+    .filter((v) => SEMVER.test(v))
+    .reduce((best, v) => (isGreater(v, best) ? v : best), fromPackage)
+}
+
 /** Remplace la première correspondance, et échoue si rien ne correspond (format inattendu). */
 function replaceOnce(text, pattern, replacement, what) {
   if (!pattern.test(text)) fail(`${what} : version introuvable.`)
@@ -108,9 +125,21 @@ function main() {
     if (args.length === 0) process.exit(1)
     return
   }
+  if (args.includes('--next-auto')) {
+    console.log(nextVersion(baseVersion(), 'patch'))
+    return
+  }
   const dryRun = args.includes('--dry-run')
   const positional = args.filter((arg) => !arg.startsWith('--'))
   if (positional.length !== 1) fail('Une seule version attendue (ex. npm run release -- 0.3.0).')
+
+  if (args.includes('--files-only')) {
+    const wanted = positional[0].replace(/^v/, '')
+    if (!SEMVER.test(wanted)) fail(`Version invalide : ${positional[0]} (attendu X.Y.Z).`)
+    for (const [file, content] of Object.entries(bumpFiles(wanted))) writeFileSync(path.join(ROOT_DIR, file), content)
+    console.log(`Version ${wanted} écrite (sans commit).`)
+    return
+  }
 
   // Vérifications : en simulation, signalées sans arrêter, pour voir le reste.
   const problems = []
@@ -119,7 +148,7 @@ function main() {
   const dirty = git(['status', '--porcelain']).out
   if (dirty) problems.push(`l'arbre git n'est pas propre :\n${dirty.replace(/^/gm, '    ')}`)
 
-  const current = JSON.parse(readFileSync(path.join(ROOT_DIR, FILES.package), 'utf8')).version
+  const current = baseVersion()
   const version = nextVersion(current, positional[0])
   const tag = `v${version}`
   if (!isGreater(version, current)) problems.push(`${version} n'est pas supérieure à la version actuelle ${current}.`)

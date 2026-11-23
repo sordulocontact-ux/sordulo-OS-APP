@@ -3,7 +3,7 @@
 //! `plugins.updater` de `tauri.conf.json`).
 //!
 //! - Jamais en dev : état `disabled`, le plugin n'est même pas enregistré (voir `register`).
-//! - Première vérification 60 s après le démarrage, puis toutes les 4 h. Une version plus récente
+//! - Première vérification 60 s après le démarrage, puis toutes les 15 min. Une version plus récente
 //!   est téléchargée en arrière-plan et gardée en mémoire (état `ready`).
 //! - Installation seulement à un moment calme : fenêtre principale cachée et aucun enregistrement
 //!   (« arrêt en cours » compris), vérifié toutes les 30 s. Jamais pendant un enregistrement.
@@ -43,8 +43,9 @@ use crate::tray;
 
 /// Délai avant la première vérification : laisse l'app finir de démarrer.
 const FIRST_CHECK_DELAY: Duration = Duration::from_secs(60);
-/// Intervalle entre deux vérifications automatiques.
-const CHECK_EVERY: Duration = Duration::from_secs(4 * 60 * 60);
+/// Intervalle entre deux vérifications automatiques. Court : une release part à chaque push sur main,
+/// et la vérification ne coûte qu'un petit latest.json.
+const CHECK_EVERY: Duration = Duration::from_secs(15 * 60);
 /// Fréquence de la recherche d'un moment calme quand une mise à jour est prête.
 const QUIET_POLL: Duration = Duration::from_secs(30);
 /// Attente de la fin d'un enregistrement commencé pendant l'installation, avant de relancer.

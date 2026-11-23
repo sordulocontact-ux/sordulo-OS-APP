@@ -76,7 +76,7 @@ export function desktopAppView(status: UpdateStatus | null, commandError: string
     default:
       return {
         version,
-        status: 'Vérifiée toute seule toutes les 4 heures.',
+        status: 'Vérifiée toute seule toutes les 15 minutes.',
         tone: 'muted',
         action: { kind: 'check', label: CHECK, busy: false },
       }
