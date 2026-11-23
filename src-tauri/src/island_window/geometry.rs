@@ -18,8 +18,14 @@ pub const VERTICAL_SIZE: (f64, f64) = (520.0, 480.0);
 pub const PROJECTION_SECS: f64 = 0.3;
 /// Vitesse de lancer prise en compte au plus (px CSS / s) : projection bornée à 1 500 px CSS.
 pub const MAX_THROW_SPEED: f64 = 5000.0;
-/// Fenêtre de lissage de la vitesse (s).
-pub const VELOCITY_WINDOW: f64 = 0.1;
+/// Fenêtre de lissage de la vitesse (s) : assez longue pour qu'un à-coup du geste ne fasse pas sauter la place
+/// visée d'un bout à l'autre de l'écran.
+pub const VELOCITY_WINDOW: f64 = 0.15;
+/// La place visée ne change que si la nouvelle est nettement plus proche du point projeté : distance inférieure
+/// à ce rapport × distance à la place actuelle (sinon, entre deux places, l'aperçu clignote de l'une à l'autre).
+pub const STICKY_RATIO: f64 = 0.75;
+/// Et seulement si elle reste visée ce temps (s) : l'aperçu ne suit pas chaque à-coup de la vitesse.
+pub const AIM_SETTLE_SECS: f64 = 0.12;
 
 /// Raideur du ressort de la fenêtre (1/s²) : pulsation propre ≈ 17,9 rad/s.
 pub const SPRING_STIFFNESS: f64 = 320.0;
@@ -163,6 +169,31 @@ pub fn nearest_place(screens: &[Screen], point: (f64, f64)) -> Option<(usize, Is
         }
     }
     best.map(|(_, index, edge)| (index, edge))
+}
+
+/// Comme `nearest_place`, mais garde `current` tant qu'aucune autre place n'est nettement plus proche
+/// (STICKY_RATIO). `current` hors des écrans : ignoré.
+pub fn sticky_place(
+    screens: &[Screen],
+    point: (f64, f64),
+    current: Option<(usize, IslandEdge)>,
+) -> Option<(usize, IslandEdge)> {
+    let best = nearest_place(screens, point)?;
+    let Some(current) = current.filter(|(index, _)| *index < screens.len()) else {
+        return Some(best);
+    };
+    if current == best {
+        return Some(best);
+    }
+    let distance = |(index, edge): (usize, IslandEdge)| {
+        let (ax, ay) = anchor(&screens[index], edge);
+        (ax - point.0).hypot(ay - point.1)
+    };
+    if distance(best) < distance(current) * STICKY_RATIO {
+        Some(best)
+    } else {
+        Some(current)
+    }
 }
 
 /// Centre de la forme noire dans la fenêtre (`width` × `height`), forme de profondeur `depth`
@@ -405,6 +436,31 @@ mod tests {
             Some((1, IslandEdge::Left))
         );
         assert_eq!(nearest_place(&[], (0.0, 0.0)), None);
+    }
+
+    #[test]
+    fn sticky_place_keeps_the_shown_place_between_two() {
+        let screens = [screen_1080(), screen_right()];
+        // Point à peu près à égale distance du haut et de la gauche du premier écran.
+        let between = (420.0, 300.0);
+        let top = Some((0, IslandEdge::Top));
+        let left = Some((0, IslandEdge::Left));
+        assert_eq!(sticky_place(&screens, between, top), top);
+        assert_eq!(sticky_place(&screens, between, left), left);
+        // Nettement plus près d'un autre bord : on change.
+        assert_eq!(
+            sticky_place(&screens, (900.0, 1000.0), top),
+            Some((0, IslandEdge::Bottom))
+        );
+        // Rien de montré, ou écran disparu : la plus proche.
+        assert_eq!(
+            sticky_place(&screens, (900.0, 1000.0), None),
+            Some((0, IslandEdge::Bottom))
+        );
+        assert_eq!(
+            sticky_place(&screens, (900.0, 1000.0), Some((7, IslandEdge::Top))),
+            Some((0, IslandEdge::Bottom))
+        );
     }
 
     #[test]

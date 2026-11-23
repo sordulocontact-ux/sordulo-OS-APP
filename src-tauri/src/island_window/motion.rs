@@ -172,6 +172,8 @@ struct Drag {
     monitors: Vec<Monitor>,
     /// Place visée montrée par l'aperçu : (indice de l'écran, bord).
     aimed: Option<(usize, IslandEdge)>,
+    /// Autre place visée depuis peu, et depuis quand (s) : montrée si elle le reste AIM_SETTLE_SECS.
+    pending: Option<((usize, IslandEdge), f64)>,
 }
 
 struct Spring {
@@ -365,6 +367,7 @@ impl Island {
             depth: request.depth,
             monitors,
             aimed: None,
+            pending: None,
         });
         emit_drag(&self.app, IslandDragPhase::Start);
         log::info!(
@@ -374,12 +377,14 @@ impl Island {
         );
     }
 
-    /// Place visée si l'île était lâchée maintenant : milieu de bord le plus proche du point projeté.
+    /// Place visée si l'île était lâchée maintenant : milieu de bord le plus proche du point projeté, en
+    /// gardant `current` (la place montrée par l'aperçu) tant qu'aucune n'est nettement plus proche.
     fn aim(
         monitors: &[Monitor],
         point: (f64, f64),
         velocity: (f64, f64),
         scale: f64,
+        current: Option<(usize, IslandEdge)>,
     ) -> Option<(usize, IslandEdge)> {
         let screens: Vec<Screen> = monitors.iter().map(|m| m.screen).collect();
         let projected = geometry::project(
@@ -388,7 +393,7 @@ impl Island {
             geometry::MAX_THROW_SPEED * scale,
             geometry::PROJECTION_SECS,
         );
-        geometry::nearest_place(&screens, projected)
+        geometry::sticky_place(&screens, projected, current)
     }
 
     fn drag_tick(
@@ -434,12 +439,30 @@ impl Island {
             self.pos = next;
         }
 
-        let aimed = Self::aim(&drag.monitors, point, velocity, scale);
-        if aimed != drag.aimed {
-            if let Some((index, edge)) = aimed {
-                self.show_ghost(&drag.monitors[index], edge, drag.along, drag.depth);
+        let aimed = Self::aim(&drag.monitors, point, velocity, scale, drag.aimed);
+        if aimed == drag.aimed {
+            drag.pending = None;
+        } else if let Some(candidate) = aimed {
+            // Première place : tout de suite ; ensuite, seulement si elle reste visée un instant.
+            let settled = match drag.pending {
+                Some((pending, since)) if pending == candidate => {
+                    t - since >= geometry::AIM_SETTLE_SECS
+                }
+                _ => {
+                    drag.pending = Some((candidate, t));
+                    false
+                }
+            };
+            if drag.aimed.is_none() || settled {
+                self.show_ghost(
+                    &drag.monitors[candidate.0],
+                    candidate.1,
+                    drag.along,
+                    drag.depth,
+                );
+                drag.aimed = Some(candidate);
+                drag.pending = None;
             }
-            drag.aimed = aimed;
         }
         if GHOST_RESCALED.swap(false, Ordering::Relaxed) {
             self.reapply_ghost();
@@ -454,7 +477,8 @@ impl Island {
 
     fn release(&mut self, drag: Drag, point: (f64, f64), velocity: (f64, f64), now: Instant) {
         let scale = window_unit_scale(self.space);
-        let target = Self::aim(&drag.monitors, point, velocity, scale);
+        // Même place que l'aperçu, sauf si le lancer vise nettement ailleurs.
+        let target = Self::aim(&drag.monitors, point, velocity, scale, drag.aimed);
         self.hide_ghost();
         emit_drag(&self.app, IslandDragPhase::End);
         let Some((index, edge)) = target else {

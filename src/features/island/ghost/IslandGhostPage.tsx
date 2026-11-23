@@ -28,7 +28,22 @@ function useTransparentWindow(): void {
   }, [])
 }
 
+/**
+ * Re-rend à chaque changement de taille de la fenêtre : en passant sur un écran d'une autre échelle, Windows
+ * redimensionne la fenêtre après coup, et le contour calculé avant ne serait plus centré.
+ */
+function useWindowSizeVersion(): number {
+  const [version, setVersion] = useState(0)
+  useEffect(() => {
+    const onResize = () => setVersion((v) => v + 1)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  return version
+}
+
 export function IslandGhostView({ ghost }: { ghost: IslandGhost | null }) {
+  useWindowSizeVersion()
   if (!ghost) return null
   const root = rootSize(ghost.edge)
   const outline = islandOutline({

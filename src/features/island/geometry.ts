@@ -293,8 +293,26 @@ export function shapeGeometry(w: number, h: number, r: number, platform: IslandP
  *   profondeur, sa hauteur court le long du bord).
  */
 export function edgeFrameSize(size: IslandShapeSize, edge: IslandEdge, key: IslandSizeKey): IslandShapeSize {
-  if (!isSideEdge(edge) || COMPACT_SIZE_KEYS.has(key)) return size
+  if (!isSideEdge(edge)) return size
+  if (COMPACT_SIZE_KEYS.has(key)) return { ...size, w: VERTICAL_PILL_LENGTH[key] ?? size.w }
   return { w: size.h, h: size.w, r: size.r }
+}
+
+/**
+ * Longueur de la pilule verticale (états compacts à gauche et à droite), plus courte que la pilule horizontale
+ * (193 px) : sur le côté, une île haute gêne (demande de Maël, 23/11). Les cartes ouvertes gardent leur taille.
+ * Les éléments ancrés à droite en horizontal sont mesurés depuis le bas : ils suivent la longueur.
+ */
+export const VERTICAL_PILL_LENGTH: Partial<Record<IslandSizeKey, number>> = {
+  repos: 84,
+  peek: 104,
+  meet: 132,
+  music: 132,
+  musicGarden: 132,
+  progress: 132,
+  agent: 132,
+  multi: 132,
+  dragWake: 120,
 }
 
 /** Rectangle en px CSS (x, y : coin haut gauche). */

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   BUBBLE_GAP,
   COMPACT_SIZE_KEYS,
+  VERTICAL_PILL_LENGTH,
   DRAG_THRESHOLD_PX,
   edgeFrameSize,
   edgePlatform,
@@ -351,9 +352,10 @@ describe('edges', () => {
         const frame = edgeFrameSize(size, edge, key)
         const g = edgeShapeGeometry(frame.w, frame.h, frame.r, 'win', edge)
         if (compact) {
-          // Pilule verticale : la boîte de l'état, transposée.
+          // Pilule verticale : la boîte de l'état, transposée et raccourcie (VERTICAL_PILL_LENGTH).
           expect(g.width).toBe(size.h)
-          expect(g.height).toBe(size.w + 2 * g.edge)
+          expect(g.height).toBe((VERTICAL_PILL_LENGTH[key] ?? size.w) + 2 * g.edge)
+          expect(VERTICAL_PILL_LENGTH[key] ?? size.w).toBeLessThan(size.w)
         } else {
           // Carte horizontale de la taille normale, contenu identique au haut.
           expect(g.content.width).toBe(size.w)

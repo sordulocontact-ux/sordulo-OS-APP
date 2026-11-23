@@ -123,12 +123,14 @@ export class GardenRenderer {
   }
 
   /**
-   * Calque d'un personnage. Avec la musique (`behind`), ceux des plans du fond (et leurs sous-agents)
-   * passent derrière le titre ; sinon les sous-agents vont devant la pochette, les autres dans le jardin.
+   * Calque d'un personnage. Avec la musique (`behind`), ceux des plans du fond (et leurs sous-agents) passent
+   * derrière le titre et la pochette, ceux du premier plan devant la pochette (calque de devant) ; tous passent
+   * devant l'égaliseur. Sinon les sous-agents vont devant la pochette, les autres dans le jardin.
    */
   private crowdFor(w: Walker, behind: boolean): HTMLDivElement {
     const plane = w.parent ? w.parent.plane : w.plane
     if (behind && this.backCrowd && plane > 0) return this.backCrowd
+    if (behind && this.frontCrowd) return this.frontCrowd
     return w.sub && this.frontCrowd ? this.frontCrowd : this.crowd
   }
 

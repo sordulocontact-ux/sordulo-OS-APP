@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react'
-import { DEFAULT_EDGE, ISLAND_SIZES, edgePlatform, isVerticalLayout, layerSizeKeyFor } from '../geometry'
+import { DEFAULT_EDGE, ISLAND_SIZES, VERTICAL_PILL_LENGTH, edgePlatform, isVerticalLayout, layerSizeKeyFor } from '../geometry'
 import type { IslandEdge, IslandPlatform, IslandState } from '../types'
 import styles from './Island.module.css'
 import { cx } from './cx'
@@ -47,7 +47,7 @@ export function Layer({
   const on = current === state
   const key = layerSizeKeyFor(state, withCall)
   const box = ISLAND_SIZES[edgePlatform(platform, edge)][key]
-  const size = isVerticalLayout(edge, key) ? { w: box.h, h: box.w } : box
+  const size = isVerticalLayout(edge, key) ? { w: box.h, h: VERTICAL_PILL_LENGTH[key] ?? box.w } : box
   const ref = useRef<HTMLDivElement>(null)
   const prev = useRef({ key: replayKey, on })
 
