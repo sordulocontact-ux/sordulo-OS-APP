@@ -3,6 +3,8 @@ import claudeLogo from '../../assets/connectors/claude.png'
 import gmailLogo from '../../assets/connectors/gmail.png'
 import notionLogo from '../../assets/connectors/notion.png'
 import stripeLogo from '../../assets/connectors/stripe.png'
+// Symbole officiel de Vercel (triangle, proportions de vercel.com/geist/brands), hors Figma.
+import vercelLogo from '../../assets/connectors/vercel.svg'
 
 export type ConnectorCategory = 'Communication' | 'Agenda' | 'Documents' | 'Design' | 'Paiement' | 'Comptabilité' | 'IA' | 'Infrastructure' | 'Musique'
 
@@ -60,6 +62,7 @@ export const CONNECTORS: Connector[] = [
   },
   {
     id: 'vercel',
+    logo: vercelLogo,
     name: 'Vercel',
     category: 'Infrastructure',
     description: 'L’île de l’app de bureau montre les déploiements de production Vercel : chargement, en ligne, échec.',
