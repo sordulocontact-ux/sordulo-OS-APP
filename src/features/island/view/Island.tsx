@@ -1,6 +1,7 @@
 /**
- * L'île (prototype design/prototypes/ile-sordulo-os.html, version Windows) : forme noire collée au bord haut,
- * au centre, qui change de forme selon l'état avec une animation à ressort. Le composant occupe toute la
+ * L'île (prototype design/prototypes/ile-sordulo-os.html, version Windows) : forme noire collée au milieu d'un
+ * bord de l'écran (prop `edge`, en haut par défaut), qui change de forme selon l'état avec une animation à
+ * ressort. En bas : miroir. À gauche et à droite : pilule verticale au repos, carte horizontale ouverte. Le composant occupe toute la
  * fenêtre transparente ; il ne décide rien (voir IslandProps).
  *
  * Rendu React : couches, textes, boutons. Moteur (engine.ts) + boucle (loop.ts) : forme, éléments partagés,
@@ -11,12 +12,21 @@
  */
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react'
 import { GardenEnvContext, type GardenEnv } from '../garden/context'
-import { ACTIVE_PLATFORM, GHOST, sizeKeyFor, type SharedElementId } from '../geometry'
+import {
+  ACTIVE_PLATFORM,
+  DEFAULT_EDGE,
+  GHOST,
+  edgePlatform,
+  isVerticalLayout,
+  sizeKeyFor,
+  type SharedElementId,
+} from '../geometry'
 import type { CallService } from '../../../shared/desktop-contract'
 import { callToneStyle } from '../brands'
-import type { Activity, ClaudeSession } from '../types'
+import type { Activity, ClaudeSession, IslandSizeKey } from '../types'
 import { BubbleContent } from './BubbleContent'
 import { cx } from './cx'
+import { useIslandDrag } from './drag'
 import { IslandEngine, type EngineTarget } from './engine'
 import { useLastNonNull, usePrefersReducedMotion } from './hooks'
 import styles from './Island.module.css'
@@ -39,7 +49,10 @@ function findActivity<K extends Activity['kind']>(
 export function Island(props: IslandProps) {
   const {
     snapshot,
-    platform = ACTIVE_PLATFORM,
+    platform: platformProp = ACTIVE_PLATFORM,
+    edge = DEFAULT_EDGE,
+    dragging = false,
+    onDragStart,
     hover,
     call,
     audioLevels,
@@ -65,12 +78,15 @@ export function Island(props: IslandProps) {
     onHitRectsChange,
   } = props
   const music = musicProp ?? null
+  // Variante dessinée : l'encoche n'existe qu'en haut ('win' ailleurs, même sur Mac).
+  const platform = edgePlatform(platformProp, edge)
 
   const prefersReduced = usePrefersReducedMotion()
   const reduced = reducedMotion ?? prefersReduced
   // Le focus clavier ouvre l'île comme le survol : « Arrêter » et « Répondre » restent atteignables au clavier.
   const [focusWithin, setFocusWithin] = useState(false)
-  const open = hover || focusWithin
+  // Glisser en cours : toujours fermée.
+  const open = !dragging && (hover || focusWithin)
   const { state, withCall, primary, secondary } = snapshot
   const hasGarden = garden !== undefined && garden !== null && garden !== false
   const sessionCount = sessions.length
@@ -116,6 +132,7 @@ export function Island(props: IslandProps) {
     () => ({
       key: questionAsk ? 'agentQuestion' : sizeKeyFor(state, open, withCall, musicGarden),
       platform,
+      edge,
       reduced,
       hasGarden,
       sessionCount,
@@ -123,7 +140,7 @@ export function Island(props: IslandProps) {
       musicProgress,
       musicControls,
     }),
-    [state, open, withCall, questionAsk, musicGarden, platform, reduced, hasGarden, sessionCount, meetRows.length, musicProgress, musicControls],
+    [state, open, withCall, questionAsk, musicGarden, platform, edge, reduced, hasGarden, sessionCount, meetRows.length, musicProgress, musicControls],
   )
 
   // Éléments du DOM pilotés hors de React
@@ -152,7 +169,9 @@ export function Island(props: IslandProps) {
   const engineRef = useRef<IslandEngine | null>(null)
   const loopRef = useRef<IslandLoop | null>(null)
   const targetRef = useRef(target)
-  const bubbleVisibleRef = useRef(secondary !== null)
+  // Bulle secondaire : seulement en haut (une seule île : elle n'est plus utilisée).
+  const bubbleOn = secondary !== null && edge === 'top'
+  const bubbleVisibleRef = useRef(bubbleOn)
 
   const liveData: LiveData = {
     state,
@@ -192,6 +211,7 @@ export function Island(props: IslandProps) {
       targetRef.current,
     )
     engine.rootWidth = root.clientWidth
+    engine.rootHeight = root.clientHeight
     engine.setBubble(bubbleVisibleRef.current)
     engine.render()
     engineRef.current = engine
@@ -203,6 +223,7 @@ export function Island(props: IslandProps) {
     let observer: ResizeObserver | null = null
     const onResize = () => {
       engine.rootWidth = root.clientWidth
+      engine.rootHeight = root.clientHeight
       loop.requestHitRects()
     }
     if (typeof ResizeObserver !== 'undefined') {
@@ -264,12 +285,21 @@ export function Island(props: IslandProps) {
   }, [target])
 
   // Bulle secondaire
-  const bubbleVisible = secondary !== null
   useLayoutEffect(() => {
-    bubbleVisibleRef.current = bubbleVisible
-    engineRef.current?.setBubble(bubbleVisible)
+    bubbleVisibleRef.current = bubbleOn
+    engineRef.current?.setBubble(bubbleOn)
     loopRef.current?.requestHitRects()
-  }, [bubbleVisible])
+  }, [bubbleOn])
+
+  // Glisser de l'île : appui sur la forme + déplacement au-delà du seuil (drag.ts). Taille envoyée : celle de
+  // l'île fermée (on la saisit souvent ouverte au survol, mais elle se referme pendant le glisser et l'aperçu
+  // montre où se posera la forme fermée).
+  const closedKeyRef = useRef<IslandSizeKey>(target.key)
+  useLayoutEffect(() => {
+    closedKeyRef.current = questionAsk ? 'agentQuestion' : sizeKeyFor(state, false, withCall, musicGarden)
+  })
+  const readDragSize = useCallback(() => engineRef.current?.dragSize(closedKeyRef.current) ?? null, [])
+  const drag = useIslandDrag(onDragStart, readDragSize)
 
   // L'icône de la bulle glisse vers l'île quand l'activité secondaire devient principale (prototype : flyGhost)
   const primaryId = primary?.id ?? null
@@ -364,7 +394,8 @@ export function Island(props: IslandProps) {
     else if (state === 'appel') onCallIgnore()
   }
 
-  const base = { current: state, platform, withCall }
+  const base = { current: state, platform, edge, withCall }
+  const vertical = isVerticalLayout(edge, target.key)
   const extra = snapshot.activityCount - 2
 
   return (
@@ -372,6 +403,9 @@ export function Island(props: IslandProps) {
       ref={rootRef}
       className={styles.root}
       data-platform={platform}
+      data-edge={edge}
+      data-vertical={vertical ? 'true' : 'false'}
+      data-dragging={dragging ? 'true' : 'false'}
       data-hover={open ? 'true' : 'false'}
       data-reduced={reduced ? 'true' : 'false'}
       data-state={state}
@@ -383,6 +417,8 @@ export function Island(props: IslandProps) {
       <div
         ref={islandRef}
         className={styles.island}
+        onPointerDown={drag.onPointerDown}
+        onDragStart={drag.onNativeDragStart}
         onMouseEnter={() => onHoverChange?.(true)}
         onMouseLeave={() => onHoverChange?.(false)}
       >
@@ -459,9 +495,9 @@ export function Island(props: IslandProps) {
             ? `Afficher ${ACTIVITY_NAMES[bubbleActivity.kind]} dans l’île${extra > 0 ? `, et ${extra} ${extra > 1 ? 'autres activités' : 'autre activité'}` : ''}`
             : 'Activité secondaire'
         }
-        tabIndex={secondary ? 0 : -1}
+        tabIndex={bubbleOn ? 0 : -1}
         onClick={() => {
-          if (secondary) onBubbleClick(secondary)
+          if (secondary && bubbleOn) onBubbleClick(secondary)
         }}
       >
         <svg ref={bubbleSvgRef} aria-hidden="true">
@@ -470,7 +506,7 @@ export function Island(props: IslandProps) {
         <span ref={bubbleContentRef} className={styles.bubbleContent}>
           <BubbleContent activity={bubbleActivity} music={music} ringRef={bubbleRingRef} />
         </span>
-        {secondary && extra > 0 && (
+        {bubbleOn && extra > 0 && (
           <span className={styles.badge} aria-hidden="true">
             +{extra}
           </span>

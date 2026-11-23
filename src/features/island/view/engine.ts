@@ -1,15 +1,25 @@
 /**
  * Moteur d'animation de l'île (prototype : sp, bsp, shared, retarget, retargetShared, render, renderShared,
  * renderBubble, flyGhost). Il écrit les styles directement sur les éléments : aucun rendu React par image.
+ *
+ * Bords (île déplaçable) : les ressorts de la forme travaillent dans le repère du bord (w le long du bord,
+ * h en profondeur, voir edgeFrameSize) ; la forme est reportée dans le repère de l'écran (edgeShapeGeometry).
+ * La boîte est placée au milieu du bord par la CSS (data-edge) : elle suit la taille écrite à chaque image.
  */
-import type { IslandRect } from '../../../shared/desktop-contract'
+import type { IslandDragStart, IslandRect } from '../../../shared/desktop-contract'
 import {
   BUBBLE_GAP,
   BUBBLE_HIDDEN,
   BUBBLE_MIN_OPACITY,
   BUBBLE_SIZES,
   GHOST,
+  dragStartSize,
+  edgeFrameSize,
+  edgePlatform,
+  edgeShapeGeometry,
   islandSize,
+  isSideEdge,
+  isVerticalLayout,
   SHARED_ELEMENTS,
   SHARED_ELEMENT_IDS,
   SHARED_ICON_DEFAULT_SIZE,
@@ -18,10 +28,11 @@ import {
   hitRectsFor,
   opacitySpring,
   shapeGeometry,
-  sharedPosition,
+  sharedPlacement,
+  type IslandShapeSize,
   type SharedElementId,
 } from '../geometry'
-import type { IslandPlatform, IslandSizeKey } from '../types'
+import type { IslandEdge, IslandPlatform, IslandSizeKey } from '../types'
 import { createSpring, isSpringAtRest, snapSpring, stepSpring, substeps, type Spring } from './spring'
 
 export interface EngineElements {
@@ -40,6 +51,8 @@ export interface EngineElements {
 export interface EngineTarget {
   key: IslandSizeKey
   platform: IslandPlatform
+  /** Bord de l'écran où l'île est collée ('mac' n'est dessiné qu'en haut). */
+  edge: IslandEdge
   reduced: boolean
   hasGarden: boolean
   sessionCount: number
@@ -53,8 +66,10 @@ export interface EngineTarget {
 
 interface SharedItem {
   id: SharedElementId
-  anchor: 'left' | 'right'
   present: boolean
+  /** Côtés de la zone de contenu depuis lesquels x et y sont mesurés (ils changent avec le bord et l'état). */
+  h: 'left' | 'right'
+  v: 'top' | 'bottom'
   x: Spring
   y: Spring
   s: Spring
@@ -63,8 +78,26 @@ interface SharedItem {
 
 const px = (v: number) => `${v.toFixed(2)}px`
 
+const OPPOSITE = { left: 'right', right: 'left', top: 'bottom', bottom: 'top' } as const
+
+/** Coins arrondis de la zone de contenu : ceux du côté opposé au bord (ordre CSS : haut gauche, haut droit, bas droit, bas gauche). */
+function contentRadius(edge: IslandEdge, r: number): string {
+  const v = px(r)
+  if (edge === 'bottom') return `${v} ${v} 0 0`
+  if (edge === 'left') return `0 ${v} ${v} 0`
+  if (edge === 'right') return `${v} 0 0 ${v}`
+  return `0 0 ${v} ${v}`
+}
+
+/** Taille d'un état (repère du bord) pour une cible. */
+function frameSize(t: EngineTarget): IslandShapeSize {
+  const platform = edgePlatform(t.platform, t.edge)
+  return edgeFrameSize(islandSize(platform, t.key, t.meetRows, t.musicProgress, t.musicControls), t.edge, t.key)
+}
+
 export class IslandEngine {
   private target: EngineTarget
+  /** Repère du bord : w le long du bord (zone de contenu), h en profondeur, r coins opposés au bord. */
   private readonly w: Spring
   private readonly h: Spring
   private readonly r: Spring
@@ -75,15 +108,16 @@ export class IslandEngine {
   private dirty = true
   private bubbleVisible = false
   private bubbleShown = false
-  /** Largeur de la racine (px CSS), pour les zones cliquables et le fantôme. */
+  /** Taille de la racine (px CSS), pour les zones cliquables et le fantôme. */
   rootWidth = 0
+  rootHeight = 0
 
   constructor(
     private readonly els: EngineElements,
     target: EngineTarget,
   ) {
     this.target = target
-    const size = islandSize(target.platform, target.key, target.meetRows, target.musicProgress, target.musicControls)
+    const size = frameSize(target)
     this.w = createSpring(size.w)
     this.h = createSpring(size.h)
     this.r = createSpring(size.r)
@@ -92,31 +126,38 @@ export class IslandEngine {
     this.bo = createSpring(0)
     this.items = SHARED_ELEMENT_IDS.map((id) => ({
       id,
-      anchor: SHARED_ELEMENTS[id].anchor,
       present: false,
+      h: SHARED_ELEMENTS[id].anchor,
+      v: 'top',
       x: createSpring(0),
       y: createSpring(0),
       s: createSpring(SHARED_ICON_DEFAULT_SIZE),
       o: createSpring(0),
     }))
-    this.retargetShared()
+    this.retargetShared(true)
+  }
+
+  private platform(): IslandPlatform {
+    return edgePlatform(this.target.platform, this.target.edge)
   }
 
   /** Nouvelle cible (prototype : retarget). Sous prefers-reduced-motion, tout se cale sans animation. */
   retarget(target: EngineTarget): void {
-    const platformChanged = target.platform !== this.target.platform
+    const platformChanged = edgePlatform(target.platform, target.edge) !== this.platform()
+    const edgeChanged = target.edge !== this.target.edge
     this.target = target
-    const t = islandSize(target.platform, target.key, target.meetRows, target.musicProgress, target.musicControls)
+    const t = frameSize(target)
     this.w.t = t.w
     this.h.t = t.h
     this.r.t = t.r
     if (target.reduced) [this.w, this.h, this.r].forEach(snapSpring)
-    if (platformChanged) this.applyBubbleTarget()
-    this.retargetShared()
+    if (platformChanged || edgeChanged) this.applyBubbleTarget()
+    // Changement de bord : les éléments partagés se posent directement à leur place (la fenêtre a changé).
+    this.retargetShared(edgeChanged)
     this.dirty = true
   }
 
-  /** Bulle secondaire visible ou cachée (prototype : updateBubble). */
+  /** Bulle secondaire visible ou cachée (prototype : updateBubble). Seulement en haut. */
   setBubble(visible: boolean): void {
     this.bubbleVisible = visible
     this.applyBubbleTarget()
@@ -124,10 +165,11 @@ export class IslandEngine {
   }
 
   private applyBubbleTarget(): void {
-    const dims = BUBBLE_SIZES[this.target.platform]
-    this.bw.t = this.bubbleVisible ? dims.w : BUBBLE_HIDDEN.w
-    this.bh.t = this.bubbleVisible ? dims.h : BUBBLE_HIDDEN.h
-    this.bo.t = this.bubbleVisible ? 1 : 0
+    const dims = BUBBLE_SIZES[this.platform()]
+    const visible = this.bubbleVisible && this.target.edge === 'top'
+    this.bw.t = visible ? dims.w : BUBBLE_HIDDEN.w
+    this.bh.t = visible ? dims.h : BUBBLE_HIDDEN.h
+    this.bo.t = visible ? 1 : 0
     if (this.target.reduced) [this.bw, this.bh, this.bo].forEach(snapSpring)
   }
 
@@ -136,17 +178,47 @@ export class IslandEngine {
     this.dirty = true
   }
 
-  private retargetShared(): void {
-    const { platform, key, reduced, hasGarden, sessionCount } = this.target
+  /** Taille courante de la zone de contenu à l'écran. */
+  private contentSize(): { width: number; height: number } {
+    const along = this.w.x
+    const depth = Math.max(1, this.h.x)
+    return isSideEdge(this.target.edge) ? { width: depth, height: along } : { width: along, height: depth }
+  }
+
+  /** Taille de l'élément partagé à l'écran : `s` pour l'icône et la pochette, sinon mesurée (hors de l'image). */
+  private measure(it: SharedItem): { width: number; height: number } {
+    if (SIZED_SHARED_ELEMENTS.has(it.id)) return { width: it.s.x, height: it.s.x }
+    const el = this.els.shared.get(it.id)
+    return el ? { width: el.offsetWidth, height: el.offsetHeight } : { width: 0, height: 0 }
+  }
+
+  private retargetShared(forceSnap = false): void {
+    const { key, edge, reduced, hasGarden, sessionCount } = this.target
+    const platform = this.platform()
+    const content = this.contentSize()
+    // Tailles utiles seulement sur les côtés (centrage dans la pilule, changement de côté de mesure)
+    const needSize = isSideEdge(edge)
     for (const it of this.items) {
-      const spec = sharedPosition(it.id, platform, key, { hasGarden, sessionCount })
+      const size = needSize ? this.measure(it) : { width: 0, height: 0 }
+      const spec = sharedPlacement(it.id, platform, key, { hasGarden, sessionCount }, edge, size.width)
       if (!spec) {
         it.present = false
         it.o.t = 0
         if (reduced) snapSpring(it.o)
         continue
       }
-      const snap = !it.present || reduced
+      const snap = !it.present || reduced || forceSnap
+      // Côté de mesure qui change (pilule verticale ↔ carte) : même position à l'écran, mesurée de l'autre côté.
+      if (!snap && spec.h !== it.h) {
+        it.x.x = content.width - it.x.x - size.width
+        it.x.v = -it.x.v
+      }
+      if (!snap && spec.v !== it.v) {
+        it.y.x = content.height - it.y.x - size.height
+        it.y.v = -it.y.v
+      }
+      it.h = spec.h
+      it.v = spec.v
       it.x.t = spec.x
       it.y.t = spec.y
       it.s.t = spec.s ?? it.s.t
@@ -199,8 +271,8 @@ export class IslandEngine {
   render(): void {
     if (!this.dirty) return
     this.dirty = false
-    const { platform } = this.target
-    const g = shapeGeometry(this.w.x, this.h.x, this.r.x, platform)
+    const { edge } = this.target
+    const g = edgeShapeGeometry(this.w.x, this.h.x, this.r.x, this.platform(), edge)
     const { island, svg, path, content } = this.els
     island.style.width = px(g.width)
     island.style.height = px(g.height)
@@ -208,10 +280,15 @@ export class IslandEngine {
     svg.setAttribute('width', String(g.width))
     svg.setAttribute('height', String(g.height))
     path.setAttribute('d', g.d)
-    content.style.left = px(g.edge)
-    content.style.width = px(g.innerWidth)
-    content.style.height = px(g.height)
-    content.style.borderRadius = `0 0 ${px(g.radius)} ${px(g.radius)}`
+    const cs = content.style
+    cs.left = px(g.content.x)
+    cs.top = px(g.content.y)
+    cs.width = px(g.content.width)
+    cs.height = px(g.content.height)
+    cs.borderRadius = contentRadius(edge, g.radius)
+    // Repère du bord, pour le jardin tourné de la pilule verticale (Island.module.css)
+    cs.setProperty('--edge-along', px(g.along))
+    cs.setProperty('--edge-depth', px(g.depth))
     this.renderBubble(g.width)
     this.renderShared()
   }
@@ -225,7 +302,8 @@ export class IslandEngine {
       return
     }
     this.bubbleShown = true
-    const b = shapeGeometry(this.bw.x, this.bh.x, BUBBLE_SIZES[this.target.platform].r, this.target.platform)
+    const platform = this.platform()
+    const b = shapeGeometry(this.bw.x, this.bh.x, BUBBLE_SIZES[platform].r, platform)
     const st = bubble.style
     st.display = 'block'
     st.transform = `translateX(${px(islandWidth / 2 + BUBBLE_GAP)})`
@@ -246,8 +324,10 @@ export class IslandEngine {
       const el = this.els.shared.get(it.id)
       if (!el) continue
       const st = el.style
-      st[it.anchor] = px(it.x.x)
-      st.top = px(it.y.x)
+      st[it.h] = px(it.x.x)
+      st[OPPOSITE[it.h]] = 'auto'
+      st[it.v] = px(it.y.x)
+      st[OPPOSITE[it.v]] = 'auto'
       st.opacity = Math.max(0, Math.min(1, it.o.x)).toFixed(3)
       if (SIZED_SHARED_ELEMENTS.has(it.id)) {
         st.width = px(it.s.x)
@@ -256,20 +336,33 @@ export class IslandEngine {
     }
   }
 
-  /** Taille courante du ressort (prototype : sp.w.x, sp.h.x) : largeur de la zone de contenu et hauteur de la forme. */
+  /**
+   * Taille courante de la scène du jardin (px) : repère du bord en haut, en bas et dans la pilule verticale
+   * (le jardin y est tourné), zone de contenu à l'écran pour la carte ouverte des côtés.
+   */
   size(): { width: number; height: number } {
-    return { width: this.w.x, height: Math.max(1, this.h.x) }
+    const { edge, key } = this.target
+    const along = this.w.x
+    const depth = Math.max(1, this.h.x)
+    if (!isSideEdge(edge) || isVerticalLayout(edge, key)) return { width: along, height: depth }
+    return { width: depth, height: along }
+  }
+
+  /** Taille cible actuelle dans le repère du bord, envoyée au début d'un glisser. */
+  dragSize(key: IslandSizeKey = this.target.key): IslandDragStart {
+    return dragStartSize(frameSize({ ...this.target, key }))
   }
 
   /** Zones cliquables : union de la taille courante et de la cible, forme et bulle. */
   hitRects(): IslandRect[] {
-    const { platform, key, meetRows, musicProgress, musicControls } = this.target
     return hitRectsFor({
       rootWidth: this.rootWidth,
-      platform,
+      rootHeight: this.rootHeight,
+      edge: this.target.edge,
+      platform: this.platform(),
       island: {
         current: { w: this.w.x, h: this.h.x, r: this.r.x },
-        target: islandSize(platform, key, meetRows, musicProgress, musicControls),
+        target: frameSize(this.target),
       },
       bubble: this.bubbleShown
         ? { current: { w: this.bw.x, h: this.bh.x }, target: { w: this.bw.t, h: this.bh.t } }
@@ -279,11 +372,12 @@ export class IslandEngine {
 
   /**
    * Placement du fantôme qui glisse de la bulle vers l'île (prototype : flyGhost), px relatifs à la racine ;
-   * null si la bulle n'est pas affichée.
+   * null si la bulle n'est pas affichée (jamais hors du bord haut).
    */
   ghostPlacement(): { left: number; width: number; height: number; dx: number } | null {
-    if (!this.bubbleShown || this.rootWidth <= 0) return null
-    const { platform, key, meetRows, musicProgress, musicControls } = this.target
+    if (!this.bubbleShown || this.rootWidth <= 0 || this.target.edge !== 'top') return null
+    const { key, meetRows, musicProgress, musicControls } = this.target
+    const platform = this.platform()
     const cx = this.rootWidth / 2
     const island = shapeGeometry(this.w.x, this.h.x, this.r.x, platform)
     const b = shapeGeometry(this.bw.x, this.bh.x, BUBBLE_SIZES[platform].r, platform)

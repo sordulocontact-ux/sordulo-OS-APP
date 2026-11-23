@@ -1,5 +1,5 @@
 //! Icône soleil dans la zone de notification et son menu (dont les cases « Afficher l'île », voir
-//! `island_window::set_hidden`, « Mode concentration » et « Afficher la musique dans l'île », et « Connecter / Déconnecter Claude Code » avec sa ligne d'état,
+//! `island_window::set_hidden`, et « Replacer l'île en haut », voir `island_window::request_top`, « Mode concentration » et « Afficher la musique dans l'île », et « Connecter / Déconnecter Claude Code » avec sa ligne d'état,
 //! voir `claude/`, la case « Lancer au démarrage », voir `autostart`, et la version avec « Rechercher une
 //! mise à jour », voir `updater`).
 
@@ -24,6 +24,7 @@ const ID_OPEN: &str = "open";
 const ID_STATUS: &str = "status";
 const ID_TOGGLE: &str = "toggle-recording";
 const ID_ISLAND: &str = "island";
+const ID_ISLAND_TOP: &str = "island-top";
 const ID_FOCUS: &str = "focus-mode";
 const ID_MUSIC: &str = "music";
 const ID_AUTOSTART: &str = "autostart";
@@ -60,6 +61,13 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
         "Afficher l'île",
         true,
         !island_window::is_hidden(),
+        None::<&str>,
+    )?;
+    let island_top = MenuItem::with_id(
+        app,
+        ID_ISLAND_TOP,
+        "Replacer l'île en haut",
+        true,
         None::<&str>,
     )?;
     let focus = CheckMenuItem::with_id(
@@ -122,6 +130,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
             &toggle,
             &PredefinedMenuItem::separator(app)?,
             &island,
+            &island_top,
             &focus,
             &music,
             &autostart,
@@ -192,6 +201,11 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
             }
         }
         ID_ISLAND => set_island_visible(app, island_window::is_hidden()),
+        ID_ISLAND_TOP => {
+            // En haut de l'écran principal avec le ressort, et réaffichée si elle était masquée.
+            island_window::request_top();
+            set_island_visible(app, true);
+        }
         ID_FOCUS => {
             let on = !app.state::<DesktopState>().shared().focus_mode;
             set_focus_mode(app, on);

@@ -6,6 +6,16 @@ pub const WINDOW_MAIN: &str = "main";
 pub const WINDOW_PROMPT: &str = "prompt";
 /// `DESKTOP_PROMPT_ROUTE`
 pub const PROMPT_ROUTE: &str = "/desktop/prompt";
+/// `DESKTOP_WINDOWS.islandGhost` : aperçu de la place de l'île pendant un glisser.
+pub const WINDOW_ISLAND_GHOST: &str = "island-ghost";
+/// `DESKTOP_ISLAND_GHOST_ROUTE`
+pub const ISLAND_GHOST_ROUTE: &str = "/desktop/ile-apercu";
+/// `DESKTOP_EVENTS.islandPlacement` (payload `IslandPlacement`), fenêtre de l'île.
+pub const EVENT_ISLAND_PLACEMENT: &str = "desktop://island-placement";
+/// `DESKTOP_EVENTS.islandDrag` (payload `IslandDrag`), fenêtre de l'île.
+pub const EVENT_ISLAND_DRAG: &str = "desktop://island-drag";
+/// `DESKTOP_EVENTS.islandGhost` (payload `IslandGhost | null`), fenêtre de l'aperçu.
+pub const EVENT_ISLAND_GHOST: &str = "desktop://island-ghost";
 
 /// `DESKTOP_EVENTS.micState` (payload `MicState`).
 pub const EVENT_MIC_STATE: &str = "desktop://mic-state";

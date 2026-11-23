@@ -12,17 +12,24 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FocusEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { islandSetHitRects, onIslandPointer, openMainAt } from '../../../lib/desktop'
+import {
+  islandDragStart,
+  islandSetHitRects,
+  onIslandDrag,
+  onIslandPlacement,
+  onIslandPointer,
+  openMainAt,
+} from '../../../lib/desktop'
 import { queryKeys } from '../../../lib/queryKeys'
-import type { IslandRect } from '../../../shared/desktop-contract'
+import type { IslandDragStart, IslandRect } from '../../../shared/desktop-contract'
 import { useAuth } from '../../auth/useAuth'
 import { useCurrentMember } from '../../auth/useCurrentMember'
 import { syncSession } from '../../desktop/useSessionSync'
 import { Garden } from '../garden'
-import { platformFromSearch } from '../geometry'
 import { useProjects } from '../../projects/useProjects'
 import { Island } from '../view'
 import type { IslandProjectOption } from '../view/types'
+import { placeFromPlacement, placeFromSearch, type IslandPlace } from './placement'
 import { startIslandRuntime, type IslandRuntime } from './runtime'
 import { SIGNED_OUT, type IslandSessionInfo, type IslandSource } from './source'
 import { ISLAND_SOURCES } from './sources'
@@ -106,11 +113,15 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
   const [keyboardFocus, setKeyboardFocus] = useState(false)
   const surfaceRef = useRef<HTMLDivElement>(null)
   const lastRectsRef = useRef('')
-  // Choisie par Rust à la création de la fenêtre (encoche ou non), fixe ensuite.
-  const [platform] = useState(() => platformFromSearch(window.location.search))
+  // Place de départ lue dans l'URL (Rust), puis mise à jour par island-placement (fin d'un glisser, replacement).
+  const [place, setPlace] = useState<IslandPlace>(() => placeFromSearch(window.location.search))
+  const [dragging, setDragging] = useState(false)
+  const draggingRef = useRef(false)
 
   /** Survol (Rust ou DOM). En sortant, un focus laissé par un clic de souris est rendu : l'île se referme. */
   const applyHover = useCallback((inside: boolean) => {
+    // Pendant le glisser, l'île reste fermée : le survol est ignoré.
+    if (inside && draggingRef.current) return
     setPointerHover(inside)
     if (inside) return
     const active = document.activeElement
@@ -136,10 +147,50 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
     }
   }, [applyHover])
 
+  useEffect(() => {
+    let active = true
+    const offs: Array<() => void> = []
+    const keep = (promise: Promise<() => void>, label: string) => {
+      promise
+        .then((unlisten) => {
+          if (active) offs.push(unlisten)
+          else unlisten()
+        })
+        .catch((e: unknown) => console.warn(`[île] ${label} :`, e))
+    }
+    keep(
+      onIslandPlacement((placement) => {
+        if (active) setPlace(placeFromPlacement(placement))
+      }),
+      'place',
+    )
+    keep(
+      onIslandDrag((drag) => {
+        if (!active) return
+        const started = drag.phase === 'start'
+        draggingRef.current = started
+        setDragging(started)
+        if (started) applyHover(false)
+      }),
+      'glisser',
+    )
+    return () => {
+      active = false
+      draggingRef.current = false
+      offs.forEach((off) => off())
+    }
+  }, [applyHover])
+
+  const onDragStart = useCallback((size: IslandDragStart) => {
+    islandDragStart(size).catch((e: unknown) => console.warn('[île] glisser :', e))
+  }, [])
+
+  const hover = pointerHover && !dragging
+
   // Survol ou focus clavier : la notification affichée reste (temps mis en pause).
   useEffect(() => {
-    coordinator.setHover(pointerHover || keyboardFocus)
-  }, [coordinator, pointerHover, keyboardFocus])
+    coordinator.setHover(hover || (keyboardFocus && !dragging))
+  }, [coordinator, hover, keyboardFocus, dragging])
 
   const onHitRectsChange = useCallback((rects: IslandRect[]) => {
     const key = JSON.stringify(rects)
@@ -159,8 +210,10 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
     <div ref={surfaceRef} className={styles.surface} onFocus={onFocus} onBlur={onBlur}>
       <Island
         snapshot={snapshot}
-        platform={platform}
-        hover={pointerHover}
+        platform={place.platform}
+        edge={place.edge}
+        dragging={dragging}
+        hover={hover}
         call={view.call}
         audioLevels={view.audioLevels}
         sessions={view.sessions}
@@ -181,6 +234,7 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
         onAnswerSession={runtime.gestures.onAnswerSession}
         onOpenSession={runtime.gestures.onOpenSession}
         onMusicCommand={runtime.gestures.onMusicCommand}
+        onDragStart={onDragStart}
         onHitRectsChange={onHitRectsChange}
       />
     </div>

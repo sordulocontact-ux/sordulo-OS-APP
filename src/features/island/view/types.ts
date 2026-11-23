@@ -3,11 +3,12 @@
  * fournies par le contrôleur, et remonte les gestes par des callbacks.
  */
 import type { ReactNode } from 'react'
-import type { CallService, IslandRect } from '../../../shared/desktop-contract'
+import type { CallService, IslandDragStart, IslandRect } from '../../../shared/desktop-contract'
 import type {
   Activity,
   ActivityKind,
   ClaudeSession,
+  IslandEdge,
   IslandNotification,
   IslandMusic,
   MusicLevelsReader,
@@ -60,8 +61,30 @@ export interface IslandDropInfo {
 export interface IslandProps {
   /** Instantané de la coordination : état, activités, notification, demande d'autorisation. */
   snapshot: IslandSnapshot
-  /** Variante de forme ; 'win' par défaut (ACTIVE_PLATFORM). */
+  /**
+   * Variante de forme ; 'win' par défaut (ACTIVE_PLATFORM). 'mac' (autour de l'encoche) ne vaut qu'avec
+   * `edge` 'top' : sur les autres bords, l'île prend les tailles et positions 'win', même si la prop vaut 'mac'.
+   */
   platform?: IslandPlatform
+  /**
+   * Bord de l'écran où l'île est collée, au milieu ; 'top' par défaut. En bas : forme miroir. À gauche et à
+   * droite : pilule verticale pour les états compacts, carte horizontale collée au bord pour les états ouverts.
+   * La fenêtre (racine) a la taille du bord (ISLAND_WINDOW_SIZE), réglée par l'app de bureau.
+   */
+  edge?: IslandEdge
+  /**
+   * Glisser de l'île en cours (piloté par l'app de bureau) : l'île reste fermée, aucun état ouvert au survol
+   * ni au focus. Faux par défaut.
+   */
+  dragging?: boolean
+  /**
+   * Début d'un glisser : appui du bouton gauche sur la forme puis déplacement de plus de DRAG_THRESHOLD_PX
+   * (geometry.ts), bouton toujours enfoncé. Appelé une fois par appui, avec la taille de la boîte cible
+   * actuelle dans le repère du bord (en haut / en bas : along = largeur, depth = hauteur ; à gauche / à
+   * droite : along = hauteur, depth = largeur ; zone de contenu, sans les arrondis concaves). Le clic qui suit
+   * ce glisser est annulé ; un appui sans déplacement reste un clic normal. Absent : pas de glisser.
+   */
+  onDragStart?: (size: IslandDragStart) => void
   /** La souris est sur l'île (source : desktop://island-pointer côté Tauri, ou survol DOM dans le labo). */
   hover: boolean
   /** Données de l'état `appel` ; null hors de cet état. */

@@ -23,6 +23,7 @@ import { TeamPage } from '../features/team/TeamPage'
 import { DesktopUpdateGate } from '../features/desktop-update'
 import { DownloadPage } from '../features/download'
 import { DesktopPromptRoute } from '../features/desktop/DesktopPromptRoute'
+import { IslandGhostRoute } from '../features/island/ghost/IslandGhostPage'
 import { InputDetailPage } from '../features/inputs/InputDetailPage'
 import { InputsTab } from '../features/inputs/InputsTab'
 import { ProjectPage } from '../features/projects/ProjectPage'
@@ -60,6 +61,7 @@ function RoutesTree() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/desktop/prompt" element={<DesktopPromptRoute />} />
+      <Route path="/desktop/ile-apercu" element={<IslandGhostRoute />} />
       {/* Aperçus A4 imprimables : hors de la barre latérale. */}
       <Route
         element={

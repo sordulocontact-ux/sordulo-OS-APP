@@ -195,6 +195,70 @@ pub struct IslandPointer {
     pub inside: bool,
 }
 
+/// `IslandEdge` du contrat : bord de l'écran où l'île est collée, au milieu de ce bord.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum IslandEdge {
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
+
+impl IslandEdge {
+    pub const ALL: [IslandEdge; 4] = [Self::Top, Self::Bottom, Self::Left, Self::Right];
+
+    /// Valeur du contrat (aussi passée dans l'URL de l'île : `edge=…`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Top => "top",
+            Self::Bottom => "bottom",
+            Self::Left => "left",
+            Self::Right => "right",
+        }
+    }
+
+    /// Île verticale (gauche, droite) : fenêtre `ISLAND_WINDOW_SIZE.vertical`.
+    pub fn is_vertical(self) -> bool {
+        matches!(self, Self::Left | Self::Right)
+    }
+}
+
+/// `IslandPlacement` du contrat.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IslandPlacement {
+    pub edge: IslandEdge,
+    /// Autour de l'encoche (bord haut de l'écran à encoche) : variante `mac` du front.
+    pub notch: bool,
+}
+
+/// `IslandDrag.phase` du contrat.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum IslandDragPhase {
+    Start,
+    End,
+}
+
+/// `IslandDrag` du contrat.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct IslandDrag {
+    pub phase: IslandDragPhase,
+}
+
+/// `IslandGhost` du contrat (émis à la fenêtre d'aperçu ; `null` pour la cacher).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IslandGhost {
+    pub edge: IslandEdge,
+    pub notch: bool,
+    /// px CSS le long du bord.
+    pub along: f64,
+    /// px CSS en s'éloignant du bord.
+    pub depth: f64,
+}
+
 /// `FocusModeState` du contrat.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct FocusModeState {
@@ -420,6 +484,38 @@ mod tests {
             serde_json::to_value(IslandPointer { inside: true }).unwrap(),
             serde_json::json!({ "inside": true })
         );
+        assert_eq!(
+            serde_json::to_value(IslandPlacement {
+                edge: IslandEdge::Left,
+                notch: false
+            })
+            .unwrap(),
+            serde_json::json!({ "edge": "left", "notch": false })
+        );
+        assert_eq!(
+            serde_json::to_value(IslandDrag {
+                phase: IslandDragPhase::Start
+            })
+            .unwrap(),
+            serde_json::json!({ "phase": "start" })
+        );
+        assert_eq!(
+            serde_json::to_value(IslandGhost {
+                edge: IslandEdge::Top,
+                notch: true,
+                along: 193.0,
+                depth: 40.0
+            })
+            .unwrap(),
+            serde_json::json!({ "edge": "top", "notch": true, "along": 193.0, "depth": 40.0 })
+        );
+        assert_eq!(
+            serde_json::to_value(None::<IslandGhost>).unwrap(),
+            serde_json::Value::Null
+        );
+        for edge in IslandEdge::ALL {
+            assert_eq!(serde_json::to_value(edge).unwrap(), edge.as_str());
+        }
         assert_eq!(
             serde_json::to_value(FocusModeState { on: false }).unwrap(),
             serde_json::json!({ "on": false })

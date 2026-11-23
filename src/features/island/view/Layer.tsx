@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react'
-import { ISLAND_SIZES, layerSizeKeyFor } from '../geometry'
-import type { IslandPlatform, IslandState } from '../types'
+import { DEFAULT_EDGE, ISLAND_SIZES, edgePlatform, isVerticalLayout, layerSizeKeyFor } from '../geometry'
+import type { IslandEdge, IslandPlatform, IslandState } from '../types'
 import styles from './Island.module.css'
 import { cx } from './cx'
 
@@ -10,6 +10,8 @@ export interface LayerProps {
   /** État courant de l'île : la couche est visible quand il est égal à `state`. */
   current: IslandState
   platform: IslandPlatform
+  /** Bord de l'écran ('top' par défaut) : sur les côtés, une couche compacte est transposée (pilule verticale). */
+  edge?: IslandEdge
   withCall: boolean
   /** Détail ouvert (survol) : agent, meet, multi. */
   open?: boolean
@@ -23,12 +25,29 @@ export interface LayerProps {
 }
 
 /**
- * Couche de contenu (prototype : .layer / .layer.on) : centrée, à la taille de l'état ouvert, découpée par la
- * forme animée. Une couche masquée est inerte (ni clic ni clavier, ni lecteur d'écran).
+ * Couche de contenu (prototype : .layer / .layer.on) : à la taille de l'état ouvert, découpée par la forme
+ * animée, collée au bord de l'écran et centrée le long de lui (Island.module.css, data-edge). Sur les côtés,
+ * une couche d'état compact (progression, dragWake) prend la taille transposée de la pilule verticale.
+ * Une couche masquée est inerte (ni clic ni clavier, ni lecteur d'écran).
  */
-export function Layer({ state, current, platform, withCall, open, className, style, role, label, replayKey, children }: LayerProps) {
+export function Layer({
+  state,
+  current,
+  platform,
+  edge = DEFAULT_EDGE,
+  withCall,
+  open,
+  className,
+  style,
+  role,
+  label,
+  replayKey,
+  children,
+}: LayerProps) {
   const on = current === state
-  const size = ISLAND_SIZES[platform][layerSizeKeyFor(state, withCall)]
+  const key = layerSizeKeyFor(state, withCall)
+  const box = ISLAND_SIZES[edgePlatform(platform, edge)][key]
+  const size = isVerticalLayout(edge, key) ? { w: box.h, h: box.w } : box
   const ref = useRef<HTMLDivElement>(null)
   const prev = useRef({ key: replayKey, on })
 

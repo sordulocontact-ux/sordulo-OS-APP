@@ -23,6 +23,9 @@ export type { MusicCommand }
 /** Variante de forme : Windows (bord haut de l'écran) ou Mac (autour de l'encoche de la caméra). */
 export type IslandPlatform = 'win' | 'mac'
 
+/** Bord de l'écran où l'île est collée (contrat : IslandEdge). */
+export type { IslandEdge } from '../../shared/desktop-contract'
+
 /** État affiché dans l'île (prototype : variable `state`). */
 export type IslandState =
   | 'repos'

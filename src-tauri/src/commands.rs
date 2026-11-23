@@ -7,13 +7,14 @@ use tauri::{AppHandle, Manager, State};
 use crate::claude::{self, ClaudeConnection, ClaudeDecision};
 use crate::dropped;
 use crate::events::{WINDOW_MAIN, WINDOW_PROMPT};
+use crate::island_window;
 use crate::music::{self, MusicState};
 use crate::platform::MediaCommand;
 use crate::recording;
 use crate::spotify::{self, SpotifyStatus};
 use crate::state::{
-    DesktopState, DesktopStatus, FocusModeState, IslandHitRects, IslandRect, PromptReason,
-    RecordingResult, RecordingState, UpdateStatus,
+    DesktopState, DesktopStatus, FocusModeState, IslandHitRects, IslandPlacement, IslandRect,
+    PromptReason, RecordingResult, RecordingState, UpdateStatus,
 };
 use crate::tray;
 use crate::updater;
@@ -113,6 +114,28 @@ pub fn island_set_hit_rects(
         return Err("Seule la fenêtre de l'île peut envoyer ses zones cliquables.".into());
     }
     *state.island_hits() = IslandHitRects::sanitized(rects, drag_margin);
+    Ok(())
+}
+
+/// Place de l'île (bord + encoche).
+#[tauri::command]
+pub fn get_island_placement() -> IslandPlacement {
+    island_window::placement()
+}
+
+/// Le front de l'île a commencé un glisser (bouton gauche enfoncé au-delà du seuil) : Rust prend la main
+/// (voir `island_window`). Ignoré si le bouton est déjà relâché ou si l'île est masquée. Réservé à la
+/// fenêtre de l'île.
+#[tauri::command]
+pub fn island_drag_start(
+    window: tauri::WebviewWindow,
+    along: f64,
+    depth: f64,
+) -> Result<(), String> {
+    if window.label() != WINDOW_PROMPT {
+        return Err("Seule la fenêtre de l'île peut être glissée.".into());
+    }
+    island_window::request_drag(along, depth);
     Ok(())
 }
 

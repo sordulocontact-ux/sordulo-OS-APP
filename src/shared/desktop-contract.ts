@@ -14,10 +14,73 @@ export const DESKTOP_WINDOWS = {
    * the hit rects sent with islandSetHitRects. Created at startup.
    */
   prompt: 'prompt',
+  /**
+   * Preview of where the island lands while it is dragged: transparent, click-through, always-on-top window
+   * the size of the island window, route DESKTOP_ISLAND_GHOST_ROUTE. Created hidden at startup, shown during a
+   * drag only (payload DESKTOP_EVENTS.islandGhost).
+   */
+  islandGhost: 'island-ghost',
 } as const
 
 /** Front route loaded by the prompt window (outside the regular app layout). */
 export const DESKTOP_PROMPT_ROUTE = '/desktop/prompt'
+
+/** Front route loaded by the island-ghost window. */
+export const DESKTOP_ISLAND_GHOST_ROUTE = '/desktop/ile-apercu'
+
+/**
+ * Edge of a screen the island is glued to, at the middle of that edge. `top` is the historical place (around
+ * the camera notch on a notched Mac). `left` / `right`: vertical island (compact states stacked along the
+ * edge, open states as a horizontal card coming out of the edge).
+ *
+ * The island window URL carries the starting placement: `?platform=mac|win&edge=top|bottom|left|right`
+ * (`platform=mac` = notch variant, only with `edge=top` on a notched screen).
+ */
+export type IslandEdge = 'top' | 'bottom' | 'left' | 'right'
+
+/**
+ * Size of the island window (CSS / logical px), set by Rust from the edge: horizontal for top / bottom, vertical
+ * for left / right (widest open card 440 + spring overshoot, along the edge the tallest card or stacked compact
+ * state). The island-ghost window has the same size as the island window at the target edge.
+ */
+export const ISLAND_WINDOW_SIZE = {
+  horizontal: { width: 640, height: 300 },
+  vertical: { width: 520, height: 480 },
+} as const
+
+/** Where the island sits (DESKTOP_EVENTS.islandPlacement, DESKTOP_COMMANDS.getIslandPlacement). */
+export interface IslandPlacement {
+  edge: IslandEdge
+  /** The island surrounds the camera notch (top edge of a notched Mac screen): the front draws the `mac` variant. */
+  notch: boolean
+}
+
+/**
+ * Size of the island's black shape when the drag starts, in CSS px, measured in the edge's frame: `along`
+ * the edge and `depth` away from it (top island 193 × 40 → along 193, depth 40). Sent with islandDragStart,
+ * used by Rust for the preview window.
+ */
+export interface IslandDragStart {
+  along: number
+  depth: number
+}
+
+/**
+ * Drag of the island, driven by Rust (the window follows the cursor at ~60 Hz while the left button is down,
+ * then is thrown to an edge with a spring). `start`: the drag began (front keeps the island closed, no
+ * hover). `end`: button released; an islandPlacement event follows (possibly the same placement).
+ */
+export interface IslandDrag {
+  phase: 'start' | 'end'
+}
+
+/** Payload of DESKTOP_EVENTS.islandGhost: outline to draw (null = hide). Same frame as IslandDragStart. */
+export interface IslandGhost {
+  edge: IslandEdge
+  notch: boolean
+  along: number
+  depth: number
+}
 
 /**
  * Where Supabase sends the email login link back when the login was requested from the desktop app.
@@ -338,6 +401,15 @@ export const DESKTOP_EVENTS = {
   musicLevels: 'desktop://music-levels',
   /** Payload UpdateStatus, main window: the update state changed. */
   updateStatus: 'desktop://update-status',
+  /**
+   * Payload IslandPlacement, island window: the island moved to another edge or screen (end of a throw,
+   * « Replacer l'île en haut » in the tray menu, screen removed). Also sent at the end of every drag.
+   */
+  islandPlacement: 'desktop://island-placement',
+  /** Payload IslandDrag, island window: a drag started or ended. */
+  islandDrag: 'desktop://island-drag',
+  /** Payload IslandGhost | null, island-ghost window: where the island would land if released now. */
+  islandGhost: 'desktop://island-ghost',
 } as const
 
 /** Commands implemented in Rust (invoke from @tauri-apps/api/core). Arguments are camelCase. */
@@ -362,6 +434,14 @@ export const DESKTOP_COMMANDS = {
   takeAuthCallback: 'take_auth_callback',
   /** (IslandHitRects) => void — island window: where the black shapes are; the mouse passes through elsewhere. */
   islandSetHitRects: 'island_set_hit_rects',
+  /** () => IslandPlacement */
+  getIslandPlacement: 'get_island_placement',
+  /**
+   * (IslandDragStart) => void — island window only: the user pressed the island and moved past the drag
+   * threshold with the left button still down. Rust takes over (window follows the cursor, then the throw).
+   * Ignored if the button is already up.
+   */
+  islandDragStart: 'island_drag_start',
   /** ({ route: string }) => void — shows and focuses the main window, then emits DESKTOP_EVENTS.navigate to it. */
   openMainAt: 'open_main_at',
   /** () => FocusModeState */

@@ -1,9 +1,10 @@
 //! macOS — fonctions système de l'île : curseur (CoreGraphics), encoche de l'écran principal et niveau
 //! de la fenêtre (AppKit).
 //!
-//! Coordonnées : celles de tao (donc de Tauri) sur macOS, en px physiques = points × échelle de l'écran
-//! principal, origine en haut à gauche de l'écran principal. Le curseur est converti de la même façon que
-//! `tao::platform_impl::macos::util::cursor_position`, pour que les zones cliquables tombent juste.
+//! Coordonnées : repère de l'île sur macOS (`IslandSpace::Points`), en points, origine en haut à gauche de
+//! l'écran principal, comme `CGEventGetLocation` et les positions logiques de tao. Les px physiques de tao
+//! sont multipliés par l'échelle de chaque écran ou fenêtre : avec des écrans d'échelles différentes, ils ne
+//! forment pas un repère commun, les points si.
 
 use std::ffi::c_void;
 
@@ -22,20 +23,6 @@ struct CGPoint {
     y: f64,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct CGSize {
-    width: f64,
-    height: f64,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct CGRect {
-    origin: CGPoint,
-    size: CGSize,
-}
-
 /// `kCGEventSourceStateCombinedSessionState`.
 const COMBINED_SESSION_STATE: i32 = 0;
 /// `kCGMouseButtonLeft` : sur Mac, l'inversion des boutons est faite en amont, le gauche est le principal.
@@ -46,11 +33,6 @@ extern "C" {
     fn CGEventCreate(source: *const c_void) -> *mut c_void;
     fn CGEventGetLocation(event: *const c_void) -> CGPoint;
     fn CGEventSourceButtonState(state: i32, button: u32) -> bool;
-    fn CGMainDisplayID() -> u32;
-    fn CGDisplayBounds(display: u32) -> CGRect;
-    fn CGDisplayCopyDisplayMode(display: u32) -> *mut c_void;
-    fn CGDisplayModeGetPixelWidth(mode: *const c_void) -> usize;
-    fn CGDisplayModeRelease(mode: *mut c_void);
 }
 
 #[link(name = "CoreFoundation", kind = "framework")]
@@ -58,27 +40,8 @@ extern "C" {
     fn CFRelease(cf: *const c_void);
 }
 
-/// Échelle de l'écran principal (px physiques par point), comme `NSScreen.backingScaleFactor`.
-/// Lisible depuis n'importe quel thread (CoreGraphics, pas AppKit).
-fn main_display_scale() -> Option<f64> {
-    // SAFETY : fonctions CoreGraphics sans effet de bord ; le mode copié est relâché ci-dessous.
-    unsafe {
-        let display = CGMainDisplayID();
-        let points = CGDisplayBounds(display).size.width;
-        let mode = CGDisplayCopyDisplayMode(display);
-        if mode.is_null() {
-            return None;
-        }
-        let pixels = CGDisplayModeGetPixelWidth(mode) as f64;
-        CGDisplayModeRelease(mode);
-        let scale = pixels / points;
-        (scale.is_finite() && scale > 0.0).then_some(scale)
-    }
-}
-
-/// Position du curseur (px physiques, repère de tao) et bouton principal. Ne demande aucune autorisation.
+/// Position du curseur (points, repère de l'île) et bouton principal. Ne demande aucune autorisation.
 pub fn cursor_state() -> Option<CursorState> {
-    let scale = main_display_scale()?;
     // SAFETY : CGEventCreate(NULL) crée un événement qui porte la position actuelle du curseur
     // (origine en haut à gauche de l'écran principal, en points) ; il est relâché aussitôt après lecture.
     let location = unsafe {
@@ -94,8 +57,8 @@ pub fn cursor_state() -> Option<CursorState> {
     let primary_down =
         unsafe { CGEventSourceButtonState(COMBINED_SESSION_STATE, MOUSE_BUTTON_LEFT) };
     Some(CursorState {
-        x: (location.x * scale).round() as i32,
-        y: (location.y * scale).round() as i32,
+        x: location.x.round() as i32,
+        y: location.y.round() as i32,
         primary_down,
     })
 }

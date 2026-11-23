@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
   BUBBLE_GAP,
+  COMPACT_SIZE_KEYS,
+  DRAG_THRESHOLD_PX,
+  edgeFrameSize,
+  edgePlatform,
+  edgeShapeGeometry,
+  isDragMove,
+  isVerticalLayout,
+  islandBoxPosition,
+  islandOutline,
+  sharedPlacement,
   ISLAND_SIZES,
   RING,
   WAVE,
@@ -17,7 +27,7 @@ import {
   sizeKeyFor,
   waveBarHeight,
 } from './geometry'
-import type { IslandState } from './types'
+import type { IslandEdge, IslandSizeKey, IslandState } from './types'
 
 describe('sizeKeyFor', () => {
   it('maps hover like the prototype currentKey', () => {
@@ -263,5 +273,198 @@ describe('islandSize', () => {
   it('les autres tailles ignorent les lignes', () => {
     expect(islandSize('win', 'meet', 3)).toEqual(ISLAND_SIZES.win.meet)
     expect(islandSize('win', 'agentOpen', 3)).toEqual(ISLAND_SIZES.win.agentOpen)
+  })
+})
+
+describe('edges', () => {
+  const root = { width: 1000, height: 600 }
+
+  it('keeps the top path exactly as the prototype', () => {
+    for (const [w, h, r] of [
+      [120, 8, 4],
+      [193, 40, 14],
+      [384, 116, 24],
+    ] as const) {
+      for (const platform of ['win', 'mac'] as const) {
+        const top = edgeShapeGeometry(w, h, r, platform, 'top')
+        const ref = shapeGeometry(w, h, r, platform)
+        expect(top.d).toBe(ref.d)
+        expect([top.width, top.height]).toEqual([ref.width, ref.height])
+        expect(top.content).toEqual({ x: ref.edge, y: 0, width: w, height: ref.height })
+      }
+    }
+  })
+
+  it('mirrors the shape at the bottom: straight edge and concave corners below, round corners above', () => {
+    const g = edgeShapeGeometry(193, 40, 14, 'win', 'bottom')
+    expect([g.width, g.height]).toEqual([213, 40])
+    expect(g.d).toBe(
+      'M0 40L213 40A10 10 0 0 1 203 30L203 14A14 14 0 0 0 189 0L24 0A14 14 0 0 0 10 14L10 30A10 10 0 0 1 0 40Z',
+    )
+    expect(g.content).toEqual({ x: 10, y: 0, width: 193, height: 40 })
+  })
+
+  it('stands the pill up on the left: straight edge on the left, round corners on the right', () => {
+    const g = edgeShapeGeometry(193, 40, 14, 'win', 'left')
+    expect([g.width, g.height]).toEqual([40, 213])
+    expect(g.d).toBe(
+      'M0 0L0 213A10 10 0 0 1 10 203L26 203A14 14 0 0 0 40 189L40 24A14 14 0 0 0 26 10L10 10A10 10 0 0 1 0 0Z',
+    )
+    expect(g.content).toEqual({ x: 0, y: 10, width: 40, height: 193 })
+  })
+
+  it('stands the pill up on the right: straight edge on the right, round corners on the left', () => {
+    const g = edgeShapeGeometry(193, 40, 14, 'win', 'right')
+    expect([g.width, g.height]).toEqual([40, 213])
+    expect(g.d).toBe(
+      'M40 0L40 213A10 10 0 0 0 30 203L14 203A14 14 0 0 1 0 189L0 24A14 14 0 0 1 14 10L30 10A10 10 0 0 0 40 0Z',
+    )
+  })
+
+  it('never draws the notch away from the top edge', () => {
+    expect(edgePlatform('mac', 'top')).toBe('mac')
+    for (const edge of ['bottom', 'left', 'right'] as const) {
+      expect(edgePlatform('mac', edge)).toBe('win')
+      expect(edgeShapeGeometry(193, 40, 14, 'mac', edge).edge).toBe(10)
+    }
+  })
+
+  it('places the box in the middle of each edge', () => {
+    const box = { width: 40, height: 213 }
+    expect(islandBoxPosition('top', { width: 213, height: 40 }, root)).toEqual({ x: 393.5, y: 0 })
+    expect(islandBoxPosition('bottom', { width: 213, height: 40 }, root)).toEqual({ x: 393.5, y: 560 })
+    expect(islandBoxPosition('left', box, root)).toEqual({ x: 0, y: 193.5 })
+    expect(islandBoxPosition('right', box, root)).toEqual({ x: 960, y: 193.5 })
+  })
+
+  it('stands compact states up and keeps open states as horizontal cards on the sides', () => {
+    const all = Object.keys(ISLAND_SIZES.win) as IslandSizeKey[]
+    for (const key of all) {
+      const size = ISLAND_SIZES.win[key]
+      const compact = COMPACT_SIZE_KEYS.has(key)
+      for (const edge of ['top', 'bottom'] as const) {
+        expect(isVerticalLayout(edge, key)).toBe(false)
+        expect(edgeFrameSize(size, edge, key)).toEqual(size)
+      }
+      for (const edge of ['left', 'right'] as const) {
+        expect(isVerticalLayout(edge, key)).toBe(compact)
+        const frame = edgeFrameSize(size, edge, key)
+        const g = edgeShapeGeometry(frame.w, frame.h, frame.r, 'win', edge)
+        if (compact) {
+          // Pilule verticale : la boîte de l'état, transposée.
+          expect(g.width).toBe(size.h)
+          expect(g.height).toBe(size.w + 2 * g.edge)
+        } else {
+          // Carte horizontale de la taille normale, contenu identique au haut.
+          expect(g.content.width).toBe(size.w)
+          expect(g.content.height).toBe(size.h)
+        }
+      }
+    }
+    expect([...COMPACT_SIZE_KEYS].sort()).toEqual(
+      ['agent', 'dragWake', 'meet', 'multi', 'music', 'musicGarden', 'peek', 'progress', 'repos'].sort(),
+    )
+  })
+
+  it('gives the outline of the resting shape for the preview window', () => {
+    const outline = islandOutline({ edge: 'left', along: 193, depth: 40, root })
+    expect(outline).toEqual({ ...islandBoxPosition('left', { width: 40, height: 213 }, root), width: 40, height: 213, d: edgeShapeGeometry(193, 40, 14, 'win', 'left').d })
+    // Encoche seulement en haut
+    const top = islandOutline({ edge: 'top', along: 186, depth: 32, radius: 9, root, platform: 'mac' })
+    expect(top.d).toBe(shapeGeometry(186, 32, 9, 'mac').d)
+    expect(islandOutline({ edge: 'bottom', along: 186, depth: 32, radius: 9, root, platform: 'mac' }).width).toBe(186 + 2 * 10)
+  })
+
+  it('starts a drag beyond the threshold only', () => {
+    expect(DRAG_THRESHOLD_PX).toBe(6)
+    expect(isDragMove(6, 0)).toBe(false)
+    expect(isDragMove(4, 4)).toBe(false)
+    expect(isDragMove(5, 4)).toBe(true)
+    expect(isDragMove(0, -7)).toBe(true)
+  })
+})
+
+describe('sharedPlacement', () => {
+  const ctx = { hasGarden: true, sessionCount: 3 }
+
+  it('keeps the top placement of SHARED_ELEMENTS', () => {
+    expect(sharedPlacement('timer', 'win', 'meet', ctx)).toEqual({ h: 'right', x: 13, v: 'top', y: 13 })
+    expect(sharedPlacement('agentIcon', 'mac', 'agent', ctx, 'top')).toEqual({ h: 'left', x: 13, v: 'top', y: 6, s: 20 })
+  })
+
+  it('measures from the bottom at the bottom edge (same distance to the screen edge), win sizes even on Mac', () => {
+    expect(sharedPlacement('meetGroup', 'win', 'meet', ctx, 'bottom')).toEqual({ h: 'left', x: 13, v: 'bottom', y: 12 })
+    expect(sharedPlacement('agentIcon', 'mac', 'agent', ctx, 'bottom')).toEqual({ h: 'left', x: 13, v: 'bottom', y: 9, s: 22 })
+  })
+
+  it('transposes compact elements in the vertical pill', () => {
+    // Gauche : x' = y depuis la gauche, y' = x depuis le haut (ancré à gauche) ou le bas (ancré à droite).
+    expect(sharedPlacement('agentIcon', 'win', 'agent', ctx, 'left')).toEqual({ h: 'left', x: 9, v: 'top', y: 13, s: 22 })
+    expect(sharedPlacement('musicCover', 'win', 'music', ctx, 'left')).toEqual({ h: 'left', x: 8, v: 'top', y: 8, s: 24 })
+    expect(sharedPlacement('dropIcon', 'win', 'dragWake', ctx, 'left')).toEqual({ h: 'left', x: 13, v: 'top', y: 16 })
+    // Droite : mesuré depuis la droite (x' = largeur − y − taille).
+    expect(sharedPlacement('agentIcon', 'mac', 'agent', ctx, 'right')).toEqual({ h: 'right', x: 9, v: 'top', y: 13, s: 22 })
+    expect(sharedPlacement('meetGroup', 'win', 'meet', ctx, 'right')).toEqual({ h: 'right', x: 12, v: 'top', y: 13 })
+  })
+
+  it('centers across the pill the elements wider than their transposed place', () => {
+    expect(sharedPlacement('timer', 'win', 'meet', ctx, 'left', 30)).toEqual({ h: 'left', x: 5, v: 'bottom', y: 13 })
+    expect(sharedPlacement('musicEq', 'win', 'music', ctx, 'right', 23)).toEqual({ h: 'right', x: 8.5, v: 'bottom', y: 11 })
+    expect(sharedPlacement('dots', 'win', 'agent', ctx, 'left', 18)).toEqual({ h: 'left', x: 11, v: 'bottom', y: 13 })
+  })
+
+  it('keeps open states laid out as at the top on the sides', () => {
+    for (const edge of ['left', 'right'] as IslandEdge[]) {
+      expect(sharedPlacement('timer', 'mac', 'meetOpen', ctx, edge)).toEqual({ h: 'right', x: 16, v: 'top', y: 24 })
+      expect(sharedPlacement('seg2', 'win', 'multiOpen', ctx, edge)).toEqual({ h: 'left', x: 16, v: 'top', y: 128 })
+    }
+  })
+
+  it('fits every compact element inside the vertical pill', () => {
+    const sizes: Partial<Record<string, number>> = { timer: 30, musicEq: 23, dots: 18, count: 8, meetGroup: 16, dropIcon: 18, seg0: 6, seg1: 6, seg2: 6 }
+    const noGarden = { hasGarden: false, sessionCount: 3 }
+    for (const key of COMPACT_SIZE_KEYS) {
+      const pill = ISLAND_SIZES.win[key]
+      for (const id of ['meetGroup', 'timer', 'agentIcon', 'dots', 'count', 'seg0', 'seg1', 'seg2', 'dropIcon', 'musicCover', 'musicEq'] as const) {
+        const p = sharedPlacement(id, 'win', key, noGarden, 'left', sizes[id] ?? 0)
+        if (!p || p.o === 0) continue
+        const size = p.s ?? sizes[id] ?? 0
+        expect(p.x).toBeGreaterThanOrEqual(0)
+        expect(p.x + size).toBeLessThanOrEqual(pill.h)
+        expect(p.y).toBeLessThanOrEqual(pill.w)
+      }
+    }
+  })
+})
+
+describe('hitRectsFor on every edge', () => {
+  const size = ISLAND_SIZES.win.meet
+  const at = (edge: IslandEdge, current = size, target = size) =>
+    hitRectsFor({ rootWidth: 520, rootHeight: 480, edge, platform: 'mac', island: { current, target }, bubble: null })
+
+  it('sticks the rect to the edge, in the middle', () => {
+    expect(at('bottom')).toEqual([{ x: 153, y: 440, width: 214, height: 40 }])
+    expect(at('left')).toEqual([{ x: 0, y: 133, width: 40, height: 214 }])
+    expect(at('right')).toEqual([{ x: 480, y: 133, width: 40, height: 214 }])
+  })
+
+  it('covers the pill and the open card during the transition on the sides', () => {
+    const card = edgeFrameSize(ISLAND_SIZES.win.meetOpen, 'left', 'meetOpen')
+    expect(card).toEqual({ w: 96, h: 360, r: 24 })
+    // Pilule 40 × 213 et carte 360 × 116 : union 360 × 213, centrée verticalement.
+    expect(at('left', size, card)).toEqual([{ x: 0, y: 133, width: 360, height: 214 }])
+    expect(at('right', size, card)).toEqual([{ x: 160, y: 133, width: 360, height: 214 }])
+  })
+
+  it('ignores the bubble away from the top', () => {
+    const rects = hitRectsFor({
+      rootWidth: 640,
+      rootHeight: 300,
+      edge: 'bottom',
+      platform: 'win',
+      island: { current: size, target: size },
+      bubble: { current: { w: 44, h: 40 }, target: { w: 44, h: 40 } },
+    })
+    expect(rects).toHaveLength(1)
   })
 })

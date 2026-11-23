@@ -3,7 +3,9 @@
  * Couleurs, police, tailles de texte, rayons de contrôle et durées : tokens `--island-*` de src/styles/tokens.css.
  * Tailles par état, positions des éléments partagés et ressort : src/features/island/geometry.ts.
  * Les petites dimensions internes (marges, barres de 2 px…) restent ici en px, comme dans le prototype.
- * Variante Mac (autour de l'encoche) : sélecteurs [data-platform='mac'].
+ * Variante Mac (autour de l'encoche) : sélecteurs [data-platform='mac'] (seulement en haut de l'écran).
+ * Bords (île déplaçable) : [data-edge='top' | 'bottom' | 'left' | 'right'] ; [data-vertical='true'] : pilule
+ * verticale (états compacts à gauche et à droite). Voir la section « Bords » en fin de fichier.
  */
 
 /* Racine : toute la fenêtre transparente, aucun fond, les clics passent hors de la forme et de la bulle. */
@@ -37,13 +39,15 @@
   white-space: nowrap;
 }
 
-/* L'île */
+/* L'île : collée au milieu du bord (data-edge), la taille est écrite par le moteur à chaque image */
 .island {
   position: absolute;
   top: 0;
   left: 50%;
   transform: translateX(-50%);
   pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .shape {
@@ -66,7 +70,8 @@
   position: absolute;
   top: 0;
   left: 50%;
-  transform: translateX(-50%) scale(0.94);
+  translate: -50% 0;
+  transform: scale(0.94);
   opacity: 0;
   filter: blur(var(--island-blur));
   pointer-events: none;
@@ -80,7 +85,7 @@
 .layer.on {
   opacity: 1;
   filter: blur(0);
-  transform: translateX(-50%) scale(1);
+  transform: scale(1);
   pointer-events: auto;
   transition:
     opacity var(--island-duration-layer-in) ease var(--island-delay-layer-in),
@@ -886,6 +891,9 @@
 .garden {
   position: absolute;
   inset: 0;
+  /* Chaque calque du jardin garde l'ordre de ses personnages pour lui (z-index des .crowd) : sans ça, ils
+     sortent du calque et passent devant la pochette, l'égaliseur et le titre de la musique. */
+  isolation: isolate;
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--island-duration-garden-out) ease;
@@ -1329,7 +1337,7 @@
 
 .root[data-reduced='true'] .layer {
   filter: none;
-  transform: translateX(-50%);
+  transform: none;
 }
 
 .root[data-reduced='true'] .check {
@@ -1466,4 +1474,88 @@
 
 .root[data-reduced='true'] .pickerPanel {
   transition: none;
+}
+
+/*
+ * Bords (île déplaçable). Le moteur écrit la taille de la boîte, la zone de contenu et la position des éléments
+ * partagés (engine.ts) ; ici, la boîte et les couches sont collées au bord de l'écran et centrées le long de lui.
+ * Pilule verticale (data-vertical) : pas de maquette Figma, éléments les plus proches (à valider avec Sacha).
+ */
+.root[data-edge='bottom'] .island {
+  top: auto;
+  bottom: 0;
+}
+
+.root[data-edge='left'] .island,
+.root[data-edge='right'] .island {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.root[data-edge='left'] .island {
+  left: 0;
+}
+
+.root[data-edge='right'] .island {
+  left: auto;
+  right: 0;
+}
+
+/* Couches : ancrées au bord de l'écran (en bas : le bas de la boîte), contenu à l'endroit */
+.root[data-edge='bottom'] .layer {
+  top: auto;
+  bottom: 0;
+}
+
+.root[data-edge='left'] .layer,
+.root[data-edge='right'] .layer {
+  top: 50%;
+  translate: 0 -50%;
+}
+
+.root[data-edge='left'] .layer {
+  left: 0;
+}
+
+.root[data-edge='right'] .layer {
+  left: auto;
+  right: 0;
+}
+
+/* Pilule verticale : l'onde de l'appel ne tient pas en travers, il reste l'icône (et le minuteur) */
+.root[data-vertical='true'] .scrollWave {
+  display: none;
+}
+
+/* Progression sur les côtés (toujours compacte) : icône en haut, anneau en bas, sans le texte */
+.root[data-edge='left'] .layerProg,
+.root[data-edge='right'] .layerProg {
+  flex-direction: column;
+  padding: var(--island-space-13) 0;
+}
+
+.root[data-edge='left'] .progLabel,
+.root[data-edge='right'] .progLabel,
+.root[data-edge='left'] .dragHint,
+.root[data-edge='right'] .dragHint {
+  display: none;
+}
+
+/*
+ * Jardin dans la pilule verticale : dessiné dans le repère du bord (longueur × profondeur, variables écrites
+ * par le moteur), puis tourné pour que le sol soit côté écran ; les Claude marchent le long du bord. Les trois
+ * calques (fond, principal, devant) tournent ensemble. Carte ouverte des côtés : jardin à l'endroit.
+ */
+.root[data-vertical='true'] .garden {
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  width: var(--edge-along);
+  height: var(--edge-depth);
+  translate: -50% -50%;
+  rotate: 90deg;
+}
+
+.root[data-vertical='true'][data-edge='right'] .garden {
+  rotate: -90deg;
 }

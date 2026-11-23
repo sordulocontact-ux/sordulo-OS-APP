@@ -5,8 +5,8 @@
  * Couleurs, police et tailles de texte : section « Île » de src/styles/tokens.css, jamais ici.
  * Ce fichier est pur (ni React ni DOM) : il est lu par le rendu (view/), le labo et le jardin.
  */
-import type { IslandRect } from '../../shared/desktop-contract'
-import type { IslandPlatform, IslandSizeKey, IslandState } from './types'
+import type { IslandDragStart, IslandRect } from '../../shared/desktop-contract'
+import type { IslandEdge, IslandPlatform, IslandSizeKey, IslandState } from './types'
 
 /** Plateforme par défaut. L'app de bureau choisit la vraie dans l'URL de l'île (`?platform=mac` sur un Mac à encoche). */
 export const ACTIVE_PLATFORM: IslandPlatform = 'win'
@@ -14,6 +14,55 @@ export const ACTIVE_PLATFORM: IslandPlatform = 'win'
 /** Variante demandée par l'app de bureau dans l'URL de la fenêtre de l'île ; ACTIVE_PLATFORM sinon. */
 export function platformFromSearch(search: string): IslandPlatform {
   return new URLSearchParams(search).get('platform') === 'mac' ? 'mac' : ACTIVE_PLATFORM
+}
+
+// ---------------------------------------------------------------------------
+// Bords de l'écran (île déplaçable)
+// ---------------------------------------------------------------------------
+
+/** Bord par défaut : en haut au centre, comme avant l'île déplaçable. */
+export const DEFAULT_EDGE: IslandEdge = 'top'
+
+/** Déplacement (px CSS) au-delà duquel un appui sur l'île devient un glisser (le clic est alors annulé). */
+export const DRAG_THRESHOLD_PX = 6
+
+/** Le déplacement depuis l'appui dépasse le seuil du glisser (distance strictement supérieure). */
+export function isDragMove(dx: number, dy: number): boolean {
+  return dx * dx + dy * dy > DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX
+}
+
+/** Bord gauche ou droit (île verticale au repos). */
+export function isSideEdge(edge: IslandEdge): boolean {
+  return edge === 'left' || edge === 'right'
+}
+
+/**
+ * Variante de forme réellement dessinée : l'encoche n'existe qu'en haut de l'écran. En bas et sur les côtés,
+ * l'île prend les tailles et positions `win`, même sur Mac.
+ */
+export function edgePlatform(platform: IslandPlatform, edge: IslandEdge): IslandPlatform {
+  return edge === 'top' ? platform : 'win'
+}
+
+/**
+ * Clés de taille compactes : sur les bords gauche et droit, elles deviennent une pilule verticale (la boîte de
+ * l'état, transposée). Toutes les autres clés (états ouverts) restent une carte horizontale qui sort du bord.
+ */
+export const COMPACT_SIZE_KEYS: ReadonlySet<IslandSizeKey> = new Set<IslandSizeKey>([
+  'repos',
+  'peek',
+  'meet',
+  'music',
+  'musicGarden',
+  'progress',
+  'agent',
+  'multi',
+  'dragWake',
+])
+
+/** Pilule verticale : bord gauche ou droit et clé compacte. */
+export function isVerticalLayout(edge: IslandEdge, key: IslandSizeKey): boolean {
+  return isSideEdge(edge) && COMPACT_SIZE_KEYS.has(key)
 }
 
 // ---------------------------------------------------------------------------
@@ -235,6 +284,146 @@ export function shapeGeometry(w: number, h: number, r: number, platform: IslandP
   return { d, width: W, height, edge: e, radius, innerWidth: width0 }
 }
 
+/**
+ * Taille d'un état dans le repère du bord : `w` le long du bord, `h` en profondeur (vers l'intérieur de
+ * l'écran), `r` le rayon des coins du côté opposé au bord.
+ * - En haut et en bas : la taille de l'état telle quelle.
+ * - À gauche et à droite, états compacts : la même chose (la pilule horizontale tournée devient verticale).
+ * - À gauche et à droite, états ouverts : transposée (la carte reste horizontale : sa largeur est la
+ *   profondeur, sa hauteur court le long du bord).
+ */
+export function edgeFrameSize(size: IslandShapeSize, edge: IslandEdge, key: IslandSizeKey): IslandShapeSize {
+  if (!isSideEdge(edge) || COMPACT_SIZE_KEYS.has(key)) return size
+  return { w: size.h, h: size.w, r: size.r }
+}
+
+/** Rectangle en px CSS (x, y : coin haut gauche). */
+export interface BoxRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface EdgeShapeGeometry {
+  /** Chemin SVG dans la boîte de l'île (attribut d), repère de l'écran. */
+  d: string
+  /** Taille de la boîte à l'écran (arrondis concaves compris). */
+  width: number
+  height: number
+  /** Bord e (arrondis concaves côté écran). */
+  edge: number
+  /** Rayon des coins opposés au bord, effectivement appliqué. */
+  radius: number
+  /** Longueur de la zone de contenu le long du bord et profondeur (repère du bord). */
+  along: number
+  depth: number
+  /** Zone de contenu dans la boîte, repère de l'écran. */
+  content: BoxRect
+}
+
+/** Point du repère du bord (u le long du bord, v en profondeur) → repère de l'écran, dans la boîte. */
+function edgePoint(edge: IslandEdge, u: number, v: number, depth: number): [number, number] {
+  if (edge === 'bottom') return [u, depth - v]
+  if (edge === 'left') return [v, u]
+  if (edge === 'right') return [depth - v, u]
+  return [u, v]
+}
+
+/**
+ * Forme de l'île collée à un bord : calculée dans le repère du bord (celui de `shapeGeometry`, bord droit sur
+ * l'écran, arrondis concaves côté écran, coins arrondis de rayon r de l'autre côté), puis chaque point est
+ * reporté dans le repère de l'écran. Bas et gauche sont des symétries : le sens des arcs (sweep) s'inverse ;
+ * droite est une rotation : il reste le même. En haut, le chemin est exactement celui de `shapeGeometry`.
+ * `along` : longueur de la zone de contenu le long du bord ; `depth` : profondeur (voir edgeFrameSize).
+ */
+export function edgeShapeGeometry(
+  along: number,
+  depth: number,
+  r: number,
+  platform: IslandPlatform,
+  edge: IslandEdge,
+): EdgeShapeGeometry {
+  const g = shapeGeometry(along, depth, r, edgePlatform(platform, edge))
+  const { edge: e, radius, height: D, innerWidth: L } = g
+  const W = g.width
+  const side = isSideEdge(edge)
+  const width = side ? D : W
+  const height = side ? W : D
+  const content: BoxRect = side ? { x: 0, y: e, width: D, height: L } : { x: e, y: 0, width: L, height: D }
+  if (edge === 'top') {
+    return { d: g.d, width, height, edge: e, radius, along: L, depth: D, content }
+  }
+  const flip = edge !== 'right'
+  const p = (u: number, v: number) => {
+    const [x, y] = edgePoint(edge, u, v, D)
+    return `${n(x)} ${n(y)}`
+  }
+  const arc = (rad: number, sweep: 0 | 1, u: number, v: number) =>
+    `A${n(rad)} ${n(rad)} 0 0 ${flip ? 1 - sweep : sweep} ${p(u, v)}`
+  const d =
+    `M${p(0, 0)}L${p(W, 0)}${arc(e, 0, W - e, e)}L${p(W - e, D - radius)}` +
+    `${arc(radius, 1, W - e - radius, D)}L${p(e + radius, D)}` +
+    `${arc(radius, 1, e, D - radius)}L${p(e, e)}${arc(e, 0, 0, 0)}Z`
+  return { d, width, height, edge: e, radius, along: L, depth: D, content }
+}
+
+/** Position de la boîte de l'île dans la fenêtre : au milieu du bord, collée à lui. */
+export function islandBoxPosition(
+  edge: IslandEdge,
+  box: { width: number; height: number },
+  root: { width: number; height: number },
+): { x: number; y: number } {
+  if (edge === 'bottom') return { x: (root.width - box.width) / 2, y: root.height - box.height }
+  if (edge === 'left') return { x: 0, y: (root.height - box.height) / 2 }
+  if (edge === 'right') return { x: root.width - box.width, y: (root.height - box.height) / 2 }
+  return { x: (root.width - box.width) / 2, y: 0 }
+}
+
+/** Rayon par défaut d'un contour : celui de l'état de même taille s'il existe, sinon la moitié de la profondeur. */
+function outlineRadius(platform: IslandPlatform, along: number, depth: number): number {
+  for (const size of Object.values(ISLAND_SIZES[platform])) {
+    if ((size.w === along && size.h === depth) || (size.w === depth && size.h === along)) return size.r
+  }
+  return depth / 2
+}
+
+export interface IslandOutlineInput {
+  edge: IslandEdge
+  /** Repère du bord, comme IslandDragStart / IslandGhost : longueur de la zone de contenu et profondeur. */
+  along: number
+  depth: number
+  /** Rayon des coins opposés au bord ; absent : celui de l'état de même taille, sinon depth / 2. */
+  radius?: number
+  /** Taille de la fenêtre (px CSS) dans laquelle la boîte est placée. */
+  root: { width: number; height: number }
+  /** 'mac' : variante encoche, seulement en haut (ailleurs : 'win'). */
+  platform?: IslandPlatform
+}
+
+export interface IslandOutline extends BoxRect {
+  /** Chemin SVG dans la boîte (viewBox `0 0 width height`). */
+  d: string
+}
+
+/**
+ * Contour de l'île à un bord, pour l'aperçu de la place pendant le glisser (fenêtre island-ghost) : chemin
+ * SVG et boîte dans la fenêtre. Dessiner un `<svg>` en position absolue à (x, y), de taille width × height,
+ * viewBox `0 0 width height`, avec un `<path d>`.
+ */
+export function islandOutline(input: IslandOutlineInput): IslandOutline {
+  const platform = edgePlatform(input.platform ?? ACTIVE_PLATFORM, input.edge)
+  const radius = input.radius ?? outlineRadius(platform, input.along, input.depth)
+  const g = edgeShapeGeometry(input.along, input.depth, radius, platform, input.edge)
+  const { x, y } = islandBoxPosition(input.edge, g, input.root)
+  return { d: g.d, x, y, width: g.width, height: g.height }
+}
+
+/** Taille envoyée au début d'un glisser (IslandDragStart) : taille d'un état dans le repère du bord. */
+export function dragStartSize(size: IslandShapeSize): IslandDragStart {
+  return { along: size.w, depth: size.h }
+}
+
 // ---------------------------------------------------------------------------
 // Éléments partagés (prototype : SH) : ils glissent d'un état à l'autre au lieu de disparaître
 // ---------------------------------------------------------------------------
@@ -417,6 +606,81 @@ export function sharedPosition(
   return SHARED_ELEMENTS[id][platform][key] ?? null
 }
 
+/**
+ * Pilule verticale (bords gauche et droit, clés compactes) : retouches de la transposition pour les éléments
+ * plus larges que la pilule une fois transposés. `cross: 'center'` : centré en travers de la pilule (avec sa
+ * largeur mesurée). L'onde de l'appel est masquée en vertical (CSS, data-vertical) : il reste l'icône.
+ * Pas de maquette Figma pour la pilule verticale : à valider avec Sacha.
+ */
+export interface VerticalOverride {
+  cross?: number | 'center'
+  along?: number
+  o?: number
+}
+
+export const VERTICAL_SHARED: Partial<Record<SharedElementId, Partial<Record<IslandSizeKey, VerticalOverride>>>> = {
+  timer: { meet: { cross: 'center' } },
+  dots: { agent: { cross: 'center' } },
+  musicEq: { music: { cross: 'center' }, musicGarden: { cross: 'center' } },
+  count: { multi: { cross: 'center' } },
+}
+
+/**
+ * Placement d'un élément partagé dans la zone de contenu, repère de l'écran : distance `x` au côté `h`,
+ * distance `y` au côté `v` (le moteur écrit `style[h] = x`, `style[v] = y`).
+ */
+export interface SharedPlacement {
+  h: 'left' | 'right'
+  x: number
+  v: 'top' | 'bottom'
+  y: number
+  s?: number
+  o?: number
+}
+
+/**
+ * Placement cible d'un élément partagé à un bord ; null : absent.
+ * - Haut : SHARED_ELEMENTS tel quel (x depuis le côté d'ancrage, y depuis le haut).
+ * - Bas : miroir, y mesuré depuis le bas (y' = h − y − taille) : même distance au bord de l'écran.
+ * - Gauche / droite, états ouverts : comme en haut (la carte horizontale garde sa mise en page).
+ * - Gauche / droite, pilule verticale : transposé. Gauche : x' = y (depuis la gauche), y' = x ; droite :
+ *   x' = largeur − y − taille (y depuis la droite), y' = x. Un élément ancré à droite en horizontal est
+ *   mesuré depuis le bas. Retouches : VERTICAL_SHARED (`crossSize` : largeur mesurée de l'élément).
+ */
+export function sharedPlacement(
+  id: SharedElementId,
+  platform: IslandPlatform,
+  key: IslandSizeKey,
+  ctx: SharedContext,
+  edge: IslandEdge = DEFAULT_EDGE,
+  crossSize = 0,
+): SharedPlacement | null {
+  const p = edgePlatform(platform, edge)
+  const pos = sharedPosition(id, p, key, ctx)
+  if (!pos) return null
+  const anchor = SHARED_ELEMENTS[id].anchor
+  const extra = { ...(pos.s !== undefined ? { s: pos.s } : {}), ...(pos.o !== undefined ? { o: pos.o } : {}) }
+  if (!isVerticalLayout(edge, key)) {
+    // En bas : seuls les états compacts sont en miroir (même distance au bord de l'écran) ; une carte ouverte
+    // garde l'ordre de lecture de ses couches (pochette en haut, à côté du titre).
+    const mirrored = edge === 'bottom' && COMPACT_SIZE_KEYS.has(key)
+    return { h: anchor, x: pos.x, v: mirrored ? 'bottom' : 'top', y: pos.y, ...extra }
+  }
+  const over = VERTICAL_SHARED[id]?.[key]
+  const pillWidth = ISLAND_SIZES[p][key].h
+  const size = pos.s ?? crossSize
+  const cross = over?.cross === 'center' ? (pillWidth - size) / 2 : (over?.cross ?? pos.y)
+  const placement: SharedPlacement = {
+    h: edge === 'right' ? 'right' : 'left',
+    x: cross,
+    v: anchor === 'left' ? 'top' : 'bottom',
+    y: over?.along ?? pos.x,
+    ...extra,
+  }
+  if (over?.o !== undefined) placement.o = over.o
+  return placement
+}
+
 // ---------------------------------------------------------------------------
 // Bulle de l'activité secondaire (prototype : updateBubble, renderBubble, flyGhost)
 // ---------------------------------------------------------------------------
@@ -501,11 +765,16 @@ export function waveBarHeight(level: number): number {
 // ---------------------------------------------------------------------------
 
 export interface HitRectsInput {
-  /** Largeur de la racine (la fenêtre transparente) : l'île est centrée, collée en haut. */
+  /** Largeur de la racine (la fenêtre transparente). */
   rootWidth: number
+  /** Hauteur de la racine (utile en bas et sur les côtés) ; 0 par défaut. */
+  rootHeight?: number
+  /** Bord où l'île est collée, au milieu ; 'top' par défaut. */
+  edge?: IslandEdge
   platform: IslandPlatform
+  /** Tailles dans le repère du bord (edgeFrameSize) : w le long du bord, h en profondeur. */
   island: { current: IslandShapeSize; target: IslandShapeSize }
-  /** null : bulle sortie du rendu. */
+  /** null : bulle sortie du rendu. Seulement en haut (une seule île : la bulle n'est plus utilisée). */
   bubble: { current: { w: number; h: number }; target: { w: number; h: number } } | null
 }
 
@@ -520,14 +789,18 @@ function outward(x: number, y: number, right: number, bottom: number): IslandRec
  * Union de la taille courante et de la cible : le survol n'est pas perdu pendant une transition.
  */
 export function hitRectsFor(input: HitRectsInput): IslandRect[] {
-  const { platform, island, bubble } = input
-  const cx = input.rootWidth / 2
-  const cur = shapeGeometry(island.current.w, island.current.h, island.current.r, platform)
-  const tgt = shapeGeometry(island.target.w, island.target.h, island.target.r, platform)
-  const W = Math.max(cur.width, tgt.width)
-  const H = Math.max(cur.height, tgt.height)
-  const rects = [outward(cx - W / 2, 0, cx + W / 2, H)]
-  if (bubble) {
+  const { island, bubble } = input
+  const edge = input.edge ?? DEFAULT_EDGE
+  const platform = edgePlatform(input.platform, edge)
+  const root = { width: input.rootWidth, height: input.rootHeight ?? 0 }
+  const cur = edgeShapeGeometry(island.current.w, island.current.h, island.current.r, platform, edge)
+  const tgt = edgeShapeGeometry(island.target.w, island.target.h, island.target.r, platform, edge)
+  const box = { width: Math.max(cur.width, tgt.width), height: Math.max(cur.height, tgt.height) }
+  const { x, y } = islandBoxPosition(edge, box, root)
+  const rects = [outward(x, y, x + box.width, y + box.height)]
+  if (bubble && edge === 'top') {
+    const cx = input.rootWidth / 2
+    const W = box.width
     const r = BUBBLE_SIZES[platform].r
     const bc = shapeGeometry(bubble.current.w, bubble.current.h, r, platform)
     const bt = shapeGeometry(bubble.target.w, bubble.target.h, r, platform)

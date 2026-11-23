@@ -12,11 +12,11 @@ import {
   type ReactNode,
 } from "react";
 import { Button, Select } from "../../../components/ui";
-import type { CallService } from "../../../shared/desktop-contract";
+import { ISLAND_WINDOW_SIZE, type CallService } from "../../../shared/desktop-contract";
 import { CALL_SERVICES, callBrand } from "../brands";
 import { Garden } from "../garden";
-import { SPRING, WAVE, islandSize, sizeKeyFor } from "../geometry";
-import type { IslandPlatform, NotificationKind } from "../types";
+import { SPRING, WAVE, edgePlatform, islandOutline, islandSize, sizeKeyFor } from "../geometry";
+import type { IslandEdge, IslandPlatform, NotificationKind } from "../types";
 import { Island, islandLabel, type IslandDropZone } from "../view";
 import { musicHasProgress } from "../view/music";
 import {
@@ -28,9 +28,20 @@ import {
 import styles from "./IslandLab.module.css";
 import { LabRuntime, SCENARIOS, type ScenarioId } from "./runtime";
 
-/** Taille de la vraie fenêtre de l'île (src-tauri). */
-const WINDOW_WIDTH = 640;
-const WINDOW_HEIGHT = 260;
+const EDGE_LABELS: Record<IslandEdge, string> = {
+  top: "Haut",
+  bottom: "Bas",
+  left: "Gauche",
+  right: "Droite",
+};
+const EDGES = Object.keys(EDGE_LABELS) as IslandEdge[];
+
+/** Taille de la vraie fenêtre de l'île au bord donné (contrat). */
+function windowSizeFor(edge: IslandEdge) {
+  return edge === "left" || edge === "right"
+    ? ISLAND_WINDOW_SIZE.vertical
+    : ISLAND_WINDOW_SIZE.horizontal;
+}
 
 type Backdrop = "light" | "dark";
 
@@ -104,7 +115,12 @@ export default function IslandLab() {
   const view = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
   const { snapshot } = view;
 
-  const [platform, setPlatform] = useState<IslandPlatform>("win");
+  const [chosenPlatform, setPlatform] = useState<IslandPlatform>("win");
+  const [edge, setEdge] = useState<IslandEdge>("top");
+  const [dragging, setDragging] = useState(false);
+  // « Mac avec encoche » ne vaut qu'en haut ; ailleurs, la variante sans encoche.
+  const platform = edgePlatform(chosenPlatform, edge);
+  const windowSize = windowSizeFor(edge);
   const [backdrop, setBackdrop] = useState<Backdrop>("light");
   const [callService, setCallService] = useState<CallService | null>("meet");
   const [forcedHover, setForcedHover] = useState(false);
@@ -147,6 +163,17 @@ export default function IslandLab() {
     view.music,
   );
 
+  const restSize = islandSize(platform, "repos", 0, false, true);
+  const previewOutline = dragging
+    ? islandOutline({
+        edge,
+        along: restSize.w,
+        depth: restSize.h,
+        root: windowSize,
+        platform,
+      })
+    : null;
+
   function resetAll() {
     runtime.reset();
     runtime.setFocusMode(false);
@@ -169,12 +196,15 @@ export default function IslandLab() {
         <div
           className={styles.scene}
           data-backdrop={backdrop}
-          style={{ width: WINDOW_WIDTH, height: WINDOW_HEIGHT }}
+          data-edge={edge}
+          style={{ width: windowSize.width, height: windowSize.height }}
           data-testid="island-scene"
         >
           <Island
             snapshot={snapshot}
-            platform={platform}
+            platform={chosenPlatform}
+            edge={edge}
+            dragging={dragging}
             hover={view.hover}
             call={view.call}
             audioLevels={audioLevels}
@@ -206,6 +236,18 @@ export default function IslandLab() {
             onMusicCommand={runtime.musicCommand}
             onHitRectsChange={NO_HIT_RECTS}
           />
+          {previewOutline && (
+            <svg
+              className={styles.preview}
+              style={{ left: previewOutline.x, top: previewOutline.y }}
+              width={previewOutline.width}
+              height={previewOutline.height}
+              viewBox={`0 0 ${previewOutline.width} ${previewOutline.height}`}
+              aria-hidden="true"
+            >
+              <path d={previewOutline.d} />
+            </svg>
+          )}
         </div>
         <div className={styles.values}>
           <h2 className={styles.valuesTitle}>Valeurs pour Maël</h2>
@@ -599,13 +641,34 @@ export default function IslandLab() {
             <label className={styles.inline}>
               Plateforme
               <Select
-                value={platform}
+                value={chosenPlatform}
                 onChange={(e) => setPlatform(e.target.value as IslandPlatform)}
               >
                 <option value="win">Windows</option>
                 <option value="mac">Mac avec encoche</option>
               </Select>
             </label>
+            <label className={styles.inline}>
+              Bord
+              <Select
+                value={edge}
+                onChange={(e) => setEdge(e.target.value as IslandEdge)}
+              >
+                {EDGES.map((value) => (
+                  <option key={value} value={value}>
+                    {EDGE_LABELS[value]}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <Button
+              size="sm"
+              variant={dragging ? "primary" : "secondary"}
+              aria-pressed={dragging}
+              onClick={() => setDragging(!dragging)}
+            >
+              Simuler le glisser (aperçu)
+            </Button>
             <label className={styles.inline}>
               Service d’appel
               <Select

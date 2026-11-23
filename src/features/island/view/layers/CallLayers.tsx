@@ -4,7 +4,7 @@
  */
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { islandSize } from '../../geometry'
-import type { IslandPlatform, IslandState, MeetActivity } from '../../types'
+import type { IslandEdge, IslandPlatform, IslandState, MeetActivity } from '../../types'
 import { useLastNonNull } from '../hooks'
 import { CallIcon } from '../icons'
 import styles from '../Island.module.css'
@@ -17,6 +17,8 @@ import type { IslandCallPrompt, IslandProjectOption } from '../types'
 export interface BaseLayerProps {
   current: IslandState
   platform: IslandPlatform
+  /** Bord de l'écran ('top' par défaut). */
+  edge?: IslandEdge
   withCall: boolean
 }
 

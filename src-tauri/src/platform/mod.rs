@@ -60,10 +60,23 @@ pub trait Recorder: Send {
     }
 }
 
-/// Curseur de la souris, pour la surveillance de l'île (clics qui passent à travers).
+/// Repère commun des positions de l'île : écrans, curseur (`cursor_state`) et fenêtres de l'île.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IslandSpace {
+    /// Windows : px physiques de l'écran virtuel (l'app est « per-monitor DPI aware »).
+    Physical,
+    /// macOS : points de l'écran global (origine en haut à gauche de l'écran principal). tao convertit
+    /// chaque position physique avec l'échelle de l'objet (écran ou fenêtre) : avec des écrans d'échelles
+    /// différentes, seuls les points forment un repère commun.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    Points,
+}
+
+/// Curseur de la souris, pour la surveillance de l'île (clics qui passent à travers, glisser).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CursorState {
-    /// Position en px physiques, coordonnées de l'écran virtuel (origine : coin haut-gauche de l'écran principal).
+    /// Position dans le repère de l'île (`island_space`) : px physiques de l'écran virtuel sous Windows,
+    /// points sous macOS ; origine en haut à gauche de l'écran principal.
     pub x: i32,
     pub y: i32,
     /// Bouton principal enfoncé (le gauche, ou le droit si les boutons sont inversés).
@@ -325,7 +338,19 @@ pub fn browser_page_titles(browser: &str) -> Vec<String> {
     }
 }
 
-/// Position du curseur et état du bouton principal. `None` si non disponible.
+/// Repère des positions de l'île (voir `IslandSpace`).
+pub fn island_space() -> IslandSpace {
+    #[cfg(target_os = "macos")]
+    {
+        IslandSpace::Points
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        IslandSpace::Physical
+    }
+}
+
+/// Position du curseur (repère de `island_space`) et état du bouton principal. `None` si non disponible.
 pub fn cursor_state() -> Option<CursorState> {
     #[cfg(windows)]
     {
@@ -354,7 +379,8 @@ pub fn primary_notch() -> Option<Notch> {
     }
 }
 
-/// Réglages système de la fenêtre de l'île après sa création (Mac : au-dessus de la barre des menus).
+/// Réglages système d'une fenêtre de l'île (l'île et son aperçu) après sa création (Mac : au-dessus de la
+/// barre des menus).
 /// À appeler sur le thread principal.
 pub fn prepare_island_window(window: &tauri::WebviewWindow) {
     #[cfg(target_os = "macos")]

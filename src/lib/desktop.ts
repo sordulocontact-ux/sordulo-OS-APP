@@ -17,7 +17,11 @@ import {
   type ClaudeRelayEvent,
   type DesktopStatus,
   type FocusModeState,
+  type IslandDrag,
+  type IslandDragStart,
+  type IslandGhost,
   type IslandHitRects,
+  type IslandPlacement,
   type IslandPointer,
   type MicState,
   type MusicCommand,
@@ -87,6 +91,12 @@ export const takeAuthCallback = () => call<string | null>(DESKTOP_COMMANDS.takeA
 /** Island window only: the black shapes (CSS px, relative to the window). The mouse passes through elsewhere. */
 export const islandSetHitRects = (args: IslandHitRects) =>
   call<void>(DESKTOP_COMMANDS.islandSetHitRects, { rects: args.rects, dragMargin: args.dragMargin })
+
+export const getIslandPlacement = () => call<IslandPlacement>(DESKTOP_COMMANDS.getIslandPlacement)
+
+/** Island window: hands the drag over to Rust (left button held past the threshold). */
+export const islandDragStart = (args: IslandDragStart) =>
+  call<void>(DESKTOP_COMMANDS.islandDragStart, { along: args.along, depth: args.depth })
 
 /** Shows and focuses the main window, then sends it DESKTOP_EVENTS.navigate (route must start with "/"). */
 export const openMainAt = (args: NavigatePayload) => call<void>(DESKTOP_COMMANDS.openMainAt, { route: args.route })
@@ -169,6 +179,17 @@ export const onAudioLevel = (handler: (level: AudioLevel) => void) =>
 /** Island window: the mouse entered or left the hit rects (source of truth for the island hover). */
 export const onIslandPointer = (handler: (pointer: IslandPointer) => void) =>
   subscribe<IslandPointer>(DESKTOP_EVENTS.islandPointer, handler)
+
+/** Island window: the island moved to another edge or screen. */
+export const onIslandPlacement = (handler: (placement: IslandPlacement) => void) =>
+  subscribe<IslandPlacement>(DESKTOP_EVENTS.islandPlacement, handler)
+
+/** Island window: a drag started or ended. */
+export const onIslandDrag = (handler: (drag: IslandDrag) => void) => subscribe<IslandDrag>(DESKTOP_EVENTS.islandDrag, handler)
+
+/** Island-ghost window: outline to draw, or null to hide. */
+export const onIslandGhost = (handler: (ghost: IslandGhost | null) => void) =>
+  subscribe<IslandGhost | null>(DESKTOP_EVENTS.islandGhost, handler)
 
 /** Main window: go to this route (sent by openMainAt). */
 export const onNavigate = (handler: (payload: NavigatePayload) => void) =>

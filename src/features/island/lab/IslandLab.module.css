@@ -32,7 +32,7 @@
   font-family: var(--font-mono);
 }
 
-/* Scène : la fenêtre transparente de l'île (640 × 260) sur un fond d'écran clair ou sombre. */
+/* Scène : la fenêtre transparente de l'île (taille du contrat selon le bord) sur un fond d'écran clair ou sombre. */
 .stageBlock {
   position: sticky;
   top: 0;
@@ -51,6 +51,36 @@
   flex: none;
   overflow: hidden;
   border: var(--size-border) solid var(--color-border);
+}
+
+/* Le bord de l'écran est du côté de l'île : une bordure épaisse de ce côté. */
+.scene[data-edge='top'] {
+  border-top: var(--size-border-strong) solid var(--color-primary);
+}
+
+.scene[data-edge='bottom'] {
+  border-bottom: var(--size-border-strong) solid var(--color-primary);
+}
+
+.scene[data-edge='left'] {
+  border-left: var(--size-border-strong) solid var(--color-primary);
+}
+
+.scene[data-edge='right'] {
+  border-right: var(--size-border-strong) solid var(--color-primary);
+}
+
+/* Aperçu de la place (simulation du glisser) */
+.preview {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.preview path {
+  fill: var(--island-preview-fill);
+  stroke: var(--island-preview-line);
+  stroke-width: var(--island-size-2);
 }
 
 .scene[data-backdrop='light'] {
