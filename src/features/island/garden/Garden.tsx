@@ -8,7 +8,8 @@
  * - React ne rend que le conteneur ; personnages et effets sont écrits par ./renderer.ts à chaque image de la
  *   boucle de l'île, seulement quand le jardin est visible (abonnement retiré sinon).
  * - Aussi dans la musique quand des sessions Claude tournent (forme `musicGarden`) : ils marchent sous la
- *   pochette et l'égaliseur et ceux qui travaillent hochent la tête sur le tempo (musique en lecture) : les
+ *   pochette et l'égaliseur ; ceux des plans du fond passent aussi derrière le titre (GardenEnv.back), ceux
+ *   du premier plan devant, pour que le titre reste lisible ; et ceux qui travaillent hochent la tête sur le tempo (musique en lecture) : les
  *   vrais temps quand l'analyse du son (Windows) les donne, sinon le tempo fixe ; silence analysé : immobiles.
  * - Chaque personnage a ses pattes qui marchent, une ombre de contact au sol et un plan de profondeur (au
  *   fond : plus petit, plus sombre, pieds plus haut, derrière les autres).
@@ -68,6 +69,7 @@ function classNames(): GardenClassNames {
     z: c('z'),
     note: c('note'),
     spark: c('spark'),
+    ask: c('ask'),
   }
 }
 
@@ -92,18 +94,20 @@ export function Garden({ sessions, mood }: GardenProps) {
     moodRef.current = mood
   })
 
-  // Moteur de rendu : possède les éléments des personnages et des effets (sous-agents dans le calque de devant)
+  // Moteur de rendu : possède les éléments des personnages et des effets (sous-agents dans le calque de devant,
+  // personnages du fond derrière le titre de la musique)
   const front = env?.front ?? null
+  const back = env?.back ?? null
   useLayoutEffect(() => {
     const layer = layerRef.current
     if (!layer) return
-    const renderer = new GardenRenderer(layer, classNames(), front)
+    const renderer = new GardenRenderer(layer, classNames(), front, back)
     rendererRef.current = renderer
     return () => {
       renderer.dispose()
       rendererRef.current = null
     }
-  }, [front])
+  }, [front, back])
 
   const state = env?.state ?? null
   const platform = env?.platform ?? 'win'
@@ -168,15 +172,19 @@ export function Garden({ sessions, mood }: GardenProps) {
           musicSilent: beat.musicSilent,
         })
       }
-      renderer.render(sim, {
-        width: frame.width,
-        height: frame.height,
-        platform: current.platform,
-        mood: m,
-        reduced: current.reduced,
-        now: frame.now / 1000,
-        ...beat,
-      })
+      renderer.render(
+        sim,
+        {
+          width: frame.width,
+          height: frame.height,
+          platform: current.platform,
+          mood: m,
+          reduced: current.reduced,
+          now: frame.now / 1000,
+          ...beat,
+        },
+        current.sizeKey === 'musicGarden',
+      )
     })
   }, [sim, stage, visible])
 

@@ -1,11 +1,12 @@
 //! Fenêtres : `main` (déclarée dans tauri.conf.json) et `prompt`, l'île (créée et surveillée par
-//! `island_window`, toujours visible).
+//! `island_window`, toujours visible sauf si l'utilisateur la masque depuis le menu du soleil).
 
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::events::{EVENT_NAVIGATE, EVENT_PROMPT, WINDOW_MAIN, WINDOW_PROMPT};
 use crate::island_window;
 use crate::state::{DesktopState, NavigatePayload, PromptReason};
+use crate::tray;
 
 /// Montre et focalise la fenêtre principale.
 pub fn show_main(app: &AppHandle) {
@@ -45,6 +46,9 @@ pub fn hide_prompt(app: &AppHandle) -> tauri::Result<()> {
 
 /// Émet `desktop://prompt` vers l'île et s'assure qu'elle est visible, sans la déplacer ni prendre le focus.
 ///
+/// Île masquée par l'utilisateur : les propositions automatiques (micro actif ou coupé) sont ignorées ;
+/// un démarrage ou arrêt manuel de l'enregistrement la réaffiche (c'est là qu'il se fait).
+///
 /// `focus` est ignoré : l'île ne vole jamais le focus (l'utilisateur est peut-être dans son appel) ;
 /// un clic dans l'île lui donne le clavier.
 pub fn show_prompt(app: &AppHandle, reason: PromptReason, focus: bool) {
@@ -53,6 +57,20 @@ pub fn show_prompt(app: &AppHandle, reason: PromptReason, focus: bool) {
         log::warn!("fenêtre {WINDOW_PROMPT} introuvable");
         return;
     };
+    if island_window::is_hidden() {
+        match reason {
+            PromptReason::MicActive | PromptReason::MicInactive => {
+                log::info!(
+                    "île masquée : proposition ignorée (raison {})",
+                    reason.as_str()
+                );
+                return;
+            }
+            PromptReason::ManualStart | PromptReason::ManualStop => {
+                tray::set_island_visible(app, true)
+            }
+        }
+    }
     let payload = app.state::<DesktopState>().prompt_payload(reason);
     match app.emit_to(WINDOW_PROMPT, EVENT_PROMPT, &payload) {
         Ok(()) => log::info!("proposition envoyée à l'île (raison {})", reason.as_str()),

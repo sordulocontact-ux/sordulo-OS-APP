@@ -1,4 +1,5 @@
 export {
+  ASK_IDLE_MS,
   DIGEST_THRESHOLD,
   HOVER_RESUME_MIN_MS,
   IslandCoordinator,

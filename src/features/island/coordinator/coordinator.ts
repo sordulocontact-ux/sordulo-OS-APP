@@ -46,6 +46,9 @@
  *   il reprend (au moins 300 ms).
  * - `requestAsk(ask)` : demande d'autorisation, en file comme interruption ; affichée en `agentAsk`,
  *   avec `askPosition` « 1 sur N » quand d'autres interruptions attendent derrière.
+ *   Sans le curseur (ni le clavier) sur l'île pendant ASK_IDLE_MS, elle est mise de côté : l'île revient à
+ *   la principale (le Claude qui attend fait sortir des « ? » de sa tête), la source la garde ouverte et
+ *   « Répondre » la remontre. Le décompte repart de zéro à chaque sortie du curseur.
  * - `resolveAsk(id)` : décision prise ou délai expiré. Ferme la demande affichée (retour à la principale,
  *   file suivante 450 ms après) ou la retire de la file. Le contrôleur renvoie la décision lui-même.
  * - `showOverlay('appel' | 'dragWake' | 'dragOver')` / `hideOverlay(overlay?)` : états montrés par le
@@ -72,6 +75,8 @@ import { sortActivities, stateOfActivity } from './ranking'
 export const NEXT_IN_QUEUE_DELAY_MS = 450
 /** Temps minimal laissé à une notification quand le curseur quitte l'île (prototype : 300 ms). */
 export const HOVER_RESUME_MIN_MS = 300
+/** Demande affichée sans curseur sur l'île : mise de côté après ce délai (demande de Maël, 23/11). */
+export const ASK_IDLE_MS = 10_000
 /** Au-delà de ce nombre de notifications en attente, on les regroupe. */
 export const DIGEST_THRESHOLD = 2
 
@@ -108,7 +113,7 @@ type QueueEntry = NotificationEntry | AskEntry
 
 type Current =
   | { type: 'notification'; entry: NotificationEntry; remaining: number; startedAt: number; timer: TimerId | null }
-  | { type: 'ask'; ask: PermissionAsk }
+  | { type: 'ask'; ask: PermissionAsk; idleTimer: TimerId | null }
   | { type: 'overlay'; overlay: ControllerOverlay }
 
 function isInterrupt(entry: QueueEntry): boolean {
@@ -311,11 +316,19 @@ export class IslandCoordinator {
     this.commit()
   }
 
-  /** Survol de l'île : met en pause le temps restant de la notification, puis le reprend (au moins 300 ms). */
+  /**
+   * Survol de l'île : met en pause le temps restant de la notification, puis le reprend (au moins 300 ms) ;
+   * arrête le décompte de la demande affichée, puis le relance (ASK_IDLE_MS).
+   */
   setHover(hover: boolean): void {
     if (hover === this.hovered) return
     this.hovered = hover
     const current = this.current
+    if (current?.type === 'ask') {
+      this.stopAskIdle(current)
+      if (!hover) this.startAskIdle(current)
+      return
+    }
     if (current?.type !== 'notification') return
     if (hover) {
       if (current.timer === null) return
@@ -373,6 +386,7 @@ export class IslandCoordinator {
       this.stopNotificationTimer(current)
       this.queue.unshift(current.entry)
     } else if (current?.type === 'ask') {
+      this.stopAskIdle(current)
       this.queue.unshift({ type: 'ask', ask: current.ask })
     }
     this.current = { type: 'overlay', overlay }
@@ -390,6 +404,7 @@ export class IslandCoordinator {
   dispose(): void {
     this.disposed = true
     if (this.current?.type === 'notification') this.stopNotificationTimer(this.current)
+    if (this.current?.type === 'ask') this.stopAskIdle(this.current)
     if (this.pumpTimer !== null) this.clock.clearTimeout(this.pumpTimer)
     this.pumpTimer = null
     this.listeners.clear()
@@ -435,6 +450,7 @@ export class IslandCoordinator {
   /** Prototype : goHomeOr. Retour à la principale, file suivante 450 ms après. */
   private goHome(): void {
     if (this.current?.type === 'notification') this.stopNotificationTimer(this.current)
+    if (this.current?.type === 'ask') this.stopAskIdle(this.current)
     this.current = null
     this.schedulePump()
     this.commit()
@@ -474,7 +490,9 @@ export class IslandCoordinator {
 
   private display(entry: QueueEntry): void {
     if (entry.type === 'ask') {
-      this.current = { type: 'ask', ask: entry.ask }
+      const current: Current = { type: 'ask', ask: entry.ask, idleTimer: null }
+      this.current = current
+      if (!this.hovered) this.startAskIdle(current)
       return
     }
     const duration = entry.notification.durationMs
@@ -501,6 +519,20 @@ export class IslandCoordinator {
   private stopNotificationTimer(current: Extract<Current, { type: 'notification' }>): void {
     if (current.timer !== null) this.clock.clearTimeout(current.timer)
     current.timer = null
+  }
+
+  /** Décompte de la demande affichée : à la fin, elle est mise de côté (retour à la principale). */
+  private startAskIdle(current: Extract<Current, { type: 'ask' }>): void {
+    current.idleTimer = this.clock.setTimeout(() => {
+      current.idleTimer = null
+      if (this.current !== current) return
+      this.goHome()
+    }, ASK_IDLE_MS)
+  }
+
+  private stopAskIdle(current: Extract<Current, { type: 'ask' }>): void {
+    if (current.idleTimer !== null) this.clock.clearTimeout(current.idleTimer)
+    current.idleTimer = null
   }
 
   private buildSnapshot(): IslandSnapshot {

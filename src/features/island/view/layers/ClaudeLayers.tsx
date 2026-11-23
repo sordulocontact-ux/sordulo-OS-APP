@@ -44,17 +44,25 @@ export function AgentLayer({
   session,
   open,
   onOpenSession,
+  onAnswerSession,
   ...base
-}: BaseLayerProps & { session: ClaudeSession | null; open: boolean; onOpenSession: (sessionId: string) => void }) {
+}: BaseLayerProps & {
+  session: ClaudeSession | null
+  open: boolean
+  onOpenSession: (sessionId: string) => void
+  onAnswerSession: (sessionId: string) => void
+}) {
   const shown = useLastNonNull(session)
+  // Session qui attend une réponse (demande mise de côté au bout de 10 s) : le clic remontre la demande.
+  const waiting = shown?.status === 'waiting'
   return (
     <Layer {...base} state="agent" open={open} label="Session Claude en cours">
-      {/* Toute la session est cliquable : sa fenêtre VS Code passe au premier plan. */}
+      {/* Toute la session est cliquable : sa fenêtre VS Code passe au premier plan, ou sa demande revient. */}
       <button
         type="button"
         className={cx(styles.detail, styles.openArea)}
-        onClick={() => shown && onOpenSession(shown.id)}
-        aria-label={shown ? openLabel(shown) : undefined}
+        onClick={() => shown && (waiting ? onAnswerSession(shown.id) : onOpenSession(shown.id))}
+        aria-label={shown ? (waiting ? `Répondre à la session ${shown.projectName}` : openLabel(shown)) : undefined}
       >
         <span className={styles.headText}>
           <strong>{agentTitle(shown)}</strong>

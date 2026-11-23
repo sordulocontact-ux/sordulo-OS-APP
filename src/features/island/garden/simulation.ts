@@ -158,7 +158,7 @@ export interface Walker {
   retiring: boolean
 }
 
-export type FxKind = 'say' | 'heart' | 'steam' | 'star' | 'cloud' | 'paper' | 'z' | 'note' | 'spark'
+export type FxKind = 'say' | 'heart' | 'steam' | 'star' | 'cloud' | 'paper' | 'z' | 'note' | 'spark' | 'ask'
 
 /** Effet éphémère (bulle de parole, cœur, vapeur, étoile, nuage de bagarre, feuille, « z », note, étincelle). */
 export interface Fx {
@@ -989,6 +989,11 @@ export class GardenSim {
           w.rest += -w.rest * Math.min(1, dt * GARDEN.sleep.standRate)
           if (w.rest < 0.02) w.rest = 0
         }
+        // Question en attente (demande ou question à choix) : des « ? » sortent de sa tête
+        if (st === 'waiting' && this.coin(dt * GARDEN.question.rate)) {
+          const dx = this.rnd(GARDEN.question.spread)
+          this.addFx('ask', '?', w.x - 3 + dx, this.headY(w) - 6, GARDEN.fxLife.ask)
+        }
         if (w.mode !== 'interact' && w.rot) {
           w.rot += -w.rot * Math.min(1, dt * GARDEN.sleep.standRate)
           if (Math.abs(w.rot) < 0.5) w.rot = 0
@@ -1714,10 +1719,14 @@ export function walkerVisual(w: Walker, status: ClaudeSessionStatus, ctx: Visual
     !closed && !w.sub && (status === 'done' || status === 'idle' || status === 'background' || w.sad || w.sulk > 0)
       ? GARDEN.lidHalf
       : 0
+  // En attente : des « ? » s'envolent de sa tête (effets de la simulation) ; animations réduites, sans
+  // effets : la bulle fixe les remplace.
   const bubble: BubbleKind | null = w.sub
     ? null
     : status === 'waiting'
-      ? 'wait'
+      ? ctx.reduced
+        ? 'wait'
+        : null
       : status === 'done'
         ? 'done'
         : w.sad

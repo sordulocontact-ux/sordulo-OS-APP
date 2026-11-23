@@ -34,6 +34,12 @@ export interface GardenEnv {
    * personnages principaux restent derrière pour ne pas cacher la pochette. null : tout dans le jardin.
    */
   front: HTMLElement | null
+  /**
+   * Calque posé derrière le texte de l'activité (titre et artiste de la musique) : avec la musique, les
+   * personnages des plans du fond y passent, ceux du premier plan restent devant, pour que le titre reste
+   * lisible. null : tout dans le jardin.
+   */
+  back: HTMLElement | null
 }
 
 export const GardenEnvContext = createContext<GardenEnv | null>(null)

@@ -100,6 +100,7 @@ export function ActivityLayers({
         session={agentSession}
         open={open && state === 'agent'}
         onOpenSession={handlers.onOpenSession}
+        onAnswerSession={handlers.onAnswerSession}
       />
       <DragWakeLayer {...base} />
       <DragOverLayer {...base} drop={drop} hotZone={hotZone} />

@@ -303,6 +303,14 @@
   animation: floatUp var(--island-garden-duration-z) ease-out forwards;
 }
 
+.ask {
+  color: var(--island-garden-light);
+  font-size: var(--island-garden-text-9);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--island-garden-text-9);
+  animation: floatUp var(--island-garden-duration-ask) ease-out forwards;
+}
+
 .note {
   color: var(--island-garden-light);
   font-size: var(--island-garden-text-9);

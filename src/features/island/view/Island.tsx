@@ -104,6 +104,8 @@ export function Island(props: IslandProps) {
   const [keptService, setKeptService] = useState<CallService | null>(null)
   // Calque des sous-agents, devant la pochette (voir GardenEnv.front)
   const [gardenFront, setGardenFront] = useState<HTMLDivElement | null>(null)
+  // Calque des personnages du fond, derrière le titre de la musique (voir GardenEnv.back)
+  const [gardenBack, setGardenBack] = useState<HTMLDivElement | null>(null)
   if (liveService !== undefined && liveService !== keptService) setKeptService(liveService)
   const callService = liveService === undefined ? keptService : liveService
 
@@ -236,8 +238,22 @@ export function Island(props: IslandProps) {
       musicLevels: musicLevels ?? null,
       agentSessionId,
       front: gardenFront,
+      back: gardenBack,
     }),
-    [stage, gardenVisible, musicGarden, state, platform, reduced, callOn, musicPlaying, musicLevels, agentSessionId, gardenFront],
+    [
+      stage,
+      gardenVisible,
+      musicGarden,
+      state,
+      platform,
+      reduced,
+      callOn,
+      musicPlaying,
+      musicLevels,
+      agentSessionId,
+      gardenFront,
+      gardenBack,
+    ],
   )
 
   // Nouvelle cible : état, survol, plateforme, jardin, nombre de sessions
@@ -374,6 +390,14 @@ export function Island(props: IslandProps) {
           <path ref={pathRef} className={styles.shapeBody} />
         </svg>
         <div ref={contentRef} className={styles.content}>
+          {/* Personnages du fond : derrière le titre de la musique (dessinés avant les activités) */}
+          {hasGarden && (
+            <div
+              ref={setGardenBack}
+              className={cx(styles.garden, gardenVisible && styles.on)}
+              aria-hidden="true"
+            />
+          )}
           <ActivityLayers
             base={base}
             open={open}

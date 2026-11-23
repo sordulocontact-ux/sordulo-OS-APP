@@ -3,7 +3,7 @@ import type { ClaudeDecision, ClaudeHookEventName, ClaudeRelayEvent } from '../.
 import { CLAUDE_PERMISSION_TIMEOUT_MS } from '../../../../shared/desktop-contract'
 import { SLEEP_AFTER_MS } from '../../claude'
 import { relayEvent } from '../../claude/testEvents'
-import { NEXT_IN_QUEUE_DELAY_MS } from '../../coordinator'
+import { ASK_IDLE_MS, NEXT_IN_QUEUE_DELAY_MS } from '../../coordinator'
 import { fakeEvent, flush, setupRuntime } from '../testUtils'
 import {
   AGENT_ACTIVITY_ID,
@@ -161,6 +161,8 @@ describe('source « Claude Code »', () => {
   it('délai de 60 s écoulé, ou PermissionCancelled : la demande se ferme', async () => {
     const t = setup()
     await flush()
+    // Curseur sur l'île : sinon la demande est mise de côté au bout de 10 s (voir le test suivant).
+    t.coordinator.setHover(true)
     t.emit('PermissionRequest', { toolName: 'Bash', toolSummary: 'npm run build', requestId: 'r-1' })
     t.clock.advance(CLAUDE_PERMISSION_TIMEOUT_MS - 1)
     expect(t.snap().state).toBe('agentAsk')
@@ -173,6 +175,19 @@ describe('source « Claude Code »', () => {
     expect(t.snap().ask?.id).toBe('r-2')
     t.emit('PermissionCancelled', { requestId: 'r-2', toolName: 'Bash' })
     expect(t.snap().ask).toBeNull()
+  })
+
+  it('mise de côté sans le curseur (10 s) : la session attend toujours, « Répondre » remontre la demande', async () => {
+    const t = setup()
+    await flush()
+    t.emit('PermissionRequest', { toolName: 'Bash', toolSummary: 'npm run build', requestId: 'r-1' })
+    t.clock.advance(ASK_IDLE_MS)
+    expect(t.snap()).toMatchObject({ state: 'agent', ask: null })
+    expect(t.sessions()[0]?.status).toBe('waiting')
+    expect(t.deps.claudeAnswer).not.toHaveBeenCalled()
+    t.runtime.gestures.onAnswerSession(t.sessions()[0]!.id)
+    t.clock.advance(NEXT_IN_QUEUE_DELAY_MS)
+    expect(t.snap().ask?.id).toBe('r-1')
   })
 
   it('Stop d’une session seule : « Claude a terminé » ; parmi plusieurs : « Une session a terminé »', async () => {

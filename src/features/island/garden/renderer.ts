@@ -14,6 +14,7 @@ import {
   type Fx,
   type GardenSim,
   type VisualContext,
+  type Walker,
   type WalkerVisual,
 } from './simulation'
 
@@ -52,6 +53,7 @@ export interface GardenClassNames {
   z: string
   note: string
   spark: string
+  ask: string
 }
 
 /** Variable CSS de la couleur du corps (lue par Garden.module.css). */
@@ -96,25 +98,49 @@ export class GardenRenderer {
   private readonly crowd: HTMLDivElement
   /** Calque des sous-agents, dans `front` (devant la pochette) ; null : avec les autres dans `crowd`. */
   private readonly frontCrowd: HTMLDivElement | null
+  /** Calque du fond, dans `back` (derrière le titre de la musique) ; null : pas de passage derrière. */
+  private readonly backCrowd: HTMLDivElement | null
 
   constructor(
     private readonly layer: HTMLElement,
     private readonly cls: GardenClassNames,
     front: HTMLElement | null = null,
+    back: HTMLElement | null = null,
   ) {
     this.crowd = document.createElement('div')
     this.crowd.className = cls.crowd
     layer.appendChild(this.crowd)
-    this.frontCrowd = front ? document.createElement('div') : null
-    if (front && this.frontCrowd) {
-      this.frontCrowd.className = cls.crowd
-      front.appendChild(this.frontCrowd)
-    }
+    this.frontCrowd = this.crowdIn(front)
+    this.backCrowd = this.crowdIn(back)
   }
 
-  private createSprite(size: number, sub: boolean): Sprite {
+  private crowdIn(parent: HTMLElement | null): HTMLDivElement | null {
+    if (!parent) return null
+    const crowd = document.createElement('div')
+    crowd.className = this.cls.crowd
+    parent.appendChild(crowd)
+    return crowd
+  }
+
+  /**
+   * Calque d'un personnage. Avec la musique (`behind`), ceux des plans du fond (et leurs sous-agents)
+   * passent derrière le titre ; sinon les sous-agents vont devant la pochette, les autres dans le jardin.
+   */
+  private crowdFor(w: Walker, behind: boolean): HTMLDivElement {
+    const plane = w.parent ? w.parent.plane : w.plane
+    if (behind && this.backCrowd && plane > 0) return this.backCrowd
+    return w.sub && this.frontCrowd ? this.frontCrowd : this.crowd
+  }
+
+  /** Déplace le sprite (et son ombre) dans `crowd` s'il n'y est pas déjà. */
+  private moveTo(sprite: Sprite, crowd: HTMLDivElement): void {
+    if (sprite.el.parentElement === crowd) return
+    crowd.appendChild(sprite.shadow)
+    crowd.appendChild(sprite.el)
+  }
+
+  private createSprite(size: number, crowd: HTMLDivElement): Sprite {
     const { cls } = this
-    const crowd = sub && this.frontCrowd ? this.frontCrowd : this.crowd
     const shadow = document.createElement('div')
     shadow.className = cls.shadow
     shadow.style.width = `${size}px`
@@ -276,16 +302,23 @@ export class GardenRenderer {
     }
   }
 
-  /** Écrit l'image courante. */
-  render(sim: GardenSim, ctx: VisualContext): void {
+  /**
+   * Écrit l'image courante. `behind` (jardin dans la musique) : les personnages des plans du fond passent
+   * derrière le titre (calque `back`).
+   */
+  render(sim: GardenSim, ctx: VisualContext, behind = false): void {
     const seen = new Set<number>()
     for (const w of sim.walkers) {
       if (w.dead) continue
       seen.add(w.id)
+      const crowd = this.crowdFor(w, behind)
       let node = this.walkers.get(w.id)
       if (!node) {
-        node = { main: this.createSprite(w.size, w.sub), twin: this.createSprite(w.size, w.sub) }
+        node = { main: this.createSprite(w.size, crowd), twin: this.createSprite(w.size, crowd) }
         this.walkers.set(w.id, node)
+      } else {
+        this.moveTo(node.main, crowd)
+        this.moveTo(node.twin, crowd)
       }
       const v = walkerVisual(w, sim.statusOf(w), ctx)
       this.paint(node.main, v, v.left)
@@ -332,6 +365,7 @@ export class GardenRenderer {
     for (const el of this.effects.values()) el.remove()
     this.crowd.remove()
     this.frontCrowd?.remove()
+    this.backCrowd?.remove()
     this.walkers.clear()
     this.effects.clear()
   }

@@ -119,12 +119,14 @@ describe('attribution des personnages', () => {
 })
 
 describe('états des sessions', () => {
-  it('montre une bulle par statut : attend, terminé, bloqué', () => {
+  it('montre une bulle par statut : terminé, bloqué ; en attente, des « ? » sortent de la tête', () => {
     const sim = new GardenSim(seeded(6))
     sim.reset([session(0, { status: 'waiting' }), session(1, { status: 'done' }), session(2, { status: 'idle', error: true })], OPTS)
     run(sim, 2)
     const v = (id: string) => walkerVisual(main(sim, id), sim.statusOf(main(sim, id)), visualCtx)
-    expect(v('s0').bubble).toBe('wait')
+    expect(v('s0').bubble).toBeNull()
+    expect(walkerVisual(main(sim, 's0'), 'waiting', { ...visualCtx, reduced: true }).bubble).toBe('wait')
+    expect(sim.fx.some((e) => e.kind === 'ask' && e.text === '?')).toBe(true)
     expect(v('s1').bubble).toBe('done')
     expect(v('s1').lid).toBe(GARDEN.lidHalf)
     const blocked = v('s2')

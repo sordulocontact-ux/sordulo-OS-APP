@@ -205,10 +205,12 @@ export const GARDEN = {
    * sol), yeux fermés en traits ; vitesse pour s'installer et se relever, « z » par seconde.
    */
   sleep: { sink: 2, rate: 4, zRate: 1.1, standRate: 10 },
+  /** Question en attente : « ? » qui s'envolent de la tête, par seconde, décalés au hasard de `spread` px. */
+  question: { rate: 1.6, spread: [-5, 5] as Range },
 
   // --- Effets (prototype : fx, say, showSpark) ---------------------------------------------------------------
   /** Durée de vie des effets (s) : identique aux animations CSS des tokens --island-garden-duration-*. */
-  fxLife: { say: 0.85, heart: 1.1, smallHeart: 1, steam: 0.8, star: 0.5, z: 1.2, note: 1, spark: 0.6, cloud: 2, paper: 3 },
+  fxLife: { say: 0.85, heart: 1.1, smallHeart: 1, steam: 0.8, star: 0.5, z: 1.2, note: 1, spark: 0.6, ask: 1.2, cloud: 2, paper: 3 },
   /** Étincelle : hauteur au-dessus du sol par défaut (px). */
   sparkLift: 26,
   /** Notes de musique (hors périmètre, gardé pour le scénario E) : par seconde. */

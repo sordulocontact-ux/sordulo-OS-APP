@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createNotification } from '../catalog'
 import type { PermissionAsk } from '../types'
-import { IslandCoordinator, type ActivityInput } from './coordinator'
+import { ASK_IDLE_MS, IslandCoordinator, NEXT_IN_QUEUE_DELAY_MS, type ActivityInput } from './coordinator'
 import { digestTexts } from './digest'
 import { FakeClock } from './fakeClock'
 import { sortActivities } from './ranking'
@@ -358,6 +358,36 @@ describe('notifications', () => {
 })
 
 describe('demandes d’autorisation', () => {
+  it('met de côté la demande affichée après 10 s sans le curseur sur l’île', () => {
+    const { clock, island, snap } = setup()
+    island.addActivity(multi)
+    island.requestAsk(ask('a1'))
+    expect(snap().state).toBe('agentAsk')
+    clock.advance(ASK_IDLE_MS - 1)
+    expect(snap().state).toBe('agentAsk')
+    clock.advance(1)
+    expect(snap()).toMatchObject({ state: 'multi', ask: null })
+    // La source la garde ouverte : « Répondre » la remontre.
+    island.requestAsk(ask('a1'))
+    clock.advance(NEXT_IN_QUEUE_DELAY_MS)
+    expect(snap().ask?.id).toBe('a1')
+  })
+
+  it('garde la demande tant que le curseur est sur l’île, puis relance les 10 s à sa sortie', () => {
+    const { clock, island, snap } = setup()
+    island.addActivity(agent)
+    island.requestAsk(ask('a1'))
+    clock.advance(5000)
+    island.setHover(true)
+    clock.advance(60_000)
+    expect(snap().state).toBe('agentAsk')
+    island.setHover(false)
+    clock.advance(ASK_IDLE_MS - 1)
+    expect(snap().state).toBe('agentAsk')
+    clock.advance(1)
+    expect(snap()).toMatchObject({ state: 'agent', ask: null })
+  })
+
   it('retire de la file une demande résolue avant son affichage', () => {
     const { clock, island, snap } = setup()
     island.addActivity(agent)

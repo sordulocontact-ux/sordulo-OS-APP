@@ -11,8 +11,14 @@
 //! - Glisser-déposer : un bouton principal enfoncé dans la marge `dragMargin` réactive aussi les clics, pour
 //!   que le dépôt natif de Tauri (laissé actif sur cette fenêtre) atteigne l'île.
 //!
+//! - Masquable : case « Afficher l'île » du menu du soleil (`set_hidden`), mémorisée par le témoin
+//!   `island-hidden` (`app_config_dir()`). Masquée, plus rien ne la remontre (placement, propositions
+//!   automatiques d'appel) ; seuls la case et un démarrage ou arrêt manuel de l'enregistrement la ramènent.
+//!
 //! Le rendu (forme, ressort) est fait par le front. Fonctions système (curseur) : `platform::cursor_state`.
 
+use std::fs;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
@@ -48,8 +54,72 @@ static PLACE_REQUESTED: AtomicBool = AtomicBool::new(false);
 /// travail, qui commence sous la barre des menus) et le front dessine la variante Mac.
 static AROUND_NOTCH: AtomicBool = AtomicBool::new(false);
 
-/// Crée la fenêtre de l'île, la place et la montre sans prendre le focus. Appelé une fois dans `setup`.
+/// L'utilisateur a masqué l'île (case « Afficher l'île » décochée).
+static HIDDEN: AtomicBool = AtomicBool::new(false);
+
+/// Témoin dans `app_config_dir()` : présent = île masquée au prochain lancement.
+const HIDDEN_FILE: &str = "island-hidden";
+
+fn hidden_file(app: &AppHandle) -> Option<PathBuf> {
+    match app.path().app_config_dir() {
+        Ok(dir) => Some(dir.join(HIDDEN_FILE)),
+        Err(e) => {
+            log::warn!("île : dossier de configuration introuvable : {e}");
+            None
+        }
+    }
+}
+
+/// L'île est masquée par l'utilisateur.
+pub fn is_hidden() -> bool {
+    HIDDEN.load(Ordering::Relaxed)
+}
+
+/// Masque ou réaffiche l'île et mémorise le choix. Appelé par le menu du soleil (voir `tray`).
+pub fn set_hidden(app: &AppHandle, hidden: bool) {
+    HIDDEN.store(hidden, Ordering::Relaxed);
+    if let Some(path) = hidden_file(app) {
+        let saved = if hidden {
+            path.parent()
+                .map_or(Ok(()), fs::create_dir_all)
+                .and_then(|_| fs::write(&path, ""))
+        } else {
+            match fs::remove_file(&path) {
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                other => other,
+            }
+        };
+        if let Err(e) = saved {
+            log::warn!(
+                "île : choix d'affichage non mémorisé ({}) : {e}",
+                path.display()
+            );
+        }
+    }
+    let Some(window) = app.get_webview_window(WINDOW_PROMPT) else {
+        log::warn!("fenêtre {WINDOW_PROMPT} introuvable");
+        return;
+    };
+    if hidden {
+        if let Err(e) = window.hide() {
+            log::warn!("impossible de masquer l'île : {e}");
+        }
+    } else {
+        // Replacée tout de suite (l'écran a pu changer pendant qu'elle était masquée), puis montrée.
+        PLACE_REQUESTED.store(true, Ordering::Relaxed);
+        ensure_visible(&window);
+    }
+    log::info!("île {}", if hidden { "masquée" } else { "affichée" });
+}
+
+/// Crée la fenêtre de l'île, la place et la montre sans prendre le focus (sauf si l'utilisateur l'a
+/// masquée). Appelé une fois dans `setup`.
 pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
+    let hidden = hidden_file(app).is_some_and(|path| path.exists());
+    HIDDEN.store(hidden, Ordering::Relaxed);
+    if hidden {
+        log::info!("île masquée (choix mémorisé)");
+    }
     let notch = platform::primary_notch();
     AROUND_NOTCH.store(notch.is_some(), Ordering::Relaxed);
     let variant = match notch {
@@ -95,14 +165,18 @@ pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     });
     if let Err(e) = place(&window) {
         log::warn!("placement initial de l'île impossible : {e}");
-        show_without_focus(&window);
+        ensure_visible(&window);
     }
     log::info!("fenêtre de l'île créée ({ISLAND_WIDTH} × {ISLAND_HEIGHT} px logiques)");
     Ok(window)
 }
 
-/// Montre la fenêtre si elle est cachée, sans voler le focus ni la déplacer.
+/// Montre la fenêtre si elle est cachée, sans voler le focus ni la déplacer. Rien si l'utilisateur a
+/// masqué l'île.
 pub fn ensure_visible(window: &WebviewWindow<Wry>) {
+    if is_hidden() {
+        return;
+    }
     match window.is_visible() {
         Ok(true) => {}
         Ok(false) => show_without_focus(window),
@@ -292,6 +366,8 @@ pub fn spawn_pointer_loop(app: AppHandle) {
                 until_place -= 1;
 
                 let decision = match frame {
+                    // Masquée : rien à capter.
+                    _ if is_hidden() => PointerDecision::default(),
                     Some(frame) => {
                         let cursor = platform::cursor_state();
                         let hits = app.state::<DesktopState>();

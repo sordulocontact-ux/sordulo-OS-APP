@@ -1,5 +1,5 @@
-//! Icône soleil dans la zone de notification et son menu (dont les cases « Mode concentration » et
-//! « Afficher la musique dans l'île », et « Connecter / Déconnecter Claude Code » avec sa ligne d'état,
+//! Icône soleil dans la zone de notification et son menu (dont les cases « Afficher l'île », voir
+//! `island_window::set_hidden`, « Mode concentration » et « Afficher la musique dans l'île », et « Connecter / Déconnecter Claude Code » avec sa ligne d'état,
 //! voir `claude/`, la case « Lancer au démarrage », voir `autostart`, et la version avec « Rechercher une
 //! mise à jour », voir `updater`).
 
@@ -11,6 +11,7 @@ use tauri::{AppHandle, Emitter, Manager, Wry};
 use crate::autostart;
 use crate::claude;
 use crate::events::{EVENT_FOCUS_MODE, WINDOW_PROMPT};
+use crate::island_window;
 use crate::music;
 use crate::recording;
 use crate::state::{DesktopState, FocusModeState, PromptReason, RecordingStatus};
@@ -22,6 +23,7 @@ const TRAY_ID: &str = "sordulo-tray";
 const ID_OPEN: &str = "open";
 const ID_STATUS: &str = "status";
 const ID_TOGGLE: &str = "toggle-recording";
+const ID_ISLAND: &str = "island";
 const ID_FOCUS: &str = "focus-mode";
 const ID_MUSIC: &str = "music";
 const ID_AUTOSTART: &str = "autostart";
@@ -38,6 +40,7 @@ const LABEL_STOP: &str = "Arrêter l'enregistrement";
 pub struct TrayMenu {
     status: MenuItem<Wry>,
     toggle: MenuItem<Wry>,
+    island: CheckMenuItem<Wry>,
     focus: CheckMenuItem<Wry>,
     music: CheckMenuItem<Wry>,
     autostart: CheckMenuItem<Wry>,
@@ -51,6 +54,14 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
     let open = MenuItem::with_id(app, ID_OPEN, "Ouvrir Sordulo OS", true, None::<&str>)?;
     let status = MenuItem::with_id(app, ID_STATUS, "Micro : inactif", false, None::<&str>)?;
     let toggle = MenuItem::with_id(app, ID_TOGGLE, LABEL_START, true, None::<&str>)?;
+    let island = CheckMenuItem::with_id(
+        app,
+        ID_ISLAND,
+        "Afficher l'île",
+        true,
+        !island_window::is_hidden(),
+        None::<&str>,
+    )?;
     let focus = CheckMenuItem::with_id(
         app,
         ID_FOCUS,
@@ -110,6 +121,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
             &PredefinedMenuItem::separator(app)?,
             &toggle,
             &PredefinedMenuItem::separator(app)?,
+            &island,
             &focus,
             &music,
             &autostart,
@@ -146,6 +158,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
     app.manage(TrayMenu {
         status,
         toggle,
+        island,
         focus,
         music,
         autostart,
@@ -178,6 +191,7 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
                 Some(_) => {} // arrêt déjà en cours
             }
         }
+        ID_ISLAND => set_island_visible(app, island_window::is_hidden()),
         ID_FOCUS => {
             let on = !app.state::<DesktopState>().shared().focus_mode;
             set_focus_mode(app, on);
@@ -203,6 +217,19 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
             app.exit(0);
         }
         _ => {}
+    }
+}
+
+/// Affiche ou masque l'île (choix mémorisé, voir `island_window::set_hidden`) et resynchronise la case.
+pub fn set_island_visible(app: &AppHandle, visible: bool) {
+    if island_window::is_hidden() == visible {
+        island_window::set_hidden(app, !visible);
+    }
+    // Toujours resynchroniser la case : le menu l'a peut-être déjà basculée lui-même au clic.
+    if let Some(menu) = app.try_state::<TrayMenu>() {
+        if let Err(e) = menu.island.set_checked(visible) {
+            log::warn!("menu (île) : {e}");
+        }
     }
 }
 

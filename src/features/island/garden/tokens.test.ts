@@ -65,5 +65,6 @@ describe('garden tokens', () => {
     expect(duration('z')).toBe(GARDEN.fxLife.z)
     expect(duration('note')).toBe(GARDEN.fxLife.note)
     expect(duration('spark')).toBe(GARDEN.fxLife.spark)
+    expect(duration('ask')).toBe(GARDEN.fxLife.ask)
   })
 })
