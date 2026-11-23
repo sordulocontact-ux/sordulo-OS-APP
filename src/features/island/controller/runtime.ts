@@ -7,7 +7,8 @@
  *   d'événements entre sources, et les sources démarrées.
  * - Une **source** (./source.ts) branche une origine d'événements : appel détecté et enregistrement
  *   (sources/call.ts), envoi de l'audio (sources/upload.ts), suivi de l'analyse (sources/analysis.ts),
- *   mode concentration (sources/focusMode.ts), musique écoutée (sources/music.ts). Elle reçoit un IslandSourceContext, pousse activités et
+ *   mode concentration (sources/focusMode.ts), musique écoutée (sources/music.ts), déploiements Vercel
+ *   (sources/deployments.ts). Elle reçoit un IslandSourceContext, pousse activités et
  *   notifications dans la coordination, remplit `view` (appel, niveaux, sessions, dépôt…) et peut prendre en
  *   charge des gestes de l'île et des actions de notification.
  * - Les boutons des notifications passent par `runAction` : la notification est fermée

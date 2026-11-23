@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Badge, Button, EmptyState, Modal, SearchField } from '../../components/ui'
 import { CONNECTORS, connectorInitials, filterConnectors, type Connector } from './catalog'
-import { useSpotify, type SpotifyConnector } from './useSpotify'
+import { useSpotify } from './useSpotify'
+import { useVercel } from './useVercel'
+import { VercelConnectModal } from './VercelConnectModal'
+import type { BadgeTone } from '../../components/ui/Badge'
 import styles from './connectors.module.css'
 
 type Filter = 'all' | 'connected'
@@ -20,22 +23,33 @@ function Logo({ connector }: { connector: Connector }) {
   )
 }
 
-function StatusBadge({ connector, spotify }: { connector: Connector; spotify: SpotifyConnector }) {
-  if (connector.status === 'live') return <Badge tone={spotify.view.badge.tone}>{spotify.view.badge.label}</Badge>
+/** Carte à état vivant (Spotify, Vercel) : tout ce que la page affiche, quelle que soit la source. */
+interface LiveCard {
+  badge: { tone: BadgeTone; label: string }
+  state: string
+  hint?: string
+  notice?: string
+  error: string | null
+  connected: boolean
+  action: { label: string; variant: 'primary' | 'secondary'; loading: boolean; disabled: boolean; title?: string; run?: () => void }
+}
+
+function StatusBadge({ connector, live }: { connector: Connector; live: Record<string, LiveCard> }) {
+  const card = live[connector.id]
+  if (connector.status === 'live' && card) return <Badge tone={card.badge.tone}>{card.badge.label}</Badge>
   return connector.status === 'connected' ? <Badge tone="success">Connecté</Badge> : <Badge tone="neutral">Bientôt</Badge>
 }
 
-function SpotifyButton({ spotify, className }: { spotify: SpotifyConnector; className?: string }) {
-  const { action } = spotify.view
-  const { kind } = action
+function LiveButton({ card, className }: { card: LiveCard; className?: string }) {
+  const { action } = card
   return (
     <Button
       className={className}
-      variant={kind === 'disconnect' ? 'secondary' : 'primary'}
+      variant={action.variant}
       loading={action.loading}
       disabled={action.disabled}
       title={action.title}
-      onClick={kind ? () => spotify.run(kind) : undefined}
+      onClick={action.run}
     >
       {action.label}
     </Button>
@@ -47,12 +61,54 @@ export function ConnectorsPage() {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<Connector | null>(null)
 
+  const [vercelOpen, setVercelOpen] = useState(false)
+
   const spotify = useSpotify()
-  const spotifyConnected = spotify.view.connected
+  const vercel = useVercel()
+
+  const live: Record<string, LiveCard> = {
+    spotify: {
+      ...spotify.view,
+      error: spotify.error,
+      action: {
+        label: spotify.view.action.label,
+        variant: spotify.view.action.kind === 'disconnect' ? 'secondary' : 'primary',
+        loading: spotify.view.action.loading,
+        disabled: spotify.view.action.disabled,
+        title: spotify.view.action.title,
+        run: spotify.view.action.kind ? () => spotify.run(spotify.view.action.kind!) : undefined,
+      },
+    },
+    vercel: {
+      badge: vercel.view.badge,
+      state: vercel.view.state,
+      error: vercel.error,
+      connected: vercel.view.connected,
+      action: {
+        label: vercel.view.action.label,
+        variant: vercel.view.action.kind === 'connect' ? 'primary' : 'secondary',
+        loading: vercel.view.action.loading,
+        disabled: vercel.view.action.disabled,
+        run: () => {
+          const { kind } = vercel.view.action
+          if (kind === 'connect') {
+            setSelected(null)
+            setVercelOpen(true)
+          }
+          else if (kind === 'disconnect') vercel.disconnect()
+          else vercel.retry()
+        },
+      },
+    },
+  }
+  const liveKey = Object.entries(live)
+    .filter(([, card]) => card.connected)
+    .map(([id]) => id)
+    .join(',')
 
   const visible = useMemo(
-    () => filterConnectors(CONNECTORS, query, filter === 'connected', new Set(spotifyConnected ? ['spotify'] : [])),
-    [query, filter, spotifyConnected],
+    () => filterConnectors(CONNECTORS, query, filter === 'connected', new Set(liveKey ? liveKey.split(',') : [])),
+    [query, filter, liveKey],
   )
 
   return (
@@ -102,19 +158,19 @@ export function ConnectorsPage() {
               <Logo connector={c} />
               <div className={styles.titleRow}>
                 <h2 className={styles.name}>{c.name}</h2>
-                <StatusBadge connector={c} spotify={spotify} />
+                <StatusBadge connector={c} live={live} />
               </div>
               <p className={styles.description}>{c.description}</p>
-              {c.status === 'live' ? (
+              {c.status === 'live' && live[c.id] ? (
                 <>
-                  {spotify.view.connected ? (
-                    <p className={styles.cardState}>{spotify.view.state}</p>
-                  ) : spotify.view.notice ? (
-                    <p className={styles.cardState}>{spotify.view.notice}</p>
+                  {live[c.id]!.connected || c.id === 'vercel' ? (
+                    <p className={styles.cardState}>{live[c.id]!.state}</p>
+                  ) : live[c.id]!.notice ? (
+                    <p className={styles.cardState}>{live[c.id]!.notice}</p>
                   ) : null}
-                  {spotify.error ? (
+                  {live[c.id]!.error ? (
                     <p className={styles.error} role="alert">
-                      {spotify.error}
+                      {live[c.id]!.error}
                     </p>
                   ) : null}
                 </>
@@ -123,8 +179,8 @@ export function ConnectorsPage() {
                 <Button className={styles.action} onClick={() => setSelected(c)} aria-label={`Détails de ${c.name}`}>
                   Détails
                 </Button>
-                {c.status === 'live' ? (
-                  <SpotifyButton spotify={spotify} className={styles.action} />
+                {c.status === 'live' && live[c.id] ? (
+                  <LiveButton card={live[c.id]!} className={styles.action} />
                 ) : c.status === 'connected' ? (
                   <Button className={styles.action} aria-disabled="true" tabIndex={-1} onClick={(e) => e.preventDefault()}>
                     <span aria-hidden="true">✓</span> Connecté
@@ -150,25 +206,25 @@ export function ConnectorsPage() {
           <div className={styles.detail}>
             <div className={styles.titleRow}>
               <Badge tone="neutral">{selected.category}</Badge>
-              <StatusBadge connector={selected} spotify={spotify} />
+              <StatusBadge connector={selected} live={live} />
             </div>
             <section>
               <h3 className={styles.detailTitle}>Ce que le connecteur fera dans Sordulo OS</h3>
               <p>{selected.details ?? selected.description}</p>
             </section>
-            {selected.status === 'live' ? (
+            {selected.status === 'live' && live[selected.id] ? (
               <section>
                 <h3 className={styles.detailTitle}>État</h3>
-                <p aria-live="polite">{spotify.view.state}</p>
-                {spotify.view.hint ? <p>{spotify.view.hint}</p> : null}
-                {spotify.view.notice ? <p className={styles.muted}>{spotify.view.notice}</p> : null}
-                {spotify.error ? (
+                <p aria-live="polite">{live[selected.id]!.state}</p>
+                {live[selected.id]!.hint ? <p>{live[selected.id]!.hint}</p> : null}
+                {live[selected.id]!.notice ? <p className={styles.muted}>{live[selected.id]!.notice}</p> : null}
+                {live[selected.id]!.error ? (
                   <p className={styles.error} role="alert">
-                    {spotify.error}
+                    {live[selected.id]!.error}
                   </p>
                 ) : null}
                 <div className={styles.detailAction}>
-                  <SpotifyButton spotify={spotify} />
+                  <LiveButton card={live[selected.id]!} />
                 </div>
               </section>
             ) : selected.status === 'connected' ? (
@@ -183,6 +239,8 @@ export function ConnectorsPage() {
           </div>
         ) : null}
       </Modal>
+
+      <VercelConnectModal open={vercelOpen} onClose={() => setVercelOpen(false)} vercel={vercel} />
     </section>
   )
 }

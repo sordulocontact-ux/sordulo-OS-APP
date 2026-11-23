@@ -179,3 +179,24 @@ img.logo {
 .detailAction {
   margin-top: var(--space-3);
 }
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.intro {
+  margin: 0;
+}
+
+.link {
+  align-self: flex-start;
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}

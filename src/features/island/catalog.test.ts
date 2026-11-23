@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createNotification,
   createSpotifyReconnectNotification,
+  createVercelReconnectNotification,
   formatEuros,
   notificationCatalog,
   type NotificationParams,
@@ -23,6 +24,7 @@ const samples: NotificationParams = {
   pendingUpload: {},
   loginRequired: { appName: "Discord" },
   spotifyReconnect: {},
+  vercelReconnect: {},
   callEnded: { appName: "Discord", projectName: "PDS OS" },
   recording: { appName: "Discord", projectName: "PDS OS" },
   recordError: { phase: "start", message: "Aucun micro" },
@@ -67,6 +69,12 @@ const samples: NotificationParams = {
     url: "https://meet",
   },
   deployed: { projectName: "PDS OS", url: "https://pds" },
+  deployFailed: {
+    projectName: "PDS OS",
+    logsUrl: "https://vercel.com/pds/dpl",
+    commitMessage: "Corrige l'écran de validation",
+    branch: "main",
+  },
   relecture: {
     authorInitials: "MA",
     taskTitle: "Partage du ticket depuis l'iPhone",
@@ -87,7 +95,7 @@ function build(kind: NotificationKind) {
 
 describe("catalogue des notifications", () => {
   it("construit chaque sorte avec sa sorte, un titre et un ton", () => {
-    expect(kinds).toHaveLength(24);
+    expect(kinds).toHaveLength(26);
     for (const kind of kinds) {
       const notification = build(kind);
       expect(notification.kind).toBe(kind);
@@ -109,6 +117,7 @@ describe("catalogue des notifications", () => {
       conflict: 5000,
       digest: 6000,
       spotifyReconnect: 7000,
+      vercelReconnect: 7000,
     };
     for (const kind of kinds)
       expect(build(kind).durationMs, kind).toBe(special[kind] ?? 4500);
@@ -240,6 +249,63 @@ describe("notification « Reconnecte Spotify »", () => {
       title: "Reconnecte Spotify",
       button: "Ouvrir",
       action: { type: "openMain", route: "/connectors" },
+    });
+    expect(`${n.title}${n.subtitle}`).not.toMatch(/—|–/);
+  });
+});
+
+describe("notifications des déploiements Vercel", () => {
+  it("en ligne : message du commit en sous-titre, repli sans commit, bouton Ouvrir", () => {
+    expect(
+      createNotification("deployed", {
+        projectName: "PDS OS",
+        url: "https://pds.vercel.app",
+        commitMessage: "Ajoute la page Connecteurs",
+      }),
+    ).toMatchObject({
+      title: "PDS OS est en ligne",
+      subtitle: "Ajoute la page Connecteurs",
+      button: "Ouvrir",
+      action: { type: "openUrl", url: "https://pds.vercel.app" },
+      tone: "success",
+    });
+    expect(build("deployed").subtitle).toBe("Déploiement Vercel réussi");
+    expect(
+      createNotification("deployed", {
+        projectName: "PDS OS",
+        url: "https://pds",
+        commitMessage: null,
+      }).subtitle,
+    ).toBe("Déploiement Vercel réussi");
+  });
+
+  it("échec : ton danger, icône alerte, « Voir les logs », sous-titre commit puis branche", () => {
+    expect(build("deployFailed")).toMatchObject({
+      title: "PDS OS : échec",
+      subtitle: "Corrige l'écran de validation",
+      button: "Voir les logs",
+      action: { type: "openUrl", url: "https://vercel.com/pds/dpl" },
+      tone: "danger",
+      visual: { type: "icon", icon: "alert" },
+    });
+    const noCommit = { ...samples.deployFailed, commitMessage: null };
+    expect(createNotification("deployFailed", noCommit).subtitle).toBe(
+      "Branche main",
+    );
+    expect(
+      createNotification("deployFailed", { ...noCommit, branch: null })
+        .subtitle,
+    ).toBe("Déploiement Vercel de production");
+  });
+
+  it("« Reconnecte Vercel » ouvre la page Connecteurs, sans tiret cadratin", () => {
+    const n = createVercelReconnectNotification();
+    expect(n).toMatchObject({
+      kind: "vercelReconnect",
+      title: "Reconnecte Vercel",
+      button: "Ouvrir",
+      action: { type: "openMain", route: "/connectors" },
+      tone: "alert",
     });
     expect(`${n.title}${n.subtitle}`).not.toMatch(/—|–/);
   });

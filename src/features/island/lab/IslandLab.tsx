@@ -322,6 +322,20 @@ export default function IslandLab() {
             >
               Déploiement
             </Button>
+            <Button
+              size="sm"
+              onClick={() => apply((r) => r.runProgress("deploy"))}
+            >
+              Déploiement réussi
+            </Button>
+            <Button
+              size="sm"
+              onClick={() =>
+                apply((r) => r.runProgress("deploy", true, "deployFailed"))
+              }
+            >
+              Déploiement en échec
+            </Button>
             <Button size="sm" onClick={() => apply((r) => r.addAgent())}>
               Session Claude
             </Button>

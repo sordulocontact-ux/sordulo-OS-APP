@@ -59,6 +59,15 @@ export const CONNECTORS: Connector[] = [
     state: 'Actif : toutes les données de l’app y sont stockées.',
   },
   {
+    id: 'vercel',
+    name: 'Vercel',
+    category: 'Infrastructure',
+    description: 'L’île de l’app de bureau montre les déploiements de production Vercel : chargement, en ligne, échec.',
+    details:
+      'L’île de l’app de bureau montre les déploiements de production Vercel : la construction en cours, puis « en ligne » ou l’échec avec un accès aux logs. La connexion est liée à votre compte Sordulo OS, pas à cet ordinateur : elle suit le compte sur tous vos appareils. Seuls les déploiements de production visibles par le jeton sont suivis (comptes personnel et équipes du jeton, tous projets).',
+    status: 'live',
+  },
+  {
     id: 'spotify',
     name: 'Spotify',
     category: 'Musique',

@@ -84,7 +84,10 @@ export type IslandSizeKey =
 /** Ordre (prototype : RANK) : appel 1, progression 2, Claude 3, musique 4. */
 export type ActivityKind = 'meet' | 'progress' | 'agent' | 'multi' | 'music'
 
-/** Étapes de progression (prototype : PROGS). `file` et `deploy` sont prévues, pas branchées. */
+/**
+ * Étapes de progression (prototype : PROGS). `deploy` : déploiement de production Vercel (source « déploiements »).
+ * `file` est prévue, pas branchée.
+ */
 export type ProgressStage = 'upload' | 'analyse' | 'file' | 'deploy'
 
 export interface MeetActivity {
@@ -171,8 +174,8 @@ export type Activity = ActivityPayload & {
 /**
  * Catalogue (prototype : NOTIFS). Branchées : tickets, analysisError, uploadError, pendingUpload, loginRequired, callEnded,
  * recording, recordError,
- * assign, claudeDone, claudeStop, multiDone, conflict, pathCopied, digest.
- * Prévues, non branchées (modules à venir) : devis, paiement, echeance, rappel, deployed, relecture, fileAdded, conflictOk.
+ * assign, claudeDone, claudeStop, multiDone, conflict, pathCopied, digest, deployed, deployFailed, vercelReconnect.
+ * Prévues, non branchées (modules à venir) : devis, paiement, echeance, rappel, relecture, fileAdded, conflictOk.
  */
 export type NotificationKind =
   | 'tickets'
@@ -199,7 +202,12 @@ export type NotificationKind =
   | 'paiement'
   | 'echeance'
   | 'rappel'
+  /** Déploiement de production Vercel en ligne : « X est en ligne », bouton Ouvrir (adresse de production). */
   | 'deployed'
+  /** Déploiement de production Vercel en échec : bouton « Voir les logs ». */
+  | 'deployFailed'
+  /** Jeton Vercel refusé (connecteur) : « Reconnecte Vercel », bouton vers la page Connecteurs. */
+  | 'vercelReconnect'
   | 'relecture'
   | 'fileAdded'
   | 'conflictOk'

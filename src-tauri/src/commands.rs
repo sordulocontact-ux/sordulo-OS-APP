@@ -13,7 +13,7 @@ use crate::platform::MediaCommand;
 use crate::recording;
 use crate::spotify::{self, SpotifyStatus};
 use crate::state::{
-    DesktopState, DesktopStatus, FocusModeState, IslandHitRects, IslandPlacement, IslandRect,
+    DesktopState, DesktopStatus, DeploymentsEnabledState, FocusModeState, IslandHitRects, IslandPlacement, IslandRect,
     PromptReason, RecordingResult, RecordingState, UpdateStatus,
 };
 use crate::tray;
@@ -271,6 +271,12 @@ pub fn open_main_at(app: AppHandle, route: String) -> Result<(), String> {
 #[tauri::command]
 pub fn get_focus_mode(state: State<'_, DesktopState>) -> FocusModeState {
     state.focus_mode()
+}
+
+/// État de la case « Afficher les déploiements dans l'île » (le front relit l'événement ensuite).
+#[tauri::command]
+pub fn get_deployments_enabled(state: State<'_, DesktopState>) -> DeploymentsEnabledState {
+    state.deployments_enabled()
 }
 
 /// Met aussi à jour la case du menu du soleil et prévient l'île.

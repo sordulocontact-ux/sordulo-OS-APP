@@ -140,6 +140,7 @@ export const NOTIFICATION_LABELS: Record<NotificationKind, string> = {
   pendingUpload: "Envoi en attente",
   loginRequired: "Connexion requise",
   spotifyReconnect: "Reconnecte Spotify",
+  vercelReconnect: "Reconnecte Vercel",
   callEnded: "Appel terminé ?",
   recording: "Enregistrement en cours",
   recordError: "Erreur d'enregistrement",
@@ -155,6 +156,7 @@ export const NOTIFICATION_LABELS: Record<NotificationKind, string> = {
   echeance: "Échéance",
   rappel: "Rappel de call (interruption)",
   deployed: "Déploiement en ligne",
+  deployFailed: "Déploiement en échec",
   relecture: "À relire",
   fileAdded: "Fichier ajouté",
   conflictOk: "Conflit résolu",
@@ -191,6 +193,8 @@ export function sampleNotification(kind: NotificationKind): IslandNotification {
       return createNotification("loginRequired", { appName: LAB_CALL_APP });
     case "spotifyReconnect":
       return createNotification("spotifyReconnect", {});
+    case "vercelReconnect":
+      return createNotification("vercelReconnect", {});
     case "callEnded":
       return createNotification("callEnded", {
         appName: LAB_CALL_APP,
@@ -272,6 +276,14 @@ export function sampleNotification(kind: NotificationKind): IslandNotification {
       return createNotification("deployed", {
         projectName: "PDS OS",
         url: "https://pds.example",
+        commitMessage: "Ajoute la page Connecteurs",
+      });
+    case "deployFailed":
+      return createNotification("deployFailed", {
+        projectName: "PDS OS",
+        logsUrl: "https://vercel.com/sordulo/pds-os",
+        commitMessage: "Ajoute la page Connecteurs",
+        branch: "main",
       });
     case "relecture":
       return createNotification("relecture", {

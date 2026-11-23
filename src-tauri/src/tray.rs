@@ -10,11 +10,11 @@ use tauri::{AppHandle, Emitter, Manager, Wry};
 
 use crate::autostart;
 use crate::claude;
-use crate::events::{EVENT_FOCUS_MODE, WINDOW_PROMPT};
+use crate::events::{EVENT_DEPLOYMENTS_ENABLED, EVENT_FOCUS_MODE, WINDOW_PROMPT};
 use crate::island_window;
 use crate::music;
 use crate::recording;
-use crate::state::{DesktopState, FocusModeState, PromptReason, RecordingStatus};
+use crate::state::{DeploymentsEnabledState, DesktopState, FocusModeState, PromptReason, RecordingStatus};
 use crate::time::format_duration;
 use crate::updater;
 use crate::windows_mgmt;
@@ -27,6 +27,7 @@ const ID_ISLAND: &str = "island";
 const ID_ISLAND_TOP: &str = "island-top";
 const ID_FOCUS: &str = "focus-mode";
 const ID_MUSIC: &str = "music";
+const ID_DEPLOYMENTS: &str = "deployments";
 const ID_AUTOSTART: &str = "autostart";
 const ID_UPDATE_STATUS: &str = "update-status";
 const ID_UPDATE_CHECK: &str = "update-check";
@@ -44,6 +45,7 @@ pub struct TrayMenu {
     island: CheckMenuItem<Wry>,
     focus: CheckMenuItem<Wry>,
     music: CheckMenuItem<Wry>,
+    deployments: CheckMenuItem<Wry>,
     autostart: CheckMenuItem<Wry>,
     update_status: MenuItem<Wry>,
     update_check: MenuItem<Wry>,
@@ -85,6 +87,15 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
         "Afficher la musique dans l'île",
         true,
         music_on,
+        None::<&str>,
+    )?;
+    let deployments_on = app.state::<DesktopState>().shared().deployments_enabled;
+    let deployments = CheckMenuItem::with_id(
+        app,
+        ID_DEPLOYMENTS,
+        "Afficher les déploiements dans l'île",
+        true,
+        deployments_on,
         None::<&str>,
     )?;
     // En dev, la case est grisée : seule la version installée peut se relancer seule (voir autostart).
@@ -133,6 +144,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
             &island_top,
             &focus,
             &music,
+            &deployments,
             &autostart,
             &PredefinedMenuItem::separator(app)?,
             &update_status,
@@ -170,6 +182,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
         island,
         focus,
         music,
+        deployments,
         autostart,
         update_status,
         update_check,
@@ -213,6 +226,10 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
         ID_MUSIC => {
             let on = !app.state::<DesktopState>().shared().music_enabled;
             set_music_enabled(app, on);
+        }
+        ID_DEPLOYMENTS => {
+            let on = !app.state::<DesktopState>().shared().deployments_enabled;
+            set_deployments_enabled(app, on);
         }
         ID_AUTOSTART => {
             let on = autostart::set_enabled(app, !autostart::is_enabled(app));
@@ -298,6 +315,34 @@ fn set_music_enabled(app: &AppHandle, on: bool) {
         );
         if !on {
             music::clear(app);
+        }
+    }
+}
+
+/// Affiche ou masque les déploiements dans l'île : état partagé, case du menu, puis
+/// `desktop://deployments-enabled` à l'île seulement si la valeur change. Non mémorisé, comme la musique.
+fn set_deployments_enabled(app: &AppHandle, on: bool) {
+    let state = app.state::<DesktopState>();
+    let changed = {
+        let mut shared = state.shared();
+        let changed = shared.deployments_enabled != on;
+        shared.deployments_enabled = on;
+        changed
+    };
+    // Toujours resynchroniser la case : le menu l'a peut-être déjà basculée lui-même au clic.
+    if let Some(menu) = app.try_state::<TrayMenu>() {
+        if let Err(e) = menu.deployments.set_checked(on) {
+            log::warn!("menu (déploiements) : {e}");
+        }
+    }
+    if changed {
+        log::info!(
+            "déploiements dans l'île {}",
+            if on { "affichés" } else { "masqués" }
+        );
+        let payload = DeploymentsEnabledState { on };
+        if let Err(e) = app.emit_to(WINDOW_PROMPT, EVENT_DEPLOYMENTS_ENABLED, payload) {
+            log::warn!("émission de {EVENT_DEPLOYMENTS_ENABLED} impossible : {e}");
         }
     }
 }
