@@ -26,6 +26,26 @@
   composes: body from '../garden/Garden.module.css';
 }
 
+.leg {
+  composes: leg from '../garden/Garden.module.css';
+}
+
+.leg1 {
+  composes: leg1 from '../garden/Garden.module.css';
+}
+
+.leg2 {
+  composes: leg2 from '../garden/Garden.module.css';
+}
+
+.leg3 {
+  composes: leg3 from '../garden/Garden.module.css';
+}
+
+.leg4 {
+  composes: leg4 from '../garden/Garden.module.css';
+}
+
 .eye {
   composes: eye from '../garden/Garden.module.css';
 }

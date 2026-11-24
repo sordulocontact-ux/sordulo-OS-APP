@@ -96,6 +96,11 @@ export function ClaudeMascot({ working, reduced }: ClaudeMascotProps) {
   return (
     <span className={styles.mascot} aria-hidden="true">
       <span ref={figureRef} className={styles.figure}>
+        {/* Le masque du corps n'a pas les pattes (le jardin les dessine à part pour la marche) */}
+        <i className={`${styles.leg} ${styles.leg1}`} />
+        <i className={`${styles.leg} ${styles.leg2}`} />
+        <i className={`${styles.leg} ${styles.leg3}`} />
+        <i className={`${styles.leg} ${styles.leg4}`} />
         <span className={styles.body} />
         <span ref={faceRef} className={styles.face}>
           <i className={`${styles.eye} ${styles.left}`} />
