@@ -44,7 +44,8 @@
   position: absolute;
   top: 0;
   left: 50%;
-  transform: translateX(-50%);
+  /* --drag-x / --drag-y : goutte du glisser, écrits par le moteur (décalage vers l'intérieur, retard) */
+  transform: translateX(-50%) translate(var(--drag-x, 0), var(--drag-y, 0));
   pointer-events: auto;
   user-select: none;
   -webkit-user-select: none;
@@ -54,6 +55,8 @@
   position: absolute;
   inset: 0;
   overflow: visible;
+  /* Étirement de la goutte du glisser (moteur), autour de son centre */
+  transform-origin: center;
 }
 
 .shapeBody {
@@ -1500,7 +1503,7 @@
 .root[data-edge='left'] .island,
 .root[data-edge='right'] .island {
   top: 50%;
-  transform: translateY(-50%);
+  transform: translateY(-50%) translate(var(--drag-x, 0), var(--drag-y, 0));
 }
 
 .root[data-edge='left'] .island {

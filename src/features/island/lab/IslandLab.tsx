@@ -4,18 +4,21 @@
  * avec design/prototypes/ile-sordulo-os.html ouvert à côté. Sans Tauri, sans connexion.
  */
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
   useSyncExternalStore,
+  type PointerEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { Button, Select } from "../../../components/ui";
 import { ISLAND_WINDOW_SIZE, type CallService } from "../../../shared/desktop-contract";
 import { CALL_SERVICES, callBrand } from "../brands";
 import { Garden } from "../garden";
-import { SPRING, WAVE, edgePlatform, islandSize, sizeKeyFor } from "../geometry";
+import { JELLY, SPRING, WAVE, edgePlatform, islandSize, sizeKeyFor } from "../geometry";
 import type {
   ClaudeActivity,
   IslandEdge,
@@ -24,6 +27,7 @@ import type {
 } from "../types";
 import { Island, islandLabel, type IslandDropZone } from "../view";
 import { musicHasProgress } from "../view/music";
+import type { DragMotionReader } from "../view/types";
 import {
   MAX_LAB_SESSIONS,
   NOTIFICATION_KINDS,
@@ -121,6 +125,84 @@ function Check({
   );
 }
 
+/** Part de la nouvelle mesure dans la vitesse lissée du glisser simulé (Rust lisse sur 150 ms). */
+const LAB_DRAG_SMOOTHING = 0.35;
+
+/**
+ * Glisser simulé : pendant « Simuler le glisser », la goutte suit la souris dans la scène et sa vitesse est
+ * donnée à l'île comme celle que Rust envoie (island-motion) : étirement, retard, tremblement à l'arrêt.
+ */
+function useLabDrag(
+  active: boolean,
+  layerRef: RefObject<HTMLDivElement | null>,
+) {
+  const drag = useRef({
+    x: 0,
+    y: 0,
+    vx: 0,
+    vy: 0,
+    at: -Infinity,
+    grab: null as { x: number; y: number } | null,
+    last: { x: 0, y: 0, t: 0 },
+  });
+
+  useEffect(() => {
+    if (active) return;
+    const d = drag.current;
+    d.x = 0;
+    d.y = 0;
+    d.grab = null;
+    d.at = -Infinity;
+    if (layerRef.current) layerRef.current.style.transform = "";
+  }, [active, layerRef]);
+
+  const reader = useCallback<DragMotionReader>((nowMs) => {
+    const d = drag.current;
+    return nowMs - d.at < JELLY.staleMs ? { vx: d.vx, vy: d.vy } : null;
+  }, []);
+
+  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (!active || e.button !== 0) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const d = drag.current;
+    d.grab = { x: e.clientX - d.x, y: e.clientY - d.y };
+    d.last = { x: e.clientX, y: e.clientY, t: e.timeStamp };
+    d.vx = 0;
+    d.vy = 0;
+  };
+  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d.grab) return;
+    const dt = (e.timeStamp - d.last.t) / 1000;
+    if (dt > 0) {
+      const k = LAB_DRAG_SMOOTHING;
+      d.vx = d.vx * (1 - k) + ((e.clientX - d.last.x) / dt) * k;
+      d.vy = d.vy * (1 - k) + ((e.clientY - d.last.y) / dt) * k;
+      d.at = e.timeStamp;
+    }
+    d.last = { x: e.clientX, y: e.clientY, t: e.timeStamp };
+    d.x = e.clientX - d.grab.x;
+    d.y = e.clientY - d.grab.y;
+    if (layerRef.current) {
+      layerRef.current.style.transform = `translate(${d.x}px, ${d.y}px)`;
+    }
+  };
+  const onPointerUp = () => {
+    drag.current.grab = null;
+  };
+
+  return {
+    reader,
+    handlers: {
+      onPointerDown,
+      onPointerMove,
+      onPointerUp,
+      onPointerCancel: onPointerUp,
+    },
+  };
+}
+
 export default function IslandLab() {
   const [runtime] = useState(() => new LabRuntime());
   useEffect(() => {
@@ -133,6 +215,11 @@ export default function IslandLab() {
   const [chosenPlatform, setPlatform] = useState<IslandPlatform>("win");
   const [edge, setEdge] = useState<IslandEdge>("top");
   const [dragging, setDragging] = useState(false);
+  const dragLayerRef = useRef<HTMLDivElement>(null);
+  const { reader: dragMotion, handlers: dragHandlers } = useLabDrag(
+    dragging,
+    dragLayerRef,
+  );
   // « Mac avec encoche » ne vaut qu'en haut ; ailleurs, la variante sans encoche.
   const platform = edgePlatform(chosenPlatform, edge);
   const windowSize = windowSizeFor(edge);
@@ -204,12 +291,16 @@ export default function IslandLab() {
           data-edge={edge}
           style={{ width: windowSize.width, height: windowSize.height }}
           data-testid="island-scene"
+        
+          {...dragHandlers}
         >
+          <div ref={dragLayerRef} className={styles.dragLayer}>
           <Island
             snapshot={snapshot}
             platform={chosenPlatform}
             edge={edge}
             dragging={dragging}
+            dragMotion={dragMotion}
             hover={view.hover}
             call={view.call}
             audioLevels={audioLevels}
@@ -241,6 +332,7 @@ export default function IslandLab() {
             onMusicCommand={runtime.musicCommand}
             onHitRectsChange={NO_HIT_RECTS}
           />
+          </div>
         </div>
         <div className={styles.values}>
           <h2 className={styles.valuesTitle}>Valeurs pour Maël</h2>
@@ -710,7 +802,7 @@ export default function IslandLab() {
               aria-pressed={dragging}
               onClick={() => setDragging(!dragging)}
             >
-              Simuler le glisser (aperçu)
+              Simuler le glisser (traîner la goutte)
             </Button>
             <label className={styles.inline}>
               Service d’appel

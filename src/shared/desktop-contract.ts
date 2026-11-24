@@ -46,6 +46,13 @@ export const ISLAND_WINDOW_SIZE = {
  */
 export const ISLAND_DRAG_BLOB = 44
 
+/**
+ * Offset (CSS px) of the drop towards the inside of the window, away from the window side of its edge: the
+ * front stretches the drop along its motion, and against the window side it would be cut off. Rust centres
+ * this offset drop under the cursor.
+ */
+export const ISLAND_DRAG_INSET = 18
+
 /** Where the island sits (DESKTOP_EVENTS.islandPlacement, DESKTOP_COMMANDS.getIslandPlacement). */
 export interface IslandPlacement {
   edge: IslandEdge
@@ -71,6 +78,15 @@ export interface IslandDragStart {
  */
 export interface IslandDrag {
   phase: 'start' | 'end'
+}
+
+/**
+ * Velocity of the island window in CSS px / s, sent by Rust at ~60 Hz during a drag and the throw that follows
+ * (until the drop lands, IslandDrag `end`). The front stretches the drop along it and lets it wobble.
+ */
+export interface IslandMotion {
+  vx: number
+  vy: number
 }
 
 /**
@@ -412,6 +428,8 @@ export const DESKTOP_EVENTS = {
   islandPlacement: 'desktop://island-placement',
   /** Payload IslandDrag, island window: a drag started or ended. */
   islandDrag: 'desktop://island-drag',
+  /** Payload IslandMotion, island window: velocity of the window during a drag and its throw. */
+  islandMotion: 'desktop://island-motion',
 } as const
 
 /** Commands implemented in Rust (invoke from @tauri-apps/api/core). Arguments are camelCase. */

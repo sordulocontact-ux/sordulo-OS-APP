@@ -16,6 +16,7 @@ import {
   islandDragStart,
   islandSetHitRects,
   onIslandDrag,
+  onIslandMotion,
   onIslandPlacement,
   onIslandPointer,
   openMainAt,
@@ -28,7 +29,8 @@ import { syncSession } from '../../desktop/useSessionSync'
 import { Garden } from '../garden'
 import { useProjects } from '../../projects/useProjects'
 import { Island } from '../view'
-import type { IslandProjectOption } from '../view/types'
+import { JELLY } from '../geometry'
+import type { DragMotionReader, IslandProjectOption } from '../view/types'
 import { placeFromPlacement, placeFromSearch, type IslandPlace } from './placement'
 import { startIslandRuntime, type IslandRuntime } from './runtime'
 import { SIGNED_OUT, type IslandSessionInfo, type IslandSource } from './source'
@@ -117,6 +119,12 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
   const [place, setPlace] = useState<IslandPlace>(() => placeFromSearch(window.location.search))
   const [dragging, setDragging] = useState(false)
   const draggingRef = useRef(false)
+  // Vitesse de la fenêtre (island-motion, ~60 Hz) lue à chaque image par la boucle de l'île, sans rendu React.
+  const motionRef = useRef<{ vx: number; vy: number; at: number } | null>(null)
+  const dragMotion = useCallback<DragMotionReader>((nowMs) => {
+    const m = motionRef.current
+    return m && nowMs - m.at < JELLY.staleMs ? m : null
+  }, [])
 
   /** Survol (Rust ou DOM). En sortant, un focus laissé par un clic de souris est rendu : l'île se referme. */
   const applyHover = useCallback((inside: boolean) => {
@@ -170,9 +178,17 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
         const started = drag.phase === 'start'
         draggingRef.current = started
         setDragging(started)
+        // Fin : la goutte se pose, plus de vitesse (elle s'écrase en arrivant).
+        if (!started) motionRef.current = null
         if (started) applyHover(false)
       }),
       'glisser',
+    )
+    keep(
+      onIslandMotion((motion) => {
+        if (active) motionRef.current = { vx: motion.vx, vy: motion.vy, at: performance.now() }
+      }),
+      'vitesse du glisser',
     )
     return () => {
       active = false
@@ -213,6 +229,7 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
         platform={place.platform}
         edge={place.edge}
         dragging={dragging}
+        dragMotion={dragMotion}
         hover={hover}
         call={view.call}
         audioLevels={view.audioLevels}

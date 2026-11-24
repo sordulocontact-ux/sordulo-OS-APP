@@ -29,6 +29,9 @@ pub const AIM_SETTLE_SECS: f64 = 0.12;
 
 /// Diamètre de la goutte que devient l'île pendant un glisser (px CSS) : `ISLAND_DRAG_BLOB` du contrat.
 pub const DRAG_BLOB: f64 = 44.0;
+/// Décalage de la goutte vers l'intérieur de la fenêtre (px CSS) : `ISLAND_DRAG_INSET` du contrat. Le front
+/// l'étire dans le sens du mouvement : collée au bord de la fenêtre, elle y serait coupée.
+pub const DRAG_INSET: f64 = 18.0;
 /// Temps pour que la goutte vienne se centrer sous le curseur au début du glisser (s).
 pub const GRAB_EASE_SECS: f64 = 0.16;
 
@@ -217,6 +220,19 @@ pub fn shape_center(edge: IslandEdge, width: f64, height: f64, depth: f64) -> (f
         IslandEdge::Bottom => (width / 2.0, height - depth / 2.0),
         IslandEdge::Left => (depth / 2.0, height / 2.0),
         IslandEdge::Right => (width - depth / 2.0, height / 2.0),
+    }
+}
+
+/// Centre de la goutte du glisser dans la fenêtre (même unité que `width` et `height`, `unit_scale` unités
+/// par px CSS) : centre de la forme de DRAG_BLOB de profondeur, décalé de DRAG_INSET vers l'intérieur.
+pub fn drop_center(edge: IslandEdge, width: f64, height: f64, unit_scale: f64) -> (f64, f64) {
+    let (x, y) = shape_center(edge, width, height, DRAG_BLOB * unit_scale);
+    let inset = DRAG_INSET * unit_scale;
+    match edge {
+        IslandEdge::Top => (x, y + inset),
+        IslandEdge::Bottom => (x, y - inset),
+        IslandEdge::Left => (x + inset, y),
+        IslandEdge::Right => (x - inset, y),
     }
 }
 
@@ -567,6 +583,14 @@ mod tests {
             stopped.push(s(last.t + f64::from(i) * 0.016, last.x));
         }
         assert_eq!(velocity(&stopped, VELOCITY_WINDOW), (0.0, 0.0));
+    }
+
+    #[test]
+    fn the_drop_sits_inside_the_window() {
+        assert_eq!(drop_center(IslandEdge::Top, 640.0, 300.0, 1.0), (320.0, 40.0));
+        assert_eq!(drop_center(IslandEdge::Bottom, 640.0, 300.0, 1.0), (320.0, 260.0));
+        assert_eq!(drop_center(IslandEdge::Left, 520.0, 480.0, 1.0), (40.0, 240.0));
+        assert_eq!(drop_center(IslandEdge::Right, 1040.0, 960.0, 2.0), (960.0, 480.0));
     }
 
     #[test]

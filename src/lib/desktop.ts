@@ -19,6 +19,7 @@ import {
   type DesktopStatus,
   type FocusModeState,
   type IslandDrag,
+  type IslandMotion,
   type IslandDragStart,
   type IslandHitRects,
   type IslandPlacement,
@@ -187,6 +188,10 @@ export const onIslandPlacement = (handler: (placement: IslandPlacement) => void)
 
 /** Island window: a drag started or ended. */
 export const onIslandDrag = (handler: (drag: IslandDrag) => void) => subscribe<IslandDrag>(DESKTOP_EVENTS.islandDrag, handler)
+
+/** Island window: velocity of the window during a drag and its throw (~60 Hz). */
+export const onIslandMotion = (handler: (motion: IslandMotion) => void) =>
+  subscribe<IslandMotion>(DESKTOP_EVENTS.islandMotion, handler)
 
 
 /** Main window: go to this route (sent by openMainAt). */

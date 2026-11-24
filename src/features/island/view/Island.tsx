@@ -53,6 +53,7 @@ export function Island(props: IslandProps) {
     edge = DEFAULT_EDGE,
     dragging = false,
     onDragStart,
+    dragMotion,
     hover,
     call,
     audioLevels,
@@ -201,6 +202,7 @@ export function Island(props: IslandProps) {
     audioLevels,
     music,
     musicLevels,
+    dragMotion,
     onHitRects: onHitRectsChange,
   }
   const liveDataRef = useRef(liveData)

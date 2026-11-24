@@ -210,6 +210,29 @@ export function layerSizeKeyFor(state: IslandState, withCall: boolean): IslandSi
 }
 
 // ---------------------------------------------------------------------------
+// Goutte liquide du glisser (view/jelly.ts)
+// ---------------------------------------------------------------------------
+
+/**
+ * Réglages de la goutte du glisser. Étirement : (1 + m) dans le sens du mouvement, (1 − m) en travers (aire
+ * gardée), m = vitesse × stretchPerSpeed, au plus maxStretch. Ressort peu amorti (rapport ≈ 0,28) : quand la
+ * vitesse tombe, la goutte dépasse et s'écrase dans l'autre sens, puis tremble ~0,5 s. Retard : la goutte
+ * traîne derrière le curseur de vitesse × lagSeconds (au plus maxLag px) et rebondit en avant à l'arrêt.
+ */
+export const JELLY = {
+  stretchPerSpeed: 0.00022,
+  maxStretch: 0.3,
+  stiffness: 260,
+  damping: 9,
+  lagSeconds: 0.006,
+  maxLag: 6,
+  lagStiffness: 320,
+  lagDamping: 15,
+  /** Sans vitesse reçue depuis ce temps (ms), la goutte est considérée immobile. */
+  staleMs: 120,
+} as const
+
+// ---------------------------------------------------------------------------
 // Ressort (prototype : K, C, frame, stepSpring)
 // ---------------------------------------------------------------------------
 

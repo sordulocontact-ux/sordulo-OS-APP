@@ -247,6 +247,13 @@ pub struct IslandDrag {
     pub phase: IslandDragPhase,
 }
 
+/// `IslandMotion` du contrat : vitesse de la fenêtre de l'île pendant un glisser et le vol qui suit (px CSS / s).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct IslandMotion {
+    pub vx: f64,
+    pub vy: f64,
+}
+
 /// `FocusModeState` du contrat.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct FocusModeState {

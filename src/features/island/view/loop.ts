@@ -7,6 +7,7 @@ import type { IslandRect } from '../../../shared/desktop-contract'
 import { WAVE, progressRatio, ringDashOffset, waveBarHeight } from '../geometry'
 import type { ClaudeSession, IslandMusic, IslandState, MusicLevelsReader, ProgressActivity } from '../types'
 import type { IslandEngine } from './engine'
+import type { DragMotionReader } from './types'
 import { formatElapsed } from './labels'
 import {
   createEqualizer,
@@ -54,6 +55,8 @@ export interface LiveData {
   music: IslandMusic | null
   /** Vrai son (Windows), lu à chaque image ; absent ou sans analyse récente : égaliseur simulé. */
   musicLevels: MusicLevelsReader | undefined
+  /** Vitesse du glisser (goutte liquide) ; absent : goutte immobile. */
+  dragMotion: DragMotionReader | undefined
   onHitRects: (rects: IslandRect[]) => void
 }
 
@@ -166,6 +169,7 @@ export function startIslandLoop(
   function frame(now: number): void {
     const d = data()
     const dt = (now - last) / 1000
+    engine.setMotion(d.dragMotion?.(now) ?? null)
     const animating = engine.step(dt)
     last = now
     engine.render()

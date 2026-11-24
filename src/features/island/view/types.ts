@@ -3,7 +3,7 @@
  * fournies par le contrôleur, et remonte les gestes par des callbacks.
  */
 import type { ReactNode } from 'react'
-import type { CallService, IslandDragStart, IslandRect } from '../../../shared/desktop-contract'
+import type { CallService, IslandDragStart, IslandMotion, IslandRect } from '../../../shared/desktop-contract'
 import type {
   Activity,
   ActivityKind,
@@ -58,6 +58,9 @@ export interface IslandDropInfo {
   zones: Readonly<Record<IslandDropZone, boolean>>
 }
 
+/** Lecture de la vitesse du glisser à un instant (performance.now(), ms). */
+export type DragMotionReader = (nowMs: number) => IslandMotion | null
+
 export interface IslandProps {
   /** Instantané de la coordination : état, activités, notification, demande d'autorisation. */
   snapshot: IslandSnapshot
@@ -85,6 +88,11 @@ export interface IslandProps {
    * ce glisser est annulé ; un appui sans déplacement reste un clic normal. Absent : pas de glisser.
    */
   onDragStart?: (size: IslandDragStart) => void
+  /**
+   * Vitesse de la fenêtre pendant un glisser et son lancer (px CSS / s, desktop://island-motion), lue à chaque
+   * image : la goutte s'étire et tremble. null : immobile ou rien de récent. Absent : goutte immobile.
+   */
+  dragMotion?: DragMotionReader
   /** La souris est sur l'île (source : desktop://island-pointer côté Tauri, ou survol DOM dans le labo). */
   hover: boolean
   /** Données de l'état `appel` ; null hors de cet état. */

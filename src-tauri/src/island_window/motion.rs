@@ -7,6 +7,9 @@
 //! - ressort (après le relâchement ou « Replacer l'île en haut ») : la fenêtre, déjà à la taille du bord
 //!   visé, rejoint sa place avec un ressort amorti qui part de la vitesse du lancer.
 //!
+//! Pendant le glisser et le vol qui suit, la vitesse de la fenêtre est envoyée au front à chaque tour
+//! (`island-motion`) : la goutte s'étire dans le sens du mouvement et tremble comme un liquide.
+//!
 //! Positions dans le repère de l'île (`platform::island_space`).
 
 use std::collections::VecDeque;
@@ -24,12 +27,12 @@ use super::{
     PROMPT_RESCALED, TOP_REQUESTED, WINDOW_SCALE,
 };
 use crate::events::{
-    EVENT_ISLAND_DRAG, EVENT_ISLAND_PLACEMENT, EVENT_ISLAND_POINTER,
+    EVENT_ISLAND_DRAG, EVENT_ISLAND_MOTION, EVENT_ISLAND_PLACEMENT, EVENT_ISLAND_POINTER,
     WINDOW_PROMPT,
 };
 use crate::platform::{self, CursorState, IslandSpace};
 use crate::state::{
-    DesktopState, IslandDrag, IslandDragPhase, IslandEdge, IslandPlacement,
+    DesktopState, IslandDrag, IslandDragPhase, IslandEdge, IslandMotion, IslandPlacement,
     IslandPointer,
 };
 
@@ -125,6 +128,18 @@ fn emit_placement(app: &AppHandle, placement: IslandPlacement) {
 fn emit_drag(app: &AppHandle, phase: IslandDragPhase) {
     if let Err(e) = app.emit_to(WINDOW_PROMPT, EVENT_ISLAND_DRAG, IslandDrag { phase }) {
         log::warn!("émission de {EVENT_ISLAND_DRAG} impossible : {e}");
+    }
+}
+
+/// Vitesse de la fenêtre (unités du repère / s) envoyée au front en px CSS / s.
+fn emit_motion(app: &AppHandle, velocity: (f64, f64), unit_scale: f64) {
+    let scale = if unit_scale > 0.0 { unit_scale } else { 1.0 };
+    let motion = IslandMotion {
+        vx: velocity.0 / scale,
+        vy: velocity.1 / scale,
+    };
+    if let Err(e) = app.emit_to(WINDOW_PROMPT, EVENT_ISLAND_MOTION, motion) {
+        log::debug!("émission de {EVENT_ISLAND_MOTION} impossible : {e}");
     }
 }
 
@@ -356,7 +371,7 @@ impl Island {
         } else {
             geometry::HORIZONTAL_SIZE
         };
-        let blob = geometry::shape_center(edge, window_w, window_h, geometry::DRAG_BLOB);
+        let blob = geometry::drop_center(edge, window_w, window_h, 1.0);
         let started = self.secs(now);
         let mut samples = VecDeque::new();
         samples.push_back(Sample {
@@ -430,6 +445,7 @@ impl Island {
         }
 
         let scale = window_unit_scale(self.space);
+        emit_motion(&self.app, velocity, scale);
         let grab = geometry::eased_grab(drag.grab, drag.blob, t - drag.started);
         let next = (
             (point.0 - grab.0 * scale).round(),
@@ -492,7 +508,7 @@ impl Island {
             edge,
             screen: Some(monitor.id.clone()),
         };
-        self.move_to(monitor.screen, edge, saved, throw, now);
+        self.move_to(monitor.screen, edge, saved, throw, true, now);
         if let Mode::Spring(spring) = &mut self.mode {
             spring.land = true;
         }
@@ -536,18 +552,21 @@ impl Island {
             IslandEdge::Top,
             SavedPlacement::TOP_OF_PRIMARY,
             velocity,
+            false,
             now,
         );
     }
 
     /// Nouvelle place : mémorisée, `island-placement` émis (même si elle n'a pas changé), fenêtre
-    /// redimensionnée pour le bord visé, puis ressort jusqu'à sa position.
+    /// redimensionnée pour le bord visé, puis ressort jusqu'à sa position. `dropped` : lâcher d'un glisser,
+    /// la forme est la goutte (`geometry::drop_center`).
     fn move_to(
         &mut self,
         screen: Screen,
         edge: IslandEdge,
         saved: SavedPlacement,
         velocity: (f64, f64),
+        dropped: bool,
         now: Instant,
     ) {
         let shown = IslandPlacement {
@@ -567,18 +586,19 @@ impl Island {
         // transition de la forme avec son propre ressort).
         let scale_now = window_unit_scale(self.space);
         let (old_w, old_h) = geometry::window_size(previous.edge, scale_now);
-        let old_center = geometry::shape_center(
-            previous.edge,
-            f64::from(old_w),
-            f64::from(old_h),
-            self.depth * scale_now,
-        );
-        let new_center = geometry::shape_center(
-            edge,
-            f64::from(target.width),
-            f64::from(target.height),
-            self.depth * screen.unit_scale,
-        );
+        let (old_w, old_h) = (f64::from(old_w), f64::from(old_h));
+        let (new_w, new_h) = (f64::from(target.width), f64::from(target.height));
+        let (old_center, new_center) = if dropped {
+            (
+                geometry::drop_center(previous.edge, old_w, old_h, scale_now),
+                geometry::drop_center(edge, new_w, new_h, screen.unit_scale),
+            )
+        } else {
+            (
+                geometry::shape_center(previous.edge, old_w, old_h, self.depth * scale_now),
+                geometry::shape_center(edge, new_w, new_h, self.depth * screen.unit_scale),
+            )
+        };
         let start = (
             (self.pos.0 + old_center.0 - new_center.0).round(),
             (self.pos.1 + old_center.1 - new_center.1).round(),
@@ -629,6 +649,9 @@ impl Island {
         let settled = geometry::spring_settled(px, vx, tx, pos_eps, vel_eps)
             && geometry::spring_settled(py, vy, ty, pos_eps, vel_eps);
         let timed_out = now.duration_since(spring.started).as_secs_f64() > SPRING_MAX_SECS;
+        if spring.land {
+            emit_motion(&self.app, spring.vel, spring.unit_scale);
+        }
         if spring.land
             && (settled
                 || timed_out

@@ -5,8 +5,17 @@
  * Bords (île déplaçable) : les ressorts de la forme travaillent dans le repère du bord (w le long du bord,
  * h en profondeur, voir edgeFrameSize) ; la forme est reportée dans le repère de l'écran (edgeShapeGeometry).
  * La boîte est placée au milieu du bord par la CSS (data-edge) : elle suit la taille écrite à chaque image.
+ *
+ * Glisser : la goutte se décale de ISLAND_DRAG_INSET vers l'intérieur de la fenêtre (--drag-x / --drag-y de la
+ * boîte), s'étire avec la vitesse reçue de Rust et tremble (jelly.ts), en proportion du détachement du bord.
  */
-import { ISLAND_DRAG_BLOB, type IslandDragStart, type IslandRect } from '../../../shared/desktop-contract'
+import {
+  ISLAND_DRAG_BLOB,
+  ISLAND_DRAG_INSET,
+  type IslandDragStart,
+  type IslandMotion,
+  type IslandRect,
+} from '../../../shared/desktop-contract'
 import {
   BUBBLE_GAP,
   BUBBLE_HIDDEN,
@@ -33,6 +42,7 @@ import {
   type SharedElementId,
 } from '../geometry'
 import type { IslandEdge, IslandPlatform, IslandSizeKey } from '../types'
+import { createJelly, jellySprings, jellyTransform, resetJelly, setJellyVelocity, stepJelly } from './jelly'
 import { createSpring, isSpringAtRest, snapSpring, stepSpring, substeps, type Spring } from './spring'
 
 export interface EngineElements {
@@ -82,6 +92,14 @@ const px = (v: number) => `${v.toFixed(2)}px`
 
 const OPPOSITE = { left: 'right', right: 'left', top: 'bottom', bottom: 'top' } as const
 
+/** Direction de l'intérieur de la fenêtre depuis le bord (décalage de la goutte). */
+const INWARD: Record<IslandEdge, { x: number; y: number }> = {
+  top: { x: 0, y: 1 },
+  bottom: { x: 0, y: -1 },
+  left: { x: 1, y: 0 },
+  right: { x: -1, y: 0 },
+}
+
 /** Coins arrondis de la zone de contenu : ceux du côté opposé au bord (ordre CSS : haut gauche, haut droit, bas droit, bas gauche). */
 function contentRadius(edge: IslandEdge, r: number): string {
   const v = px(r)
@@ -106,6 +124,8 @@ export class IslandEngine {
   private readonly r: Spring
   /** Détachement du bord : 0 collée, 1 goutte du glisser (forme liquide, voir shapeGeometry). */
   private readonly detach: Spring
+  /** Goutte liquide du glisser : étirement et retard d'après la vitesse de la fenêtre. */
+  private readonly jelly = createJelly()
   private readonly bw: Spring
   private readonly bh: Spring
   private readonly bo: Spring
@@ -157,7 +177,10 @@ export class IslandEngine {
     this.h.t = t.h
     this.r.t = t.r
     this.detach.t = target.dragging ? 1 : 0
-    if (target.reduced) [this.w, this.h, this.r, this.detach].forEach(snapSpring)
+    if (target.reduced) {
+      ;[this.w, this.h, this.r, this.detach].forEach(snapSpring)
+      resetJelly(this.jelly)
+    }
     if (platformChanged || edgeChanged) this.applyBubbleTarget()
     // Changement de bord : les éléments partagés se posent directement à leur place (la fenêtre a changé).
     this.retargetShared(edgeChanged)
@@ -178,6 +201,12 @@ export class IslandEngine {
     this.bh.t = visible ? dims.h : BUBBLE_HIDDEN.h
     this.bo.t = visible ? 1 : 0
     if (this.target.reduced) [this.bw, this.bh, this.bo].forEach(snapSpring)
+  }
+
+  /** Vitesse de la fenêtre (px CSS / s) pendant un glisser et son lancer ; null : immobile. */
+  setMotion(motion: IslandMotion | null): void {
+    if (this.target.reduced) resetJelly(this.jelly)
+    else setJellyVelocity(this.jelly, motion)
   }
 
   /** Un élément partagé vient d'être monté ou démonté : à réécrire à la prochaine image. */
@@ -248,6 +277,7 @@ export class IslandEngine {
       stepSpring(this.h, h, k, c)
       stepSpring(this.r, h, k, c)
       stepSpring(this.detach, h, k, c)
+      stepJelly(this.jelly, h)
       stepSpring(this.bw, h, k, c)
       stepSpring(this.bh, h, k, c)
       stepSpring(this.bo, h, op.stiffness, op.damping)
@@ -270,7 +300,7 @@ export class IslandEngine {
   }
 
   private springs(): Spring[] {
-    const list = [this.w, this.h, this.r, this.detach, this.bw, this.bh, this.bo]
+    const list = [this.w, this.h, this.r, this.detach, ...jellySprings(this.jelly), this.bw, this.bh, this.bo]
     for (const it of this.items) list.push(it.x, it.y, it.s, it.o)
     return list
   }
@@ -297,8 +327,22 @@ export class IslandEngine {
     // Repère du bord, pour le jardin tourné de la pilule verticale (Island.module.css)
     cs.setProperty('--edge-along', px(g.along))
     cs.setProperty('--edge-depth', px(g.depth))
+    this.renderDrop()
     this.renderBubble(g.width)
     this.renderShared()
+  }
+
+  /** Goutte du glisser : décalage vers l'intérieur + retard (boîte), étirement (forme). Rien une fois collée. */
+  private renderDrop(): void {
+    const amount = Math.max(0, Math.min(1, this.detach.x))
+    const inward = INWARD[this.target.edge]
+    const j = jellyTransform(this.jelly, amount)
+    const { island, svg } = this.els
+    island.style.setProperty('--drag-x', px(inward.x * ISLAND_DRAG_INSET * amount + j.dx))
+    island.style.setProperty('--drag-y', px(inward.y * ISLAND_DRAG_INSET * amount + j.dy))
+    const flat = j.m11 === 1 && j.m12 === 0 && j.m22 === 1
+    const m = [j.m11, j.m12, j.m12, j.m22].map((v) => v.toFixed(4)).join(', ')
+    svg.style.transform = flat ? '' : `matrix(${m}, 0, 0)`
   }
 
   private renderBubble(islandWidth: number): void {

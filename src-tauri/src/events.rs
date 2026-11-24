@@ -10,6 +10,8 @@ pub const PROMPT_ROUTE: &str = "/desktop/prompt";
 pub const EVENT_ISLAND_PLACEMENT: &str = "desktop://island-placement";
 /// `DESKTOP_EVENTS.islandDrag` (payload `IslandDrag`), fenêtre de l'île.
 pub const EVENT_ISLAND_DRAG: &str = "desktop://island-drag";
+/// `DESKTOP_EVENTS.islandMotion` (payload `IslandMotion`), fenêtre de l'île.
+pub const EVENT_ISLAND_MOTION: &str = "desktop://island-motion";
 
 /// `DESKTOP_EVENTS.micState` (payload `MicState`).
 pub const EVENT_MIC_STATE: &str = "desktop://mic-state";

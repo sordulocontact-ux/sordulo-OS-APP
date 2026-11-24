@@ -35,8 +35,19 @@ describe('tone tokens', () => {
 describe('Island.module.css', () => {
   it('only uses defined tokens (besides the variables set by the component)', () => {
     // Posées par le rendu : couleur d'accent, durée de notification, couleurs de la pochette, rang d'une barre,
-    // repère du bord de la zone de contenu (moteur, jardin tourné de la pilule verticale).
-    const local = new Set(['--island-tone', '--nd', '--music-start', '--music-end', '--eq-t', '--edge-along', '--edge-depth'])
+    // repère du bord de la zone de contenu (moteur, jardin tourné de la pilule verticale), décalage de la goutte
+    // du glisser (moteur).
+    const local = new Set([
+      '--island-tone',
+      '--nd',
+      '--music-start',
+      '--music-end',
+      '--eq-t',
+      '--edge-along',
+      '--edge-depth',
+      '--drag-x',
+      '--drag-y',
+    ])
     const used = Array.from(moduleCss.matchAll(/var\((--[a-z0-9-]+)/g), (m: RegExpExecArray) => m[1] ?? '')
     const missing = used.filter((v) => !local.has(v) && !defined.has(v))
     expect(missing).toEqual([])

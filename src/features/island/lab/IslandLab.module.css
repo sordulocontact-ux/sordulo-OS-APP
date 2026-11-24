@@ -70,6 +70,12 @@
   border-right: var(--size-border-strong) solid var(--color-primary);
 }
 
+/* Glisser simulé : la goutte suit la souris (transform écrit par useLabDrag) */
+.dragLayer {
+  position: absolute;
+  inset: 0;
+}
+
 .scene[data-backdrop='light'] {
   background: var(--color-surface-muted);
 }
