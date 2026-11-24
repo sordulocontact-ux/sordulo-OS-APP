@@ -22,9 +22,9 @@ pub const MAX_THROW_SPEED: f64 = 5000.0;
 /// visée d'un bout à l'autre de l'écran.
 pub const VELOCITY_WINDOW: f64 = 0.15;
 /// La place visée ne change que si la nouvelle est nettement plus proche du point projeté : distance inférieure
-/// à ce rapport × distance à la place actuelle (sinon, entre deux places, l'aperçu clignote de l'une à l'autre).
+/// à ce rapport × distance à la place actuelle (sinon, entre deux places, la place visée change sans arrêt).
 pub const STICKY_RATIO: f64 = 0.75;
-/// Et seulement si elle reste visée ce temps (s) : l'aperçu ne suit pas chaque à-coup de la vitesse.
+/// Et seulement si elle reste visée ce temps (s) : la place visée ne suit pas chaque à-coup de la vitesse.
 pub const AIM_SETTLE_SECS: f64 = 0.12;
 
 /// Diamètre de la goutte que devient l'île pendant un glisser (px CSS) : `ISLAND_DRAG_BLOB` du contrat.

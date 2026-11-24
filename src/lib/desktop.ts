@@ -20,7 +20,6 @@ import {
   type FocusModeState,
   type IslandDrag,
   type IslandDragStart,
-  type IslandGhost,
   type IslandHitRects,
   type IslandPlacement,
   type IslandPointer,
@@ -189,9 +188,6 @@ export const onIslandPlacement = (handler: (placement: IslandPlacement) => void)
 /** Island window: a drag started or ended. */
 export const onIslandDrag = (handler: (drag: IslandDrag) => void) => subscribe<IslandDrag>(DESKTOP_EVENTS.islandDrag, handler)
 
-/** Island-ghost window: outline to draw, or null to hide. */
-export const onIslandGhost = (handler: (ghost: IslandGhost | null) => void) =>
-  subscribe<IslandGhost | null>(DESKTOP_EVENTS.islandGhost, handler)
 
 /** Main window: go to this route (sent by openMainAt). */
 export const onNavigate = (handler: (payload: NavigatePayload) => void) =>

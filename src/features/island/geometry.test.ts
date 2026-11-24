@@ -10,7 +10,6 @@ import {
   isDragMove,
   isVerticalLayout,
   islandBoxPosition,
-  islandOutline,
   sharedPlacement,
   ISLAND_SIZES,
   RING,
@@ -392,15 +391,6 @@ describe('edges', () => {
     expect([...COMPACT_SIZE_KEYS].sort()).toEqual(
       ['agent', 'dragWake', 'meet', 'multi', 'music', 'musicGarden', 'peek', 'progress', 'repos'].sort(),
     )
-  })
-
-  it('gives the outline of the resting shape for the preview window', () => {
-    const outline = islandOutline({ edge: 'left', along: 193, depth: 40, root })
-    expect(outline).toEqual({ ...islandBoxPosition('left', { width: 40, height: 213 }, root), width: 40, height: 213, d: edgeShapeGeometry(193, 40, 14, 'win', 'left').d })
-    // Encoche seulement en haut
-    const top = islandOutline({ edge: 'top', along: 186, depth: 32, radius: 9, root, platform: 'mac' })
-    expect(top.d).toBe(shapeGeometry(186, 32, 9, 'mac').d)
-    expect(islandOutline({ edge: 'bottom', along: 186, depth: 32, radius: 9, root, platform: 'mac' }).width).toBe(186 + 2 * 10)
   })
 
   it('starts a drag beyond the threshold only', () => {

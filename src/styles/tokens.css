@@ -182,9 +182,6 @@
   --island-field: #1c1c1f;
   --island-line: rgb(255 255 255 / 0.14);
   --island-ghost: rgb(255 255 255 / 0.1);
-  /* Aperçu de la place de l'île pendant le glisser (fenêtre /desktop/ile-apercu, sur le bureau) */
-  --island-preview-fill: rgb(0 0 0 / 0.2);
-  --island-preview-line: rgb(255 255 255 / 0.55);
   --island-track: rgb(255 255 255 / 0.16);
   --island-ground: rgb(255 255 255 / 0.08);
   --island-badge-bg: #2c2c2e;

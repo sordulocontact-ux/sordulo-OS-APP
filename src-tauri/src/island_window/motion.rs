@@ -1,9 +1,9 @@
-//! Thread de l'île (~60 Hz) : clics qui passent à travers, placement, glisser, lancer et ressort, aperçu.
+//! Thread de l'île (~60 Hz) : clics qui passent à travers, placement, glisser, lancer et ressort.
 //!
 //! Trois modes :
 //! - repos : la fenêtre ignore la souris hors des formes (`decide`), place vérifiée toutes les 2 s ;
 //! - glisser (après `island_drag_start`) : la fenêtre suit le curseur en gardant le point de prise et capte
-//!   la souris ; la vitesse est lissée sur 100 ms ; l'aperçu (`island-ghost`) montre la place visée ;
+//!   la souris ; la vitesse est lissée sur 150 ms ;
 //! - ressort (après le relâchement ou « Replacer l'île en haut ») : la fenêtre, déjà à la taille du bord
 //!   visé, rejoint sa place avec un ressort amorti qui part de la vitesse du lancer.
 //!
@@ -20,16 +20,16 @@ use super::geometry::{self, Sample, Screen, WindowRect};
 use super::placement::{self, Monitor, SavedPlacement};
 use super::{
     decide, ensure_visible, is_hidden, place_state, window_unit_scale, DragRequest,
-    PointerDecision, WindowFrame, AROUND_NOTCH, DRAG_REQUEST, GHOST_RESCALED, PLACE_REQUESTED,
+    PointerDecision, WindowFrame, AROUND_NOTCH, DRAG_REQUEST, PLACE_REQUESTED,
     PROMPT_RESCALED, TOP_REQUESTED, WINDOW_SCALE,
 };
 use crate::events::{
-    EVENT_ISLAND_DRAG, EVENT_ISLAND_GHOST, EVENT_ISLAND_PLACEMENT, EVENT_ISLAND_POINTER,
-    WINDOW_ISLAND_GHOST, WINDOW_PROMPT,
+    EVENT_ISLAND_DRAG, EVENT_ISLAND_PLACEMENT, EVENT_ISLAND_POINTER,
+    WINDOW_PROMPT,
 };
 use crate::platform::{self, CursorState, IslandSpace};
 use crate::state::{
-    DesktopState, IslandDrag, IslandDragPhase, IslandEdge, IslandGhost, IslandPlacement,
+    DesktopState, IslandDrag, IslandDragPhase, IslandEdge, IslandPlacement,
     IslandPointer,
 };
 
@@ -140,12 +140,8 @@ pub fn spawn_pointer_loop(app: AppHandle) {
                 );
                 return;
             };
-            let ghost = app.get_webview_window(WINDOW_ISLAND_GHOST);
-            if ghost.is_none() {
-                log::warn!("fenêtre {WINDOW_ISLAND_GHOST} introuvable : glisser sans aperçu");
-            }
             log::info!("surveillance du curseur de l'île démarrée (toutes les {POINTER_POLL:?})");
-            let mut island = Island::new(app, window, ghost);
+            let mut island = Island::new(app, window);
             loop {
                 island.tick();
                 thread::sleep(POINTER_POLL);
@@ -170,11 +166,9 @@ struct Drag {
     /// Début du glisser (s, repère de `secs`).
     started: f64,
     samples: VecDeque<Sample>,
-    along: f64,
-    depth: f64,
     /// Écrans au début du glisser (ils ne changent pas pendant un geste).
     monitors: Vec<Monitor>,
-    /// Place visée montrée par l'aperçu : (indice de l'écran, bord).
+    /// Place visée, prise au lâcher : (indice de l'écran, bord).
     aimed: Option<(usize, IslandEdge)>,
     /// Autre place visée depuis peu, et depuis quand (s) : montrée si elle le reste AIM_SETTLE_SECS.
     pending: Option<((usize, IslandEdge), f64)>,
@@ -195,7 +189,6 @@ struct Spring {
 struct Island {
     app: AppHandle,
     window: WebviewWindow<Wry>,
-    ghost: Option<WebviewWindow<Wry>>,
     space: IslandSpace,
     /// Cadre de la fenêtre au repos (zones cliquables), `None` avant le premier placement.
     frame: Option<WindowFrame>,
@@ -207,17 +200,14 @@ struct Island {
     /// Profondeur de la forme au dernier glisser (px CSS) : garde la forme en place quand la fenêtre
     /// change de taille.
     depth: f64,
-    ghost_rect: Option<WindowRect>,
-    ghost_visible: bool,
     clock: Instant,
 }
 
 impl Island {
-    fn new(app: AppHandle, window: WebviewWindow<Wry>, ghost: Option<WebviewWindow<Wry>>) -> Self {
+    fn new(app: AppHandle, window: WebviewWindow<Wry>) -> Self {
         Self {
             app,
             window,
-            ghost,
             space: platform::island_space(),
             frame: None,
             pos: (0.0, 0.0),
@@ -226,8 +216,6 @@ impl Island {
             last: PointerDecision::default(),
             until_place: 0,
             depth: DEFAULT_DEPTH,
-            ghost_rect: None,
-            ghost_visible: false,
             clock: Instant::now(),
         }
     }
@@ -381,8 +369,6 @@ impl Island {
             blob,
             started,
             samples,
-            along: request.along,
-            depth: request.depth,
             monitors,
             aimed: None,
             pending: None,
@@ -396,7 +382,7 @@ impl Island {
     }
 
     /// Place visée si l'île était lâchée maintenant : milieu de bord le plus proche du point projeté, en
-    /// gardant `current` (la place montrée par l'aperçu) tant qu'aucune n'est nettement plus proche.
+    /// gardant `current` (la place déjà visée) tant qu'aucune n'est nettement plus proche.
     fn aim(
         monitors: &[Monitor],
         point: (f64, f64),
@@ -473,18 +459,9 @@ impl Island {
                 }
             };
             if drag.aimed.is_none() || settled {
-                self.show_ghost(
-                    &drag.monitors[candidate.0],
-                    candidate.1,
-                    drag.along,
-                    drag.depth,
-                );
                 drag.aimed = Some(candidate);
                 drag.pending = None;
             }
-        }
-        if GHOST_RESCALED.swap(false, Ordering::Relaxed) {
-            self.reapply_ghost();
         }
         self.mode = Mode::Drag(drag);
         // La fenêtre suit le curseur : elle capte la souris, aucun clic ne passe dessous.
@@ -496,9 +473,8 @@ impl Island {
 
     fn release(&mut self, drag: Drag, point: (f64, f64), velocity: (f64, f64), now: Instant) {
         let scale = window_unit_scale(self.space);
-        // Même place que l'aperçu, sauf si le lancer vise nettement ailleurs.
+        // Place visée pendant le glisser, sauf si le lancer vise nettement ailleurs.
         let target = Self::aim(&drag.monitors, point, velocity, scale, drag.aimed);
-        self.hide_ghost();
         let Some((index, edge)) = target else {
             emit_drag(&self.app, IslandDragPhase::End);
             self.until_place = 0;
@@ -519,68 +495,6 @@ impl Island {
         self.move_to(monitor.screen, edge, saved, throw, now);
         if let Mode::Spring(spring) = &mut self.mode {
             spring.land = true;
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    // Aperçu
-    // -----------------------------------------------------------------------
-
-    fn show_ghost(&mut self, monitor: &Monitor, edge: IslandEdge, along: f64, depth: f64) {
-        let Some(ghost) = &self.ghost else {
-            return;
-        };
-        let rect = geometry::window_rect(&monitor.screen, edge);
-        if let Err(e) = placement::apply_rect(ghost, self.space, rect) {
-            log::debug!("aperçu de l'île : placement impossible : {e}");
-        }
-        self.ghost_rect = Some(rect);
-        let payload = IslandGhost {
-            edge,
-            notch: geometry::uses_notch(&monitor.screen, edge),
-            along,
-            depth,
-        };
-        if let Err(e) = self
-            .app
-            .emit_to(WINDOW_ISLAND_GHOST, EVENT_ISLAND_GHOST, Some(payload))
-        {
-            log::warn!("émission de {EVENT_ISLAND_GHOST} impossible : {e}");
-        }
-        if !self.ghost_visible {
-            // Jamais activable (créée ainsi) : montrée sans voler le focus.
-            match ghost.show() {
-                Ok(()) => self.ghost_visible = true,
-                Err(e) => log::warn!("impossible d'afficher l'aperçu de l'île : {e}"),
-            }
-        }
-    }
-
-    /// L'échelle de l'aperçu a changé (autre écran) : Windows a recalculé sa taille, remettre la bonne.
-    fn reapply_ghost(&self) {
-        if let (Some(ghost), Some(rect)) = (&self.ghost, self.ghost_rect) {
-            if let Err(e) = placement::apply_rect(ghost, self.space, rect) {
-                log::debug!("aperçu de l'île : placement impossible : {e}");
-            }
-        }
-    }
-
-    fn hide_ghost(&mut self) {
-        self.ghost_rect = None;
-        let Some(ghost) = &self.ghost else {
-            return;
-        };
-        if let Err(e) =
-            self.app
-                .emit_to(WINDOW_ISLAND_GHOST, EVENT_ISLAND_GHOST, None::<IslandGhost>)
-        {
-            log::warn!("émission de {EVENT_ISLAND_GHOST} impossible : {e}");
-        }
-        if self.ghost_visible {
-            if let Err(e) = ghost.hide() {
-                log::warn!("impossible de cacher l'aperçu de l'île : {e}");
-            }
-            self.ghost_visible = false;
         }
     }
 

@@ -247,18 +247,6 @@ pub struct IslandDrag {
     pub phase: IslandDragPhase,
 }
 
-/// `IslandGhost` du contrat (émis à la fenêtre d'aperçu ; `null` pour la cacher).
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IslandGhost {
-    pub edge: IslandEdge,
-    pub notch: bool,
-    /// px CSS le long du bord.
-    pub along: f64,
-    /// px CSS en s'éloignant du bord.
-    pub depth: f64,
-}
-
 /// `FocusModeState` du contrat.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct FocusModeState {
@@ -523,20 +511,6 @@ mod tests {
             })
             .unwrap(),
             serde_json::json!({ "phase": "start" })
-        );
-        assert_eq!(
-            serde_json::to_value(IslandGhost {
-                edge: IslandEdge::Top,
-                notch: true,
-                along: 193.0,
-                depth: 40.0
-            })
-            .unwrap(),
-            serde_json::json!({ "edge": "top", "notch": true, "along": 193.0, "depth": 40.0 })
-        );
-        assert_eq!(
-            serde_json::to_value(None::<IslandGhost>).unwrap(),
-            serde_json::Value::Null
         );
         for edge in IslandEdge::ALL {
             assert_eq!(serde_json::to_value(edge).unwrap(), edge.as_str());

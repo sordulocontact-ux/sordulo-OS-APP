@@ -1,7 +1,0 @@
-{
-  "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "island-ghost",
-  "description": "Droits de la fenêtre island-ghost (aperçu de la place de l'île pendant un glisser) : écouter ses événements.",
-  "windows": ["island-ghost"],
-  "permissions": ["core:event:default"]
-}

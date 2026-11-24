@@ -431,45 +431,6 @@ export function islandBoxPosition(
   return { x: (root.width - box.width) / 2, y: 0 }
 }
 
-/** Rayon par défaut d'un contour : celui de l'état de même taille s'il existe, sinon la moitié de la profondeur. */
-function outlineRadius(platform: IslandPlatform, along: number, depth: number): number {
-  for (const size of Object.values(ISLAND_SIZES[platform])) {
-    if ((size.w === along && size.h === depth) || (size.w === depth && size.h === along)) return size.r
-  }
-  return depth / 2
-}
-
-export interface IslandOutlineInput {
-  edge: IslandEdge
-  /** Repère du bord, comme IslandDragStart / IslandGhost : longueur de la zone de contenu et profondeur. */
-  along: number
-  depth: number
-  /** Rayon des coins opposés au bord ; absent : celui de l'état de même taille, sinon depth / 2. */
-  radius?: number
-  /** Taille de la fenêtre (px CSS) dans laquelle la boîte est placée. */
-  root: { width: number; height: number }
-  /** 'mac' : variante encoche, seulement en haut (ailleurs : 'win'). */
-  platform?: IslandPlatform
-}
-
-export interface IslandOutline extends BoxRect {
-  /** Chemin SVG dans la boîte (viewBox `0 0 width height`). */
-  d: string
-}
-
-/**
- * Contour de l'île à un bord, pour l'aperçu de la place pendant le glisser (fenêtre island-ghost) : chemin
- * SVG et boîte dans la fenêtre. Dessiner un `<svg>` en position absolue à (x, y), de taille width × height,
- * viewBox `0 0 width height`, avec un `<path d>`.
- */
-export function islandOutline(input: IslandOutlineInput): IslandOutline {
-  const platform = edgePlatform(input.platform ?? ACTIVE_PLATFORM, input.edge)
-  const radius = input.radius ?? outlineRadius(platform, input.along, input.depth)
-  const g = edgeShapeGeometry(input.along, input.depth, radius, platform, input.edge)
-  const { x, y } = islandBoxPosition(input.edge, g, input.root)
-  return { d: g.d, x, y, width: g.width, height: g.height }
-}
-
 /** Taille envoyée au début d'un glisser (IslandDragStart) : taille d'un état dans le repère du bord. */
 export function dragStartSize(size: IslandShapeSize): IslandDragStart {
   return { along: size.w, depth: size.h }

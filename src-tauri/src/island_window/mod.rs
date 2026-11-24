@@ -19,7 +19,7 @@
 //! - Glisser-déposer : un bouton principal enfoncé dans la marge `dragMargin` réactive aussi les clics, pour
 //!   que le dépôt natif de Tauri (laissé actif sur cette fenêtre) atteigne l'île.
 //! - Déplaçable : le front appelle `island_drag_start` ; le même thread fait suivre le curseur à la fenêtre,
-//!   montre l'aperçu de la place visée (fenêtre `island-ghost`), puis au relâchement lance l'île vers le
+//!   puis au relâchement lance l'île vers le
 //!   milieu de bord le plus proche du point projeté, avec un ressort (voir `motion`, calculs dans
 //!   `geometry`). « Replacer l'île en haut » (menu du soleil) : `request_top`.
 //!
@@ -45,7 +45,7 @@ use tauri::{
     AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry,
 };
 
-use crate::events::{ISLAND_GHOST_ROUTE, PROMPT_ROUTE, WINDOW_ISLAND_GHOST, WINDOW_PROMPT};
+use crate::events::{PROMPT_ROUTE, WINDOW_PROMPT};
 use crate::platform::{self, CursorState, IslandSpace};
 use crate::state::{IslandEdge, IslandHitRects, IslandPlacement};
 
@@ -70,8 +70,6 @@ static WINDOW_SCALE: AtomicU64 = AtomicU64::new(0x3FF0_0000_0000_0000); // 1.0
 
 /// L'échelle de la fenêtre de l'île a changé : réappliquer la taille voulue (Windows la recalcule seul).
 static PROMPT_RESCALED: AtomicBool = AtomicBool::new(false);
-/// Idem pour la fenêtre d'aperçu.
-static GHOST_RESCALED: AtomicBool = AtomicBool::new(false);
 
 /// « Replacer l'île en haut » demandé (menu du soleil), traité par le thread de l'île.
 static TOP_REQUESTED: AtomicBool = AtomicBool::new(false);
@@ -192,7 +190,7 @@ pub fn set_hidden(app: &AppHandle, hidden: bool) {
 }
 
 /// Crée la fenêtre de l'île à sa place mémorisée et la montre sans prendre le focus (sauf si
-/// l'utilisateur l'a masquée), puis la fenêtre d'aperçu, cachée. Appelé une fois dans `setup`.
+/// l'utilisateur l'a masquée). Appelé une fois dans `setup`.
 pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let hidden = hidden_file(app).is_some_and(|path| path.exists());
     HIDDEN.store(hidden, Ordering::Relaxed);
@@ -288,10 +286,6 @@ pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         "fenêtre de l'île créée ({width} × {height} px logiques, bord {})",
         current.edge.as_str()
     );
-
-    if let Err(e) = create_ghost(app) {
-        log::warn!("fenêtre d'aperçu de l'île impossible à créer : {e}");
-    }
     Ok(window)
 }
 
@@ -302,42 +296,6 @@ fn window_logical_size(edge: IslandEdge) -> (f64, f64) {
     } else {
         geometry::HORIZONTAL_SIZE
     }
-}
-
-/// Fenêtre d'aperçu de la place visée pendant un glisser : transparente, sans ombre, toujours devant, hors
-/// barre des tâches, jamais activable, ignore toujours la souris. Cachée jusqu'au premier glisser.
-fn create_ghost(app: &AppHandle) -> tauri::Result<WebviewWindow> {
-    let (width, height) = geometry::HORIZONTAL_SIZE;
-    let ghost = WebviewWindowBuilder::new(
-        app,
-        WINDOW_ISLAND_GHOST,
-        WebviewUrl::App(ISLAND_GHOST_ROUTE.into()),
-    )
-    .title("Sordulo OS")
-    .inner_size(width, height)
-    .resizable(false)
-    .maximizable(false)
-    .minimizable(false)
-    .decorations(false)
-    .transparent(true)
-    .shadow(false)
-    .always_on_top(true)
-    .skip_taskbar(true)
-    .visible_on_all_workspaces(true)
-    .visible(false)
-    .focused(false)
-    .focusable(false)
-    .disable_drag_drop_handler()
-    .build()?;
-    platform::prepare_island_window(&ghost);
-    ghost.set_ignore_cursor_events(true)?;
-    ghost.on_window_event(|event| {
-        if let WindowEvent::ScaleFactorChanged { .. } = event {
-            GHOST_RESCALED.store(true, Ordering::Relaxed);
-        }
-    });
-    log::info!("fenêtre d'aperçu de l'île créée (cachée)");
-    Ok(ghost)
 }
 
 /// Montre la fenêtre si elle est cachée, sans voler le focus ni la déplacer. Rien si l'utilisateur a

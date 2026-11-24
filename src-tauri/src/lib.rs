@@ -29,7 +29,7 @@ mod windows_mgmt;
 
 use tauri::{Manager, WindowEvent};
 
-use crate::events::{WINDOW_ISLAND_GHOST, WINDOW_MAIN, WINDOW_PROMPT};
+use crate::events::{WINDOW_MAIN, WINDOW_PROMPT};
 use crate::state::DesktopState;
 
 pub fn run() {
@@ -88,7 +88,7 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             // Fermer la fenêtre principale la cache : l'app reste dans la zone de notification.
-            // L'île et son aperçu ne se ferment jamais (Alt+F4 compris).
+            // L'île ne se ferme jamais (Alt+F4 compris).
             if let WindowEvent::CloseRequested { api, .. } = event {
                 match window.label() {
                     WINDOW_MAIN => {
@@ -97,7 +97,7 @@ pub fn run() {
                             log::warn!("impossible de cacher la fenêtre {WINDOW_MAIN} : {e}");
                         }
                     }
-                    WINDOW_PROMPT | WINDOW_ISLAND_GHOST => api.prevent_close(),
+                    WINDOW_PROMPT => api.prevent_close(),
                     _ => {}
                 }
             }

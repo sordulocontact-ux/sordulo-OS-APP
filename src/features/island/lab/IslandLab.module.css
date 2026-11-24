@@ -70,19 +70,6 @@
   border-right: var(--size-border-strong) solid var(--color-primary);
 }
 
-/* Aperçu de la place (simulation du glisser) */
-.preview {
-  position: absolute;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.preview path {
-  fill: var(--island-preview-fill);
-  stroke: var(--island-preview-line);
-  stroke-width: var(--island-size-2);
-}
-
 .scene[data-backdrop='light'] {
   background: var(--color-surface-muted);
 }

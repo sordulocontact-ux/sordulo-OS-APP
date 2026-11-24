@@ -14,19 +14,10 @@ export const DESKTOP_WINDOWS = {
    * the hit rects sent with islandSetHitRects. Created at startup.
    */
   prompt: 'prompt',
-  /**
-   * Preview of where the island lands while it is dragged: transparent, click-through, always-on-top window
-   * the size of the island window, route DESKTOP_ISLAND_GHOST_ROUTE. Created hidden at startup, shown during a
-   * drag only (payload DESKTOP_EVENTS.islandGhost).
-   */
-  islandGhost: 'island-ghost',
 } as const
 
 /** Front route loaded by the prompt window (outside the regular app layout). */
 export const DESKTOP_PROMPT_ROUTE = '/desktop/prompt'
-
-/** Front route loaded by the island-ghost window. */
-export const DESKTOP_ISLAND_GHOST_ROUTE = '/desktop/ile-apercu'
 
 /**
  * Edge of a screen the island is glued to, at the middle of that edge. `top` is the historical place (around
@@ -41,7 +32,7 @@ export type IslandEdge = 'top' | 'bottom' | 'left' | 'right'
 /**
  * Size of the island window (CSS / logical px), set by Rust from the edge: horizontal for top / bottom, vertical
  * for left / right (widest open card 440 + spring overshoot, along the edge the tallest card or stacked compact
- * state). The island-ghost window has the same size as the island window at the target edge.
+ * state).
  */
 export const ISLAND_WINDOW_SIZE = {
   horizontal: { width: 640, height: 300 },
@@ -64,8 +55,8 @@ export interface IslandPlacement {
 
 /**
  * Size of the island's black shape when the drag starts, in CSS px, measured in the edge's frame: `along`
- * the edge and `depth` away from it (top island 193 × 40 → along 193, depth 40). Sent with islandDragStart,
- * used by Rust for the preview window.
+ * the edge and `depth` away from it (top island 193 × 40 → along 193, depth 40). Sent with islandDragStart
+ * (logged by Rust).
  */
 export interface IslandDragStart {
   along: number
@@ -80,14 +71,6 @@ export interface IslandDragStart {
  */
 export interface IslandDrag {
   phase: 'start' | 'end'
-}
-
-/** Payload of DESKTOP_EVENTS.islandGhost: outline to draw (null = hide). Same frame as IslandDragStart. */
-export interface IslandGhost {
-  edge: IslandEdge
-  notch: boolean
-  along: number
-  depth: number
 }
 
 /**
@@ -429,8 +412,6 @@ export const DESKTOP_EVENTS = {
   islandPlacement: 'desktop://island-placement',
   /** Payload IslandDrag, island window: a drag started or ended. */
   islandDrag: 'desktop://island-drag',
-  /** Payload IslandGhost | null, island-ghost window: where the island would land if released now. */
-  islandGhost: 'desktop://island-ghost',
 } as const
 
 /** Commands implemented in Rust (invoke from @tauri-apps/api/core). Arguments are camelCase. */

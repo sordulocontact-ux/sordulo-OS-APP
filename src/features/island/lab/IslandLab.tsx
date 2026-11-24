@@ -15,7 +15,7 @@ import { Button, Select } from "../../../components/ui";
 import { ISLAND_WINDOW_SIZE, type CallService } from "../../../shared/desktop-contract";
 import { CALL_SERVICES, callBrand } from "../brands";
 import { Garden } from "../garden";
-import { SPRING, WAVE, edgePlatform, islandOutline, islandSize, sizeKeyFor } from "../geometry";
+import { SPRING, WAVE, edgePlatform, islandSize, sizeKeyFor } from "../geometry";
 import type { IslandEdge, IslandPlatform, NotificationKind } from "../types";
 import { Island, islandLabel, type IslandDropZone } from "../view";
 import { musicHasProgress } from "../view/music";
@@ -163,16 +163,6 @@ export default function IslandLab() {
     view.music,
   );
 
-  const restSize = islandSize(platform, "repos", 0, false, true);
-  const previewOutline = dragging
-    ? islandOutline({
-        edge,
-        along: restSize.w,
-        depth: restSize.h,
-        root: windowSize,
-        platform,
-      })
-    : null;
 
   function resetAll() {
     runtime.reset();
@@ -236,18 +226,6 @@ export default function IslandLab() {
             onMusicCommand={runtime.musicCommand}
             onHitRectsChange={NO_HIT_RECTS}
           />
-          {previewOutline && (
-            <svg
-              className={styles.preview}
-              style={{ left: previewOutline.x, top: previewOutline.y }}
-              width={previewOutline.width}
-              height={previewOutline.height}
-              viewBox={`0 0 ${previewOutline.width} ${previewOutline.height}`}
-              aria-hidden="true"
-            >
-              <path d={previewOutline.d} />
-            </svg>
-          )}
         </div>
         <div className={styles.values}>
           <h2 className={styles.valuesTitle}>Valeurs pour Maël</h2>

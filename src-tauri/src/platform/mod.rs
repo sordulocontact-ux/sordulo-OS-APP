@@ -379,7 +379,7 @@ pub fn primary_notch() -> Option<Notch> {
     }
 }
 
-/// Réglages système d'une fenêtre de l'île (l'île et son aperçu) après sa création (Mac : au-dessus de la
+/// Réglages système d'une fenêtre de l'île après sa création (Mac : au-dessus de la
 /// barre des menus).
 /// À appeler sur le thread principal.
 pub fn prepare_island_window(window: &tauri::WebviewWindow) {
