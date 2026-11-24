@@ -280,15 +280,15 @@ export function sampleNotification(kind: NotificationKind): IslandNotification {
       });
     case "deployed":
       return createNotification("deployed", {
-        projectName: "PDS OS",
-        url: "https://pds.example",
-        commitMessage: "Ajoute la page Connecteurs",
+        projectName: "sordulo-OS-APP",
+        url: "https://sordulo-os-app.example",
+        commitMessage: "feat(ile): plus d'aperçu de la place pendant le glisser",
       });
     case "deployFailed":
       return createNotification("deployFailed", {
-        projectName: "PDS OS",
-        logsUrl: "https://vercel.com/sordulo/pds-os",
-        commitMessage: "Ajoute la page Connecteurs",
+        projectName: "sordulo-OS-APP",
+        logsUrl: "https://vercel.com/sordulo/sordulo-os-app",
+        commitMessage: "feat(ile): plus d'aperçu de la place pendant le glisser",
         branch: "main",
       });
     case "relecture":

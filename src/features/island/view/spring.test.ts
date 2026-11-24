@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { SPRING, SPRING_MAX_DT_S, opacitySpring } from '../geometry'
+import {
+  BOUNCY_SPRING,
+  ISLAND_SIZES,
+  PROGRESS_NAMED_LABEL_MIN_ALONG,
+  PROGRESS_NAMED_MAC_WIDTH,
+  SPRING,
+  SPRING_MAX_DT_S,
+  opacitySpring,
+} from '../geometry'
 import { createSpring, isSpringAtRest, snapSpring, stepSpring, substeps, type Spring } from './spring'
 
 function run(s: Spring, seconds: number, frame = 1 / 60, k: number = SPRING.stiffness, c: number = SPRING.damping) {
@@ -56,5 +64,40 @@ describe('spring', () => {
     s.v = 3
     snapSpring(s)
     expect(s).toEqual({ x: 5, v: 0, t: 5 })
+  })
+})
+
+describe('bouncy spring (Mac island widening for a deployment)', () => {
+  /** Largeur de la forme image par image, de `from` jusqu'à l'île élargie, avec le ressort donné. */
+  function widths(from: number, k: number, c: number): number[] {
+    const s = createSpring(from)
+    s.t = PROGRESS_NAMED_MAC_WIDTH
+    const out: number[] = []
+    for (let i = 0; i < 120; i++) {
+      run(s, 1 / 60, 1 / 60, k, c)
+      out.push(s.x)
+    }
+    return out
+  }
+
+  it('overshoots its final width visibly, more than SPRING, then settles', () => {
+    for (const from of [ISLAND_SIZES.mac.repos.w, ISLAND_SIZES.mac.progress.w]) {
+      const delta = PROGRESS_NAMED_MAC_WIDTH - from
+      const bouncy = widths(from, BOUNCY_SPRING.stiffness, BOUNCY_SPRING.damping)
+      const calm = widths(from, SPRING.stiffness, SPRING.damping)
+      const peak = Math.max(...bouncy)
+      expect(peak - PROGRESS_NAMED_MAC_WIDTH).toBeGreaterThan(0.15 * delta)
+      expect(peak - PROGRESS_NAMED_MAC_WIDTH).toBeGreaterThan(Math.max(...calm) - PROGRESS_NAMED_MAC_WIDTH)
+      expect(Math.abs((bouncy.at(-1) ?? 0) - PROGRESS_NAMED_MAC_WIDTH)).toBeLessThan(0.01)
+    }
+  })
+
+  it('never dips back under the width the name needs once it has been reached (no flicker)', () => {
+    for (const from of [ISLAND_SIZES.mac.repos.w, ISLAND_SIZES.mac.progress.w]) {
+      const bouncy = widths(from, BOUNCY_SPRING.stiffness, BOUNCY_SPRING.damping)
+      const first = bouncy.findIndex((w) => w >= PROGRESS_NAMED_LABEL_MIN_ALONG)
+      expect(first).toBeGreaterThanOrEqual(0)
+      expect(Math.min(...bouncy.slice(first))).toBeGreaterThanOrEqual(PROGRESS_NAMED_LABEL_MIN_ALONG)
+    }
   })
 })

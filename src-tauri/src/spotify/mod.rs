@@ -1,18 +1,26 @@
-//! Connecteur Spotify (API Web officielle), même code pour Windows et macOS.
+//! Connecteur Spotify (API Web officielle), même code pour Windows et macOS (rien de propre à un système).
 //!
 //! But : montrer dans l'île ce qui joue sur un AUTRE appareil du compte (téléphone, enceinte), quand rien
 //! ne joue sur l'ordinateur. La fusion avec le lecteur du système est faite par `music.rs`
 //! ([`prefer_remote`]) ; ce module ne fait que lire Spotify et garder la dernière lecture connue.
 //!
-//! - Connexion : OAuth PKCE sans secret ([`connect`]). Un serveur local (`callback.rs`) écoute
-//!   `http://127.0.0.1:43127/callback` le temps de la connexion (3 min au plus), la page d'autorisation
-//!   s'ouvre dans le navigateur par défaut (`platform::open_url`).
-//! - Jetons + Client ID : `app_data_dir()/spotify.json` (`store.rs`), relus au démarrage, rafraîchis avant
-//!   expiration. Refus de Spotify (`invalid_grant`, 401 après rafraîchissement) : jetons oubliés,
-//!   `needsReconnect`. Chaque changement d'état émet `desktop://spotify` (`SpotifyStatus`) à toutes les
-//!   fenêtres.
+//! - Connexion liée au compte Sordulo OS, pas à l'ordinateur (table `spotify_connections`, migration 0009) :
+//!   chacun colle le Client ID de SON app Spotify dans la carte du connecteur. `spotify_connect` (fenêtre
+//!   principale) fait l'autorisation OAuth PKCE sans secret avec ce Client ID ([`connect`]) : un serveur local
+//!   (`callback.rs`) écoute `http://127.0.0.1:43127/callback` le temps de la connexion (3 min au plus), la page
+//!   d'autorisation s'ouvre dans le navigateur par défaut (`platform::open_url`). Le résultat (jeton de
+//!   rafraîchissement, compte, Premium) est renvoyé au front, qui l'enregistre sur le compte.
+//! - Le front envoie la ligne du compte (`spotify_set_connection`, [`set_connection`]) : l'île la relit
+//!   régulièrement, la fenêtre principale après une connexion ou une déconnexion ; `None` à la déconnexion de
+//!   Sordulo OS. Rust garde tout en mémoire (`store.rs`), rien sur le disque ; l'ancien `spotify.json` est
+//!   supprimé au démarrage.
+//! - Jeton d'accès rafraîchi avant expiration. Nouveau jeton de rafraîchissement (rotation) : pris tout de
+//!   suite et signalé à l'île (`desktop://spotify-token`), qui l'enregistre sur le compte. Refus de Spotify
+//!   (`invalid_grant`, 401 après rafraîchissement) : jeton mis de côté, signalé à l'île, qui relit la ligne
+//!   (un autre ordinateur du même compte a pu faire tourner le jeton) avant de déclarer « À reconnecter ».
+//!   Chaque changement d'état émet `desktop://spotify` (`SpotifyStatus`) à toutes les fenêtres.
 //! - Lecture : un thread interroge `GET /v1/me/player` (~3 s quand quelque chose est connu ou que rien ne
-//!   joue sur l'ordinateur, 15 s sinon), seulement avec un compte connecté et la musique de l'île activée ;
+//!   joue sur l'ordinateur, 15 s sinon), seulement avec un compte utilisable et la musique de l'île activée ;
 //!   429 respecté (`Retry-After`) ; erreur réseau : dernière lecture gardée 15 s. La pochette (https) est
 //!   téléchargée quand son URL change, AVANT de publier la lecture : `music.rs` l'a tout de suite.
 //! - Commandes (Premium) : précédent, suivant, lecture / pause sur l'appareil actif ; `open` ouvre l'app
@@ -29,7 +37,6 @@ mod pkce;
 mod player;
 mod store;
 
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
@@ -39,7 +46,7 @@ use std::time::{Duration, Instant};
 use reqwest::blocking::Client;
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::events::EVENT_SPOTIFY;
+use crate::events::{EVENT_SPOTIFY, WINDOW_PROMPT};
 use crate::platform::{self, MediaCommand};
 use crate::state::DesktopState;
 use crate::time::now_ms;
@@ -48,11 +55,14 @@ use api::{ApiError, PlayerCommand};
 /// Encodage des paramètres d'URL, repris par `music_tempo` (recherche Deezer).
 pub use pkce::form_body;
 pub use player::{prefer_remote, RemotePlayback, APP_ID};
-pub use store::SpotifyStatus;
-use store::Stored;
+pub use store::{Authorization, Connection, SpotifyStatus};
+use store::{Account, TokenChange, Tokens};
 
-/// Fichier des jetons dans le dossier de données de l'app.
-const FILE_NAME: &str = "spotify.json";
+/// `DESKTOP_EVENTS.spotifyToken` (payload `SpotifyTokenChange`), fenêtre de l'île : le jeton de
+/// rafraîchissement a changé (à enregistrer sur le compte) ou Spotify l'a refusé (relire la ligne).
+pub const EVENT_SPOTIFY_TOKEN: &str = "desktop://spotify-token";
+/// Ancien fichier des jetons (avant la connexion par compte), supprimé au démarrage.
+const LEGACY_FILE_NAME: &str = "spotify.json";
 /// Attente maximale de la redirection de Spotify.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(180);
 /// Sondage quand une lecture est connue ou que rien ne joue sur l'ordinateur.
@@ -75,15 +85,17 @@ pub struct Remote {
 
 #[derive(Default)]
 struct Inner {
-    /// `app_data_dir()/spotify.json` (`None` si le dossier est introuvable : rien n'est gardé).
-    path: Option<PathBuf>,
-    stored: Option<Stored>,
+    /// Compte envoyé par le front (`None` : pas de compte utilisable, ou hors connexion à Sordulo OS).
+    account: Option<Account>,
+    /// Jetons de la dernière connexion faite ici, en attendant que le front envoie la ligne enregistrée :
+    /// le jeton d'accès est repris (pas de rafraîchissement juste après la connexion).
+    authorized: Option<Tokens>,
     connecting: bool,
     /// Dernière lecture connue (`None` : rien ne joue sur le compte, ou pas de compte).
     remote: Option<Remote>,
     /// Dernière pochette téléchargée (URL, octets) : pas de nouveau téléchargement pour la même.
     artwork: Option<(String, Arc<Vec<u8>>)>,
-    /// Profil (nom, Premium) relu depuis le lancement.
+    /// Profil (nom, Premium) relu depuis que ce compte est utilisé.
     profile_checked: bool,
 }
 
@@ -97,7 +109,7 @@ pub struct SpotifyState {
     wake: Mutex<Option<Sender<Duration>>>,
     /// Le lecteur de l'ordinateur joue (renseigné par la boucle de la musique) : sondage plus lent.
     local_playing: AtomicBool,
-    /// Numéro de la dernière connexion lancée : une nouvelle connexion ou une déconnexion annule la précédente.
+    /// Numéro de la dernière connexion lancée : une nouvelle connexion ou une annulation arrête la précédente.
     attempt: AtomicU64,
 }
 
@@ -139,13 +151,13 @@ fn state(app: &AppHandle) -> &SpotifyState {
 }
 
 // ---------------------------------------------------------------------------
-// État, événement
+// État, événements
 // ---------------------------------------------------------------------------
 
-/// `spotify_status` : état de la connexion.
+/// `spotify_status` : état de la connexion sur cet ordinateur.
 pub fn status(app: &AppHandle) -> SpotifyStatus {
     let inner = state(app).lock();
-    store::status_of(inner.stored.as_ref(), inner.connecting)
+    store::status_of(inner.account.as_ref(), inner.connecting)
 }
 
 fn emit_status(app: &AppHandle) {
@@ -155,16 +167,10 @@ fn emit_status(app: &AppHandle) {
     }
 }
 
-/// Écrit le fichier des jetons (à appeler avec le verrou `inner`, l'écriture est courte).
-fn persist(inner: &Inner) {
-    let (Some(path), Some(stored)) = (&inner.path, &inner.stored) else {
-        return;
-    };
-    if let Err(e) = store::save(path, stored) {
-        log::warn!(
-            "Spotify : enregistrement de {} impossible : {e}",
-            path.display()
-        );
+/// Signale à l'île un jeton à enregistrer sur le compte, ou un refus (jamais le jeton dans les logs).
+fn emit_token(app: &AppHandle, change: &TokenChange) {
+    if let Err(e) = app.emit_to(WINDOW_PROMPT, EVENT_SPOTIFY_TOKEN, change) {
+        log::warn!("émission de {EVENT_SPOTIFY_TOKEN} impossible : {e}");
     }
 }
 
@@ -178,27 +184,20 @@ pub fn set_local_playing(app: &AppHandle, playing: bool) {
     state(app).local_playing.store(playing, Ordering::Relaxed);
 }
 
-/// Relit le compte gardé et lance le thread de lecture (une fois, dans `setup`).
+/// Supprime l'ancien fichier des jetons et lance le thread de lecture (une fois, dans `setup`). Aucun
+/// compte au départ : il arrive du front (`spotify_set_connection`) une fois la session Sordulo OS lue.
 pub fn start(app: &AppHandle) {
-    let path = match app.path().app_data_dir() {
-        Ok(dir) => Some(dir.join(FILE_NAME)),
-        Err(e) => {
-            log::warn!("Spotify : dossier de données introuvable, compte non gardé : {e}");
-            None
-        }
-    };
-    let stored = path.as_deref().and_then(store::load);
-    match &stored {
-        Some(s) if s.connected() => log::info!("Spotify : compte connecté retrouvé"),
-        Some(s) if s.needs_reconnect => log::info!("Spotify : compte à reconnecter"),
-        _ => log::debug!("Spotify : aucun compte connecté"),
+    match app.path().app_data_dir() {
+        Ok(dir) => match store::remove_legacy_file(&dir.join(LEGACY_FILE_NAME)) {
+            Ok(true) => log::info!(
+                "Spotify : ancien {LEGACY_FILE_NAME} supprimé (la connexion suit désormais le compte Sordulo OS)"
+            ),
+            Ok(false) => {}
+            Err(e) => log::warn!("Spotify : suppression de l'ancien {LEGACY_FILE_NAME} impossible : {e}"),
+        },
+        Err(e) => log::debug!("Spotify : dossier de données introuvable : {e}"),
     }
     let spotify = state(app);
-    {
-        let mut inner = spotify.lock();
-        inner.path = path;
-        inner.stored = stored;
-    }
     let (sender, receiver) = mpsc::channel();
     *spotify.wake.lock().unwrap_or_else(|e| e.into_inner()) = Some(sender);
     let handle = app.clone();
@@ -210,95 +209,152 @@ pub fn start(app: &AppHandle) {
     }
 }
 
+/// `spotify_set_connection` : ligne du compte envoyée par le front (`None` : pas de compte utilisable).
+pub fn set_connection(app: &AppHandle, connection: Option<Connection>) -> Result<SpotifyStatus, String> {
+    if let Some(connection) = &connection {
+        connection.validate()?;
+    }
+    let spotify = state(app);
+    let (before, merged) = {
+        let mut inner = spotify.lock();
+        let before = store::status_of(inner.account.as_ref(), inner.connecting);
+        let merged = store::merge(inner.account.as_ref(), connection, inner.authorized.as_ref());
+        if merged.replaced {
+            inner.remote = None;
+            inner.profile_checked = false;
+        }
+        // Jetons de la dernière connexion repris par le compte reçu : plus utiles. Sinon gardés (l'île a pu
+        // envoyer l'ancienne ligne juste avant que la fenêtre principale enregistre la nouvelle).
+        let used = matches!(
+            (&merged.account, &inner.authorized),
+            (Some(a), Some(t)) if a.connection.refresh_token == t.refresh_token
+        );
+        if used {
+            inner.authorized = None;
+        }
+        inner.account = merged.account.clone();
+        (before, merged)
+    };
+    if merged.replaced {
+        match &merged.account {
+            Some(_) => log::info!("Spotify : compte reçu du front"),
+            None => log::info!("Spotify : plus de compte sur cet ordinateur"),
+        }
+        spotify.wake(Duration::ZERO);
+    }
+    if let Some(change) = &merged.resend {
+        log::debug!("Spotify : changement de jeton pas encore enregistré, signalé de nouveau");
+        emit_token(app, change);
+    }
+    let after = status(app);
+    if after != before {
+        emit_status(app);
+    }
+    Ok(after)
+}
+
 // ---------------------------------------------------------------------------
 // Jetons
 // ---------------------------------------------------------------------------
 
-/// Oublie les jetons après un refus de Spotify (si ce sont toujours ceux-là) et prévient le front.
-fn lose_access(app: &AppHandle, refresh_token: &str) {
+/// Spotify refuse ce jeton (si c'est toujours le courant) : plus d'appel, l'île relit la ligne du compte.
+fn refuse(app: &AppHandle, refresh_token: &str) {
     let spotify = state(app);
-    {
+    let change = {
         let mut inner = spotify.lock();
-        let same = inner
-            .stored
-            .as_ref()
-            .and_then(|s| s.tokens.as_ref())
-            .is_some_and(|t| t.refresh_token == refresh_token);
-        if !same {
+        let Some(account) = inner
+            .account
+            .as_mut()
+            .filter(|a| !a.refused && a.connection.refresh_token == refresh_token)
+        else {
             return;
-        }
-        if let Some(stored) = inner.stored.as_mut() {
-            stored.lose_access();
-        }
+        };
+        let change = account.refuse();
         inner.remote = None;
-        persist(&inner);
-    }
-    log::warn!("Spotify : accès refusé, le compte est à reconnecter");
+        change
+    };
+    log::warn!("Spotify : jeton refusé, vérification du compte Sordulo OS");
+    emit_token(app, &change);
     emit_status(app);
 }
 
-/// Jetons valides (rafraîchis s'ils expirent bientôt, ou si `force`).
-fn tokens(app: &AppHandle, force: bool) -> Result<store::Tokens, ApiError> {
+/// Ce qu'il faut pour un appel : Client ID, jeton de rafraîchissement, jeton d'accès s'il y en a un.
+fn usable(app: &AppHandle) -> Option<(String, String, Option<store::Access>)> {
+    let inner = state(app).lock();
+    inner
+        .account
+        .as_ref()
+        .filter(|a| !a.refused)
+        .map(|a| {
+            (
+                a.connection.client_id.clone(),
+                a.connection.refresh_token.clone(),
+                a.access.clone(),
+            )
+        })
+}
+
+/// Jeton d'accès valide (rafraîchi s'il expire bientôt, ou si `force`).
+fn access_token(app: &AppHandle, force: bool) -> Result<String, ApiError> {
     let spotify = state(app);
-    let current = || {
-        let inner = spotify.lock();
-        inner
-            .stored
-            .as_ref()
-            .and_then(|s| s.tokens.clone().map(|t| (s.client_id.clone(), t)))
-    };
-    let (_, before) = current().ok_or(ApiError::NotConnected)?;
-    if !force && !before.expires_soon(now_ms()) {
-        return Ok(before);
+    let (_, _, before) = usable(app).ok_or(ApiError::NotConnected)?;
+    if let Some(access) = before.as_ref().filter(|a| !force && !a.expires_soon(now_ms())) {
+        return Ok(access.token.clone());
     }
     let refreshing = spotify.refresh.lock().unwrap_or_else(|e| e.into_inner());
     // Un autre thread a peut-être rafraîchi pendant l'attente du verrou.
-    let (client_id, tokens) = current().ok_or(ApiError::NotConnected)?;
-    if tokens.access_token != before.access_token && !tokens.expires_soon(now_ms()) {
-        return Ok(tokens);
+    let (client_id, refresh_token, access) = usable(app).ok_or(ApiError::NotConnected)?;
+    if let Some(access) = access.as_ref().filter(|a| {
+        Some(&a.token) != before.as_ref().map(|b| &b.token) && !a.expires_soon(now_ms())
+    }) {
+        return Ok(access.token.clone());
     }
     let client = spotify.client()?;
-    match api::refresh(client, &client_id, &tokens.refresh_token, now_ms()) {
+    match api::refresh(client, &client_id, &refresh_token, now_ms()) {
         Ok(fresh) => {
-            let mut inner = spotify.lock();
-            let still_same = inner
-                .stored
-                .as_ref()
-                .and_then(|s| s.tokens.as_ref())
-                .is_some_and(|t| t.refresh_token == tokens.refresh_token);
-            if !still_same {
-                // Déconnecté ou reconnecté entre-temps : ces jetons ne servent plus.
-                return Err(ApiError::NotConnected);
-            }
-            if let Some(stored) = inner.stored.as_mut() {
-                stored.tokens = Some(fresh.clone());
-            }
-            persist(&inner);
+            let change = {
+                let mut inner = spotify.lock();
+                let Some(account) = inner
+                    .account
+                    .as_mut()
+                    .filter(|a| !a.refused && a.connection.refresh_token == refresh_token)
+                else {
+                    // Compte changé ou retiré entre-temps : ces jetons ne servent plus.
+                    return Err(ApiError::NotConnected);
+                };
+                account.rotate(&fresh)
+            };
             log::debug!("Spotify : jeton d'accès rafraîchi");
-            Ok(fresh)
+            if let Some(change) = change {
+                log::info!("Spotify : nouveau jeton de rafraîchissement, à enregistrer sur le compte");
+                emit_token(app, &change);
+            }
+            Ok(fresh.access_token)
         }
         Err(ApiError::Revoked | ApiError::Unauthorized) => {
             drop(refreshing);
-            lose_access(app, &tokens.refresh_token);
+            refuse(app, &refresh_token);
             Err(ApiError::Revoked)
         }
         Err(e) => Err(e),
     }
 }
 
-/// Appel authentifié : en cas de 401, rafraîchit et réessaie une fois ; 401 encore = accès perdu.
+/// Appel authentifié : en cas de 401, rafraîchit et réessaie une fois ; 401 encore = jeton refusé.
 fn with_token<T>(
     app: &AppHandle,
     call: impl Fn(&Client, &str) -> Result<T, ApiError>,
 ) -> Result<T, ApiError> {
     let client = state(app).client()?;
-    let first = tokens(app, false)?;
-    match call(client, &first.access_token) {
+    let first = access_token(app, false)?;
+    match call(client, &first) {
         Err(ApiError::Unauthorized) => {
-            let second = tokens(app, true)?;
-            match call(client, &second.access_token) {
+            let second = access_token(app, true)?;
+            match call(client, &second) {
                 Err(ApiError::Unauthorized) => {
-                    lose_access(app, &second.refresh_token);
+                    if let Some((_, refresh_token, _)) = usable(app) {
+                        refuse(app, &refresh_token);
+                    }
                     Err(ApiError::Revoked)
                 }
                 other => other,
@@ -309,15 +365,17 @@ fn with_token<T>(
 }
 
 // ---------------------------------------------------------------------------
-// Connexion, déconnexion
+// Connexion
 // ---------------------------------------------------------------------------
 
 /// `spotify_connect` : ouvre la page d'autorisation et attend la redirection (bloquant, 3 min au plus).
-pub fn connect(app: &AppHandle, client_id: &str) -> Result<SpotifyStatus, String> {
+/// Renvoie de quoi enregistrer la connexion sur le compte ; c'est le front qui l'enregistre puis l'envoie.
+pub fn connect(app: &AppHandle, client_id: &str) -> Result<Authorization, String> {
     let client_id = client_id.trim();
     if !pkce::valid_client_id(client_id) {
         return Err(
-            "Client ID Spotify manquant ou invalide : vérifie VITE_SPOTIFY_CLIENT_ID.".into(),
+            "Client ID Spotify manquant ou invalide : copiez-le depuis votre app sur developer.spotify.com."
+                .into(),
         );
     }
     let spotify = state(app);
@@ -325,19 +383,19 @@ pub fn connect(app: &AppHandle, client_id: &str) -> Result<SpotifyStatus, String
     spotify.lock().connecting = true;
     emit_status(app);
     let result = run_connect(app, client_id, attempt);
-    // Une connexion plus récente (ou une déconnexion) a pris la main : elle gère `connecting`.
+    // Une connexion plus récente (ou une annulation) a pris la main : elle gère `connecting`.
     if spotify.attempt.load(Ordering::SeqCst) == attempt {
         spotify.lock().connecting = false;
     }
     emit_status(app);
     match &result {
-        Ok(()) => log::info!("Spotify : compte connecté"),
+        Ok(_) => log::info!("Spotify : compte autorisé"),
         Err(e) => log::warn!("Spotify : connexion non aboutie : {e}"),
     }
-    result.map(|()| status(app))
+    result
 }
 
-fn run_connect(app: &AppHandle, client_id: &str, attempt: u64) -> Result<(), String> {
+fn run_connect(app: &AppHandle, client_id: &str, attempt: u64) -> Result<Authorization, String> {
     let pkce = pkce::Pkce::generate()?;
     let expected_state = pkce::random_state()?;
     let listener = callback::bind()?;
@@ -354,62 +412,42 @@ fn run_connect(app: &AppHandle, client_id: &str, attempt: u64) -> Result<(), Str
     )
 }
 
-/// Échange le code, lit le profil, garde le compte et relance la lecture.
+/// Échange le code et lit le profil. Les jetons restent en mémoire en attendant la ligne enregistrée.
 fn finish_connect(
     app: &AppHandle,
     client_id: &str,
     code: &str,
     verifier: &str,
     attempt: u64,
-) -> Result<(), String> {
+) -> Result<Authorization, String> {
     let spotify = state(app);
     let client = spotify.client().map_err(|e| e.to_string())?;
     let tokens = api::exchange_code(client, client_id, code, verifier, now_ms())
         .map_err(|e| format!("Connexion à Spotify impossible : {e}"))?;
     let profile = api::profile(client, &tokens.access_token)
         .map_err(|e| format!("Lecture du compte Spotify impossible : {e}"))?;
-    {
-        let mut inner = spotify.lock();
-        if spotify.attempt.load(Ordering::SeqCst) != attempt {
-            return Err("Connexion à Spotify annulée.".into());
-        }
-        inner.stored = Some(Stored {
-            client_id: client_id.to_owned(),
-            tokens: Some(tokens),
-            account: Some(profile.account),
-            premium: profile.premium,
-            needs_reconnect: false,
-        });
-        inner.remote = None;
-        inner.profile_checked = true;
-        persist(&inner);
+    let mut inner = spotify.lock();
+    if spotify.attempt.load(Ordering::SeqCst) != attempt {
+        return Err("Connexion à Spotify annulée.".into());
     }
-    spotify.wake(Duration::ZERO);
-    Ok(())
+    let authorization = Authorization {
+        refresh_token: tokens.refresh_token.clone(),
+        account: profile.account,
+        premium: profile.premium,
+    };
+    inner.authorized = Some(tokens);
+    Ok(authorization)
 }
 
-/// `spotify_disconnect` : oublie les jetons (fichier supprimé) et annule une connexion en cours.
-pub fn disconnect(app: &AppHandle) -> SpotifyStatus {
+/// `spotify_cancel_connect` : arrête une connexion qui attend dans le navigateur.
+pub fn cancel_connect(app: &AppHandle) -> SpotifyStatus {
     let spotify = state(app);
     spotify.attempt.fetch_add(1, Ordering::SeqCst);
-    {
-        let mut inner = spotify.lock();
-        inner.stored = None;
-        inner.remote = None;
-        inner.artwork = None;
-        inner.connecting = false;
-        inner.profile_checked = false;
-        if let Some(path) = &inner.path {
-            if let Err(e) = store::delete(path) {
-                log::warn!(
-                    "Spotify : suppression de {} impossible : {e}",
-                    path.display()
-                );
-            }
-        }
+    let was = std::mem::replace(&mut spotify.lock().connecting, false);
+    if was {
+        log::info!("Spotify : connexion annulée");
+        emit_status(app);
     }
-    log::info!("Spotify : compte déconnecté");
-    emit_status(app);
     status(app)
 }
 
@@ -418,11 +456,16 @@ pub fn disconnect(app: &AppHandle) -> SpotifyStatus {
 // ---------------------------------------------------------------------------
 
 fn connected(app: &AppHandle) -> bool {
+    state(app).lock().account.as_ref().is_some_and(|a| !a.refused)
+}
+
+/// Premium d'après le compte courant.
+fn premium(app: &AppHandle) -> bool {
     state(app)
         .lock()
-        .stored
+        .account
         .as_ref()
-        .is_some_and(Stored::connected)
+        .is_some_and(|a| a.connection.premium)
 }
 
 fn set_remote(app: &AppHandle, remote: Option<Remote>) {
@@ -436,7 +479,7 @@ fn set_remote(app: &AppHandle, remote: Option<Remote>) {
     inner.remote = remote;
 }
 
-/// Relit le profil une fois après le lancement (Premium a pu changer).
+/// Relit le profil une fois par compte reçu (le nom ou Premium ont pu changer).
 fn check_profile(app: &AppHandle) -> Result<(), ApiError> {
     if state(app).lock().profile_checked {
         return Ok(());
@@ -451,19 +494,18 @@ fn check_profile(app: &AppHandle) -> Result<(), ApiError> {
             return Ok(());
         }
     };
+    // Nom et Premium relus ici font foi : l'île les reporte sur le compte (événement de statut).
     let changed = {
         let mut inner = state(app).lock();
         inner.profile_checked = true;
-        let Some(stored) = inner.stored.as_mut() else {
+        let Some(account) = inner.account.as_mut() else {
             return Ok(());
         };
-        let changed = stored.account.as_deref() != Some(profile.account.as_str())
-            || stored.premium != profile.premium;
-        stored.account = Some(profile.account);
-        stored.premium = profile.premium;
-        if changed {
-            persist(&inner);
-        }
+        let connection = &mut account.connection;
+        let changed = connection.account.as_deref() != Some(profile.account.as_str())
+            || connection.premium != profile.premium;
+        connection.account = Some(profile.account);
+        connection.premium = profile.premium;
         changed
     };
     if changed {
@@ -504,7 +546,7 @@ fn poll_once(app: &AppHandle) -> Result<Option<Remote>, ApiError> {
     let Some(body) = body else {
         return Ok(None);
     };
-    let premium = state(app).lock().stored.as_ref().is_some_and(|s| s.premium);
+    let premium = premium(app);
     // `progress_ms` est juste au moment où Spotify a répondu : milieu de l'aller-retour.
     let read_at = sent + received.saturating_sub(sent) / 2;
     let Some(playback) =
@@ -612,7 +654,10 @@ fn open_spotify() -> Result<(), String> {
 pub fn command(app: &AppHandle, command: MediaCommand) -> Result<(), String> {
     let (remote, premium) = {
         let inner = state(app).lock();
-        let premium = inner.stored.as_ref().is_some_and(|s| s.premium);
+        let premium = inner
+            .account
+            .as_ref()
+            .is_some_and(|a| a.connection.premium);
         (inner.remote.clone(), premium)
     };
     let playing = remote.as_ref().is_some_and(|r| r.playback.track.playing);
@@ -688,36 +733,28 @@ mod tests {
         assert_eq!(player_command(MediaCommand::Open, true), None);
     }
 
-    /// Diagnostic manuel avec un compte déjà connecté dans l'app (lit `spotify.json` du dossier de données) :
-    /// `cargo test print_spotify_player -- --ignored --nocapture` (dans `src-tauri/`). N'affiche aucun jeton.
+    /// Diagnostic manuel : `SPOTIFY_DIAG_CLIENT_ID=… SPOTIFY_DIAG_REFRESH_TOKEN=… cargo test print_spotify_player
+    /// -- --ignored --nocapture` (dans `src-tauri/`), avec le Client ID et le jeton de rafraîchissement de la
+    /// ligne du compte (table `spotify_connections`). N'affiche aucun jeton ; un nouveau jeton de
+    /// rafraîchissement renvoyé par Spotify n'est pas enregistré (relancer l'app ensuite).
     #[test]
     #[ignore]
     fn print_spotify_player() {
         crate::logging::init();
-        // Windows : %APPDATA% ; macOS : ~/Library/Application Support.
-        let base = std::env::var_os("APPDATA").map(PathBuf::from).or_else(|| {
-            std::env::var_os("HOME").map(|home| {
-                PathBuf::from(home)
-                    .join("Library")
-                    .join("Application Support")
-            })
-        });
-        let path = base
-            .expect("dossier de données introuvable")
-            .join("com.sordulo.os")
-            .join(FILE_NAME);
-        let stored = store::load(&path).expect("aucun compte Spotify connecté dans l'app");
-        let mut tokens = stored.tokens.clone().expect("compte à reconnecter");
+        let client_id = std::env::var("SPOTIFY_DIAG_CLIENT_ID").expect("SPOTIFY_DIAG_CLIENT_ID manquant");
+        let refresh_token =
+            std::env::var("SPOTIFY_DIAG_REFRESH_TOKEN").expect("SPOTIFY_DIAG_REFRESH_TOKEN manquant");
         let client = api::client().unwrap();
-        if tokens.expires_soon(now_ms()) {
-            tokens = api::refresh(&client, &stored.client_id, &tokens.refresh_token, now_ms())
-                .expect("rafraîchissement");
-            println!("jeton rafraîchi (non enregistré : relancer l'app ensuite)");
+        let tokens = api::refresh(&client, &client_id, &refresh_token, now_ms()).expect("rafraîchissement");
+        if tokens.refresh_token != refresh_token {
+            println!("Spotify a renvoyé un nouveau jeton de rafraîchissement (non enregistré)");
         }
-        println!("profil : {:?}", api::profile(&client, &tokens.access_token));
+        let profile = api::profile(&client, &tokens.access_token);
+        println!("profil : {profile:?}");
+        let premium = profile.as_ref().is_ok_and(|p| p.premium);
         match api::player(&client, &tokens.access_token) {
             Ok(Some(body)) => {
-                let playback = player::parse_player(&body, stored.premium, now_ms());
+                let playback = player::parse_player(&body, premium, now_ms());
                 println!("lecture : {playback:?}");
                 if let Ok(Some(p)) = playback {
                     if let Some(url) = p.track.artwork_key.as_deref() {

@@ -18,11 +18,12 @@
  * - Première réponse d'une portée = état de référence : ses déploiements déjà finis ne sont pas notifiés,
  *   ceux en cours sont affichés (une équipe qui apparaît plus tard a aussi sa référence).
  * - En cours : une progression `deploy` par projet (id `prog:deploy:<projet>`, le déploiement le plus récent
- *   du projet gagne), libellé « projet · branche », anneau estimé d'après les derniers déploiements en ligne
- *   du même projet (estimateDeployMs).
+ *   du projet gagne) : libellé = nom du dépôt Git (sinon le projet Vercel), détail = message du commit, petite
+ *   ligne = branche (vue ouverte au survol) ; anneau estimé d'après les derniers déploiements en ligne du même
+ *   projet (estimateDeployMs).
  * - Fin observée (il était en cours, ou il est apparu déjà fini après la référence) : en ligne → progression
- *   retirée, « X est en ligne » avec le message du commit, Ouvrir → adresse de production (alias, sinon URL
- *   du déploiement) ; échec → « X : échec », « Voir les logs » ; annulé → progression
+ *   retirée, « X est en ligne » (X : le dépôt, sinon le projet) avec le message du commit, Ouvrir → adresse de
+ *   production (alias, sinon URL du déploiement) ; échec → « X : échec », « Voir les logs » ; annulé → progression
  *   retirée, sans notification. Jamais deux notifications pour le même déploiement.
  * - Jeton refusé (`VercelApiError.unauthorized`) : « Reconnecte Vercel » une fois, progressions retirées,
  *   plus de sondage jusqu'à un nouveau jeton (la relecture du jeton continue).
@@ -91,9 +92,9 @@ export function deployActivityId(d: Pick<VercelDeployment, 'projectId' | 'projec
   return `${DEPLOY_ACTIVITY_PREFIX}${deployProjectKey(d)}`
 }
 
-/** « projet · branche », ou le projet seul sans branche. */
-export function deployLabel(d: Pick<VercelDeployment, 'projectName' | 'branch'>): string {
-  return d.branch ? `${d.projectName} · ${d.branch}` : d.projectName
+/** Nom affiché d'un déploiement : le dépôt Git (« sordulo-OS-APP »), sinon le projet Vercel (déploiement sans Git). */
+export function deployName(d: Pick<VercelDeployment, 'repo' | 'projectName'>): string {
+  return d.repo ?? d.projectName
 }
 
 /** Durée d'un déploiement en ligne (début de la construction, sinon création, jusqu'à la mise en ligne) ; null sinon. */
@@ -126,7 +127,9 @@ export function deployActivity(d: VercelDeployment, estimatedMs: number): Progre
     id: deployActivityId(d),
     kind: 'progress',
     stage: 'deploy',
-    label: deployLabel(d),
+    label: deployName(d),
+    detail: d.commitMessage,
+    meta: d.branch,
     fraction: null,
     startedAt: d.buildingAt ?? d.createdAt,
     estimatedMs,
@@ -179,7 +182,7 @@ export function createDeploymentsSource(deps: DeploymentsSourceDeps): IslandSour
         const active = new Map<string, VercelDeployment>()
         /** Projet → derniers déploiements en ligne (du plus récent au plus ancien), pour l'estimation. */
         const durations = new Map<string, { id: string; createdAt: number; ms: number }[]>()
-        /** Progressions affichées : id → empreinte (déploiement, libellé, début, durée estimée). */
+        /** Progressions affichées : id → empreinte (déploiement, libellé, détail, branche, début, durée estimée). */
         const shown = new Map<string, string>()
 
         const alive = () => !stopped && !ctx.isDisposed()
@@ -221,12 +224,21 @@ export function createDeploymentsSource(deps: DeploymentsSourceDeps): IslandSour
           for (const [key, d] of latest) {
             const activity = deployActivity(d, estimateDeployMs((durations.get(key) ?? []).map((e) => e.ms)))
             wanted.add(activity.id)
-            const signature = `${d.id}|${activity.label}|${activity.startedAt}|${activity.estimatedMs}`
+            const signature = [
+              d.id,
+              activity.label,
+              activity.detail ?? '',
+              activity.meta ?? '',
+              activity.startedAt,
+              activity.estimatedMs,
+            ].join('|')
             const exists = coordinator.getActivity(activity.id) !== null
             if (exists && shown.get(activity.id) === signature) continue
             if (exists) {
               coordinator.updateActivity(activity.id, {
                 label: activity.label,
+                detail: activity.detail,
+                meta: activity.meta,
                 startedAt: activity.startedAt,
                 estimatedMs: activity.estimatedMs,
               })
@@ -251,7 +263,7 @@ export function createDeploymentsSource(deps: DeploymentsSourceDeps): IslandSour
           }
           if (!alive()) return
           coordinator.notify(
-            createNotification('deployed', { projectName: d.projectName, url, commitMessage: d.commitMessage }),
+            createNotification('deployed', { projectName: deployName(d), url, commitMessage: d.commitMessage }),
           )
         }
 
@@ -263,7 +275,7 @@ export function createDeploymentsSource(deps: DeploymentsSourceDeps): IslandSour
           } else if (d.state === 'ERROR') {
             coordinator.notify(
               createNotification('deployFailed', {
-                projectName: d.projectName,
+                projectName: deployName(d),
                 logsUrl: d.inspectorUrl ?? d.url,
                 commitMessage: d.commitMessage,
                 branch: d.branch,

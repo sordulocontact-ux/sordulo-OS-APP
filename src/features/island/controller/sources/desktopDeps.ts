@@ -1,7 +1,7 @@
 /**
- * Accès réels des sources (parcours d'appel, concentration, musique, déploiements) : commandes et événements
- * Tauri (src/lib/desktop.ts), Supabase, API, API Vercel (src/lib/vercel.ts), stockage local, URL blob: et canvas. Les tests injectent de faux
- * accès à la place.
+ * Accès réels des sources (parcours d'appel, concentration, musique, Spotify, déploiements) : commandes et
+ * événements Tauri (src/lib/desktop.ts), Supabase, API, API Vercel (src/lib/vercel.ts), connexion Spotify du
+ * compte (src/lib/spotify.ts), stockage local, URL blob: et canvas. Les tests injectent de faux accès à la place.
  */
 import { api, ApiRequestError } from '../../../../lib/api'
 import {
@@ -22,11 +22,17 @@ import {
   onPrompt,
   onRecordingState,
   onSpotify,
+  onSpotifyToken,
   readRecording,
-  spotifyStatus,
+  spotifySetConnection,
   startRecording,
   stopRecording,
 } from '../../../../lib/desktop'
+import {
+  readSpotifyConnection,
+  replaceSpotifyRefreshToken,
+  saveSpotifyProfile,
+} from '../../../../lib/spotify'
 import { supabase } from '../../../../lib/supabase'
 import {
   fetchProductionDeployments,
@@ -137,9 +143,13 @@ export const desktopDeps: CallSourceDeps &
   createObjectURL: (blob) => URL.createObjectURL(blob),
   revokeObjectURL: (url) => URL.revokeObjectURL(url),
 
-  // Connexion Spotify
-  spotifyStatus,
+  // Connexion Spotify du compte (table spotify_connections) transmise à Rust
   onSpotify,
+  onSpotifyToken,
+  spotifySetConnection,
+  readSpotifyConnection,
+  replaceSpotifyRefreshToken,
+  saveSpotifyProfile,
 
   // Déploiements Vercel
   getDeploymentsEnabled,

@@ -15,6 +15,8 @@
  *   fond : plus petit, plus sombre, pieds plus haut, derrière les autres).
  * - Passage `agent` → `multi` (ou → musique avec jardin) : le personnage de la session affichée part de l'icône Claude.
  * - Bords en portail : un personnage qui sort à droite rentre déjà à gauche (jumeau dessiné par renderer.ts).
+ * - Mac, île au repos : les deux bords de l'encoche de la caméra sont aussi une paire de portails ; un
+ *   personnage la traverse en continu, coupé à son bord, jamais dessiné dessous.
  * - Animations réduites (prefers-reduced-motion ou prop `reducedMotion` de l'île) : personnages immobiles,
  *   pattes posées, pas de hochement, pas d'effets.
  */
@@ -38,6 +40,7 @@ function classNames(): GardenClassNames {
   const c = (name: string) => styles[name] ?? ''
   return {
     crowd: c('crowd'),
+    clip: c('clip'),
     mascot: c('mascot'),
     fig: c('fig'),
     upper: c('upper'),

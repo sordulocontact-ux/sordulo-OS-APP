@@ -37,6 +37,11 @@ export interface VercelDeployment {
   buildingAt: number | null
   /** Fin (en ligne, échec ou annulation) ; null tant que ce n'est pas fini. */
   readyAt: number | null
+  /**
+   * Nom du dépôt Git (`meta.githubCommitRepo`, sinon `gitlabProjectName`, sinon `bitbucketRepoName`, ex.
+   * « sordulo-OS-APP ») ; null : déploiement sans Git (CLI).
+   */
+  repo: string | null
   /** Branche Git (`meta.githubCommitRef`, ou GitLab / Bitbucket) ; null : déploiement sans Git (CLI). */
   branch: string | null
   /** Première ligne du message du commit ; null sans Git. */
@@ -122,6 +127,7 @@ export function normalizeDeployment(raw: unknown, teamId: string | null): Vercel
     createdAt,
     buildingAt: num(raw.buildingAt),
     readyAt: num(raw.ready),
+    repo: str(meta.githubCommitRepo) ?? str(meta.gitlabProjectName) ?? str(meta.bitbucketRepoName),
     branch: str(meta.githubCommitRef) ?? str(meta.gitlabCommitRef) ?? str(meta.bitbucketCommitRef),
     commitMessage: firstLine(
       str(meta.githubCommitMessage) ?? str(meta.gitlabCommitMessage) ?? str(meta.bitbucketCommitMessage),

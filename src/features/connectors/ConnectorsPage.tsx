@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Badge, Button, EmptyState, Modal, SearchField } from '../../components/ui'
 import { CONNECTORS, connectorInitials, filterConnectors, type Connector } from './catalog'
+import { useClaudeCode } from './useClaudeCode'
 import { useSpotify } from './useSpotify'
 import { useVercel } from './useVercel'
+import { SpotifyConnectModal } from './SpotifyConnectModal'
 import { VercelConnectModal } from './VercelConnectModal'
 import type { BadgeTone } from '../../components/ui/Badge'
 import styles from './connectors.module.css'
@@ -23,7 +25,7 @@ function Logo({ connector }: { connector: Connector }) {
   )
 }
 
-/** Carte à état vivant (Spotify, Vercel) : tout ce que la page affiche, quelle que soit la source. */
+/** Carte à état vivant (Claude Code, Spotify, Vercel) : tout ce que la page affiche, quelle que soit la source. */
 interface LiveCard {
   badge: { tone: BadgeTone; label: string }
   state: string
@@ -37,7 +39,7 @@ interface LiveCard {
 function StatusBadge({ connector, live }: { connector: Connector; live: Record<string, LiveCard> }) {
   const card = live[connector.id]
   if (connector.status === 'live' && card) return <Badge tone={card.badge.tone}>{card.badge.label}</Badge>
-  return connector.status === 'connected' ? <Badge tone="success">Connecté</Badge> : <Badge tone="neutral">Bientôt</Badge>
+  return <Badge tone="neutral">Bientôt</Badge>
 }
 
 function LiveButton({ card, className }: { card: LiveCard; className?: string }) {
@@ -63,10 +65,23 @@ export function ConnectorsPage() {
 
   const [vercelOpen, setVercelOpen] = useState(false)
 
+  const claudeCode = useClaudeCode()
   const spotify = useSpotify()
   const vercel = useVercel()
 
   const live: Record<string, LiveCard> = {
+    claude: {
+      ...claudeCode.view,
+      error: claudeCode.error,
+      action: {
+        label: claudeCode.view.action.label,
+        variant: claudeCode.view.action.kind === 'disconnect' ? 'secondary' : 'primary',
+        loading: claudeCode.view.action.loading,
+        disabled: claudeCode.view.action.disabled,
+        title: claudeCode.view.action.title,
+        run: claudeCode.view.action.kind ? () => claudeCode.run(claudeCode.view.action.kind!) : undefined,
+      },
+    },
     spotify: {
       ...spotify.view,
       error: spotify.error,
@@ -76,7 +91,14 @@ export function ConnectorsPage() {
         loading: spotify.view.action.loading,
         disabled: spotify.view.action.disabled,
         title: spotify.view.action.title,
-        run: spotify.view.action.kind ? () => spotify.run(spotify.view.action.kind!) : undefined,
+        run: spotify.view.action.kind
+          ? () => {
+              const kind = spotify.view.action.kind!
+              // La fenêtre du Client ID remplace la fenêtre Détails, comme pour Vercel.
+              if (kind === 'connect' || kind === 'reconnect') setSelected(null)
+              spotify.run(kind)
+            }
+          : undefined,
       },
     },
     vercel: {
@@ -181,10 +203,6 @@ export function ConnectorsPage() {
                 </Button>
                 {c.status === 'live' && live[c.id] ? (
                   <LiveButton card={live[c.id]!} className={styles.action} />
-                ) : c.status === 'connected' ? (
-                  <Button className={styles.action} aria-disabled="true" tabIndex={-1} onClick={(e) => e.preventDefault()}>
-                    <span aria-hidden="true">✓</span> Connecté
-                  </Button>
                 ) : (
                   <Button
                     className={styles.action}
@@ -227,12 +245,6 @@ export function ConnectorsPage() {
                   <LiveButton card={live[selected.id]!} />
                 </div>
               </section>
-            ) : selected.status === 'connected' ? (
-              <section>
-                <h3 className={styles.detailTitle}>État</h3>
-                <p>{selected.state}</p>
-                <p className={styles.muted}>Configuré côté serveur : rien à faire ici.</p>
-              </section>
             ) : (
               <p className={styles.muted}>Pas encore disponible : il n’y a rien à installer pour l’instant.</p>
             )}
@@ -241,6 +253,7 @@ export function ConnectorsPage() {
       </Modal>
 
       <VercelConnectModal open={vercelOpen} onClose={() => setVercelOpen(false)} vercel={vercel} />
+      <SpotifyConnectModal spotify={spotify} />
     </section>
   )
 }

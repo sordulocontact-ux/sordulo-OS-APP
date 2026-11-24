@@ -5,10 +5,8 @@ import notionLogo from '../../assets/connectors/notion.png'
 import stripeLogo from '../../assets/connectors/stripe.png'
 // Symbole officiel de Vercel (triangle, proportions de vercel.com/geist/brands), hors Figma.
 import vercelLogo from '../../assets/connectors/vercel.svg'
-// Logos officiels hors Figma (23/11/2026) : svgl.app (Mistral, Supabase, Spotify, Google Agenda, Drive, Slack, Figma,
-// Google Meet) et icônes des sites de Deepgram, Pennylane et Qonto (réduite à 112 px).
-import deepgramLogo from '../../assets/connectors/deepgram.svg'
-import mistralLogo from '../../assets/connectors/mistral.svg'
+// Logos officiels hors Figma (23/11/2026) : svgl.app (Supabase, Spotify, Google Agenda, Drive, Slack, Figma,
+// Google Meet) et icônes des sites de Pennylane et Qonto (réduite à 112 px).
 import supabaseLogo from '../../assets/connectors/supabase.svg'
 import spotifyLogo from '../../assets/connectors/spotify.svg'
 import googleAgendaLogo from '../../assets/connectors/google-agenda.svg'
@@ -21,8 +19,11 @@ import meetZoomLogo from '../../assets/connectors/google-meet.svg'
 
 export type ConnectorCategory = 'Communication' | 'Agenda' | 'Documents' | 'Design' | 'Paiement' | 'Comptabilité' | 'IA' | 'Infrastructure' | 'Musique'
 
-/** `live` : l'état vient de l'app de bureau (voir spotify.ts), pas du catalogue. */
-export type ConnectorStatus = 'connected' | 'soon' | 'live'
+/**
+ * `live` : l'état vient du compte ou de l'ordinateur de l'utilisateur (voir spotify.ts, claudeCode.ts), pas du catalogue.
+ * Un connecteur est toujours un compte de l'utilisateur : aucun n'est « connecté » d'office.
+ */
+export type ConnectorStatus = 'soon' | 'live'
 
 export interface Connector {
   id: string
@@ -31,8 +32,6 @@ export interface Connector {
   /** Une ou deux lignes : ce que le connecteur fait DANS Sordulo OS. */
   description: string
   status: ConnectorStatus
-  /** Phrase d'état, pour les connecteurs `connected` seulement. */
-  state?: string
   /** Détail affiché dans la fenêtre « Détails ». */
   details?: string
   /** URL d'un SVG de `src/assets/` : remplace l'initiale quand il est présent. */
@@ -45,36 +44,18 @@ export const CONNECTORS: Connector[] = [
     logo: claudeLogo,
     name: 'Claude',
     category: 'IA',
-    description: 'Analyse les entrées et rédige les tickets.',
-    status: 'connected',
-    state: 'Actif : chaque entrée est analysée par Claude.',
-  },
-  {
-    id: 'deepgram',
-    logo: deepgramLogo,
-    name: 'Deepgram',
-    category: 'IA',
-    description: 'Transcrit les réunions avec séparation des voix.',
-    status: 'connected',
-    state: 'Actif : les audios sont transcrits à l’envoi.',
-  },
-  {
-    id: 'mistral',
-    logo: mistralLogo,
-    name: 'Mistral',
-    category: 'IA',
-    description: 'Prend le relais de Claude si l’analyse échoue.',
-    status: 'connected',
-    state: 'Actif : sert de secours à l’analyse.',
+    description: 'Claude Code de cet ordinateur dans l’île (sessions, demandes d’autorisation).',
+    details:
+      'Le relais Claude Code de cet ordinateur : les sessions Claude Code en cours et leurs demandes d’autorisation apparaissent dans l’île de l’app de bureau, où l’on peut les accepter ou les refuser. C’est le compte Claude Code de l’ordinateur, pas une clé API : la connexion est propre à cet ordinateur. Le branchement MCP viendra plus tard.',
+    status: 'live',
   },
   {
     id: 'supabase',
     logo: supabaseLogo,
     name: 'Supabase',
     category: 'Infrastructure',
-    description: 'Base de données, connexion et stockage des audios.',
-    status: 'connected',
-    state: 'Actif : toutes les données de l’app y sont stockées.',
+    description: 'Brancher votre propre projet Supabase, avec votre compte, pour que l’IA puisse lui poser des questions.',
+    status: 'soon',
   },
   {
     id: 'vercel',
@@ -93,7 +74,7 @@ export const CONNECTORS: Connector[] = [
     category: 'Musique',
     description: 'L’île de l’app de bureau affiche la musique Spotify jouée sur n’importe quel appareil du compte, avec la pochette.',
     details:
-      'L’île de l’app de bureau affiche la musique Spotify jouée sur n’importe quel appareil du compte (téléphone, enceinte…), avec la pochette, la progression et le nom de l’appareil. Avec Spotify Premium, les commandes de l’île pilotent aussi la lecture ; les podcasts sont affichés. La connexion est propre à cet ordinateur.',
+      'L’île de l’app de bureau affiche la musique Spotify jouée sur n’importe quel appareil du compte (téléphone, enceinte…), avec la pochette, la progression et le nom de l’appareil. Avec Spotify Premium, les commandes de l’île pilotent aussi la lecture ; les podcasts sont affichés. La connexion est liée à votre compte Sordulo OS, pas à cet ordinateur : elle suit le compte sur tous vos appareils. Chacun utilise sa propre app Spotify (Client ID collé dans la carte).',
     status: 'live',
   },
   {
@@ -202,6 +183,6 @@ export function filterConnectors(
   onlyConnected: boolean,
   liveConnected: ReadonlySet<string> = new Set(),
 ): Connector[] {
-  const isConnected = (c: Connector) => (c.status === 'live' ? liveConnected.has(c.id) : c.status === 'connected')
+  const isConnected = (c: Connector) => c.status === 'live' && liveConnected.has(c.id)
   return list.filter((c) => (!onlyConnected || isConnected(c)) && matchesConnector(c, query))
 }

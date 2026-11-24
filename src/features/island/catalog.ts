@@ -79,13 +79,15 @@ export interface NotificationParams {
   /** Regroupement, construit par la coordination. Bouton « Voir » ; action : fermer, sauf si précisée. */
   digest: { title: string; subtitle: string; action?: NotificationAction };
   /**
-   * Déploiement de production en ligne. `url` : adresse ouverte par le bouton. `commitMessage` : sous-titre
+   * Déploiement de production en ligne. `projectName` : nom affiché dans le titre (« X est en ligne »), le
+   * dépôt Git, sinon le projet Vercel. `url` : adresse ouverte par le bouton. `commitMessage` : sous-titre
    * (sans commit : « Déploiement Vercel réussi »).
    */
   deployed: { projectName: string; url: string; commitMessage?: string | null };
   /**
-   * Déploiement de production en échec. Sous-titre : message du commit, sinon la branche. `logsUrl` : page
-   * du déploiement dans Vercel (logs), ouverte par « Voir les logs ».
+   * Déploiement de production en échec. `projectName` : nom affiché dans le titre (« X : échec »), le dépôt
+   * Git, sinon le projet Vercel. Sous-titre : message du commit, sinon la branche. `logsUrl` : page du
+   * déploiement dans Vercel (logs), ouverte par « Voir les logs ».
    */
   deployFailed: {
     projectName: string;

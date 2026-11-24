@@ -1,16 +1,29 @@
 /**
  * Éléments partagés (prototype : .shared / .sh) : ils glissent d'un état à l'autre au lieu de disparaître.
- * Le moteur écrit leur position, leur opacité et la taille de l'icône Claude et de la pochette ; la boucle
- * écrit le minuteur, le temps écoulé, la hauteur des barres de l'onde et de l'égaliseur.
+ * Le moteur écrit leur position, leur opacité et la taille de l'icône Claude, de la pochette et de l'icône de
+ * la progression ; la boucle écrit le minuteur, le temps écoulé, la hauteur des barres de l'onde et de
+ * l'égaliseur, et l'avancement de l'anneau de la progression (un seul anneau, fermée comme ouverte).
  */
-import { MAX_SESSION_ROWS, WAVE, type SharedElementId } from "../geometry";
+import {
+  MAX_SESSION_ROWS,
+  WAVE,
+  progressLabelMaxWidth,
+  type SharedElementId,
+} from "../geometry";
 import type { CallService } from "../../../shared/desktop-contract";
-import type { ClaudeSession, ClaudeSessionStatus } from "../types";
+import type {
+  ClaudeSession,
+  ClaudeSessionStatus,
+  IslandPlatform,
+  ProgressActivity,
+} from "../types";
 import { cx } from "./cx";
 import { ClaudeMascot } from "./ClaudeMascot";
-import { CallIcon, DropIcon, MusicCover } from "./icons";
+import { CallIcon, DropIcon, IslandIcon, MusicCover } from "./icons";
 import styles from "./Island.module.css";
+import { ProgressRing } from "./layers/ActivityLayers";
 import { EQ, EQ_BAR, eqBarGeometry, eqBarStyle } from "./music";
+import { PROGRESS_VISUALS, toneStyle } from "./tone";
 
 const SEG_IDS: SharedElementId[] = ["seg0", "seg1", "seg2", "seg3", "seg4"];
 
@@ -43,6 +56,12 @@ export interface SharedElementsProps {
   /** Session Claude affichée (le Claude de l'île joue ce qu'elle fait) ; null : aucune. */
   agent: Pick<ClaudeSession, "status" | "activity" | "error" | "startedAt"> | null;
   reduced: boolean;
+  /** Progression affichée (gardée pendant le fondu de sortie) : icône et couleur de l'étape, libellé fermé. */
+  progress: Pick<ProgressActivity, "stage" | "label"> | null;
+  /** Variante dessinée (edgePlatform) : largeur maximale du libellé fermé (Mac : jusqu'à l'encoche). */
+  platform: IslandPlatform;
+  /** Anneau de la progression (la boucle écrit stroke-dashoffset). */
+  ringRef: (el: SVGCircleElement | null) => void;
 }
 
 export function SharedElements({
@@ -56,9 +75,14 @@ export function SharedElements({
   artworkUrl,
   agent,
   reduced,
+  progress,
+  platform,
+  ringRef,
 }: SharedElementsProps) {
   const agentWorking = agent?.status === "working";
   const segs = sessions.slice(0, MAX_SESSION_ROWS);
+  const progVisual = PROGRESS_VISUALS[progress?.stage ?? "upload"];
+  const progTone = toneStyle(progVisual.tone);
   return (
     <div className={styles.shared} aria-hidden="true">
       <span
@@ -161,6 +185,27 @@ export function SharedElements({
             />
           ))}
         </svg>
+      </span>
+      <span
+        className={cx(styles.sh, styles.progIcon)}
+        style={progTone}
+        ref={(el) => register("progIcon", el)}
+      >
+        <IslandIcon name={progVisual.icon} />
+      </span>
+      <span
+        className={cx(styles.sh, styles.progRing)}
+        style={progTone}
+        ref={(el) => register("progRing", el)}
+      >
+        <ProgressRing barRef={ringRef} />
+      </span>
+      <span
+        className={cx(styles.sh, styles.shText, styles.progLabel)}
+        style={{ maxWidth: progressLabelMaxWidth(platform) }}
+        ref={(el) => register("progLabel", el)}
+      >
+        {progress?.label}
       </span>
     </div>
   );

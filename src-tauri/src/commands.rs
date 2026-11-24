@@ -11,7 +11,9 @@ use crate::island_window;
 use crate::music::{self, MusicState};
 use crate::platform::MediaCommand;
 use crate::recording;
-use crate::spotify::{self, SpotifyStatus};
+use crate::spotify::{
+    self, Authorization as SpotifyAuthorization, Connection as SpotifyConnection, SpotifyStatus,
+};
 use crate::state::{
     DesktopState, DesktopStatus, DeploymentsEnabledState, FocusModeState, IslandHitRects, IslandPlacement, IslandRect,
     PromptReason, RecordingResult, RecordingState, UpdateStatus,
@@ -234,15 +236,16 @@ pub fn spotify_status(app: AppHandle) -> SpotifyStatus {
     spotify::status(&app)
 }
 
-/// Connecte un compte Spotify : ouvre la page d'autorisation dans le navigateur par défaut et attend la
-/// redirection (3 min au plus). Réservé à la fenêtre principale. Bloquant (serveur local, HTTP) : tourne
-/// dans `spawn_blocking`, jamais sur un thread async.
+/// Autorise un compte Spotify avec le Client ID de l'app Spotify de la personne : ouvre la page
+/// d'autorisation dans le navigateur par défaut et attend la redirection (3 min au plus). Renvoie de quoi
+/// enregistrer la connexion sur le compte Sordulo OS (le front l'enregistre). Réservé à la fenêtre
+/// principale. Bloquant (serveur local, HTTP) : tourne dans `spawn_blocking`, jamais sur un thread async.
 #[tauri::command]
 pub async fn spotify_connect(
     window: tauri::WebviewWindow,
     app: AppHandle,
     client_id: String,
-) -> Result<SpotifyStatus, String> {
+) -> Result<SpotifyAuthorization, String> {
     if window.label() != WINDOW_MAIN {
         return Err("Seule la fenêtre principale peut connecter Spotify.".into());
     }
@@ -251,16 +254,31 @@ pub async fn spotify_connect(
         .map_err(|e| format!("Connexion à Spotify interrompue : {e}"))?
 }
 
-/// Déconnecte le compte Spotify (jetons oubliés, fichier supprimé). Réservé à la fenêtre principale.
+/// Arrête une connexion Spotify qui attend dans le navigateur. Réservé à la fenêtre principale.
 #[tauri::command]
-pub fn spotify_disconnect(
+pub fn spotify_cancel_connect(
     window: tauri::WebviewWindow,
     app: AppHandle,
 ) -> Result<SpotifyStatus, String> {
     if window.label() != WINDOW_MAIN {
-        return Err("Seule la fenêtre principale peut déconnecter Spotify.".into());
+        return Err("Seule la fenêtre principale peut annuler la connexion à Spotify.".into());
     }
-    Ok(spotify::disconnect(&app))
+    Ok(spotify::cancel_connect(&app))
+}
+
+/// Connexion Spotify du compte Sordulo OS (ligne `spotify_connections`), envoyée par l'île (relecture
+/// régulière) et par la fenêtre principale (après une connexion ou une déconnexion). `None` : pas de compte
+/// utilisable, ou déconnexion de Sordulo OS.
+#[tauri::command]
+pub fn spotify_set_connection(
+    window: tauri::WebviewWindow,
+    app: AppHandle,
+    connection: Option<SpotifyConnection>,
+) -> Result<SpotifyStatus, String> {
+    if window.label() != WINDOW_MAIN && window.label() != WINDOW_PROMPT {
+        return Err("Fenêtre non autorisée pour la connexion Spotify.".into());
+    }
+    spotify::set_connection(&app, connection)
 }
 
 #[tauri::command]
@@ -289,6 +307,38 @@ pub fn set_focus_mode(app: AppHandle, on: bool) -> FocusModeState {
 #[tauri::command]
 pub fn claude_get_connection(app: AppHandle) -> ClaudeConnection {
     claude::connection(&app)
+}
+
+/// Connecte Claude Code (écrit les hooks dans `~/.claude/settings.json`), comme le menu du soleil.
+/// Réservé à la fenêtre principale. Bloquant (fichiers) : `spawn_blocking`.
+#[tauri::command]
+pub async fn claude_connect(
+    window: tauri::WebviewWindow,
+    app: AppHandle,
+) -> Result<ClaudeConnection, String> {
+    claude_set_connection(window, app, true).await
+}
+
+/// Déconnecte Claude Code (retire les hooks), comme le menu du soleil. Réservé à la fenêtre principale.
+#[tauri::command]
+pub async fn claude_disconnect(
+    window: tauri::WebviewWindow,
+    app: AppHandle,
+) -> Result<ClaudeConnection, String> {
+    claude_set_connection(window, app, false).await
+}
+
+async fn claude_set_connection(
+    window: tauri::WebviewWindow,
+    app: AppHandle,
+    connect: bool,
+) -> Result<ClaudeConnection, String> {
+    if window.label() != WINDOW_MAIN {
+        return Err("Seule la fenêtre principale peut changer la connexion de Claude Code.".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || claude::set_connection(&app, connect))
+        .await
+        .map_err(|e| format!("Connexion de Claude Code interrompue : {e}"))?
 }
 
 /// Clic sur une session Claude ou sa notification dans l'île : met au premier plan la fenêtre VS Code

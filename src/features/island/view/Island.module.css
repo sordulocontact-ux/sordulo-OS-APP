@@ -288,7 +288,9 @@
 }
 
 .musicText strong,
-.musicText small {
+.musicText small,
+.progText strong,
+.progText small {
   display: block;
   white-space: nowrap;
   overflow: hidden;
@@ -296,17 +298,20 @@
   line-height: var(--island-line-height);
 }
 
-.musicText strong {
+.musicText strong,
+.progText strong {
   font-size: var(--island-font-size-lg);
   font-weight: var(--font-weight-semibold);
 }
 
-.musicText small {
+.musicText small,
+.progText small {
   font-size: var(--island-font-size-sm);
   color: var(--island-muted);
 }
 
-.musicText .musicApp {
+.musicText .musicApp,
+.progText .progMeta {
   font-size: var(--island-font-size-xs);
 }
 
@@ -421,38 +426,55 @@
   }
 }
 
-/* Progression : import, analyse */
-.layerProg {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 var(--island-space-13);
-}
-
-.progLeft {
-  display: flex;
-  align-items: center;
-  gap: var(--island-space-8);
-  min-width: 0;
-}
-
+/*
+ * Progression : import, analyse, déploiement. Icône de l'étape, anneau et libellé fermé (Windows) : éléments
+ * partagés, placés par le moteur (geometry.ts, progIcon / progRing / progLabel). Vue ouverte (progressOpen) :
+ * texte entre l'icône (28) et l'anneau (18), même typo que la musique.
+ */
 .progIcon {
-  width: var(--island-size-18);
-  height: var(--island-size-18);
-  flex: none;
+  display: grid;
+  place-items: center;
   color: var(--island-tone);
 }
 
-.progLabel {
-  font-size: var(--island-font-size-sm);
-  color: var(--island-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Le moteur écrit la taille de l'icône (18 fermée, 28 ouverte) */
+.progIcon svg {
+  width: 100%;
+  height: 100%;
 }
 
-.root[data-platform='mac'] .progLabel {
-  display: none;
+.progRing {
+  display: grid;
+  place-items: center;
+}
+
+.progLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--island-font-size-sm);
+  color: var(--island-muted);
+}
+
+.detail.progDetail {
+  display: flex;
+  align-items: center;
+  padding: var(--island-space-16)
+    calc(var(--island-space-16) + var(--island-size-18) + var(--island-space-12))
+    var(--island-space-14)
+    calc(var(--island-space-16) + var(--island-size-28) + var(--island-space-12));
+}
+
+.root[data-platform='mac'] .detail.progDetail {
+  padding-top: var(--island-space-44);
+}
+
+.progText {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
 }
 
 .ring {
@@ -883,12 +905,28 @@
   color: var(--island-claude);
 }
 
-/* Aussi en cours, sous l'appel (meetOpen) : filet puis une ligne par activité (hauteur : MEET_BACKGROUND) */
+/* Aussi en cours, sous l'appel (meetOpen) et sous la musique (musicOpen) : filet puis une ligne par activité
+   (hauteur : MEET_BACKGROUND). Chaque ligne est un bouton (.rowOpen), comme dans multiOpen. */
 .meetBackground {
-  list-style: none;
   margin: var(--island-space-7) 0 0;
-  padding: 0;
   border-top: 1px solid var(--island-line);
+}
+
+/* Liste dépliée : défile au-delà de MEET_BACKGROUND.maxExpandedRows (hauteur maximale posée par le rendu).
+   Débord de 8 px de chaque côté : le fond de survol des boutons (marge négative de .rowOpen) n'est pas coupé. */
+.backgroundList {
+  list-style: none;
+  margin: 0 calc(-1 * var(--island-space-8));
+  padding: 0 var(--island-space-8);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--island-line) transparent;
+}
+
+/* Contour de focus à l'intérieur du bouton : le défilement de la liste le couperait en haut et en bas. */
+.backgroundList .rowOpen:focus-visible {
+  outline-offset: calc(-1 * var(--island-outline-width));
 }
 
 .meetBackgroundRow {
@@ -1551,15 +1589,7 @@
   display: none;
 }
 
-/* Progression sur les côtés (toujours compacte) : icône en haut, anneau en bas, sans le texte */
-.root[data-edge='left'] .layerProg,
-.root[data-edge='right'] .layerProg {
-  flex-direction: column;
-  padding: var(--island-space-13) 0;
-}
-
-.root[data-edge='left'] .progLabel,
-.root[data-edge='right'] .progLabel,
+/* Pilule verticale de la progression : icône en haut, anneau en bas (geometry.ts), le libellé s'efface. */
 .root[data-edge='left'] .dragHint,
 .root[data-edge='right'] .dragHint {
   display: none;

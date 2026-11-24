@@ -11,7 +11,7 @@ import styles from '../Island.module.css'
 import { Layer } from '../Layer'
 import { cx } from '../cx'
 import type { BackgroundRow } from '../labels'
-import { ROW_TONE_CLASS } from './rowTone'
+import { BackgroundList } from './BackgroundList'
 import type { IslandCallPrompt, IslandProjectOption } from '../types'
 
 export interface BaseLayerProps {
@@ -248,19 +248,22 @@ export function AppelLayer({
  * Enregistrement. Au repos : icône + onde à gauche, minuteur à droite (éléments partagés). Pas de bulle
  * pendant l'enregistrement.
  * Au survol (meetOpen, absent du prototype, composé comme agentOpen) : app, projet, bouton « Arrêter », puis
- * ce qui tourne aussi (sessions Claude, progressions), une ligne chacun comme dans multiOpen.
+ * ce qui tourne aussi (sessions Claude, progressions, musique), une ligne cliquable chacun comme dans multiOpen.
  */
 export function MeetLayer({
   meet,
   rows,
   open,
   onStopRecording,
+  onSelectRow,
   ...base
 }: BaseLayerProps & {
   meet: MeetActivity | null
+  /** Ce qui tourne aussi (dépliée : toutes les lignes) ; la hauteur de la couche suit. */
   rows: readonly BackgroundRow[]
   open: boolean
   onStopRecording: () => void
+  onSelectRow: (row: BackgroundRow) => void
 }) {
   const shown = useLastNonNull(meet)
   const app = shown?.appName ?? 'l’app d’appel'
@@ -284,17 +287,7 @@ export function MeetLayer({
             Arrêter
           </button>
         </div>
-        {rows.length > 0 && (
-          <ul className={styles.meetBackground} aria-label="Aussi en cours">
-            {rows.map((row) => (
-              <li key={row.id} className={cx(styles.row, styles.meetBackgroundRow)}>
-                <b>{row.title}</b>
-                <span className={styles.task}>{row.detail}</span>
-                {row.status && <span className={cx(styles.st, ROW_TONE_CLASS[row.tone])}>{row.status}</span>}
-              </li>
-            ))}
-          </ul>
-        )}
+        <BackgroundList rows={rows} platform={base.platform} label="Aussi en cours" onSelectRow={onSelectRow} />
       </div>
     </Layer>
   )

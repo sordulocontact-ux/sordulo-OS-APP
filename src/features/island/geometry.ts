@@ -6,7 +6,7 @@
  * Ce fichier est pur (ni React ni DOM) : il est lu par le rendu (view/), le labo et le jardin.
  */
 import type { IslandDragStart, IslandRect } from '../../shared/desktop-contract'
-import type { IslandEdge, IslandPlatform, IslandSizeKey, IslandState } from './types'
+import type { IslandEdge, IslandPlatform, IslandSizeKey, IslandState, ProgressActivity } from './types'
 
 /** Plateforme par défaut. L'app de bureau choisit la vraie dans l'URL de l'île (`?platform=mac` sur un Mac à encoche). */
 export const ACTIVE_PLATFORM: IslandPlatform = 'win'
@@ -55,6 +55,7 @@ export const COMPACT_SIZE_KEYS: ReadonlySet<IslandSizeKey> = new Set<IslandSizeK
   'music',
   'musicGarden',
   'progress',
+  'progressNamed',
   'agent',
   'multi',
   'dragWake',
@@ -76,12 +77,33 @@ export interface IslandShapeSize {
   r: number
 }
 
+/** Encoche de la caméra du Mac (px CSS) : largeur de l'île au repos, même valeur que --island-garden-notch-width. */
+export const MAC_NOTCH_WIDTH = 186
+
+/**
+ * Progression fermée avec un nom à montrer (déploiement, clé `progressNamed`) sur Mac : l'île s'élargit d'une aile
+ * de `wing` px de chaque côté de l'encoche (ailes égales : l'île reste centrée sur l'encoche).
+ * - Aile gauche : icône (13 + 18), écart 8, puis le nom, qui s'arrête à `notchMargin` px du bord gauche de
+ *   l'encoche (PROGRESS_NAMED_LABEL_MAX_WIDTH, coupé par « … » au-delà). 136 px : « sordulo-OS-APP »
+ *   (14 caractères) mesure 87 px en Google Sans Flex 12 px, il tient dans les 89 px du libellé.
+ * - Aile droite : l'anneau, à 13 px du bord droit comme dans `progress`.
+ * Import et analyse (pas de nom utile) gardent `progress` (274 px). Windows : `progressNamed` = `progress`.
+ */
+export const PROGRESS_NAMED_MAC = { wing: 136, notchMargin: 8 } as const
+
+/** Largeur de l'île Mac élargie pour un déploiement : encoche + deux ailes (458 px). */
+export const PROGRESS_NAMED_MAC_WIDTH = MAC_NOTCH_WIDTH + 2 * PROGRESS_NAMED_MAC.wing
+
 /**
  * Dimensions par clé de taille, en px CSS. Copie exacte de S.
  * `meetOpen` (survol de l'enregistrement, absent du prototype) reprend les dimensions de `agentOpen`.
  * `musicOpen` (survol de la musique, absent du prototype) : pochette de 56 px, progression, boutons du lecteur
  * (Windows : 16 + 56 + 12 + 14 + 6 + 32 + 14 ; Mac : 44 sous l'encoche au lieu de 16). Sans progression
  * connue, la forme perd MUSIC_OPEN.progressRow (voir islandSize).
+ * `progressOpen` (survol de la progression, absent du prototype) : largeur de agentOpen, haut + bloc de texte
+ * de PROGRESS_OPEN.textHeight + bas 14 (Windows : haut 16 ; Mac : 44 sous l'encoche). Mac : aussi large que
+ * l'île élargie du déploiement (PROGRESS_NAMED_MAC_WIDTH), pour que le survol ne la rétrécisse pas.
+ * `progressNamed` : progression fermée avec un nom (déploiement), voir PROGRESS_NAMED_MAC.
  * Mac : largeurs calculées depuis l'encoche (186 px dans le prototype).
  */
 export const ISLAND_SIZES: Record<IslandPlatform, Record<IslandSizeKey, IslandShapeSize>> = {
@@ -95,6 +117,8 @@ export const ISLAND_SIZES: Record<IslandPlatform, Record<IslandSizeKey, IslandSh
     musicOpen: { w: 380, h: 150, r: 26 },
     musicGarden: { w: 193, h: 40, r: 14 },
     progress: { w: 193, h: 40, r: 14 },
+    progressNamed: { w: 193, h: 40, r: 14 },
+    progressOpen: { w: 360, h: 80, r: 24 },
     agent: { w: 193, h: 40, r: 14 },
     agentOpen: { w: 360, h: 96, r: 24 },
     agentAsk: { w: 380, h: 156, r: 26 },
@@ -117,6 +141,8 @@ export const ISLAND_SIZES: Record<IslandPlatform, Record<IslandSizeKey, IslandSh
     musicOpen: { w: 400, h: 178, r: 26 },
     musicGarden: { w: 274, h: 32, r: 10 },
     progress: { w: 274, h: 32, r: 10 },
+    progressNamed: { w: PROGRESS_NAMED_MAC_WIDTH, h: 32, r: 10 },
+    progressOpen: { w: PROGRESS_NAMED_MAC_WIDTH, h: 108, r: 26 },
     agent: { w: 274, h: 32, r: 10 },
     agentOpen: { w: 380, h: 124, r: 26 },
     agentAsk: { w: 400, h: 184, r: 26 },
@@ -132,11 +158,16 @@ export const ISLAND_SIZES: Record<IslandPlatform, Record<IslandSizeKey, IslandSh
 }
 
 /**
- * Lignes « aussi en cours » sous l'appel dans meetOpen (ajout, absent du prototype) : une par activité ou
- * session Claude, 3 au plus. Chaque ligne ajoute `rowH`, plus `gap` une fois (filet au-dessus des lignes).
+ * Lignes « aussi en cours » sous l'appel (meetOpen) et sous la musique (musicOpen), ajout absent du prototype :
+ * une par activité ou session Claude. Chaque ligne ajoute `rowH`, plus `gap` une fois (filet au-dessus des lignes).
+ * - `maxRows` : lignes de la liste repliée ; au-delà, la dernière devient « N autres activités ».
+ * - `maxExpandedRows` : plafond de la liste dépliée (clic sur « N autres activités ») ; l'île grandit jusque-là,
+ *   au-delà la liste défile. Choisi pour que la plus haute vue (musicOpen Mac, 366 px) plus le dépassement du
+ *   ressort tienne dans la fenêtre de l'île (ISLAND_WINDOW_SIZE.horizontal, 420 px de haut).
  */
 export const MEET_BACKGROUND = {
   maxRows: 3,
+  maxExpandedRows: 6,
   win: { rowH: 30, gap: 8 },
   mac: { rowH: 30, gap: 8 },
 } as const
@@ -154,8 +185,59 @@ export const MUSIC_OPEN = {
 } as const
 
 /**
- * Dimensions d'une clé de taille ; meetOpen grandit avec les lignes « aussi en cours », musicOpen perd la
- * ligne de progression quand elle n'est pas connue (`musicProgress` faux).
+ * Vue ouverte de la progression (progressOpen) : hauteur du bloc de texte (libellé, détail, petite ligne : trois
+ * lignes de 14, 12 et 11 px à 1,3, arrondies), centré verticalement avec l'icône et l'anneau ; taille de l'icône
+ * de l'étape ouverte et fermée. Libellé de l'île fermée (Windows) : à `labelX` du bord gauche, jusqu'à l'anneau.
+ */
+export const PROGRESS_OPEN = {
+  textHeight: 50,
+  iconSize: 28,
+  closedIconSize: 18,
+  ringSize: 18,
+  labelX: 39,
+} as const
+
+/** Largeur maximale du libellé de la progression fermée (Windows) : de `labelX` à l'anneau, 8 px d'écart. */
+export const PROGRESS_LABEL_MAX_WIDTH =
+  ISLAND_SIZES.win.progress.w - PROGRESS_OPEN.labelX - (13 + PROGRESS_OPEN.ringSize + 8)
+
+/**
+ * Largeur maximale du nom dans l'île Mac élargie (progressNamed) : de `labelX` jusqu'à `notchMargin` avant le
+ * bord gauche de l'encoche (89 px). Le texte ne passe jamais sous l'encoche.
+ */
+export const PROGRESS_NAMED_LABEL_MAX_WIDTH =
+  PROGRESS_NAMED_MAC.wing - PROGRESS_NAMED_MAC.notchMargin - PROGRESS_OPEN.labelX
+
+/**
+ * Largeur de la forme (le long du bord) à partir de laquelle le nom de l'île Mac élargie apparaît : celle où un
+ * nom de largeur maximale finit pile au bord de l'encoche, marge comprise (442 px). Pendant l'élargissement à
+ * rebond, il reste masqué tant que la forme est plus étroite ; le creux qui suit le dépassement reste au-dessus.
+ */
+export const PROGRESS_NAMED_LABEL_MIN_ALONG =
+  MAC_NOTCH_WIDTH + 2 * (PROGRESS_OPEN.labelX + PROGRESS_NAMED_LABEL_MAX_WIDTH)
+
+/** Largeur maximale du libellé fermé de la progression selon la variante dessinée. */
+export function progressLabelMaxWidth(platform: IslandPlatform): number {
+  return platform === 'mac' ? PROGRESS_NAMED_LABEL_MAX_WIDTH : PROGRESS_LABEL_MAX_WIDTH
+}
+
+/**
+ * La progression a un nom à montrer dans l'île fermée : un déploiement (nom du dépôt, repli nom du projet Vercel).
+ * Import et analyse n'en ont pas d'utile sur Mac (l'encoche ne laisse pas la place à « Import de l'audio »).
+ */
+export function progressShowsName(progress: Pick<ProgressActivity, 'stage' | 'label'> | null): boolean {
+  return progress !== null && progress.stage === 'deploy' && progress.label.trim() !== ''
+}
+
+/** Lignes « aussi en cours » visibles sans défiler : `count` lignes, plafonné à MEET_BACKGROUND.maxExpandedRows. */
+export function backgroundVisibleRows(count: number): number {
+  return Math.min(Math.max(0, count), MEET_BACKGROUND.maxExpandedRows)
+}
+
+/**
+ * Dimensions d'une clé de taille ; meetOpen et musicOpen grandissent avec les lignes « aussi en cours » (jusqu'à
+ * MEET_BACKGROUND.maxExpandedRows), musicOpen perd la ligne de progression quand elle n'est pas connue
+ * (`musicProgress` faux).
  */
 export function islandSize(
   platform: IslandPlatform,
@@ -168,8 +250,9 @@ export function islandSize(
   let h = size.h
   if (key === 'musicOpen' && !musicProgress) h -= MUSIC_OPEN.progressRow
   if (key === 'musicOpen' && !musicControls) h -= MUSIC_OPEN.controlsRow
-  // Lignes « aussi en cours » : sous l'appel (meetOpen) et sous la musique (sessions Claude, musicOpen).
-  const rows = Math.min(Math.max(0, meetRows), MEET_BACKGROUND.maxRows)
+  // Lignes « aussi en cours » : sous l'appel (meetOpen) et sous la musique (musicOpen). Repliées, il y en a
+  // maxRows au plus (backgroundRows) ; dépliées, l'île grandit jusqu'à maxExpandedRows, la liste défile au-delà.
+  const rows = backgroundVisibleRows(meetRows)
   if ((key === 'meetOpen' || key === 'musicOpen') && rows > 0) {
     const { rowH, gap } = MEET_BACKGROUND[platform]
     h += gap + rows * rowH
@@ -179,31 +262,43 @@ export function islandSize(
 
 /**
  * Clé de taille d'un état (prototype : currentKey et keyFor).
- * Survol : repos → peek, meet → meetOpen, music → musicOpen, agent → agentOpen, multi → multiOpen.
+ * Survol : repos → peek, meet → meetOpen, music → musicOpen, progress → progressOpen, agent → agentOpen,
+ * multi → multiOpen.
  * Pendant un appel : notif → notifCall, agentAsk → agentAskCall.
  * Musique avec des sessions Claude (`musicGarden` vrai) : music → musicGarden (les Claude marchent en bas).
+ * Progression avec un nom à montrer (`progressNamed` vrai, voir progressShowsName) : progress → progressNamed.
  */
-export function sizeKeyFor(state: IslandState, hover: boolean, withCall: boolean, musicGarden = false): IslandSizeKey {
+export function sizeKeyFor(
+  state: IslandState,
+  hover: boolean,
+  withCall: boolean,
+  musicGarden = false,
+  progressNamed = false,
+): IslandSizeKey {
   if (hover) {
     if (state === 'repos') return 'peek'
     if (state === 'meet') return 'meetOpen'
     if (state === 'music') return 'musicOpen'
+    if (state === 'progress') return 'progressOpen'
     if (state === 'agent') return 'agentOpen'
     if (state === 'multi') return 'multiOpen'
   }
   if (state === 'notif' && withCall) return 'notifCall'
   if (state === 'agentAsk' && withCall) return 'agentAskCall'
   if (state === 'music' && musicGarden) return 'musicGarden'
+  if (state === 'progress' && progressNamed) return 'progressNamed'
   return state
 }
 
 /**
  * Taille d'une couche de contenu (prototype : sizeLayers) : la couche a la taille de l'état ouvert,
- * la forme animée la découpe. meet → meetOpen, music → musicOpen, agent → agentOpen, multi → multiOpen.
+ * la forme animée la découpe. meet → meetOpen, music → musicOpen, progress → progressOpen, agent → agentOpen,
+ * multi → multiOpen.
  */
 export function layerSizeKeyFor(state: IslandState, withCall: boolean): IslandSizeKey {
   if (state === 'meet') return 'meetOpen'
   if (state === 'music') return 'musicOpen'
+  if (state === 'progress') return 'progressOpen'
   if (state === 'agent') return 'agentOpen'
   if (state === 'multi') return 'multiOpen'
   return sizeKeyFor(state, false, withCall)
@@ -236,8 +331,43 @@ export const JELLY = {
 // Ressort (prototype : K, C, frame, stepSpring)
 // ---------------------------------------------------------------------------
 
-/** Ressort de la forme, de la bulle et des éléments partagés : raideur 380, amortissement 26. */
+/** Réglages d'un ressort (masse 1) : raideur k, amortissement c. */
+export interface SpringSettings {
+  stiffness: number
+  damping: number
+}
+
+/** Ressort de la forme, de la bulle et des éléments partagés : raideur 380, amortissement 26 (rapport ≈ 0,67). */
 export const SPRING = { stiffness: 380, damping: 26 } as const
+
+/**
+ * Ressort élastique de la forme, seulement quand l'île s'élargit pour un déploiement sur Mac (progressNamed) :
+ * même raideur que SPRING, amortissement 18, soit un rapport d'amortissement c / (2√k) ≈ 0,46 (SPRING : 0,67).
+ * L'île dépasse sa largeur finale d'environ 20 % de l'élargissement, puis revient (creux suivant ≈ 4 %).
+ */
+export const BOUNCY_SPRING = { stiffness: 380, damping: 18 } as const
+
+/** Rapport d'amortissement d'un ressort de masse 1 : c / (2√k) ; sous 1, il dépasse sa cible. */
+export function dampingRatio(spring: SpringSettings): number {
+  return spring.damping / (2 * Math.sqrt(spring.stiffness))
+}
+
+/**
+ * Ressort de la forme (largeur, hauteur, rayon) pour un passage de clé `from` → `to`, `platform` étant la variante
+ * dessinée (edgePlatform). BOUNCY_SPRING seulement à l'entrée dans l'île Mac élargie du déploiement (progressNamed),
+ * sauf en revenant du survol (progressOpen, même largeur). Tout le reste, le retour au repos compris, et
+ * « Réduire les animations » (`still` : pas d'animation, ou glisser en cours) : SPRING.
+ */
+export function shapeSpringFor(
+  from: IslandSizeKey,
+  to: IslandSizeKey,
+  platform: IslandPlatform,
+  still = false,
+): SpringSettings {
+  if (still || platform !== 'mac' || from === to) return SPRING
+  if (to === 'progressNamed' && from !== 'progressOpen') return BOUNCY_SPRING
+  return SPRING
+}
 
 /** Opacité des éléments partagés et de la bulle : raideur K × 1,4, amortissement critique 2√(K × 1,4). */
 export const OPACITY_SPRING_STIFFNESS_FACTOR = 1.4
@@ -362,6 +492,7 @@ export const VERTICAL_PILL_LENGTH: Partial<Record<IslandSizeKey, number>> = {
   music: 132,
   musicGarden: 132,
   progress: 132,
+  progressNamed: 132,
   agent: 132,
   multi: 132,
   dragWake: 120,
@@ -478,6 +609,9 @@ export type SharedElementId =
   | 'dropIcon'
   | 'musicCover'
   | 'musicEq'
+  | 'progIcon'
+  | 'progRing'
+  | 'progLabel'
 
 /** Position depuis le bord d'ancrage de la zone de contenu (x) et le haut (y), taille (s), opacité (o). */
 export interface SharedPosition {
@@ -487,6 +621,11 @@ export interface SharedPosition {
   s?: number
   /** Opacité cible, 1 par défaut. */
   o?: number
+  /**
+   * Largeur de la forme (le long du bord, px) en dessous de laquelle l'élément reste masqué : il apparaît en
+   * fondu une fois la forme assez large (nom de l'île Mac élargie, pendant le rebond).
+   */
+  minAlong?: number
 }
 
 export interface SharedElementSpec {
@@ -503,12 +642,25 @@ export const MAX_SESSION_ROWS = 5
 export const SHARED_ICON_DEFAULT_SIZE = 22
 
 /** Éléments partagés dont le moteur écrit aussi la largeur et la hauteur (taille `s`). */
-export const SIZED_SHARED_ELEMENTS: ReadonlySet<SharedElementId> = new Set<SharedElementId>(['agentIcon', 'musicCover'])
+export const SIZED_SHARED_ELEMENTS: ReadonlySet<SharedElementId> = new Set<SharedElementId>([
+  'agentIcon',
+  'musicCover',
+  'progIcon',
+])
 
 function segSpec(i: number): SharedElementSpec {
   // Les pastilles de statut descendent devant chaque ligne au survol (une ligne = 30 px).
   return { anchor: 'left', win: { multiOpen: { x: 16, y: 68 + i * 30 } }, mac: { multiOpen: { x: 16, y: 98 + i * 30 } } }
 }
+
+/**
+ * Progression fermée (`progress` et `progressNamed`) : icône de l'étape et anneau à 13 px des bords, centrés en
+ * hauteur (Windows 40 px, Mac 32 px), comme le prototype.
+ */
+const PROG_CLOSED = {
+  win: { icon: { x: 13, y: 11, s: PROGRESS_OPEN.closedIconSize }, ring: { x: 13, y: 11 } },
+  mac: { icon: { x: 13, y: 7, s: PROGRESS_OPEN.closedIconSize }, ring: { x: 13, y: 7 } },
+} as const
 
 /**
  * Copie de SH. Ajouts pour `meetOpen` (absent du prototype, composé comme agentOpen) : le minuteur monte
@@ -588,6 +740,51 @@ export const SHARED_ELEMENTS: Record<SharedElementId, SharedElementSpec> = {
     win: { music: { x: 11, y: 13 }, musicGarden: { x: 11, y: 13 }, musicOpen: { x: 16, y: 37 } },
     mac: { music: { x: 8, y: 9 }, musicGarden: { x: 8, y: 9 }, musicOpen: { x: 16, y: 65 } },
   },
+  // Progression (ajout) : l'icône de l'étape grandit vers la gauche de progressOpen, l'anneau reste à droite,
+  // tous deux centrés sur le bloc de texte (Windows : 16 + 25 ; Mac : 44 + 25, sous l'encoche). Fermée : 13 px
+  // des bords, centrés en hauteur, comme le prototype.
+  progIcon: {
+    anchor: 'left',
+    win: {
+      progress: PROG_CLOSED.win.icon,
+      progressNamed: PROG_CLOSED.win.icon,
+      progressOpen: { x: 16, y: 16 + (PROGRESS_OPEN.textHeight - PROGRESS_OPEN.iconSize) / 2, s: PROGRESS_OPEN.iconSize },
+    },
+    mac: {
+      progress: PROG_CLOSED.mac.icon,
+      progressNamed: PROG_CLOSED.mac.icon,
+      progressOpen: { x: 16, y: 44 + (PROGRESS_OPEN.textHeight - PROGRESS_OPEN.iconSize) / 2, s: PROGRESS_OPEN.iconSize },
+    },
+  },
+  progRing: {
+    anchor: 'right',
+    win: {
+      progress: PROG_CLOSED.win.ring,
+      progressNamed: PROG_CLOSED.win.ring,
+      progressOpen: { x: 16, y: 16 + (PROGRESS_OPEN.textHeight - PROGRESS_OPEN.ringSize) / 2 },
+    },
+    mac: {
+      progress: PROG_CLOSED.mac.ring,
+      progressNamed: PROG_CLOSED.mac.ring,
+      progressOpen: { x: 16, y: 44 + (PROGRESS_OPEN.textHeight - PROGRESS_OPEN.ringSize) / 2 },
+    },
+  },
+  // Libellé de l'île fermée. Windows : toujours. Mac : seulement l'île élargie du déploiement (progressNamed),
+  // dans l'aile gauche, masqué tant que la forme n'est pas assez large (minAlong) ; dans `progress` (274 px),
+  // l'encoche le cacherait. À l'ouverture, il glisse vers le titre de la vue ouverte en s'effaçant (le titre
+  // apparaît par le fondu du détail).
+  progLabel: {
+    anchor: 'left',
+    win: {
+      progress: { x: PROGRESS_OPEN.labelX, y: 13 },
+      progressNamed: { x: PROGRESS_OPEN.labelX, y: 13 },
+      progressOpen: { x: 16 + PROGRESS_OPEN.iconSize + 12, y: 18, o: 0 },
+    },
+    mac: {
+      progressNamed: { x: PROGRESS_OPEN.labelX, y: 9, minAlong: PROGRESS_NAMED_LABEL_MIN_ALONG },
+      progressOpen: { x: 16 + PROGRESS_OPEN.iconSize + 12, y: 46, o: 0 },
+    },
+  },
 }
 
 export const SHARED_ELEMENT_IDS = Object.keys(SHARED_ELEMENTS) as SharedElementId[]
@@ -658,6 +855,8 @@ export const VERTICAL_SHARED: Partial<Record<SharedElementId, Partial<Record<Isl
   dots: { agent: { cross: 'center' } },
   musicEq: { music: { cross: 'center' }, musicGarden: { cross: 'center' } },
   count: { multi: { cross: 'center' } },
+  // Pas de texte en travers de la pilule : il reste l'icône (en haut) et l'anneau (en bas).
+  progLabel: { progress: { o: 0 }, progressNamed: { o: 0 } },
 }
 
 /**
@@ -671,6 +870,8 @@ export interface SharedPlacement {
   y: number
   s?: number
   o?: number
+  /** Voir SharedPosition.minAlong. */
+  minAlong?: number
 }
 
 /**
@@ -694,7 +895,11 @@ export function sharedPlacement(
   const pos = sharedPosition(id, p, key, ctx)
   if (!pos) return null
   const anchor = SHARED_ELEMENTS[id].anchor
-  const extra = { ...(pos.s !== undefined ? { s: pos.s } : {}), ...(pos.o !== undefined ? { o: pos.o } : {}) }
+  const extra = {
+    ...(pos.s !== undefined ? { s: pos.s } : {}),
+    ...(pos.o !== undefined ? { o: pos.o } : {}),
+    ...(pos.minAlong !== undefined ? { minAlong: pos.minAlong } : {}),
+  }
   if (!isVerticalLayout(edge, key)) {
     // En bas : seuls les états compacts sont en miroir (même distance au bord de l'écran) ; une carte ouverte
     // garde l'ordre de lecture de ses couches (pochette en haut, à côté du titre).

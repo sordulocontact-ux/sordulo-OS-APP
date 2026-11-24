@@ -15,7 +15,7 @@ import {
   createDeploymentsSource,
   deployActivity,
   deployDurationMs,
-  deployLabel,
+  deployName,
   estimateDeployMs,
   retryDelayMs,
   type DeploymentsSourceDeps,
@@ -34,6 +34,7 @@ function dep(id: string, fields: Partial<VercelDeployment> = {}): VercelDeployme
     createdAt: 900_000,
     buildingAt: 905_000,
     readyAt: null,
+    repo: 'sordulo-OS-APP',
     branch: 'main',
     commitMessage: 'Ajoute la page Connecteurs',
     teamId: null,
@@ -124,23 +125,28 @@ describe('déploiements : fonctions pures', () => {
     expect(deployDurationMs(dep('d', { state: 'ERROR', readyAt: 950_000 }))).toBeNull()
   })
 
-  it('libellé « projet · branche », le projet seul sans branche', () => {
-    expect(deployLabel(dep('a'))).toBe('sordulo-os-app · main')
-    expect(deployLabel(dep('a', { branch: null }))).toBe('sordulo-os-app')
+  it('nom affiché : le dépôt Git, sinon le projet Vercel', () => {
+    expect(deployName(dep('a'))).toBe('sordulo-OS-APP')
+    expect(deployName(dep('a', { repo: null }))).toBe('sordulo-os-app')
   })
 
-  it('progression : id par projet (nom sans id), début de la construction sinon création', () => {
+  it('progression : id par projet (nom sans id), dépôt, message du commit et branche, début de la construction sinon création', () => {
     expect(deployActivity(dep('a'), 40_000)).toEqual({
       id: ACTIVITY,
       kind: 'progress',
       stage: 'deploy',
-      label: 'sordulo-os-app · main',
+      label: 'sordulo-OS-APP',
+      detail: 'Ajoute la page Connecteurs',
+      meta: 'main',
       fraction: null,
       startedAt: 905_000,
       estimatedMs: 40_000,
     })
     const noId = deployActivity(dep('a', { projectId: null, buildingAt: null }), 40_000)
     expect(noId).toMatchObject({ id: 'prog:deploy:sordulo-os-app', startedAt: 900_000 })
+    // Sans Git (CLI) : le projet Vercel, ni détail ni branche.
+    const noGit = deployActivity(dep('a', { repo: null, commitMessage: null, branch: null }), 40_000)
+    expect(noGit).toMatchObject({ label: 'sordulo-os-app', detail: null, meta: null })
   })
 
   it('délai après erreur : grandit, 60 s au plus', () => {
@@ -161,7 +167,9 @@ describe('source « déploiements »', () => {
     expect(t.activity()).toMatchObject({
       kind: 'progress',
       stage: 'deploy',
-      label: 'sordulo-os-app · main',
+      label: 'sordulo-OS-APP',
+      detail: 'Ajoute la page Connecteurs',
+      meta: 'main',
       fraction: null,
       startedAt: 905_000,
       // Médiane des déploiements en ligne du projet vus dans la réponse.
@@ -179,7 +187,7 @@ describe('source « déploiements »', () => {
     expect(t.notifications()).toEqual([
       expect.objectContaining({
         kind: 'deployed',
-        title: 'sordulo-os-app est en ligne',
+        title: 'sordulo-OS-APP est en ligne',
         subtitle: 'Ajoute la page Connecteurs',
         button: 'Ouvrir',
         action: { type: 'openUrl', url: 'https://sordulo.app' },
@@ -187,13 +195,14 @@ describe('source « déploiements »', () => {
     ])
   })
 
-  it('en ligne sans alias ni commit : URL du déploiement, sous-titre par défaut', async () => {
-    const t = setup({ lists: { personnel: [dep('d-1', { commitMessage: null })] } })
+  it('en ligne sans alias ni Git : projet Vercel, URL du déploiement, sous-titre par défaut', async () => {
+    const t = setup({ lists: { personnel: [dep('d-1', { repo: null, commitMessage: null })] } })
     t.deps.fetchProductionUrl.mockResolvedValue(null)
     await flush()
-    t.respond([dep('d-1', { state: 'READY', readyAt: 950_000, commitMessage: null })])
+    t.respond([dep('d-1', { state: 'READY', readyAt: 950_000, repo: null, commitMessage: null })])
     await t.tick(POLL_ACTIVE_MS)
     expect(t.notifications()[0]).toMatchObject({
+      title: 'sordulo-os-app est en ligne',
       subtitle: 'Déploiement Vercel réussi',
       action: { type: 'openUrl', url: 'https://d-1.vercel.app' },
     })
@@ -209,18 +218,19 @@ describe('source « déploiements »', () => {
   })
 
   it('échec : « X : échec », « Voir les logs » vers l’inspecteur (repli : URL)', async () => {
-    const t = setup({ lists: { personnel: [dep('d-1'), dep('d-2', { projectId: 'prj-2', projectName: 'site', inspectorUrl: null })] } })
+    const site = { projectId: 'prj-2', projectName: 'site', repo: null, inspectorUrl: null }
+    const t = setup({ lists: { personnel: [dep('d-1'), dep('d-2', site)] } })
     await flush()
     t.respond([
       dep('d-1', { state: 'ERROR', readyAt: 950_000 }),
-      dep('d-2', { projectId: 'prj-2', projectName: 'site', inspectorUrl: null, state: 'ERROR', commitMessage: null }),
+      dep('d-2', { ...site, state: 'ERROR', commitMessage: null }),
     ])
     await t.tick(POLL_ACTIVE_MS)
     expect(t.activity()).toBeNull()
     expect(t.notifications()).toEqual([
       expect.objectContaining({
         kind: 'deployFailed',
-        title: 'sordulo-os-app : échec',
+        title: 'sordulo-OS-APP : échec',
         subtitle: 'Ajoute la page Connecteurs',
         tone: 'danger',
         button: 'Voir les logs',
@@ -257,24 +267,36 @@ describe('source « déploiements »', () => {
     const t = setup({
       lists: {
         personnel: [
-          dep('d-2', { createdAt: 910_000, buildingAt: null, branch: 'refonte' }),
+          dep('d-2', { createdAt: 910_000, buildingAt: null, branch: 'refonte', commitMessage: 'Refonte du header' }),
           dep('d-1'),
-          dep('d-3', { projectId: 'prj-2', projectName: 'site', branch: null }),
+          dep('d-3', { projectId: 'prj-2', projectName: 'site', repo: null, branch: null }),
         ],
       },
     })
     await flush()
-    expect(t.activity()).toMatchObject({ label: 'sordulo-os-app · refonte', startedAt: 910_000 })
-    expect(t.activity('prog:deploy:prj-2')).toMatchObject({ label: 'site' })
+    expect(t.activity()).toMatchObject({
+      label: 'sordulo-OS-APP',
+      detail: 'Refonte du header',
+      meta: 'refonte',
+      startedAt: 910_000,
+    })
+    expect(t.activity('prog:deploy:prj-2')).toMatchObject({ label: 'site', meta: null })
     // Le plus récent fini, l'autre encore en cours : la progression passe à lui, sans changer de rang.
     const order = t.activity()?.order
     t.respond([
       dep('d-2', { createdAt: 910_000, state: 'READY', readyAt: 950_000 }),
       dep('d-1'),
-      dep('d-3', { projectId: 'prj-2', projectName: 'site', branch: null }),
+      dep('d-3', { projectId: 'prj-2', projectName: 'site', repo: null, branch: null }),
     ])
     await t.tick(POLL_ACTIVE_MS)
-    expect(t.activity()).toMatchObject({ label: 'sordulo-os-app · main', startedAt: 905_000, order })
+    // Détail et branche suivent le déploiement affiché (l'empreinte les compte).
+    expect(t.activity()).toMatchObject({
+      label: 'sordulo-OS-APP',
+      detail: 'Ajoute la page Connecteurs',
+      meta: 'main',
+      startedAt: 905_000,
+      order,
+    })
   })
 
   it('sonde toutes les 3 s pendant un déploiement, 10 s sinon', async () => {
@@ -314,13 +336,13 @@ describe('source « déploiements »', () => {
     expect(t.deps.fetchVercelTeams).toHaveBeenCalledTimes(2)
     expect(t.notify).not.toHaveBeenCalled()
     // Ensuite, un déploiement de cette équipe est suivi comme les autres.
-    t.respond([dep('t-3', { teamId: 'team-2', projectId: 'prj-9', projectName: 'ibe' }), ready('t-2', 30_000, { teamId: 'team-2' })], 'team-2')
+    t.respond([dep('t-3', { teamId: 'team-2', projectId: 'prj-9', projectName: 'ibe', repo: 'app-ibe' }), ready('t-2', 30_000, { teamId: 'team-2' })], 'team-2')
     await t.tick(POLL_IDLE_MS)
     expect(t.activity('prog:deploy:prj-9')).not.toBeNull()
-    t.respond([dep('t-3', { teamId: 'team-2', projectId: 'prj-9', projectName: 'ibe', state: 'READY', readyAt: 950_000 })], 'team-2')
+    t.respond([dep('t-3', { teamId: 'team-2', projectId: 'prj-9', projectName: 'ibe', repo: 'app-ibe', state: 'READY', readyAt: 950_000 })], 'team-2')
     await t.tick(POLL_ACTIVE_MS)
     expect(t.deps.fetchProductionUrl).toHaveBeenLastCalledWith('tok-1', 't-3', 'team-2')
-    expect(t.notifications().map((n) => n.title)).toEqual(['ibe est en ligne'])
+    expect(t.notifications().map((n) => n.title)).toEqual(['app-ibe est en ligne'])
   })
 
   it('dédoublonne un déploiement vu dans deux portées', async () => {

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { ISLAND_WINDOW_SIZE } from '../../shared/desktop-contract'
 import {
+  backgroundVisibleRows,
   BUBBLE_GAP,
   COMPACT_SIZE_KEYS,
   VERTICAL_PILL_LENGTH,
@@ -22,11 +24,26 @@ import {
   shapeGeometry,
   sharedPosition,
   MEET_BACKGROUND,
+  SPRING,
   MUSIC_OPEN,
+  PROGRESS_LABEL_MAX_WIDTH,
+  PROGRESS_OPEN,
+  BOUNCY_SPRING,
+  EDGE_RADIUS,
+  MAC_NOTCH_WIDTH,
+  PROGRESS_NAMED_LABEL_MAX_WIDTH,
+  PROGRESS_NAMED_LABEL_MIN_ALONG,
+  PROGRESS_NAMED_MAC,
+  PROGRESS_NAMED_MAC_WIDTH,
+  dampingRatio,
+  progressLabelMaxWidth,
+  progressShowsName,
+  shapeSpringFor,
   islandSize,
   sizeKeyFor,
   waveBarHeight,
 } from './geometry'
+import { GARDEN } from './garden/constants'
 import type { IslandEdge, IslandSizeKey, IslandState } from './types'
 
 describe('sizeKeyFor', () => {
@@ -68,8 +85,12 @@ describe('sizeKeyFor', () => {
     expect(sizeKeyFor('agentAsk', true, false)).toBe('agentAsk')
   })
 
+  it('opens the progress on hover', () => {
+    expect(sizeKeyFor('progress', true, false)).toBe('progressOpen')
+    expect(sizeKeyFor('progress', false, false)).toBe('progress')
+  })
+
   it('does not open other states on hover', () => {
-    expect(sizeKeyFor('progress', true, false)).toBe('progress')
     expect(sizeKeyFor('appel', true, false)).toBe('appel')
   })
 })
@@ -80,6 +101,7 @@ describe('layerSizeKeyFor', () => {
     expect(layerSizeKeyFor('multi', false)).toBe('multiOpen')
     expect(layerSizeKeyFor('meet', false)).toBe('meetOpen')
     expect(layerSizeKeyFor('music', false)).toBe('musicOpen')
+    expect(layerSizeKeyFor('progress', false)).toBe('progressOpen')
     expect(layerSizeKeyFor('notif', true)).toBe('notifCall')
     expect(layerSizeKeyFor('repos', false)).toBe('repos')
   })
@@ -95,6 +117,149 @@ describe('ISLAND_SIZES', () => {
   it('gives meetOpen the agentOpen dimensions', () => {
     expect(ISLAND_SIZES.win.meetOpen).toEqual(ISLAND_SIZES.win.agentOpen)
     expect(ISLAND_SIZES.mac.meetOpen).toEqual(ISLAND_SIZES.mac.agentOpen)
+  })
+})
+
+describe('progressOpen', () => {
+  const ctx = { hasGarden: false, sessionCount: 0 }
+
+  it('fits the text block between the top (Mac : under the notch) and the bottom', () => {
+    expect(ISLAND_SIZES.win.progressOpen.h).toBe(16 + PROGRESS_OPEN.textHeight + 14)
+    expect(ISLAND_SIZES.mac.progressOpen.h).toBe(44 + PROGRESS_OPEN.textHeight + 14)
+    expect(ISLAND_SIZES.win.progressOpen.w).toBe(ISLAND_SIZES.win.agentOpen.w)
+    // Mac : aussi large que l'île élargie du déploiement, le survol ne la rétrécit pas.
+    expect(ISLAND_SIZES.mac.progressOpen.w).toBe(PROGRESS_NAMED_MAC_WIDTH)
+  })
+
+  it('keeps icon and ring out of the notch, centered on the text block', () => {
+    for (const platform of ['win', 'mac'] as const) {
+      const top = platform === 'mac' ? 44 : 16
+      const icon = sharedPosition('progIcon', platform, 'progressOpen', ctx)
+      const ring = sharedPosition('progRing', platform, 'progressOpen', ctx)
+      expect(icon?.s).toBe(PROGRESS_OPEN.iconSize)
+      expect((icon?.y ?? 0) + PROGRESS_OPEN.iconSize / 2).toBe(top + PROGRESS_OPEN.textHeight / 2)
+      expect((ring?.y ?? 0) + PROGRESS_OPEN.ringSize / 2).toBe(top + PROGRESS_OPEN.textHeight / 2)
+    }
+    expect(sharedPosition('progIcon', 'mac', 'progressOpen', ctx)?.y).toBeGreaterThanOrEqual(ISLAND_SIZES.mac.repos.h)
+    expect(sharedPosition('progRing', 'mac', 'progressOpen', ctx)?.y).toBeGreaterThanOrEqual(ISLAND_SIZES.mac.repos.h)
+  })
+
+  it('keeps the closed layout: icon and ring 13 px from the sides, centered, label on Windows only', () => {
+    expect(sharedPosition('progIcon', 'win', 'progress', ctx)).toEqual({ x: 13, y: 11, s: 18 })
+    expect(sharedPosition('progRing', 'win', 'progress', ctx)).toEqual({ x: 13, y: 11 })
+    expect(sharedPosition('progIcon', 'mac', 'progress', ctx)).toEqual({ x: 13, y: 7, s: 18 })
+    expect(sharedPosition('progLabel', 'win', 'progress', ctx)).toEqual({ x: PROGRESS_OPEN.labelX, y: 13 })
+    expect(sharedPosition('progLabel', 'win', 'progressOpen', ctx)?.o).toBe(0)
+    // Mac : l'encoche cacherait le texte de l'île fermée.
+    expect(sharedPosition('progLabel', 'mac', 'progress', ctx)).toBeNull()
+    expect(PROGRESS_LABEL_MAX_WIDTH).toBe(ISLAND_SIZES.win.progress.w - PROGRESS_OPEN.labelX - 13 - PROGRESS_OPEN.ringSize - 8)
+  })
+
+  it('vertical pill: icon on top, ring at the bottom, no label; open card laid out as at the top', () => {
+    expect(sharedPlacement('progIcon', 'win', 'progress', ctx, 'left')).toEqual({ h: 'left', x: 11, v: 'top', y: 13, s: 18 })
+    expect(sharedPlacement('progRing', 'win', 'progress', ctx, 'right', 18)).toEqual({ h: 'right', x: 11, v: 'bottom', y: 13 })
+    expect(sharedPlacement('progLabel', 'win', 'progress', ctx, 'left', 80)?.o).toBe(0)
+    expect(sharedPlacement('progIcon', 'mac', 'progressOpen', ctx, 'left')).toEqual({ h: 'left', x: 16, v: 'top', y: 27, s: 28 })
+  })
+})
+
+describe('progressNamed (déploiement fermé, nom du projet)', () => {
+  const ctx = { hasGarden: false, sessionCount: 0 }
+
+  it('is chosen for a deployment with a name, and still opens on hover', () => {
+    expect(progressShowsName({ stage: 'deploy', label: 'sordulo-OS-APP' })).toBe(true)
+    expect(progressShowsName({ stage: 'deploy', label: '  ' })).toBe(false)
+    expect(progressShowsName({ stage: 'upload', label: 'Import de l’audio' })).toBe(false)
+    expect(progressShowsName({ stage: 'analyse', label: 'Analyse de l’appel' })).toBe(false)
+    expect(progressShowsName(null)).toBe(false)
+    expect(sizeKeyFor('progress', false, false, false, true)).toBe('progressNamed')
+    expect(sizeKeyFor('progress', true, false, false, true)).toBe('progressOpen')
+    expect(sizeKeyFor('progress', false, false, false, false)).toBe('progress')
+    expect(sizeKeyFor('music', false, false, false, true)).toBe('music')
+  })
+
+  it('widens the Mac island by one wing on each side of the notch; Windows unchanged', () => {
+    expect(MAC_NOTCH_WIDTH).toBe(ISLAND_SIZES.mac.repos.w)
+    expect(MAC_NOTCH_WIDTH).toBe(GARDEN.notch.width)
+    expect(ISLAND_SIZES.mac.progressNamed).toEqual({ w: MAC_NOTCH_WIDTH + 2 * PROGRESS_NAMED_MAC.wing, h: 32, r: 10 })
+    expect(ISLAND_SIZES.mac.progressNamed.w).toBeGreaterThan(ISLAND_SIZES.mac.progress.w)
+    // Import et analyse (pas de nom) gardent la petite île.
+    expect(ISLAND_SIZES.mac.progress.w).toBe(274)
+    expect(ISLAND_SIZES.win.progressNamed).toEqual(ISLAND_SIZES.win.progress)
+    for (const id of ['progIcon', 'progRing', 'progLabel'] as const) {
+      expect(sharedPosition(id, 'win', 'progressNamed', ctx)).toEqual(sharedPosition(id, 'win', 'progress', ctx))
+    }
+    expect(progressLabelMaxWidth('win')).toBe(PROGRESS_LABEL_MAX_WIDTH)
+    // Côtés : même pilule verticale, sans texte.
+    expect(VERTICAL_PILL_LENGTH.progressNamed).toBe(VERTICAL_PILL_LENGTH.progress)
+    expect(sharedPlacement('progLabel', 'mac', 'progressNamed', ctx, 'left', 80)?.o).toBe(0)
+  })
+
+  it('puts icon and name in the left wing, never under the notch, and the ring against the right side', () => {
+    const w = ISLAND_SIZES.mac.progressNamed.w
+    const notchLeft = (w - MAC_NOTCH_WIDTH) / 2
+    const icon = sharedPosition('progIcon', 'mac', 'progressNamed', ctx)
+    const label = sharedPosition('progLabel', 'mac', 'progressNamed', ctx)
+    const ring = sharedPosition('progRing', 'mac', 'progressNamed', ctx)
+    expect(icon).toEqual({ x: 13, y: 7, s: PROGRESS_OPEN.closedIconSize })
+    expect(ring).toEqual(sharedPosition('progRing', 'mac', 'progress', ctx))
+    expect(label?.x).toBeGreaterThan((icon?.x ?? 0) + PROGRESS_OPEN.closedIconSize)
+    const labelRight = (label?.x ?? 0) + progressLabelMaxWidth('mac')
+    expect(labelRight).toBeLessThan(notchLeft)
+    expect(notchLeft - labelRight).toBe(PROGRESS_NAMED_MAC.notchMargin)
+    // Ligne de 14 px centrée dans les 32 px de l'île.
+    expect((label?.y ?? 0) * 2 + 14).toBe(ISLAND_SIZES.mac.progressNamed.h)
+    // Assez de place pour « sordulo-OS-APP » (87 px mesurés en Google Sans Flex 12 px).
+    expect(PROGRESS_NAMED_LABEL_MAX_WIDTH).toBeGreaterThanOrEqual(88)
+    // L'anneau (aile droite) reste hors de l'encoche.
+    expect(w - (ring?.x ?? 0) - PROGRESS_OPEN.ringSize).toBeGreaterThan(notchLeft + MAC_NOTCH_WIDTH)
+  })
+
+  it('shows the name only once the shape is wide enough for it', () => {
+    const label = sharedPosition('progLabel', 'mac', 'progressNamed', ctx)
+    expect(label?.minAlong).toBe(PROGRESS_NAMED_LABEL_MIN_ALONG)
+    // À cette largeur, un nom de largeur maximale finit pile au bord de l'encoche.
+    expect((PROGRESS_NAMED_LABEL_MIN_ALONG - MAC_NOTCH_WIDTH) / 2).toBe(PROGRESS_OPEN.labelX + PROGRESS_NAMED_LABEL_MAX_WIDTH)
+    expect(PROGRESS_NAMED_LABEL_MIN_ALONG).toBeLessThan(ISLAND_SIZES.mac.progressNamed.w)
+    expect(sharedPlacement('progLabel', 'mac', 'progressNamed', ctx, 'top')?.minAlong).toBe(PROGRESS_NAMED_LABEL_MIN_ALONG)
+  })
+
+  it('fits in the island window, bounce overshoot included', () => {
+    // Pire cas : du repos (encoche seule) à l'île élargie, dépassement du ressort élastique.
+    const z = dampingRatio(BOUNCY_SPRING)
+    const overshoot = Math.exp((-z * Math.PI) / Math.sqrt(1 - z * z))
+    const peak = PROGRESS_NAMED_MAC_WIDTH + overshoot * (PROGRESS_NAMED_MAC_WIDTH - ISLAND_SIZES.mac.repos.w)
+    expect(peak + 2 * EDGE_RADIUS.mac).toBeLessThanOrEqual(ISLAND_WINDOW_SIZE.horizontal.width)
+  })
+})
+
+describe('shape spring', () => {
+  it('SPRING keeps its prototype settings; the bouncy spring has a damping ratio of 0.45 to 0.5', () => {
+    expect(dampingRatio(SPRING)).toBeCloseTo(0.667, 2)
+    expect(BOUNCY_SPRING.stiffness).toBe(SPRING.stiffness)
+    expect(dampingRatio(BOUNCY_SPRING)).toBeGreaterThanOrEqual(0.45)
+    expect(dampingRatio(BOUNCY_SPRING)).toBeLessThanOrEqual(0.5)
+  })
+
+  it('bounces only when the Mac island widens for a deployment', () => {
+    expect(shapeSpringFor('repos', 'progressNamed', 'mac')).toBe(BOUNCY_SPRING)
+    expect(shapeSpringFor('progress', 'progressNamed', 'mac')).toBe(BOUNCY_SPRING)
+    expect(shapeSpringFor('music', 'progressNamed', 'mac')).toBe(BOUNCY_SPRING)
+    expect(shapeSpringFor('notif', 'progressNamed', 'mac')).toBe(BOUNCY_SPRING)
+  })
+
+  it('keeps SPRING everywhere else', () => {
+    // Retour au repos, autres passages, fin du survol (même largeur), même clé.
+    expect(shapeSpringFor('progressNamed', 'repos', 'mac')).toBe(SPRING)
+    expect(shapeSpringFor('progressNamed', 'progressOpen', 'mac')).toBe(SPRING)
+    expect(shapeSpringFor('progressOpen', 'progressNamed', 'mac')).toBe(SPRING)
+    expect(shapeSpringFor('progressNamed', 'progressNamed', 'mac')).toBe(SPRING)
+    expect(shapeSpringFor('repos', 'progress', 'mac')).toBe(SPRING)
+    expect(shapeSpringFor('repos', 'music', 'mac')).toBe(SPRING)
+    // Windows (et bas / côtés, dessinés en `win`) : inchangé.
+    expect(shapeSpringFor('repos', 'progressNamed', 'win')).toBe(SPRING)
+    // Réduire les animations, ou glisser : pas de rebond.
+    expect(shapeSpringFor('repos', 'progressNamed', 'mac', true)).toBe(SPRING)
   })
 })
 
@@ -262,12 +427,70 @@ describe('hitRectsFor', () => {
 })
 
 describe('islandSize', () => {
-  it('meetOpen grandit d’une ligne à la fois, 3 au plus, et tient dans la fenêtre de l’île', () => {
+  it('meetOpen grandit d’une ligne à la fois, liste dépliée comprise, jusqu’au plafond', () => {
     const base = ISLAND_SIZES.win.meetOpen
+    const { gap, rowH } = MEET_BACKGROUND.win
     expect(islandSize('win', 'meetOpen', 0)).toEqual(base)
-    expect(islandSize('win', 'meetOpen', 1).h).toBe(base.h + MEET_BACKGROUND.win.gap + MEET_BACKGROUND.win.rowH)
-    expect(islandSize('win', 'meetOpen', 9)).toEqual(islandSize('win', 'meetOpen', MEET_BACKGROUND.maxRows))
-    expect(islandSize('mac', 'meetOpen', 9).h).toBeLessThanOrEqual(260)
+    expect(islandSize('win', 'meetOpen', 1).h).toBe(base.h + gap + rowH)
+    // Liste dépliée : au-delà de maxRows, l'île continue de grandir…
+    expect(MEET_BACKGROUND.maxExpandedRows).toBeGreaterThan(MEET_BACKGROUND.maxRows)
+    expect(islandSize('win', 'meetOpen', 5).h).toBe(base.h + gap + 5 * rowH)
+    // … jusqu'à maxExpandedRows, puis la liste défile.
+    const ceiling = islandSize('win', 'meetOpen', MEET_BACKGROUND.maxExpandedRows)
+    expect(ceiling.h).toBe(base.h + gap + MEET_BACKGROUND.maxExpandedRows * rowH)
+    expect(islandSize('win', 'meetOpen', 12)).toEqual(ceiling)
+    expect(backgroundVisibleRows(12)).toBe(MEET_BACKGROUND.maxExpandedRows)
+    expect(backgroundVisibleRows(-1)).toBe(0)
+  })
+
+  it('musicOpen dépliée : même plafond, sur Mac comme sous Windows', () => {
+    for (const platform of ['win', 'mac'] as const) {
+      const base = islandSize(platform, 'musicOpen', 0).h
+      const { gap, rowH } = MEET_BACKGROUND[platform]
+      expect(islandSize(platform, 'musicOpen', 7).h).toBe(base + gap + MEET_BACKGROUND.maxExpandedRows * rowH)
+    }
+  })
+
+  it('la plus haute vue dépliée, dépassement du ressort compris, tient dans la fenêtre de l’île sur chaque bord', () => {
+    // Dépassement d'un ressort amorti partant de l'arrêt : exp(-ζπ / √(1 - ζ²)) de l'écart parcouru.
+    const zeta = SPRING.damping / (2 * Math.sqrt(SPRING.stiffness))
+    const overshoot = Math.exp((-zeta * Math.PI) / Math.sqrt(1 - zeta * zeta))
+    const rows = MEET_BACKGROUND.maxExpandedRows
+    for (const platform of ['win', 'mac'] as const) {
+      for (const key of ['meetOpen', 'musicOpen'] as const) {
+        const size = islandSize(platform, key, rows)
+        // Depuis la forme fermée la plus basse (repos Windows, 8 px).
+        const peak = size.h + (size.h - ISLAND_SIZES.win.repos.h) * overshoot
+        expect(peak, `${platform} ${key}`).toBeLessThanOrEqual(ISLAND_WINDOW_SIZE.horizontal.height)
+        expect(size.w).toBeLessThanOrEqual(ISLAND_WINDOW_SIZE.horizontal.width)
+        // Côtés (variante Windows) : la carte reste horizontale, sa hauteur court le long du bord.
+        if (platform === 'win') {
+          const side = edgeFrameSize(size, 'left', key)
+          expect(side.w + (side.w - ISLAND_SIZES.win.repos.h) * overshoot).toBeLessThanOrEqual(
+            ISLAND_WINDOW_SIZE.vertical.height,
+          )
+          expect(side.h).toBeLessThanOrEqual(ISLAND_WINDOW_SIZE.vertical.width)
+        }
+      }
+    }
+  })
+
+  it('les zones cliquables couvrent la liste dépliée (la fenêtre reçoit le clic sur chaque ligne)', () => {
+    for (const edge of ['top', 'bottom'] as const) {
+      const platform = edge === 'top' ? 'mac' : 'win'
+      const target = islandSize(platform, 'musicOpen', MEET_BACKGROUND.maxExpandedRows)
+      const [rect] = hitRectsFor({
+        rootWidth: ISLAND_WINDOW_SIZE.horizontal.width,
+        rootHeight: ISLAND_WINDOW_SIZE.horizontal.height,
+        platform,
+        edge,
+        island: { current: ISLAND_SIZES[platform].music, target },
+        bubble: null,
+      })
+      expect(rect?.height).toBeGreaterThanOrEqual(target.h)
+      expect((rect?.y ?? 0) + (rect?.height ?? 0)).toBeLessThanOrEqual(ISLAND_WINDOW_SIZE.horizontal.height)
+      expect(rect?.y).toBeGreaterThanOrEqual(0)
+    }
   })
 
   it('les autres tailles ignorent les lignes', () => {
@@ -389,7 +612,7 @@ describe('edges', () => {
       }
     }
     expect([...COMPACT_SIZE_KEYS].sort()).toEqual(
-      ['agent', 'dragWake', 'meet', 'multi', 'music', 'musicGarden', 'peek', 'progress', 'repos'].sort(),
+      ['agent', 'dragWake', 'meet', 'multi', 'music', 'musicGarden', 'peek', 'progress', 'progressNamed', 'repos'].sort(),
     )
   })
 
@@ -439,11 +662,11 @@ describe('sharedPlacement', () => {
   })
 
   it('fits every compact element inside the vertical pill', () => {
-    const sizes: Partial<Record<string, number>> = { timer: 30, musicEq: 23, dots: 18, count: 8, meetGroup: 16, dropIcon: 18, seg0: 6, seg1: 6, seg2: 6 }
+    const sizes: Partial<Record<string, number>> = { timer: 30, musicEq: 23, dots: 18, count: 8, meetGroup: 16, dropIcon: 18, seg0: 6, seg1: 6, seg2: 6, progRing: 18 }
     const noGarden = { hasGarden: false, sessionCount: 3 }
     for (const key of COMPACT_SIZE_KEYS) {
       const pill = ISLAND_SIZES.win[key]
-      for (const id of ['meetGroup', 'timer', 'agentIcon', 'dots', 'count', 'seg0', 'seg1', 'seg2', 'dropIcon', 'musicCover', 'musicEq'] as const) {
+      for (const id of ['meetGroup', 'timer', 'agentIcon', 'dots', 'count', 'seg0', 'seg1', 'seg2', 'dropIcon', 'musicCover', 'musicEq', 'progIcon', 'progRing', 'progLabel'] as const) {
         const p = sharedPlacement(id, 'win', key, noGarden, 'left', sizes[id] ?? 0)
         if (!p || p.o === 0) continue
         const size = p.s ?? sizes[id] ?? 0

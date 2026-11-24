@@ -1,22 +1,21 @@
 /**
- * Couches compactes : progression (import, analyse) et musique (music, et musicOpen au survol).
- * La pochette et l'égaliseur de la musique sont des éléments partagés (SharedElements) : ils glissent et
- * grandissent de l'île compacte vers la vue ouverte.
+ * Couches compactes : progression (progress, et progressOpen au survol) et musique (music, et musicOpen au
+ * survol). La pochette et l'égaliseur de la musique, l'icône, l'anneau et le libellé fermé de la progression
+ * sont des éléments partagés (SharedElements) : ils glissent et grandissent de l'île compacte vers la vue ouverte.
  */
 import { RING, islandSize } from "../../geometry";
 import type { IslandMusic, MusicCommand } from "../../types";
 import { cx } from "../cx";
 import { useLastNonNull } from "../hooks";
-import { IslandIcon, MusicControlIcon } from "../icons";
+import { MusicControlIcon } from "../icons";
 import styles from "../Island.module.css";
 import { formatElapsed, type BackgroundRow } from "../labels";
 import { Layer } from "../Layer";
 import { Marquee } from "../Marquee";
 import { musicHasProgress } from "../music";
-import { PROGRESS_VISUALS, toneStyle } from "../tone";
 import type { ActivityOfKind } from "../types";
 import type { BaseLayerProps } from "./CallLayers";
-import { ROW_TONE_CLASS } from "./rowTone";
+import { BackgroundList } from "./BackgroundList";
 
 /**
  * Musique. Compacte : rien ici (pochette et égaliseur partagés). Ouverte (survol ou focus) : bouton sur la
@@ -28,13 +27,18 @@ export function MusicLayer({
   rows,
   open,
   onMusicCommand,
+  onSelectRow,
   elapsedRef,
   fillRef,
   ...base
 }: BaseLayerProps & {
   music: IslandMusic | null;
-  /** Sessions Claude en cours (avec la musique : leurs Claude marchent devant), une ligne chacune au survol. */
+  /**
+   * Ce qui tourne aussi (sessions Claude, dont les Claude marchent devant ; progressions), une ligne cliquable
+   * chacun au survol (dépliée : toutes) ; la hauteur de la couche suit.
+   */
   rows: readonly BackgroundRow[];
+  onSelectRow: (row: BackgroundRow) => void;
   open: boolean;
   onMusicCommand?: (command: MusicCommand) => void;
   elapsedRef: (el: HTMLElement | null) => void;
@@ -133,27 +137,12 @@ export function MusicLayer({
             </button>
           </div>
         )}
-        {rows.length > 0 && (
-          <ul
-            className={styles.meetBackground}
-            aria-label="Sessions Claude en cours"
-          >
-            {rows.map((row) => (
-              <li
-                key={row.id}
-                className={cx(styles.row, styles.meetBackgroundRow)}
-              >
-                <b>{row.title}</b>
-                <span className={styles.task}>{row.detail}</span>
-                {row.status && (
-                  <span className={cx(styles.st, ROW_TONE_CLASS[row.tone])}>
-                    {row.status}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+        <BackgroundList
+          rows={rows}
+          platform={base.platform}
+          label="Aussi en cours"
+          onSelectRow={onSelectRow}
+        />
       </div>
     </Layer>
   );
@@ -187,29 +176,48 @@ export function ProgressRing({
   );
 }
 
+/**
+ * Progression (import, analyse, déploiement). Fermée : rien ici (icône de l'étape, anneau et, sous Windows, le
+ * libellé sont partagés). Ouverte (survol) : à droite de l'icône, le libellé (dépôt d'un déploiement), le
+ * détail (message du commit) et la petite ligne (branche), une ligne chacun, qui défilent s'ils sont trop
+ * longs ; sans détail (import, analyse), le libellé seul, centré en hauteur. L'anneau reste celui de l'île fermée.
+ */
 export function ProgressLayer({
   progress,
-  ringRef,
+  open,
   ...base
 }: BaseLayerProps & {
   progress: ActivityOfKind<"progress"> | null;
-  ringRef: (el: SVGCircleElement | null) => void;
+  open: boolean;
 }) {
   const shown = useLastNonNull(progress);
-  const visual = PROGRESS_VISUALS[shown?.stage ?? "upload"];
+  const label = shown?.label ?? "";
+  const detail = shown?.detail || null;
+  const meta = shown?.meta || null;
   return (
     <Layer
       {...base}
       state="progress"
-      className={styles.layerProg}
-      style={toneStyle(visual.tone)}
+      open={open}
       replayKey={shown ? `${shown.id}:${shown.stage}` : null}
     >
-      <span className={styles.progLeft}>
-        <IslandIcon name={visual.icon} className={styles.progIcon} />
-        <span className={styles.progLabel}>{shown?.label}</span>
-      </span>
-      <ProgressRing barRef={ringRef} />
+      <div className={cx(styles.detail, styles.progDetail)}>
+        <span className={styles.progText}>
+          <strong>
+            <Marquee text={label} active={open} />
+          </strong>
+          {detail ? (
+            <small>
+              <Marquee text={detail} active={open} />
+            </small>
+          ) : null}
+          {meta ? (
+            <small className={styles.progMeta}>
+              <Marquee text={meta} active={open} />
+            </small>
+          ) : null}
+        </span>
+      </div>
     </Layer>
   );
 }

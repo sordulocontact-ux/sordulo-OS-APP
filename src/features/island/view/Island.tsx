@@ -18,6 +18,7 @@ import {
   GHOST,
   edgePlatform,
   isVerticalLayout,
+  progressShowsName,
   sizeKeyFor,
   type SharedElementId,
 } from '../geometry'
@@ -30,7 +31,7 @@ import { useIslandDrag } from './drag'
 import { IslandEngine, type EngineTarget } from './engine'
 import { useLastNonNull, usePrefersReducedMotion } from './hooks'
 import styles from './Island.module.css'
-import { backgroundRows, islandLabel } from './labels'
+import { backgroundRows, islandLabel, type BackgroundRow } from './labels'
 import { ActivityLayers } from './layers'
 import { createIslandStage, startIslandLoop, type IslandLoop, type LiveData, type LiveElements } from './loop'
 import { musicHasProgress, musicStyle } from './music'
@@ -89,12 +90,22 @@ export function Island(props: IslandProps) {
   // Glisser en cours : toujours fermée.
   const open = !dragging && (hover || focusWithin)
   const { state, withCall, primary, secondary } = snapshot
+  // Liste « aussi en cours » dépliée (clic sur « N autres activités ») : pour cet état et cette activité
+  // principale, tant que l'île reste ouverte. Elle se replie à la fermeture ou quand la principale change.
+  const expandKey = `${state}:${primary?.id ?? ''}`
+  const [expandedFor, setExpandedFor] = useState<string | null>(null)
+  if (expandedFor !== null && (!open || expandedFor !== expandKey)) setExpandedFor(null)
+  const rowsExpanded = open && expandedFor === expandKey
   const hasGarden = garden !== undefined && garden !== null && garden !== false
   const sessionCount = sessions.length
 
   const meet = findActivity('meet', primary, secondary)
   const progress = findActivity('progress', primary)
+  // Gardée pendant le fondu de sortie des éléments partagés (icône, libellé fermé)
+  const shownProgress = useLastNonNull(progress)
   const bubbleProgress = findActivity('progress', secondary)
+  // Déploiement : l'île fermée montre le nom du projet (sur Mac, elle s'élargit de part et d'autre de l'encoche).
+  const progressNamed = progressShowsName(progress)
   const agentActivity = findActivity('agent', primary, secondary)
   const musicOn =
     findActivity('music', primary, secondary) !== null || snapshot.background.some((a) => a.kind === 'music')
@@ -109,11 +120,34 @@ export function Island(props: IslandProps) {
     sessions.find((s) => s.id === agentActivity?.sessionId) ?? sessions[0] ?? null
   const askSession = snapshot.ask ? (sessions.find((s) => s.id === snapshot.ask?.sessionId) ?? null) : null
   const bubbleActivity = useLastNonNull(secondary)
-  // Pendant un enregistrement : ce qui tourne aussi, sous l'appel au survol (pas de bulle).
+  // Ce qui tourne aussi, sous l'appel ou la musique au survol (pas de bulle) ; dépliée : toutes les lignes.
+  const duringCall = meet !== null
   const meetRows = useMemo(
-    () => backgroundRows(snapshot.background, sessions, music),
-    [snapshot.background, sessions, music],
+    () => backgroundRows(snapshot.background, sessions, music, { expanded: rowsExpanded, duringCall }),
+    [snapshot.background, sessions, music, rowsExpanded, duringCall],
   )
+  /** Clic sur une ligne « aussi en cours » : même action que la vue « plusieurs sessions » ou que la bulle. */
+  const selectRow = (row: BackgroundRow) => {
+    const target = row.target
+    if (!target) return
+    switch (target.type) {
+      case 'session':
+        if (target.waiting) onAnswerSession(target.sessionId)
+        else onOpenSession(target.sessionId)
+        return
+      case 'activity': {
+        const activity = snapshot.background.find((a) => a.id === target.activityId)
+        if (activity) onBubbleClick(activity)
+        return
+      }
+      case 'player':
+        onMusicCommand?.('open')
+        return
+      case 'more':
+        setExpandedFor(expandKey)
+        return
+    }
+  }
 
   // Service de l'appel (logo et couleur) : l'enregistrement en cours, sinon la proposition ; gardé le temps
   // du fondu de sortie pour que la couleur ne repasse pas au jaune avant la fin.
@@ -131,7 +165,7 @@ export function Island(props: IslandProps) {
   const questionAsk = state === 'agentAsk' && Boolean(snapshot.ask?.questions) && !withCall
   const target: EngineTarget = useMemo(
     () => ({
-      key: questionAsk ? 'agentQuestion' : sizeKeyFor(state, open, withCall, musicGarden),
+      key: questionAsk ? 'agentQuestion' : sizeKeyFor(state, open, withCall, musicGarden, progressNamed),
       platform,
       edge,
       reduced,
@@ -148,6 +182,7 @@ export function Island(props: IslandProps) {
       withCall,
       questionAsk,
       musicGarden,
+      progressNamed,
       platform,
       edge,
       reduced,
@@ -314,7 +349,9 @@ export function Island(props: IslandProps) {
   // montre où se posera la forme fermée).
   const closedKeyRef = useRef<IslandSizeKey>(target.key)
   useLayoutEffect(() => {
-    closedKeyRef.current = questionAsk ? 'agentQuestion' : sizeKeyFor(state, false, withCall, musicGarden)
+    closedKeyRef.current = questionAsk
+      ? 'agentQuestion'
+      : sizeKeyFor(state, false, withCall, musicGarden, progressNamed)
   })
   const readDragSize = useCallback(() => engineRef.current?.dragSize(closedKeyRef.current) ?? null, [])
   const drag = useIslandDrag(onDragStart, readDragSize)
@@ -465,7 +502,7 @@ export function Island(props: IslandProps) {
             sessions={sessions}
             drop={drop}
             hotZone={hotZone}
-            refs={{ musicElapsedRef, musicFillRef, ringRef, rowElapsedRef }}
+            refs={{ musicElapsedRef, musicFillRef, rowElapsedRef }}
             handlers={{
               onCallAccept,
               onCallIgnore,
@@ -476,6 +513,7 @@ export function Island(props: IslandProps) {
               onOpenSession,
               onNotificationAction,
               onMusicCommand,
+              onSelectRow: selectRow,
             }}
           />
           {/* Personnages principaux : derrière la pochette et l'égaliseur (éléments partagés, dessinés après) */}
@@ -493,6 +531,9 @@ export function Island(props: IslandProps) {
             artworkUrl={music?.artworkUrl ?? null}
             agent={agentSession}
             reduced={reduced}
+            progress={shownProgress}
+            platform={platform}
+            ringRef={ringRef}
           />
           {/* Sous-agents : devant la pochette, ils sont petits et ne la cachent pas */}
           {hasGarden && (

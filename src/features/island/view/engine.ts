@@ -35,11 +35,13 @@ import {
   SIZED_SHARED_ELEMENTS,
   SPRING,
   hitRectsFor,
+  shapeSpringFor,
   opacitySpring,
   shapeGeometry,
   sharedPlacement,
   type IslandShapeSize,
   type SharedElementId,
+  type SpringSettings,
 } from '../geometry'
 import type { IslandEdge, IslandPlatform, IslandSizeKey } from '../types'
 import { createJelly, jellySprings, jellyTransform, resetJelly, setJellyVelocity, stepJelly } from './jelly'
@@ -86,6 +88,10 @@ interface SharedItem {
   y: Spring
   s: Spring
   o: Spring
+  /** Opacité cible du placement (o, 1 par défaut), avant le masquage par minAlong. */
+  opacity: number
+  /** Largeur de forme sous laquelle l'élément reste masqué (SharedPosition.minAlong) ; null : jamais. */
+  minAlong: number | null
 }
 
 const px = (v: number) => `${v.toFixed(2)}px`
@@ -130,6 +136,11 @@ export class IslandEngine {
   private readonly bh: Spring
   private readonly bo: Spring
   private readonly items: SharedItem[]
+  /**
+   * Ressort de la forme (w, h, r), choisi à chaque changement de clé par shapeSpringFor : élastique à l'entrée
+   * de l'île Mac élargie du déploiement, SPRING sinon. Gardé tant que la clé ne change pas (le rebond continue).
+   */
+  private shapeSpring: SpringSettings = SPRING
   private dirty = true
   private bubbleVisible = false
   private bubbleShown = false
@@ -159,6 +170,8 @@ export class IslandEngine {
       y: createSpring(0),
       s: createSpring(SHARED_ICON_DEFAULT_SIZE),
       o: createSpring(0),
+      opacity: 1,
+      minAlong: null,
     }))
     this.retargetShared(true)
   }
@@ -171,6 +184,15 @@ export class IslandEngine {
   retarget(target: EngineTarget): void {
     const platformChanged = edgePlatform(target.platform, target.edge) !== this.platform()
     const edgeChanged = target.edge !== this.target.edge
+    const prev = this.target
+    if (target.key !== prev.key || Boolean(target.dragging) !== Boolean(prev.dragging) || platformChanged || edgeChanged) {
+      this.shapeSpring = shapeSpringFor(
+        prev.key,
+        target.key,
+        edgePlatform(target.platform, target.edge),
+        target.reduced || Boolean(target.dragging) || Boolean(prev.dragging),
+      )
+    }
     this.target = target
     const t = frameSize(target)
     this.w.t = t.w
@@ -259,10 +281,17 @@ export class IslandEngine {
       it.y.t = spec.y
       it.s.t = spec.s ?? it.s.t
       if (snap) [it.x, it.y, it.s].forEach(snapSpring)
-      it.o.t = spec.o ?? 1
+      it.opacity = spec.o ?? 1
+      it.minAlong = spec.minAlong ?? null
+      it.o.t = this.gatedOpacity(it)
       if (reduced) snapSpring(it.o)
       it.present = true
     }
+  }
+
+  /** Opacité cible d'un élément partagé : masqué tant que la forme est plus étroite que son minAlong. */
+  private gatedOpacity(it: SharedItem): number {
+    return it.minAlong !== null && this.w.x < it.minAlong ? 0 : it.opacity
   }
 
   /** Avance d'une image (s). Renvoie vrai tant qu'un ressort bouge encore. */
@@ -270,12 +299,20 @@ export class IslandEngine {
     const { count, h } = substeps(dtSeconds)
     const k = SPRING.stiffness
     const c = SPRING.damping
+    const sk = this.shapeSpring.stiffness
+    const sc = this.shapeSpring.damping
     const op = opacitySpring(k)
     const all = this.springs()
+    // Éléments qui attendent que la forme soit assez large (nom de l'île Mac élargie) : fondu à partir de là.
+    for (const it of this.items) {
+      if (!it.present || it.minAlong === null) continue
+      it.o.t = this.gatedOpacity(it)
+      if (this.target.reduced) snapSpring(it.o)
+    }
     for (let i = 0; i < count; i++) {
-      stepSpring(this.w, h, k, c)
-      stepSpring(this.h, h, k, c)
-      stepSpring(this.r, h, k, c)
+      stepSpring(this.w, h, sk, sc)
+      stepSpring(this.h, h, sk, sc)
+      stepSpring(this.r, h, sk, sc)
       stepSpring(this.detach, h, k, c)
       stepJelly(this.jelly, h)
       stepSpring(this.bw, h, k, c)

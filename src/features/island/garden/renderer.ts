@@ -6,6 +6,9 @@
  *
  * Un personnage : ombre de contact (au sol, sous tous les personnages) + sprite = pattes séparées (colonnes
  * 3, 5, 10, 12 du masque) sous le haut du corps (corps, yeux, paupières), qui se balance et hoche la tête.
+ * Sprite et ombre sont chacun dans une boîte de découpe (`clip`, toute la surface du jardin) : sur le Mac au
+ * repos, le personnage qui traverse l'encoche est coupé à son bord, sans transformation (rotation, échelle)
+ * à défaire.
  */
 import { ART, createArtSvg, type ArtClassNames } from '../art/pixelArt'
 import type { GardenProp } from '../art/props'
@@ -13,6 +16,7 @@ import {
   BUBBLE_TEXT,
   walkerVisual,
   type BubbleKind,
+  type ClipRange,
   type Fx,
   type GardenSim,
   type VisualContext,
@@ -23,6 +27,7 @@ import {
 /** Classes du module CSS (Garden.module.css). */
 export interface GardenClassNames {
   crowd: string
+  clip: string
   mascot: string
   fig: string
   upper: string
@@ -78,8 +83,26 @@ export const BODY_COLOR_VAR = '--garden-color'
 /** Variable CSS de la profondeur (0 devant) : assombrit le personnage et son ombre (Garden.module.css). */
 export const DEPTH_VAR = '--garden-depth'
 
+const fixed = (v: number, digits = 1) => v.toFixed(digits)
+
+/**
+ * Coupe à l'encoche : bande visible en polygone (le côté ouvert va assez loin pour ne rien couper d'autre,
+ * bulles et sauts compris).
+ */
+const CLIP_FAR = 10000
+
+function clipPath(clip: ClipRange | null): string {
+  if (!clip) return 'none'
+  const min = Math.max(clip.min, -CLIP_FAR)
+  const max = Math.min(clip.max, CLIP_FAR)
+  return `polygon(${fixed(min)}px ${-CLIP_FAR}px,${fixed(max)}px ${-CLIP_FAR}px,${fixed(max)}px ${CLIP_FAR}px,${fixed(min)}px ${CLIP_FAR}px)`
+}
+
 /** Un sprite dessiné (styles écrits seulement quand ils changent). */
 interface Sprite {
+  /** Boîtes de découpe du sprite et de son ombre (ordre d'affichage sur celle du sprite). */
+  box: HTMLDivElement
+  shadowBox: HTMLDivElement
   el: HTMLDivElement
   upper: HTMLElement
   legs: HTMLElement[]
@@ -101,15 +124,17 @@ interface Sprite {
   propsBuilt: boolean
   shadowTransform: string
   shadowOpacity: string
+  clip: string
 }
 
-/** Un personnage : son sprite et son jumeau de l'autre bord (portail, visible seulement à cheval sur un bord). */
+/**
+ * Un personnage : son sprite et son jumeau de l'autre bord (portail, visible seulement à cheval sur un bord de
+ * l'île ou de l'encoche du Mac).
+ */
 interface WalkerNode {
   main: Sprite
   twin: Sprite
 }
-
-const fixed = (v: number, digits = 1) => v.toFixed(digits)
 
 export class GardenRenderer {
   private readonly walkers = new Map<number, WalkerNode>()
@@ -156,18 +181,27 @@ export class GardenRenderer {
 
   /** Déplace le sprite (et son ombre) dans `crowd` s'il n'y est pas déjà. */
   private moveTo(sprite: Sprite, crowd: HTMLDivElement): void {
-    if (sprite.el.parentElement === crowd) return
-    crowd.appendChild(sprite.shadow)
-    crowd.appendChild(sprite.el)
+    if (sprite.box.parentElement === crowd) return
+    crowd.appendChild(sprite.shadowBox)
+    crowd.appendChild(sprite.box)
+  }
+
+  private createBox(crowd: HTMLDivElement): HTMLDivElement {
+    const box = document.createElement('div')
+    box.className = this.cls.clip
+    crowd.appendChild(box)
+    return box
   }
 
   private createSprite(size: number, crowd: HTMLDivElement): Sprite {
     const { cls } = this
+    const shadowBox = this.createBox(crowd)
     const shadow = document.createElement('div')
     shadow.className = cls.shadow
     shadow.style.width = `${size}px`
     shadow.style.height = `${size}px`
-    crowd.appendChild(shadow)
+    shadowBox.appendChild(shadow)
+    const box = this.createBox(crowd)
     const el = document.createElement('div')
     el.className = cls.mascot
     el.style.width = `${size}px`
@@ -204,8 +238,10 @@ export class GardenRenderer {
     const bubble = document.createElement('span')
     bubble.className = cls.bubble
     el.appendChild(bubble)
-    crowd.appendChild(el)
+    box.appendChild(el)
     return {
+      box,
+      shadowBox,
       el,
       upper,
       legs,
@@ -226,6 +262,7 @@ export class GardenRenderer {
       propsBuilt: false,
       shadowTransform: '',
       shadowOpacity: '',
+      clip: '',
     }
   }
 
@@ -264,8 +301,8 @@ export class GardenRenderer {
   }
 
   private removeSprite(sprite: Sprite): void {
-    sprite.el.remove()
-    sprite.shadow.remove()
+    sprite.box.remove()
+    sprite.shadowBox.remove()
   }
 
   private fxClass(e: Fx): string {
@@ -291,8 +328,11 @@ export class GardenRenderer {
     return el
   }
 
-  /** Écrit un sprite à la position `left` ; `left` null : sprite caché (jumeau hors bord). */
-  private paint(sprite: Sprite, v: WalkerVisual, left: number | null): void {
+  /**
+   * Écrit un sprite à la position `left`, coupé hors de `clip` (encoche) ; `left` null : sprite caché (jumeau
+   * hors bord).
+   */
+  private paint(sprite: Sprite, v: WalkerVisual, left: number | null, clip: ClipRange | null): void {
     const st = sprite.el.style
     const opacity = left === null ? fixed(0, 3) : fixed(v.opacity, 3)
     if (opacity !== sprite.opacity) {
@@ -305,6 +345,12 @@ export class GardenRenderer {
       sprite.shadow.style.opacity = shadowOpacity
     }
     if (left === null || v.opacity <= 0) return
+    const path = clipPath(clip)
+    if (path !== sprite.clip) {
+      sprite.clip = path
+      sprite.box.style.clipPath = path
+      sprite.shadowBox.style.clipPath = path
+    }
     const transform = `translate(${fixed(left)}px,${fixed(v.top)}px) rotate(${fixed(v.rot)}deg) scale(${fixed(v.scaleX, 3)},${fixed(v.scaleY, 3)})`
     if (transform !== sprite.transform) {
       sprite.transform = transform
@@ -328,10 +374,11 @@ export class GardenRenderer {
         if (leg) leg.style.transform = legTransform
       }
     })
+    // Ordre d'affichage sur la boîte : découpée, elle forme son propre contexte d'empilement.
     const z = String(v.zIndex)
     if (z !== sprite.z) {
       sprite.z = z
-      st.zIndex = z
+      sprite.box.style.zIndex = z
     }
     const color = `var(${v.colorToken})`
     if (color !== sprite.color) {
@@ -384,8 +431,8 @@ export class GardenRenderer {
         this.moveTo(node.twin, crowd)
       }
       const v = walkerVisual(w, sim.statusOf(w), ctx, sim.activityOf(w))
-      this.paint(node.main, v, v.left)
-      this.paint(node.twin, v, v.twinLeft)
+      this.paint(node.main, v, v.left, v.clip)
+      this.paint(node.twin, v, v.twinLeft, v.twinClip)
     }
     for (const [id, node] of this.walkers) {
       if (!seen.has(id)) {

@@ -40,7 +40,7 @@ pub use event::{ClaudeConnection, ClaudeDecision};
 use event::{ClaudeHookEventName, ClaudeRelayEvent};
 use server::{Pending, Relay};
 
-use crate::events::{EVENT_CLAUDE, EVENT_CLAUDE_CONNECTION, WINDOW_PROMPT};
+use crate::events::{EVENT_CLAUDE, EVENT_CLAUDE_CONNECTION, WINDOW_MAIN, WINDOW_PROMPT};
 use crate::time::now_ms;
 use crate::tray;
 
@@ -358,8 +358,11 @@ fn on_hook(app: &AppHandle, event: ClaudeHookEventName, input: &Value, request_i
 
 fn emit_connection(app: &AppHandle) {
     let connection = app.state::<ClaudeState>().connection();
-    if let Err(e) = app.emit_to(WINDOW_PROMPT, EVENT_CLAUDE_CONNECTION, connection) {
-        log::warn!("émission de {EVENT_CLAUDE_CONNECTION} impossible : {e}");
+    // L'île et la page Connecteurs (fenêtre principale) suivent le même état.
+    for window in [WINDOW_PROMPT, WINDOW_MAIN] {
+        if let Err(e) = app.emit_to(window, EVENT_CLAUDE_CONNECTION, connection) {
+            log::warn!("émission de {EVENT_CLAUDE_CONNECTION} vers {window} impossible : {e}");
+        }
     }
 }
 
@@ -438,51 +441,74 @@ fn shorten(text: &str, max: usize) -> String {
     out
 }
 
-/// Clic sur « Connecter / Déconnecter Claude Code » : travail hors du thread du menu.
-pub fn toggle_connection(app: &AppHandle) {
+/// Marque le travail en cours. `want` = état voulu (`None` : l'inverse de l'état actuel, comme le menu).
+/// `Err` si un changement est déjà en cours.
+fn begin_change(app: &AppHandle, want: Option<bool>) -> Result<bool, String> {
     let state = app.state::<ClaudeState>();
     let connect = {
         let mut inner = state.data();
         if inner.busy {
-            return;
+            return Err("Un changement est déjà en cours.".into());
         }
         inner.busy = true;
         inner.last_error = None;
-        !inner.connected
+        want.unwrap_or(!inner.connected)
     };
     tray::refresh_claude(app);
+    Ok(connect)
+}
+
+/// Écrit ou retire les hooks, puis met à jour l'état, l'événement et le menu. Bloquant (fichiers).
+fn run_change(app: &AppHandle, connect: bool) -> Result<(), String> {
+    let result = if connect {
+        connect_hooks(app)
+    } else {
+        disconnect_hooks(app)
+    };
+    let state = app.state::<ClaudeState>();
+    let connected = state
+        .settings_path
+        .as_deref()
+        .is_some_and(settings::read_connected);
+    {
+        let mut inner = state.data();
+        inner.busy = false;
+        inner.connected = connected;
+        inner.last_error = result.as_ref().err().cloned();
+    }
+    match &result {
+        Ok(()) => log::info!(
+            "Claude Code {}",
+            if connected {
+                "connecté"
+            } else {
+                "déconnecté"
+            }
+        ),
+        Err(e) => log::error!("Claude Code : {e}"),
+    }
+    emit_connection(app);
+    tray::refresh_claude(app);
+    result
+}
+
+/// Clic sur « Connecter / Déconnecter Claude Code » : travail hors du thread du menu.
+pub fn toggle_connection(app: &AppHandle) {
+    let Ok(connect) = begin_change(app, None) else {
+        return;
+    };
     let app = app.clone();
     std::thread::spawn(move || {
-        let result = if connect {
-            connect_hooks(&app)
-        } else {
-            disconnect_hooks(&app)
-        };
-        let state = app.state::<ClaudeState>();
-        let connected = state
-            .settings_path
-            .as_deref()
-            .is_some_and(settings::read_connected);
-        {
-            let mut inner = state.data();
-            inner.busy = false;
-            inner.connected = connected;
-            inner.last_error = result.as_ref().err().cloned();
-        }
-        match result {
-            Ok(()) => log::info!(
-                "Claude Code {}",
-                if connected {
-                    "connecté"
-                } else {
-                    "déconnecté"
-                }
-            ),
-            Err(e) => log::error!("Claude Code : {e}"),
-        }
-        emit_connection(&app);
-        tray::refresh_claude(&app);
+        let _ = run_change(&app, connect);
     });
+}
+
+/// `claude_connect` / `claude_disconnect` (page Connecteurs) : même travail que le menu du soleil,
+/// mais attendu par l'appelant. Bloquant : à lancer dans `spawn_blocking`.
+pub fn set_connection(app: &AppHandle, connect: bool) -> Result<ClaudeConnection, String> {
+    begin_change(app, Some(connect))?;
+    run_change(app, connect)?;
+    Ok(app.state::<ClaudeState>().connection())
 }
 
 fn connect_hooks(app: &AppHandle) -> Result<(), String> {

@@ -115,7 +115,10 @@ export interface IslandProps {
   reducedMotion?: boolean
   /** Survol DOM de la forme (utile hors Tauri, dans le labo). */
   onHoverChange?: (hover: boolean) => void
-  /** Clic sur la bulle : l'activité secondaire à épingler. */
+  /**
+   * Afficher une activité dans l'île (l'épingler) : clic sur la bulle (l'activité secondaire) ou sur une ligne
+   * « aussi en cours » Musique ou progression (cette activité).
+   */
   onBubbleClick: (activity: Activity) => void
   /** Bouton de la notification. */
   onNotificationAction: (notification: IslandNotification) => void
@@ -132,11 +135,14 @@ export interface IslandProps {
   onProjectChange: (projectId: string) => void
   /** « Arrêter » au survol de l'enregistrement. */
   onStopRecording: () => void
-  /** « Répondre » sur une session en attente dans multiOpen. */
+  /** « Répondre » sur une session en attente (multiOpen, agentOpen, ligne « aussi en cours »). */
   onAnswerSession: (sessionId: string) => void
-  /** Clic sur une session (agentOpen, multiOpen) : sa fenêtre VS Code. */
+  /** Clic sur une session (agentOpen, multiOpen, ligne « aussi en cours ») : sa fenêtre VS Code. */
   onOpenSession: (sessionId: string) => void
-  /** musicOpen : précédent, lecture / pause, suivant, ou clic sur la pochette (`open`, lecteur au premier plan). */
+  /**
+   * musicOpen : précédent, lecture / pause, suivant, ou clic sur la pochette (`open`, lecteur au premier plan) ;
+   * `open` aussi pour la ligne Musique sous un appel (l'île ne peut pas quitter l'appel).
+   */
   onMusicCommand?: (command: MusicCommand) => void
   /**
    * Zones cliquables (forme + bulle), au plus toutes les ~50 ms pendant une animation et une dernière fois

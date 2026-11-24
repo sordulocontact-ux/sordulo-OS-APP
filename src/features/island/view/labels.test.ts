@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ClaudeSession, IslandMusic, IslandNotification, IslandSnapshot } from '../types'
 import { MEET_BACKGROUND } from '../geometry'
-import { backgroundRows, formatElapsed, islandLabel, sessionsSummary, sessionsTitle } from './labels'
+import { backgroundRowLabel, backgroundRows, formatElapsed, islandLabel, sessionsSummary, sessionsTitle } from './labels'
 
 const snap = (over: Partial<IslandSnapshot>): IslandSnapshot => ({
   state: 'repos',
@@ -91,6 +91,22 @@ describe('islandLabel', () => {
     }
     expect(islandLabel(snap({ state: 'progress', primary }), 0, null)).toBe('Import de l’audio')
   })
+
+  it('ajoute le détail de la progression (message du commit d’un déploiement)', () => {
+    const primary = {
+      id: 'prog:deploy:prj-1',
+      order: 1,
+      kind: 'progress' as const,
+      stage: 'deploy' as const,
+      label: 'sordulo-OS-APP',
+      detail: 'feat(ile): plus d’aperçu',
+      meta: 'main',
+      fraction: null,
+      startedAt: 0,
+      estimatedMs: 60_000,
+    }
+    expect(islandLabel(snap({ state: 'progress', primary }), 0, null)).toBe('sordulo-OS-APP : feat(ile): plus d’aperçu')
+  })
 })
 
 describe('musique', () => {
@@ -160,6 +176,11 @@ describe('backgroundRows', () => {
     ])
   })
 
+  it('progression avec un détail : le détail dans la ligne', () => {
+    const deploy = { ...upload, id: 'prog:deploy:prj-1', stage: 'deploy', label: 'sordulo-OS-APP', detail: 'Refonte du header', fraction: null } as const
+    expect(backgroundRows([deploy], [])[0]).toMatchObject({ title: 'sordulo-OS-APP', detail: 'Refonte du header', status: 'En cours' })
+  })
+
   it('au-delà de 3 lignes, la dernière résume le reste', () => {
     const sessions = ['a', 'b', 'c', 'd'].map((id) => s(id, 'done'))
     const rows = backgroundRows([upload, multi], sessions)
@@ -169,5 +190,69 @@ describe('backgroundRows', () => {
 
   it('aucune activité : aucune ligne', () => {
     expect(backgroundRows([], [s('a', 'working')])).toEqual([])
+  })
+
+  const music = { id: 'music', kind: 'music', order: 4 } as const
+  const track: IslandMusic = {
+    title: 'Nuit blanche',
+    artist: 'Lou',
+    album: null,
+    appName: 'Spotify',
+    playing: true,
+    positionMs: null,
+    durationMs: null,
+    positionAt: 0,
+    artworkUrl: null,
+    palette: null,
+    canControl: true,
+  }
+
+  it('chaque ligne dit quoi faire au clic, sans lire son id', () => {
+    const rows = backgroundRows([upload, agent, music], [s('a', 'working'), s('b', 'waiting')], track)
+    expect(rows.map((r) => r.target)).toEqual([
+      { type: 'activity', activityId: 'prog:upload', kind: 'progress' },
+      { type: 'session', sessionId: 'b', waiting: true },
+      { type: 'activity', activityId: 'music', kind: 'music' },
+    ])
+    const working = backgroundRows([multi], [s('a', 'working')])[0]
+    expect(working?.target).toEqual({ type: 'session', sessionId: 'a', waiting: false })
+  })
+
+  it('pendant un appel : la musique ouvre le lecteur, une progression n’est qu’une ligne d’information', () => {
+    const rows = backgroundRows([upload, multi, music], [s('a', 'working')], track, { duringCall: true })
+    expect(rows.map((r) => r.target)).toEqual([
+      null,
+      { type: 'session', sessionId: 'a', waiting: false },
+      { type: 'player' },
+    ])
+  })
+
+  it('« N autres activités » déplie la liste ; dépliée, toutes les lignes sont là', () => {
+    const sessions = ['a', 'b', 'c', 'd', 'e'].map((id) => s(id, 'working'))
+    const folded = backgroundRows([upload, multi, music], sessions, track)
+    expect(folded).toHaveLength(MEET_BACKGROUND.maxRows)
+    expect(folded[2]).toMatchObject({ id: 'more', title: '5 autres activités', target: { type: 'more', hidden: 5 } })
+    const expanded = backgroundRows([upload, multi, music], sessions, track, { expanded: true })
+    expect(expanded).toHaveLength(7)
+    expect(expanded.some((r) => r.target?.type === 'more')).toBe(false)
+    expect(expanded.slice(0, 2)).toEqual(folded.slice(0, 2))
+  })
+
+  it('nom accessible : l’action, puis le statut', () => {
+    const [prog, waiting, tune] = backgroundRows([upload, agent, music], [s('a', 'working'), s('b', 'waiting')], {
+      ...track,
+      playing: false,
+    })
+    expect(prog && backgroundRowLabel(prog)).toBe('Afficher Import de l’audio dans l’île (42 %)')
+    expect(waiting && backgroundRowLabel(waiting)).toBe('Répondre à la session PDS OS (Attend ta réponse)')
+    expect(tune && backgroundRowLabel(tune)).toBe('Afficher la musique dans l’île (Nuit blanche, Lou, En pause)')
+    const open = backgroundRows([multi], [s('a', 'working')])[0]
+    expect(open && backgroundRowLabel(open)).toBe('Ouvrir PDS OS dans son éditeur (En cours)')
+    const player = backgroundRows([music], [], track, { duringCall: true })[0]
+    expect(player && backgroundRowLabel(player)).toBe('Ouvrir le lecteur de musique (Nuit blanche, Lou)')
+    const more = backgroundRows([upload, multi], ['a', 'b', 'c', 'd'].map((id) => s(id, 'done')))[2]
+    expect(more && backgroundRowLabel(more)).toBe('Afficher les 3 autres activités')
+    const info = backgroundRows([upload], [], null, { duringCall: true })[0]
+    expect(info && backgroundRowLabel(info)).toBeNull()
   })
 })

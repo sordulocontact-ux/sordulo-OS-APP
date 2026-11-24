@@ -61,6 +61,13 @@ export type IslandSizeKey =
   | 'meetOpen'
   | 'music'
   | 'progress'
+  /**
+   * Progression fermée avec un nom à montrer (déploiement) : sur Mac, l'île s'élargit de part et d'autre de
+   * l'encoche (nom à gauche, anneau à droite) ; sur Windows, mêmes dimensions que `progress`.
+   */
+  | 'progressNamed'
+  /** Survol de la progression (ajout, absent du prototype) : icône, libellé, détail et petite ligne, anneau. */
+  | 'progressOpen'
   | 'agent'
   | 'agentOpen'
   | 'agentAsk'
@@ -105,8 +112,15 @@ export interface MeetActivity {
 export interface ProgressActivity {
   kind: 'progress'
   stage: ProgressStage
-  /** Libellé affiché (« Import de l'audio », « Analyse de l'appel »). */
+  /** Libellé affiché (« Import de l'audio », « Analyse de l'appel », nom du dépôt d'un déploiement). */
   label: string
+  /**
+   * Ligne secondaire de la vue ouverte (survol), ex. le message du commit d'un déploiement ; absent ou null :
+   * le libellé seul (import, analyse).
+   */
+  detail?: string | null
+  /** Petite ligne discrète sous `detail` dans la vue ouverte, ex. la branche d'un déploiement ; absent ou null : rien. */
+  meta?: string | null
   /** Avancement réel 0..1 quand il est connu ; null : anneau estimé à partir de `startedAt` et `estimatedMs`. */
   fraction: number | null
   /** epoch ms */

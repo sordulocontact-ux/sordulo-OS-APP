@@ -8,9 +8,9 @@ use crate::state::IslandEdge;
 
 /// Taille de la fenêtre de l'île en px CSS, île horizontale (haut, bas) : `ISLAND_WINDOW_SIZE.horizontal`.
 /// Plus grand état : `dragOver` 440 + 2 × 10 de bord = 460 ; bulle secondaire 68 de chaque côté ; arrondi à
-/// 640 pour laisser la place aux effets (ressort qui dépasse, ombres). Hauteur : `multiOpen` 220 (250 sur
-/// Mac) + marge pour le ressort.
-pub const HORIZONTAL_SIZE: (f64, f64) = (640.0, 300.0);
+/// 640 pour laisser la place aux effets (ressort qui dépasse, ombres). Hauteur : la plus haute vue ouverte,
+/// `musicOpen` Mac avec la liste « aussi en cours » dépliée (6 lignes, 366) + marge pour le ressort.
+pub const HORIZONTAL_SIZE: (f64, f64) = (640.0, 420.0);
 /// Taille de la fenêtre de l'île en px CSS, île verticale (gauche, droite) : `ISLAND_WINDOW_SIZE.vertical`.
 pub const VERTICAL_SIZE: (f64, f64) = (520.0, 480.0);
 
@@ -364,7 +364,7 @@ mod tests {
                 x: 640,
                 y: 0,
                 width: 640,
-                height: 300
+                height: 420
             }
         );
         // 2560 à 150 %, barre des tâches en haut (zone de travail décalée de 72 px).
@@ -377,7 +377,7 @@ mod tests {
                 x: 800,
                 y: 72,
                 width: 960,
-                height: 450
+                height: 630
             }
         );
         // Origine négative (écran à gauche du principal), 125 %.
@@ -394,9 +394,9 @@ mod tests {
             window_rect(&s, IslandEdge::Bottom),
             WindowRect {
                 x: 640,
-                y: 1040 - 300,
+                y: 1040 - 420,
                 width: 640,
-                height: 300
+                height: 420
             }
         );
         assert_eq!(
@@ -434,7 +434,7 @@ mod tests {
         assert_eq!(window_rect(&mac, IslandEdge::Top).y, 0);
         assert_eq!(anchor(&mac, IslandEdge::Top), (756.0, 0.0));
         // En bas : au-dessus du Dock.
-        assert_eq!(window_rect(&mac, IslandEdge::Bottom).y, 37 + 875 - 300);
+        assert_eq!(window_rect(&mac, IslandEdge::Bottom).y, 37 + 875 - 420);
         // Côtés : centrés sur la zone de travail.
         assert_eq!(window_rect(&mac, IslandEdge::Left).y, 37 + (875 - 480) / 2);
         // Sans encoche : sous la barre des menus.

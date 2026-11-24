@@ -2,7 +2,7 @@
  * Harnais commun des tests RLS (PGlite, Postgres en mémoire, ni base ni réseau).
  * Simule ce que Supabase fournit : rôles anon / authenticated / service_role, auth.users,
  * auth.sessions, auth.uid() et auth.jwt() (lus dans le réglage request.jwt.claims), storage.buckets.
- * Applique 0001, 0002, les données de départ, puis 0003, 0004, 0005, 0007 et 0008 deux fois chacune (elles
+ * Applique 0001, 0002, les données de départ, puis 0003, 0004, 0005, 0007, 0008 et 0009 deux fois chacune (elles
  * doivent être rejouables).
  *
  * Chaque test tourne dans une transaction annulée à la fin : les données de départ restent intactes.
@@ -148,6 +148,8 @@ export function setupDatabase(extraSql = '') {
     await db.exec(migration('0007_project_ai_instructions.sql')) // rejouable
     await db.exec(migration('0008_vercel_connections.sql'))
     await db.exec(migration('0008_vercel_connections.sql')) // rejouable
+    await db.exec(migration('0009_spotify_connections.sql'))
+    await db.exec(migration('0009_spotify_connections.sql')) // rejouable
     if (extraSql) await db.exec(extraSql)
   })
 

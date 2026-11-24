@@ -21,12 +21,12 @@ import { NotifLayer } from './NotifLayer'
 
 export interface ActivityLayersProps {
   base: BaseLayerProps
-  /** Survol ou focus clavier : détails de meet, music, agent, multi. */
+  /** Survol ou focus clavier : détails de meet, music, progress, agent, multi. */
   open: boolean
   snapshot: IslandSnapshot
   call: IslandCallPrompt | null
   meet: MeetActivity | null
-  /** Lignes « aussi en cours » sous l'appel au survol. */
+  /** Lignes « aussi en cours » sous l'appel et sous la musique au survol (dépliées : toutes). */
   meetRows: readonly BackgroundRow[]
   progress: ActivityOfKind<'progress'> | null
   /** Lecture en cours (musicOpen) ; null : textes par défaut. */
@@ -38,7 +38,6 @@ export interface ActivityLayersProps {
   refs: {
     musicElapsedRef: (el: HTMLElement | null) => void
     musicFillRef: (el: HTMLElement | null) => void
-    ringRef: (el: SVGCircleElement | null) => void
     rowElapsedRef: (sessionId: string, el: HTMLElement | null) => void
   }
   handlers: {
@@ -51,6 +50,8 @@ export interface ActivityLayersProps {
     onOpenSession: (sessionId: string) => void
     onNotificationAction: (notification: IslandNotification) => void
     onMusicCommand?: (command: MusicCommand) => void
+    /** Clic sur une ligne « aussi en cours » (session, activité, « N autres activités »). */
+    onSelectRow: (row: BackgroundRow) => void
   }
 }
 
@@ -84,17 +85,21 @@ export function ActivityLayers({
         {...base}
         meet={meet}
         rows={meetRows}
-        open={open && state === 'meet'} onStopRecording={handlers.onStopRecording} />
+        open={open && state === 'meet'}
+        onStopRecording={handlers.onStopRecording}
+        onSelectRow={handlers.onSelectRow}
+      />
       <MusicLayer
         rows={meetRows}
         {...base}
         music={music}
         open={open && state === 'music'}
         onMusicCommand={handlers.onMusicCommand}
+        onSelectRow={handlers.onSelectRow}
         elapsedRef={refs.musicElapsedRef}
         fillRef={refs.musicFillRef}
       />
-      <ProgressLayer {...base} progress={progress} ringRef={refs.ringRef} />
+      <ProgressLayer {...base} progress={progress} open={open && state === 'progress'} />
       <AgentLayer
         {...base}
         session={agentSession}

@@ -39,10 +39,12 @@ export const GARDEN = {
   size: { main: 22, sub: 13 },
   /**
    * Encoche de la caméra du Mac (px), centrée sur le bord haut : mêmes valeurs que les tokens
-   * --island-garden-notch-width / -height (vérifié par tokens.test.ts). Un Claude qui y entre ressort aussitôt
-   * de l'autre côté (simulation.ts, skipNotch). `gap` : aucun Claude ne s'arrête à moins de 4 px de l'encoche
-   * (il s'arrête avant, ou continue et s'arrête après) ; `exitSpeed` : allure (px/s) de celui qui s'y trouvait
-   * arrêté et en sort à pied.
+   * --island-garden-notch-width / -height (vérifié par tokens.test.ts). Île au repos, ses deux bords sont une
+   * paire de portails, comme les bords de l'île : un Claude la traverse en continu, la partie qui franchit un
+   * bord apparaît aussitôt à l'autre, et rien de lui n'est dessiné dessous (simulation.ts, throughNotch et
+   * walkerVisual). `gap` : aucun Claude ne s'arrête à cheval sur le portail ni à moins de 4 px d'un bord (il
+   * s'arrête avant, ou continue et s'arrête après ; une interaction se place à côté) ; `exitSpeed` : allure
+   * (px/s) de celui qui s'y trouvait arrêté et s'en écarte à pied.
    */
   notch: { width: 186, height: 32, gap: 4, exitSpeed: 24 },
   /** Hauteur du sol au-dessus du bas de la forme (prototype : gOff). */
@@ -242,6 +244,8 @@ export const GARDEN = {
     apology: 14,
     race: 0,
   } satisfies Record<InteractionType, number>,
+  /** Écart pris en cours d'interaction (px) : bagarre, après le nuage ; énervement, quand l'autre se détourne. */
+  gapLater: { fight: 30, annoyed: 44 } satisfies Partial<Record<InteractionType, number>>,
   /** Durée de l'interaction (s). */
   duration: {
     check: 0.9,

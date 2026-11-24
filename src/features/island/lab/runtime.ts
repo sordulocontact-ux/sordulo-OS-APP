@@ -9,6 +9,7 @@ import { createSpotifyReconnectNotification } from "../catalog";
 import { claudeActivityFor } from "../claude";
 import { IslandCoordinator, systemClock, type TimerId } from "../coordinator";
 import type {
+  Activity,
   ClaudeActivity,
   ClaudeSession,
   IslandMusic,
@@ -20,6 +21,7 @@ import type {
 } from "../types";
 import type { IslandCallPrompt, IslandDropInfo, IslandDropZone } from "../view";
 import { musicPosition } from "../view/music";
+import { ACTIVITY_NAMES } from "../view/tone";
 import {
   LAB_CALL_APP,
   LAB_PROJECTS,
@@ -59,12 +61,17 @@ type ProgressChainStage = Extract<
 /** Durées simulées (prototype : PROGS, et 9 s pour l'analyse en coordination). */
 const PROGRESS: Record<
   ProgressChainStage,
-  { label: string; durationMs: number }
+  { label: string; detail?: string; meta?: string; durationMs: number }
 > = {
   upload: { label: "Import de l’audio", durationMs: 3200 },
   analyse: { label: "Analyse de l’appel", durationMs: 9000 },
-  // Comme la source « déploiements » : « projet · branche ».
-  deploy: { label: "PDS OS · main", durationMs: 5200 },
+  // Comme la source « déploiements » : dépôt, message du commit, branche (vue ouverte au survol).
+  deploy: {
+    label: "sordulo-OS-APP",
+    detail: "feat(ile): plus d'aperçu de la place pendant le glisser",
+    meta: "main",
+    durationMs: 5200,
+  },
 };
 
 /** Délai entre la fin d'une progression et ce qui la suit (prototype : 350 ms). */
@@ -301,6 +308,30 @@ export class LabRuntime {
     this.later(GARDEN_FROM_ICON_MS, () => this.addMusic());
   }
 
+  /**
+   * Musique avec `count` sessions Claude (une attend si `waiting`) : sous la musique ouverte, une ligne par
+   * session ; au-delà de 3, « N autres activités », qui déplie la liste.
+   */
+  musicWithSessions(count: number, waiting: boolean): void {
+    this.reset();
+    this.setSessions(count, waiting);
+    this.coordinator.addActivity({ id: "multi", kind: "multi" });
+    this.addMusic();
+  }
+
+  /**
+   * Appel en cours avec `count` sessions Claude, la musique et un déploiement : sous l'appel ouvert, plus de
+   * lignes que la liste dépliée n'en montre (elle défile).
+   */
+  meetWithActivities(count: number, waiting: boolean): void {
+    this.reset();
+    this.startMeet();
+    this.setSessions(count, waiting);
+    this.coordinator.addActivity({ id: "multi", kind: "multi" });
+    this.addMusic();
+    this.runProgress("deploy", false);
+  }
+
   // --- Musique simulée (ce que fera la source « musique » du contrôleur) ---------------------------------------
 
   private clearTrackEnd(): void {
@@ -489,13 +520,15 @@ export class LabRuntime {
     chain = true,
     deployOutcome: "deployed" | "deployFailed" = "deployed",
   ): void {
-    const { label, durationMs } = PROGRESS[stage];
+    const { label, detail = null, meta = null, durationMs } = PROGRESS[stage];
     const id = `prog:${stage}`;
     this.coordinator.addActivity({
       id,
       kind: "progress",
       stage,
       label,
+      detail,
+      meta,
       fraction: null,
       startedAt: systemClock.now(),
       estimatedMs: durationMs,
@@ -819,9 +852,28 @@ export class LabRuntime {
     this.emit();
   };
 
+  /** Clic sur une session (vue agent, plusieurs sessions, ligne « aussi en cours ») : sa fenêtre VS Code. */
+  openSession = (sessionId: string): void => {
+    const session = this.sessions.find((s) => s.id === sessionId);
+    this.remember(`Ouvrir ${session?.projectName ?? sessionId} dans son éditeur`);
+    this.emit();
+  };
+
+  /** Scénario D : la suivante dans l'ordre de priorité passe devant (ancien clic sur la bulle). */
   pinBubble = (): void => {
     const pinned = this.coordinator.pinSecondary();
     this.remember(`Bulle : ${pinned ?? "rien à épingler"} passe devant`);
+    this.emit();
+  };
+
+  /** Bulle ou ligne « aussi en cours » Musique ou progression : l'activité passe devant (épinglée). */
+  showActivity = (activity: Activity): void => {
+    const shown = this.coordinator.pin(activity.id);
+    this.remember(
+      shown
+        ? `Afficher ${ACTIVITY_NAMES[activity.kind]} dans l’île`
+        : `Afficher ${ACTIVITY_NAMES[activity.kind]} : refusé (activité exclusive)`,
+    );
     this.emit();
   };
 

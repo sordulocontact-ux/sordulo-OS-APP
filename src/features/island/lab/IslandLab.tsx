@@ -1,6 +1,6 @@
 /**
  * Labo de l'île (développement seulement) : /desktop/ile-labo. Le vrai composant `Island`, piloté par un vrai
- * IslandCoordinator, dans une scène de la taille de la fenêtre de l'île (640 × 260), pour le comparer à l'œil
+ * IslandCoordinator, dans une scène de la taille de la fenêtre de l'île (ISLAND_WINDOW_SIZE), pour le comparer à l'œil
  * avec design/prototypes/ile-sordulo-os.html ouvert à côté. Sans Tauri, sans connexion.
  */
 import {
@@ -18,7 +18,17 @@ import { Button, Select } from "../../../components/ui";
 import { ISLAND_WINDOW_SIZE, type CallService } from "../../../shared/desktop-contract";
 import { CALL_SERVICES, callBrand } from "../brands";
 import { Garden } from "../garden";
-import { JELLY, SPRING, WAVE, edgePlatform, islandSize, sizeKeyFor } from "../geometry";
+import {
+  BOUNCY_SPRING,
+  JELLY,
+  SPRING,
+  WAVE,
+  dampingRatio,
+  edgePlatform,
+  islandSize,
+  progressShowsName,
+  sizeKeyFor,
+} from "../geometry";
 import type {
   ClaudeActivity,
   IslandEdge,
@@ -256,6 +266,9 @@ export default function IslandLab() {
     view.hover,
     snapshot.withCall,
     musicGarden,
+    progressShowsName(
+      snapshot.primary?.kind === "progress" ? snapshot.primary : null,
+    ),
   );
   const size = islandSize(platform, sizeKey, 0, musicHasProgress(view.music), view.music?.canControl !== false);
   const label = islandLabel(
@@ -315,7 +328,7 @@ export default function IslandLab() {
             }
             reducedMotion={reducedMotion}
             onHoverChange={runtime.setRealHover}
-            onBubbleClick={runtime.pinBubble}
+            onBubbleClick={runtime.showActivity}
             onNotificationAction={runtime.pressNotification}
             onNotificationDismiss={runtime.dismissNotification}
             onAskDecision={(decision, ask) =>
@@ -326,9 +339,7 @@ export default function IslandLab() {
             onProjectChange={runtime.changeCallProject}
             onStopRecording={runtime.stopRecording}
             onAnswerSession={runtime.answerSession}
-            onOpenSession={(sessionId) =>
-              console.info("[labo] ouvrir la session", sessionId)
-            }
+            onOpenSession={runtime.openSession}
             onMusicCommand={runtime.musicCommand}
             onHitRectsChange={NO_HIT_RECTS}
           />
@@ -359,6 +370,12 @@ export default function IslandLab() {
             <dt>Ressort</dt>
             <dd>
               raideur {SPRING.stiffness}, amortissement {SPRING.damping}
+              <span className={styles.muted}>
+                {" "}
+                (élargissement Mac du déploiement : amortissement{" "}
+                {BOUNCY_SPRING.damping}, rapport{" "}
+                {dampingRatio(BOUNCY_SPRING).toFixed(2).replace(".", ",")})
+              </span>
             </dd>
           </dl>
           {view.log.length > 0 && (
@@ -534,6 +551,34 @@ export default function IslandLab() {
               </Select>
             </label>
           </div>
+        </Group>
+
+        <Group title="Aussi en cours">
+          <div className={styles.buttons}>
+            <Button
+              size="sm"
+              onClick={() =>
+                runtime.musicWithSessions(sessionCount, waitingSession)
+              }
+            >
+              Musique + {sessionCount} sessions
+            </Button>
+            <Button
+              size="sm"
+              onClick={() =>
+                runtime.meetWithActivities(sessionCount, waitingSession)
+              }
+            >
+              Appel + {sessionCount} sessions, musique, déploiement
+            </Button>
+          </div>
+          <p className={styles.hint}>
+            Nombre de sessions et « Une session attend » : réglages de
+            « États ». Survol (ou « Survol forcé ») : une ligne par activité
+            sous la musique ou l’appel, chacune cliquable ; au-delà de 3,
+            « N autres activités » déplie la liste, qui défile au-delà de 6.
+            Les clics s’affichent dans le journal à droite de l’île.
+          </p>
         </Group>
 
         <Group title="Musique">

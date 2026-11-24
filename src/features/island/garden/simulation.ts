@@ -11,6 +11,8 @@
  *   conflit → les deux se disputent, sous-agents qui naissent ou rentrent).
  * - `step` avance la simulation (marche, sauts, interactions, effets) ; `walkerVisual` dit comment dessiner
  *   un personnage. Le dessin lui-même est dans ./renderer.ts, la boucle dans ./Garden.tsx.
+ * - Bords en portail : les bords de l'île, et sur le Mac au repos les deux bords de l'encoche de la caméra
+ *   (coordonnée repliée, voir throughNotch) ; les écarts entre deux Claude se mesurent à travers l'encoche.
  * - Le hasard est injecté (`rng`) pour les tests.
  */
 import { activityProp, type GardenProp } from '../art/props'
@@ -214,15 +216,25 @@ export interface LegPose {
   shift: number
 }
 
+/** Bande verticale visible (px depuis la gauche du contenu) : le dessin est coupé hors de [min, max]. */
+export interface ClipRange {
+  min: number
+  max: number
+}
+
 /** Comment dessiner un personnage à cette image. */
 export interface WalkerVisual {
   /** Translation du sprite (coin haut gauche, px), rotation (deg), échelle. */
   left: number
   /**
-   * Portail : position du jumeau quand le sprite dépasse un bord (même image décalée d'une largeur : la partie
-   * qui sort d'un côté rentre de l'autre) ; null quand il est entier dans la forme.
+   * Portail : position du jumeau quand le sprite dépasse un bord de l'île (même image décalée d'une largeur :
+   * la partie qui sort d'un côté rentre de l'autre) ou chevauche l'encoche du Mac (décalée de la largeur de
+   * l'encoche) ; null quand il est entier d'un côté.
    */
   twinLeft: number | null
+  /** Encoche : bande visible du sprite et de son jumeau (coupés au bord de l'encoche) ; null : rien à couper. */
+  clip: ClipRange | null
+  twinClip: ClipRange | null
   top: number
   rot: number
   scaleX: number
@@ -264,6 +276,39 @@ export function groundOffset(platform: IslandPlatform): number {
   return GARDEN.groundOffset[platform]
 }
 
+/** Bords de l'encoche de la caméra (px depuis la gauche du contenu). */
+export interface NotchSpan {
+  left: number
+  right: number
+}
+
+/**
+ * Encoche de la caméra quand elle compte : Mac, île au repos (la tête d'un Claude posé au sol est à hauteur de
+ * l'encoche). Île ouverte, le sol est bien plus bas et l'encoche ne gêne personne : null, comme sous Windows.
+ */
+export function notchSpan(platform: IslandPlatform, width: number, height: number): NotchSpan | null {
+  if (platform !== 'mac' || width <= GARDEN.notch.width) return null
+  const head = height - groundOffset(platform) - GARDEN.size.main * GARDEN.headRatio
+  if (head >= GARDEN.notch.height) return null
+  return { left: (width - GARDEN.notch.width) / 2, right: (width + GARDEN.notch.width) / 2 }
+}
+
+/**
+ * Coordonnée repliée : l'encoche n'a plus de largeur, ses deux bords sont collés (un portail, comme les bords
+ * de l'île). Une position sous l'encoche (impossible en marche) compte comme posée sur le portail.
+ */
+export function foldX(x: number, notch: NotchSpan | null): number {
+  if (!notch || x <= notch.left) return x
+  if (x >= notch.right) return x - (notch.right - notch.left)
+  return notch.left
+}
+
+/** Position à l'écran d'une coordonnée repliée : jamais sous l'encoche. */
+export function unfoldX(u: number, notch: NotchSpan | null): number {
+  if (!notch || u <= notch.left) return u
+  return u + (notch.right - notch.left)
+}
+
 /** Sessions représentées : les 5 premières (comme les lignes de multiOpen). */
 export function gardenSessions<T extends GardenSession>(sessions: readonly T[]): T[] {
   return sessions.slice(0, GARDEN.maxSessions)
@@ -276,6 +321,8 @@ export class GardenSim {
   private readonly sessions = new Map<string, GardenSession>()
   private nextId = 1
   private nextFxId = 1
+  /** Largeur courante de la forme (px) : bords en portail et encoche. */
+  private width = 0
   private height = 0
   private platform: IslandPlatform = 'win'
   private mood: GardenMood = CALM_MOOD
@@ -432,6 +479,7 @@ export class GardenSim {
     this.ias = []
     this.effects = []
     this.sessions.clear()
+    this.width = opts.width
     this.height = opts.height
     this.platform = opts.platform
     const shown = gardenSessions(sessions)
@@ -439,7 +487,7 @@ export class GardenSim {
     const mains = shown.map((s, i) => {
       this.sessions.set(s.id, { ...s })
       const w = this.makeWalker(s.id, null, i)
-      w.x = ((i + 0.5) * opts.width) / n + this.rnd([-GARDEN.startJitter, GARDEN.startJitter])
+      w.x = this.startX(i, n)
       w.delay = GARDEN.appearDelay.main + i * GARDEN.appearDelay.mainStep
       if (fromIcon && fromIcon.sessionId === s.id) {
         w.x = fromIcon.left + fromIcon.size / 2
@@ -466,17 +514,30 @@ export class GardenSim {
   /** Nouveau sous-agent (k : rang parmi ceux du parent ; parentIndex : rang du parent à la création du jardin). */
   private addSub(parent: Walker, k: number, opts: GardenSyncOptions, parentIndex: number | null): Walker {
     const w = this.makeWalker(parent.sessionId, parent, parent.colorSlot)
-    w.x = parent.x + this.rnd([-GARDEN.subSpawnSpread, GARDEN.subSpawnSpread])
+    this.place(w, this.fold(parent.x) + this.rnd([-GARDEN.subSpawnSpread, GARDEN.subSpawnSpread]))
     if (parentIndex !== null) {
       w.delay = GARDEN.appearDelay.sub + k * GARDEN.appearDelay.subStep + parentIndex * GARDEN.appearDelay.subParentStep
     }
     if (opts.reduced) {
       this.settleStill(w)
-      w.x = parent.x + GARDEN.reducedSubOffset + k * GARDEN.reducedSubGap
+      this.placeReducedSub(w, parent, k)
       if (this.statusOf(parent) !== 'working') w.op = 0
     }
     this.list.push(w)
     return w
+  }
+
+  /** Animations réduites : sous-agent rangé à droite du parent, immobile, jamais à cheval sur l'encoche. */
+  private placeReducedSub(w: Walker, parent: Walker, k: number): void {
+    const u = this.fold(parent.x) + GARDEN.reducedSubOffset + k * GARDEN.reducedSubGap
+    this.place(w, this.clearOfNotch(u, w.size / 2))
+  }
+
+  /** Place de départ de la session i sur n : réparties sur la largeur (repliée), hors du portail de l'encoche. */
+  private startX(i: number, n: number): number {
+    const span = this.foldedWidth()
+    const u = ((i + 0.5) * span) / Math.max(1, n) + this.rnd([-GARDEN.startJitter, GARDEN.startJitter])
+    return this.unfold(this.clearOfNotch(u, GARDEN.size.main / 2))
   }
 
   // --- Sessions réelles ---------------------------------------------------------------------------------------
@@ -486,6 +547,8 @@ export class GardenSim {
    * Les effets visibles (fête, réveil, accueil) ne se jouent que si le jardin est à l'écran et animé.
    */
   sync(sessions: readonly GardenSession[], opts: GardenSyncOptions): void {
+    // Largeur : celle de la dernière image (ressort en cours) ; avant la première, celle de la forme visée.
+    if (this.width <= 0) this.width = opts.width
     this.height = opts.height
     this.platform = opts.platform
     const shown = gardenSessions(sessions)
@@ -519,7 +582,7 @@ export class GardenSim {
     const w = this.makeWalker(s.id, null, this.freeColorSlot())
     if (hello) {
       // Nouvelle session (prototype : hello) : elle tombe dans le jardin, les autres l'accueillent.
-      w.x = this.rnd([GARDEN.hello.margin, Math.max(GARDEN.hello.margin, opts.width - GARDEN.hello.margin)])
+      w.x = this.randomX(GARDEN.hello.margin)
       w.y = GARDEN.hello.y
       w.sc = GARDEN.hello.scale
       for (const o of this.mains()) {
@@ -529,7 +592,7 @@ export class GardenSim {
         }
       }
     } else {
-      w.x = ((i + 0.5) * opts.width) / Math.max(1, n) + this.rnd([-GARDEN.startJitter, GARDEN.startJitter])
+      w.x = this.startX(i, n)
       w.delay = GARDEN.appearDelay.main + i * GARDEN.appearDelay.mainStep
     }
     if (opts.reduced) this.settleStill(w)
@@ -661,9 +724,11 @@ export class GardenSim {
     }
     this.prune()
     for (const parent of this.mains()) {
+      // Immobiles : personne ne reste à cheval sur le portail de l'encoche.
+      parent.x = this.unfold(this.clearOfNotch(this.fold(parent.x), parent.size / 2))
       const working = this.statusOf(parent) === 'working'
       this.subsOf(parent).forEach((sub, k) => {
-        sub.x = parent.x + GARDEN.reducedSubOffset + k * GARDEN.reducedSubGap
+        this.placeReducedSub(sub, parent, k)
         sub.op = working ? 1 : 0
       })
     }
@@ -689,46 +754,125 @@ export class GardenSim {
     else if (w.x < 0) w.x += width
   }
 
+  // --- Encoche du Mac : portail -------------------------------------------------------------------------------
+  //
+  // Mac, île au repos : l'encoche de la caméra cache le milieu du bord haut. Ses deux bords sont une paire de
+  // portails, comme les bords de l'île : la partie d'un Claude qui franchit le bord gauche de l'encoche
+  // apparaît aussitôt au bord droit (et inversement), il traverse à sa vitesse de marche, sans saut ni
+  // disparition. On raisonne en coordonnée repliée (foldX : l'encoche n'a plus de largeur, son portail est à
+  // `notch.left`) ; `w.x` reste la position à l'écran, jamais sous l'encoche. Le dessin coupe le personnage au
+  // bord de l'encoche des deux côtés (walkerVisual : clip, jumeau). Île ouverte ou Windows : aucun effet.
+
+  /** Encoche active à cette image (Mac, île au repos), sinon null. */
+  private notch(): NotchSpan | null {
+    return notchSpan(this.platform, this.width, this.height)
+  }
+
+  private fold(x: number): number {
+    return foldX(x, this.notch())
+  }
+
+  private unfold(u: number): number {
+    return unfoldX(u, this.notch())
+  }
+
+  /** Largeur repliée : celle de la forme moins l'encoche. */
+  private foldedWidth(): number {
+    const n = this.notch()
+    return n ? this.width - (n.right - n.left) : this.width
+  }
+
+  /** Pose un personnage à la position repliée `u`. */
+  private place(w: Walker, u: number): void {
+    w.x = this.unfold(u)
+  }
+
+  /** Écart de w à o (positif : o est à droite), à travers le portail de l'encoche. */
+  private gapTo(w: Walker, o: Walker): number {
+    return this.fold(o.x) - this.fold(w.x)
+  }
+
+  /** Position au hasard sur la largeur, à `margin` px des bords de l'île (jamais sous l'encoche). */
+  private randomX(margin: number): number {
+    return this.unfold(this.rnd([margin, Math.max(margin, this.foldedWidth() - margin)]))
+  }
+
   /**
-   * Mac : l'encoche de la caméra cache le milieu du bord haut. Celui qui y entre en ressort aussitôt de l'autre
-   * côté, dans le sens où il avançait (sinon dans son sens de marche), au lieu de disparaître derrière. Seulement
-   * à hauteur de l'encoche (île au repos) : île ouverte, le sol est bien plus bas. Pas pendant une interaction
-   * (les deux se placent l'un par rapport à l'autre) ni perché sur un parent (il suit le parent). Il ressort à
-   * GARDEN.notch.gap px de l'encoche, et personne ne reste arrêté plus près (voir nearNotch).
-   * Le saut n'a pas de pas de marche : updateGait le prend pour une téléportation.
+   * Position repliée `u` d'un corps de demi-largeur `half` écartée du portail de l'encoche : à au moins
+   * GARDEN.notch.gap px de chaque bord, du côté où est la plus grande partie du corps.
    */
-  private skipNotch(dt: number, width: number): void {
-    if (this.platform !== 'mac' || width <= 0) return
-    const { gap } = GARDEN.notch
-    const left = (width - GARDEN.notch.width) / 2
-    const right = (width + GARDEN.notch.width) / 2
+  private clearOfNotch(u: number, half: number): number {
+    const n = this.notch()
+    if (!n) return u
+    const reach = half + GARDEN.notch.gap
+    if (Math.abs(u - n.left) >= reach) return u
+    return u < n.left ? n.left - reach : n.left + reach
+  }
+
+  /** À cheval sur le portail de l'encoche, ou à moins de GARDEN.notch.gap px d'un de ses bords. */
+  private nearNotch(w: Walker): boolean {
+    const n = this.notch()
+    return !!n && Math.abs(this.fold(w.x) - n.left) < w.size / 2 + GARDEN.notch.gap
+  }
+
+  /**
+   * Après les déplacements de l'image : celui dont le centre vient d'entrer sous l'encoche continue de l'autre
+   * côté, du même pas (sa coordonnée repliée ne saute pas). Un personnage principal arrêté à cheval sur le
+   * portail (session qui ne travaille plus, fête, fin de rendez-vous) s'en écarte à pied, du côté où est la plus
+   * grande partie de son corps, jusqu'à GARDEN.notch.gap px du bord.
+   */
+  private throughNotch(dt: number): void {
+    const n = this.notch()
+    if (!n) return
+    const cut = n.right - n.left
     for (const w of this.list) {
-      if (w.dead || w.mode === 'interact' || w.mode === 'ride') continue
-      if (this.headY(w) >= GARDEN.notch.height) continue
-      const half = w.size / 2
-      if (w.x + half <= left || w.x - half >= right) {
-        // Personnage principal arrêté à moins de `gap` px de l'encoche (session qui ne travaille plus, pause,
-        // fin d'interaction) : il s'en écarte à pied, du côté où il est déjà.
-        if (!w.sub && w.vel === 0 && w.y === 0 && this.nearNotch(w, width)) {
-          const out = w.x < width / 2 ? -1 : 1
-          const edge = out < 0 ? left - gap - half : right + gap + half
-          w.dir = out
-          w.x = out < 0 ? Math.max(edge, w.x - GARDEN.notch.exitSpeed * dt) : Math.min(edge, w.x + GARDEN.notch.exitSpeed * dt)
-        }
-        continue
+      if (w.dead) continue
+      if (w.x > n.left && w.x < n.right) {
+        let dx = Number.isNaN(w.px) ? 0 : w.x - w.px
+        if (Math.abs(dx) > this.width / 2) dx -= Math.sign(dx) * this.width
+        if (dx > 0 && w.px <= n.left) w.x += cut
+        else if (dx < 0 && w.px >= n.right) w.x -= cut
+        // Posé dessous sans y être entré (la forme vient de changer de largeur) : sur le portail.
+        else w.x = w.x - n.left < n.right - w.x ? n.left : n.right
+        this.wrap(w, this.width)
       }
-      let dx = Number.isNaN(w.px) ? 0 : w.x - w.px
-      if (Math.abs(dx) > width / 2) dx -= Math.sign(dx) * width
-      const rightward = dx !== 0 ? dx > 0 : w.dir >= 0
-      w.x = rightward ? right + gap + half : left - gap - half
-      this.wrap(w, width)
+      if (!w.sub && w.mode !== 'interact' && w.vel === 0 && w.y === 0 && this.nearNotch(w)) {
+        const u = this.fold(w.x)
+        const out = u < n.left ? -1 : u > n.left ? 1 : w.dir >= 0 ? 1 : -1
+        const edge = n.left + out * (w.size / 2 + GARDEN.notch.gap)
+        const step = GARDEN.notch.exitSpeed * dt
+        w.dir = out
+        this.place(w, out < 0 ? Math.max(edge, u - step) : Math.min(edge, u + step))
+      }
     }
   }
 
-  /** Mac, île au repos : à moins de GARDEN.notch.gap px de l'encoche (ou dessous). */
-  private nearNotch(w: Walker, width: number): boolean {
-    if (this.platform !== 'mac' || width <= 0 || this.headY(w) >= GARDEN.notch.height) return false
-    return Math.abs(w.x - width / 2) < GARDEN.notch.width / 2 + GARDEN.notch.gap + w.size / 2
+  /**
+   * Point de rencontre (replié) d'une interaction : décalé au plus près pour qu'aucun des deux ne reste à cheval
+   * sur le portail de l'encoche (à moins de GARDEN.notch.gap px), avec l'écart du début comme avec celui de la
+   * fin (bagarre, énervement). Les deux le rejoignent en traversant le portail si besoin.
+   */
+  private meetingPoint(mid: number, type: InteractionType, a: Walker, b: Walker): number {
+    const n = this.notch()
+    if (!n || type === 'race') return mid
+    const reach = Math.max(a.size, b.size) / 2 + GARDEN.notch.gap
+    const later: Partial<Record<InteractionType, number>> = GARDEN.gapLater
+    const gaps = [GARDEN.gap[type], later[type] ?? GARDEN.gap[type]]
+    // Points de rencontre interdits : ceux où l'un des deux corps chevauche le portail.
+    const banned = gaps.flatMap((g) => [-1, 1].map((s) => [n.left - (s * g) / 2 - reach, n.left - (s * g) / 2 + reach] as const))
+    const allowed = (m: number) => banned.every(([lo, hi]) => m <= lo || m >= hi)
+    let best = mid
+    let bestD = allowed(mid) ? 0 : Infinity
+    for (const [lo, hi] of banned) {
+      for (const m of [lo, hi]) {
+        const d = Math.abs(m - mid)
+        if (d < bestD && allowed(m)) {
+          best = m
+          bestD = d
+        }
+      }
+    }
+    return best
   }
 
   /** Libre pour une rencontre (prototype : freeW). */
@@ -751,7 +895,7 @@ export class GardenSim {
     let bd = Infinity
     for (const o of this.mains()) {
       if (o === w || !accept(o)) continue
-      const d = Math.abs(o.x - w.x)
+      const d = Math.abs(this.gapTo(w, o))
       if (d < bd) {
         bd = d
         best = o
@@ -836,9 +980,11 @@ export class GardenSim {
       w.vel = 0
       w.stopping = false
     }
-    a.dir = sign(b.x - a.x) || 1
+    // Écart et point de rencontre en coordonnée repliée : à travers le portail de l'encoche.
+    const d = this.gapTo(a, b)
+    a.dir = sign(d) || 1
     b.dir = -a.dir
-    const sa = a.x < b.x ? -1 : 1
+    const sa = d > 0 ? -1 : 1
     this.ias.push({
       a,
       b,
@@ -846,7 +992,7 @@ export class GardenSim {
       sb: -sa,
       type,
       t: 0,
-      mid: (a.x + b.x) / 2,
+      mid: this.meetingPoint((this.fold(a.x) + this.fold(b.x)) / 2, type, a, b),
       marks: new Set(),
       noPlace: type === 'race',
       gap: null,
@@ -948,6 +1094,7 @@ export class GardenSim {
   step(dtSeconds: number, frame: GardenFrame): void {
     const dt = Math.min(Math.max(0, dtSeconds), GARDEN.maxDt)
     const width = frame.width
+    this.width = width
     this.followGround(frame.height - this.height)
     this.height = frame.height
     this.platform = frame.platform
@@ -982,7 +1129,7 @@ export class GardenSim {
         }
         if (w.gone) {
           w.gone = false
-          w.x = this.rnd([GARDEN.sub.blinkMargin, width - GARDEN.sub.blinkMargin])
+          w.x = this.randomX(GARDEN.sub.blinkMargin)
           w.sc = GARDEN.appearScale
           w.mode = 'walk'
         }
@@ -1030,10 +1177,10 @@ export class GardenSim {
       }
     }
     this.updateInteractions(dt, width)
-    this.skipNotch(dt, width)
+    this.throughNotch(dt)
     this.prune()
     this.updateDepths(dt)
-    for (const w of this.list) this.updateGait(w, dt, width)
+    for (const w of this.list) this.updateGait(w, dt)
 
     // Événements spontanés : relais ou file d'attente (le prototype les déclenche par des boutons)
     if (!this.mood.call) {
@@ -1072,7 +1219,7 @@ export class GardenSim {
       w.mode = 'walk'
       w.vel = 0
       w.stopping = false
-      if (w.cheerAt) w.dir = sign(w.cheerAt.x - w.x) || w.dir
+      if (w.cheerAt) w.dir = sign(this.gapTo(w, w.cheerAt)) || w.dir
       if (w.y === 0 && this.coin(dt * GARDEN.cheerHopRate)) w.vy = GARDEN.cheerHopSpeed
       return
     }
@@ -1094,7 +1241,7 @@ export class GardenSim {
     if (w.meet) {
       const o = w.meet.to
       if (o.mode !== 'interact') {
-        const d = o.x - w.x
+        const d = this.gapTo(w, o)
         w.dir = sign(d) || 1
         w.stopping = false
         this.accelerate(w, GARDEN.meetSpeed, dt)
@@ -1112,7 +1259,7 @@ export class GardenSim {
     if (w.conflictWith) {
       const o = w.conflictWith
       if (o.mode !== 'interact') {
-        const d = o.x - w.x
+        const d = this.gapTo(w, o)
         w.dir = sign(d) || 1
         w.stopping = false
         this.accelerate(w, GARDEN.conflictSpeed, dt)
@@ -1148,7 +1295,7 @@ export class GardenSim {
     w.roam -= dt
     if (w.stopping) {
       // Pas d'arrêt contre l'encoche : il repart et s'arrêtera plus loin, de l'autre côté.
-      if (w.vel <= GARDEN.walk.stopBelow && this.nearNotch(w, width)) {
+      if (w.vel <= GARDEN.walk.stopBelow && this.nearNotch(w)) {
         w.stopping = false
       } else if (w.vel <= GARDEN.walk.stopBelow) {
         // Posé : il fait ce que fait sa session (réfléchit, lit, écrit…) avant d'aller ailleurs.
@@ -1181,7 +1328,7 @@ export class GardenSim {
       ) {
         continue
       }
-      const dx = o.x - w.x
+      const dx = this.gapTo(w, o)
       if (Math.abs(dx) < far && Math.abs(dx) > near && w.dir === sign(dx) && o.dir === -sign(dx)) {
         this.startInteraction(w, o, this.pickType())
       }
@@ -1207,7 +1354,7 @@ export class GardenSim {
       ) {
         continue
       }
-      const ahead = (o.x - w.x) * w.dir
+      const ahead = this.gapTo(w, o) * w.dir
       if (ahead > min && ahead < max && this.coin(dt * GARDEN.followRate)) {
         // Saute-mouton seulement sur le même plan (sinon il sauterait par-dessus quelqu'un devant ou derrière lui).
         if (this.coin(GARDEN.leapChance) && o.plane === w.plane) {
@@ -1272,11 +1419,13 @@ export class GardenSim {
 
   /**
    * Pattes : la phase avance avec le chemin parcouru (cadence proportionnelle à la vitesse, plafonnée) ; à
-   * l'arrêt ou en l'air, l'amplitude retombe et les pattes se posent.
+   * l'arrêt ou en l'air, l'amplitude retombe et les pattes se posent. Chemin mesuré en coordonnée repliée :
+   * traverser l'encoche ou un bord de l'île n'est pas une téléportation.
    */
-  private updateGait(w: Walker, dt: number, width: number): void {
-    let dx = Number.isNaN(w.px) ? 0 : w.x - w.px
-    if (width > 0 && Math.abs(dx) > width / 2) dx -= Math.sign(dx) * width
+  private updateGait(w: Walker, dt: number): void {
+    const span = this.foldedWidth()
+    let dx = Number.isNaN(w.px) ? 0 : this.fold(w.x) - this.fold(w.px)
+    if (span > 0 && Math.abs(dx) > span / 2) dx -= Math.sign(dx) * span
     if (Math.abs(dx) > w.size) dx = 0 // téléportation (réapparition ailleurs)
     w.px = w.x
     if (dt <= 0) return
@@ -1315,7 +1464,7 @@ export class GardenSim {
     const tg = w.target ?? p
     // Le sous-agent a fini : il court vers son parent et lui saute dans les bras
     if (w.mode === 'home') {
-      const dh = p.x - w.x
+      const dh = this.gapTo(w, p)
       w.dir = sign(dh) || 1
       w.x += w.dir * S.homeSpeed * dt
       if (Math.abs(dh) < S.homeDistance && w.y === 0) {
@@ -1325,7 +1474,8 @@ export class GardenSim {
       return
     }
     if (w.mode === 'homeJump') {
-      w.x += (p.x - w.x) * Math.min(1, dt * S.homeFollow)
+      const u = this.fold(w.x)
+      this.place(w, u + (this.fold(p.x) - u) * Math.min(1, dt * S.homeFollow))
       if (w.vy < 0 && w.y <= p.y + p.size * GARDEN.headRatio + 2) {
         this.spark(p.x, this.headY(p) - 10)
         w.dead = true
@@ -1337,13 +1487,13 @@ export class GardenSim {
       w.t -= dt
       w.op = Math.max(0, w.op - dt * S.blinkFade)
       if (w.t <= 0) {
-        w.x = this.rnd([S.blinkMargin, width - S.blinkMargin])
+        w.x = this.randomX(S.blinkMargin)
         w.mode = 'walk'
       }
       return
     }
     if (w.mode === 'ride') {
-      w.x = tg.x + 1
+      this.place(w, this.fold(tg.x) + 1)
       w.y = tg.y + tg.size * GARDEN.headRatio
       w.vy = 0
       w.dir = tg.dir
@@ -1364,7 +1514,7 @@ export class GardenSim {
       return
     }
     if (w.mode === 'seek') {
-      const dx = tg.x - w.x
+      const dx = this.gapTo(w, tg)
       w.dir = sign(dx) || 1
       w.x += w.dir * S.seekSpeed * dt
       w.t -= dt
@@ -1376,7 +1526,8 @@ export class GardenSim {
     }
     if (w.mode === 'jumpOn') {
       const top = tg.y + tg.size * GARDEN.headRatio
-      w.x += (tg.x - w.x) * Math.min(1, dt * S.jumpOnFollow)
+      const u = this.fold(w.x)
+      this.place(w, u + (this.fold(tg.x) - u) * Math.min(1, dt * S.jumpOnFollow))
       if (w.vy < 0 && w.y <= top + 1 && w.y > top - 4) {
         w.mode = 'ride'
         w.t = this.rnd(S.ride)
@@ -1422,12 +1573,16 @@ export class GardenSim {
     this.ias = this.ias.filter((ia) => {
       const { a, b } = ia
       const gap = ia.gap ?? GARDEN.gap[ia.type]
-      const mx = ia.mid
+      // Point de rencontre : replié pour les placer (à travers le portail de l'encoche), à l'écran pour les effets.
+      const mid = ia.mid
+      const mx = this.unfold(mid)
       ia.t += dt
       // Se placer face à face
       if (!ia.noPlace) {
-        a.x += (mx + (ia.sa * gap) / 2 - a.x) * k6
-        b.x += (mx + (ia.sb * gap) / 2 - b.x) * k6
+        const ua = this.fold(a.x)
+        const ub = this.fold(b.x)
+        this.place(a, ua + (mid + (ia.sa * gap) / 2 - ua) * k6)
+        this.place(b, ub + (mid + (ia.sb * gap) / 2 - ub) * k6)
       }
       switch (ia.type) {
         case 'check':
@@ -1441,7 +1596,8 @@ export class GardenSim {
           if (this.once(ia, 'p', 0.2)) ia.paper = this.addFx('paper', '', a.x - 3, top - 6, GARDEN.fxLife.paper)
           if (ia.paper && ia.t >= 0.3 && ia.t <= 0.9) {
             const u = (ia.t - 0.3) / 0.6
-            ia.paper.x = a.x + (b.x - a.x) * u - 3
+            const ua = this.fold(a.x)
+            ia.paper.x = this.unfold(ua + (this.fold(b.x) - ua) * u) - 3
             ia.paper.y = top - 6 - Math.sin(u * Math.PI) * 8
           }
           if (this.once(ia, 'got', 0.95)) {
@@ -1565,9 +1721,9 @@ export class GardenSim {
             b.hidden = false
             this.removeFx(ia.cloud)
             ia.cloud = null
-            ia.gap = 30
-            a.x = mx + ia.sa * 6
-            b.x = mx + ia.sb * 6
+            ia.gap = GARDEN.gapLater.fight
+            this.place(a, mid + ia.sa * 6)
+            this.place(b, mid + ia.sb * 6)
             a.vy = 90
             b.vy = 90
           }
@@ -1581,7 +1737,7 @@ export class GardenSim {
           if (this.once(ia, 'q', 0.5)) this.say(b, '?')
           if (this.once(ia, 'turn', 1.2)) {
             b.dir *= -1
-            ia.gap = 44
+            ia.gap = GARDEN.gapLater.annoyed
           }
           break
         case 'conflict':
@@ -1772,9 +1928,11 @@ export function walkerVisual(
   // Devant par-dessus ; à profondeur égale, les sous-agents par-dessus, ceux qui sont perchés encore au-dessus.
   const zIndex = 1 + Math.round((D.planes - 1 - depth) * D.zSteps) * 4 + (w.sub ? 2 : 0) + (w.mode === 'ride' ? 1 : 0)
 
+  const portal = portalOf(w.x, left, w.size, ctx)
+
   return {
     left,
-    twinLeft: twinLeftOf(left, w.size, ctx.width),
+    ...portal,
     top,
     rot: w.rot,
     scaleX: w.sc * depthScale * (low ? GARDEN.squash.x : 1),
@@ -1794,6 +1952,33 @@ export function walkerVisual(
     shadowScale: w.sc * shadowScale,
     shadowOpacity: Math.max(0, Math.min(1, shadowOpacity)),
   }
+}
+
+/**
+ * Portails d'un sprite (centre `x`, bord gauche `left`) : jumeau de l'autre bord de l'île (twinLeftOf), ou, sur
+ * le Mac au repos, jumeau de l'autre bord de l'encoche quand il la chevauche, chaque morceau coupé au bord de
+ * l'encoche (la partie qui entre d'un côté est celle qui sort de l'autre). La marge d'une taille couvre
+ * l'écrasement et la rotation : couper un sprite qui ne touche pas le bord ne change rien.
+ */
+export function portalOf(
+  x: number,
+  left: number,
+  size: number,
+  ctx: Pick<VisualContext, 'platform' | 'width' | 'height'>,
+): Pick<WalkerVisual, 'twinLeft' | 'clip' | 'twinClip'> {
+  const notch = notchSpan(ctx.platform, ctx.width, ctx.height)
+  if (notch) {
+    const cut = notch.right - notch.left
+    const before: ClipRange = { min: -Infinity, max: notch.left }
+    const after: ClipRange = { min: notch.right, max: Infinity }
+    if (x <= notch.left && x > notch.left - size) return { twinLeft: left + cut, clip: before, twinClip: after }
+    if (x >= notch.right && x < notch.right + size) return { twinLeft: left - cut, clip: after, twinClip: before }
+    // Centre sous l'encoche (ne devrait pas arriver) : coupé, jamais dessiné dessous.
+    if (x > notch.left && x < notch.right) {
+      return { twinLeft: null, clip: x - notch.left < notch.right - x ? before : after, twinClip: null }
+    }
+  }
+  return { twinLeft: twinLeftOf(left, size, ctx.width), clip: null, twinClip: null }
 }
 
 /** Jumeau du portail : le sprite [left, left + size] chevauche un bord → la même image de l'autre côté. */

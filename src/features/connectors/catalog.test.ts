@@ -2,15 +2,26 @@ import { describe, expect, it } from 'vitest'
 import { CONNECTORS, connectorInitials, filterConnectors } from './catalog'
 
 describe('catalogue des connecteurs', () => {
-  it('a des ids uniques et une phrase d’état pour chaque connecteur connecté', () => {
+  it('a des ids uniques, sans service interne de l’app ni connecteur figé « connecté »', () => {
     expect(new Set(CONNECTORS.map((c) => c.id)).size).toBe(CONNECTORS.length)
-    for (const c of CONNECTORS.filter((x) => x.status === 'connected')) expect(c.state).toBeTruthy()
+    const ids = CONNECTORS.map((c) => c.id)
+    expect(ids).not.toContain('deepgram')
+    expect(ids).not.toContain('mistral')
+    for (const c of CONNECTORS) expect(['live', 'soon']).toContain(c.status)
   })
 
-  it('a un connecteur Spotify à état vivant, sans phrase d’état statique', () => {
-    const spotify = CONNECTORS.find((c) => c.id === 'spotify')
-    expect(spotify?.status).toBe('live')
-    expect(spotify?.state).toBeUndefined()
+  it('a un connecteur Spotify à état vivant', () => {
+    expect(CONNECTORS.find((c) => c.id === 'spotify')?.status).toBe('live')
+  })
+
+  it('a un connecteur Claude à état vivant (relais Claude Code), en IA', () => {
+    const claude = CONNECTORS.find((c) => c.id === 'claude')
+    expect(claude?.status).toBe('live')
+    expect(claude?.category).toBe('IA')
+  })
+
+  it('a un connecteur Supabase « bientôt »', () => {
+    expect(CONNECTORS.find((c) => c.id === 'supabase')?.status).toBe('soon')
   })
 
   it('a un connecteur Vercel à état vivant, en Infrastructure', () => {
@@ -22,14 +33,8 @@ describe('catalogue des connecteurs', () => {
   })
 
   it('filtre par onglet, sans tenir compte des accents ni de la casse', () => {
-    expect(filterConnectors(CONNECTORS, '', true).map((c) => c.id)).toEqual(['claude', 'deepgram', 'mistral', 'supabase'])
-    expect(filterConnectors(CONNECTORS, '', true, new Set(['spotify'])).map((c) => c.id)).toEqual([
-      'claude',
-      'deepgram',
-      'mistral',
-      'supabase',
-      'spotify',
-    ])
+    expect(filterConnectors(CONNECTORS, '', true)).toEqual([])
+    expect(filterConnectors(CONNECTORS, '', true, new Set(['spotify', 'claude'])).map((c) => c.id)).toEqual(['claude', 'spotify'])
     expect(filterConnectors(CONNECTORS, 'musique', false).map((c) => c.id)).toEqual(['spotify'])
     expect(filterConnectors(CONNECTORS, 'COMPTABILITE', false).map((c) => c.id)).toEqual(['qonto', 'pennylane'])
     expect(filterConnectors(CONNECTORS, 'zzz', false)).toEqual([])

@@ -33,7 +33,7 @@
  * Pendant un enregistrement, puis pendant l'import et l'analyse qui le suivent (écart au prototype, demande
  * de Maël) : l'appel, puis sa progression, reste seul dans l'île, même si une autre activité est épinglée,
  * Les autres activités passent dans `background` (affichées sous l'appel au
- * survol, meetOpen ; la progression n'a pas de survol).
+ * survol, meetOpen).
  *
  * Par-dessus la principale, une seule chose à la fois : notification, demande d'autorisation ou overlay.
  * - `notify(notification)` : en file. Interruptions (`notification.interrupt`, demandes d'autorisation)

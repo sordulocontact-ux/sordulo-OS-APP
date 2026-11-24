@@ -27,6 +27,17 @@
 }
 
 /*
+ * Boîte de découpe d'un sprite ou d'une ombre (toute la surface du jardin, sans transformation) : coupe le
+ * personnage au bord de l'encoche du Mac quand il la traverse (clip-path écrit par renderer.ts). L'ordre
+ * d'affichage du sprite est écrit sur elle ; celle d'une ombre reste au niveau 0, sous les personnages.
+ */
+.clip {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+/*
  * Teintes calculées à partir de la couleur du personnage (--garden-color) et de sa profondeur (--garden-depth,
  * 0 devant) : au fond, plus sombre ; liseré = la teinte assombrie (pas de contour noir, il se fond dans l'île).
  */
@@ -200,13 +211,14 @@
   }
 }
 
-/* Encoche du Mac : les Claude passent derrière. Hauteur de l'encoche seulement : avec la musique, le jardin
-   reste affiché devant l'île ouverte, et une bande pleine hauteur masquerait le titre et la progression. */
+/* Encoche du Mac : les Claude la traversent (portail, coupés à son bord par renderer.ts) ; elle couvre aussi
+   les effets (paroles, cœurs), comme la vraie encoche. Hauteur de l'encoche seulement : avec la musique, le
+   jardin reste affiché devant l'île ouverte, et une bande pleine hauteur masquerait le titre et la progression. */
 .notch {
   position: absolute;
   top: 0;
   left: 50%;
-  z-index: 2;
+  z-index: 5;
   width: var(--island-garden-notch-width);
   height: var(--island-garden-notch-height);
   background: var(--island-bg);

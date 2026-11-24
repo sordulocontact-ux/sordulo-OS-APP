@@ -1,51 +1,82 @@
 import { describe, expect, it } from 'vitest'
-import type { SpotifyStatus } from '../../shared/desktop-contract'
-import { describeSpotify, spotifyClientId, SPOTIFY_MISSING_CLIENT_ID } from './spotify'
+import type { SpotifyAccountConnection } from '../../lib/spotify'
+import { SPOTIFY_WEB_NOTICE, describeSpotify, type SpotifyContext } from './spotify'
 
-const base: SpotifyStatus = { connected: false, account: null, premium: false, needsReconnect: false, connecting: false }
-const desktop = { desktop: true, clientId: 'abc' }
+const ROW: SpotifyAccountConnection = {
+  clientId: '0123456789abcdef0123456789abcdef',
+  refreshToken: 'rt',
+  account: 'Maël',
+  premium: true,
+  updatedAt: '2026-11-24T10:00:00Z',
+}
+
+const desktop: SpotifyContext = {
+  desktop: true,
+  loading: false,
+  loadFailed: false,
+  connection: null,
+  connecting: false,
+  disconnecting: false,
+}
+const web: SpotifyContext = { ...desktop, desktop: false }
 
 describe('describeSpotify', () => {
-  it('sur le web : badge neutre, bouton désactivé avec explication', () => {
-    const v = describeSpotify(null, { desktop: false, clientId: 'abc' })
-    expect(v.badge).toEqual({ tone: 'neutral', label: 'App de bureau' })
-    expect(v.action.disabled).toBe(true)
-    expect(v.action.title).toBe('Se connecte depuis l’app de bureau')
-    expect(v.connected).toBe(false)
+  it('lecture en cours puis erreur de lecture : Réessayer', () => {
+    expect(describeSpotify({ ...desktop, loading: true }).action).toMatchObject({ kind: null, loading: true, disabled: true })
+    const v = describeSpotify({ ...desktop, loadFailed: true })
+    expect(v.badge).toEqual({ tone: 'warning', label: 'Erreur' })
+    expect(v.action.kind).toBe('retry')
   })
 
-  it('non connecté : bouton Connecter, désactivé sans client ID', () => {
-    expect(describeSpotify(base, desktop).action).toMatchObject({ kind: 'connect', label: 'Connecter', disabled: false })
-    const v = describeSpotify(base, { desktop: true, clientId: '  ' })
-    expect(v.action.disabled).toBe(true)
-    expect(v.notice).toBe(SPOTIFY_MISSING_CLIENT_ID)
+  it('pas de ligne : Connecter (ouvre la fenêtre du Client ID), sur le web aussi', () => {
+    const v = describeSpotify(desktop)
+    expect(v.badge).toEqual({ tone: 'neutral', label: 'Non connecté' })
+    expect(v.action).toMatchObject({ kind: 'connect', label: 'Connecter', disabled: false })
+    expect(v.notice).toBeUndefined()
+    const w = describeSpotify(web)
+    expect(w.action).toMatchObject({ kind: 'connect', disabled: false })
+    expect(w.notice).toBe(SPOTIFY_WEB_NOTICE)
   })
 
-  it('connexion en cours : chargement', () => {
-    const v = describeSpotify({ ...base, connecting: true }, desktop)
+  it('Client ID seul : à connecter (bureau) ou à modifier (web)', () => {
+    const row = { ...ROW, refreshToken: null, account: null }
+    expect(describeSpotify({ ...desktop, connection: row })).toMatchObject({
+      state: 'Client ID enregistré : connectez le compte Spotify.',
+      action: { kind: 'connect', label: 'Connecter' },
+      connected: false,
+    })
+    expect(describeSpotify({ ...web, connection: row }).action.label).toBe('Modifier le Client ID')
+  })
+
+  it('autorisation dans le navigateur : chargement (bureau seulement)', () => {
+    const v = describeSpotify({ ...desktop, connecting: true, connection: ROW })
     expect(v.state).toBe('Connexion dans le navigateur…')
-    expect(v.action).toMatchObject({ loading: true, disabled: true })
+    expect(v.action).toMatchObject({ kind: null, loading: true, disabled: true })
+    expect(describeSpotify({ ...web, connecting: true, connection: ROW }).connected).toBe(true)
   })
 
-  it('connecté : compte, Premium ou gratuit, Déconnecter', () => {
-    const v = describeSpotify({ ...base, connected: true, account: 'Maël', premium: true }, desktop)
+  it('connecté : compte, Premium ou gratuit, Déconnecter (web compris)', () => {
+    const v = describeSpotify({ ...desktop, connection: ROW })
     expect(v.badge.tone).toBe('success')
     expect(v.state).toBe('Connecté : Maël')
     expect(v.hint).toBe('Premium : commandes depuis l’île')
     expect(v.action.kind).toBe('disconnect')
     expect(v.connected).toBe(true)
-    expect(describeSpotify({ ...base, connected: true, account: 'Maël' }, desktop).hint).toBe('Compte gratuit : affichage seulement')
+    expect(describeSpotify({ ...desktop, connection: { ...ROW, premium: false } }).hint).toBe('Compte gratuit : affichage seulement')
+    expect(describeSpotify({ ...web, connection: ROW }).action.kind).toBe('disconnect')
+    expect(describeSpotify({ ...desktop, connection: ROW, disconnecting: true }).action).toMatchObject({ loading: true, disabled: true })
   })
 
-  it('à reconnecter : avertissement, pas compté comme connecté', () => {
-    const v = describeSpotify({ ...base, connected: true, needsReconnect: true, account: 'Maël' }, desktop)
+  it('accès perdu (compte gardé, plus de jeton) : À reconnecter, pas compté comme connecté', () => {
+    const v = describeSpotify({ ...desktop, connection: { ...ROW, refreshToken: null } })
     expect(v.badge).toEqual({ tone: 'warning', label: 'À reconnecter' })
+    expect(v.state).toBe('L’accès au compte Spotify Maël a été perdu : reconnectez-le.')
     expect(v.action).toMatchObject({ kind: 'reconnect', label: 'Reconnecter' })
     expect(v.connected).toBe(false)
   })
 
-  it('nettoie le client ID', () => {
-    expect(spotifyClientId(' x ')).toBe('x')
-    expect(spotifyClientId(undefined)).toBe('')
+  it('aucun texte ne contient le jeton', () => {
+    const secret = { ...ROW, refreshToken: 'SECRET-TOKEN' }
+    for (const ctx of [desktop, web]) expect(JSON.stringify(describeSpotify({ ...ctx, connection: secret }))).not.toContain('SECRET')
   })
 })

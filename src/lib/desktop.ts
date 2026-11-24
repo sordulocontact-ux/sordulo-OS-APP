@@ -27,7 +27,10 @@ import {
   type MicState,
   type MusicCommand,
   type MusicState,
+  type SpotifyAuthorization,
+  type SpotifyConnection,
   type SpotifyStatus,
+  type SpotifyTokenChange,
   type MusicLevels,
   type NavigatePayload,
   type PromptPayload,
@@ -110,6 +113,9 @@ export const setFocusMode = (args: FocusModeState) =>
   call<FocusModeState>(DESKTOP_COMMANDS.setFocusMode, { on: args.on })
 
 export const claudeGetConnection = () => call<ClaudeConnection>(DESKTOP_COMMANDS.claudeGetConnection)
+/** Main window only: same work as the tray menu's « Connecter / Déconnecter Claude Code ». */
+export const claudeConnect = () => call<ClaudeConnection>(DESKTOP_COMMANDS.claudeConnect)
+export const claudeDisconnect = () => call<ClaudeConnection>(DESKTOP_COMMANDS.claudeDisconnect)
 
 /** Answers a pending PermissionRequest (requestId from the ClaudeRelayEvent). */
 /** `answers` (AskUserQuestion): question text → chosen label (several: « A, B »), sent with `allow`. */
@@ -143,11 +149,16 @@ export const getMusicArtwork = (args: { artworkId: string }) =>
 export const musicCommand = (args: { command: MusicCommand }) =>
   call<void>(DESKTOP_COMMANDS.musicCommand, { command: args.command })
 
-/** Spotify connection (Connectors page). */
+/** Spotify connection of this computer (the account row lives in Supabase: src/lib/spotify.ts). */
 export const spotifyStatus = () => call<SpotifyStatus>(DESKTOP_COMMANDS.spotifyStatus)
+/** Main window: authorizes the account in the browser with this Client ID; save the result on the account. */
 export const spotifyConnect = (args: { clientId: string }) =>
-  call<SpotifyStatus>(DESKTOP_COMMANDS.spotifyConnect, { clientId: args.clientId })
-export const spotifyDisconnect = () => call<SpotifyStatus>(DESKTOP_COMMANDS.spotifyDisconnect)
+  call<SpotifyAuthorization>(DESKTOP_COMMANDS.spotifyConnect, { clientId: args.clientId })
+/** Main window: stops a connection waiting in the browser. */
+export const spotifyCancelConnect = () => call<SpotifyStatus>(DESKTOP_COMMANDS.spotifyCancelConnect)
+/** Island and main windows: the account row (null: no usable connection, or signed out). */
+export const spotifySetConnection = (connection: SpotifyConnection | null) =>
+  call<SpotifyStatus>(DESKTOP_COMMANDS.spotifySetConnection, { connection })
 
 /** Version of the running app (Tauri config), e.g. "0.2.0". */
 export const getAppVersion = () => getVersion()
@@ -211,6 +222,10 @@ export const onMusic = (handler: (state: MusicState | null) => void) =>
 
 export const onSpotify = (handler: (status: SpotifyStatus) => void) =>
   subscribe<SpotifyStatus>(DESKTOP_EVENTS.spotify, handler)
+
+/** Island window: the refresh token rotated (save it on the account) or was refused (re-read the row). */
+export const onSpotifyToken = (handler: (change: SpotifyTokenChange) => void) =>
+  subscribe<SpotifyTokenChange>(DESKTOP_EVENTS.spotifyToken, handler)
 
 /** Island window: live bands and beat of the music played by this computer (Windows), ~30 per second. */
 export const onMusicLevels = (handler: (levels: MusicLevels) => void) =>

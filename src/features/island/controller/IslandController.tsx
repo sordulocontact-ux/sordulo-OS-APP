@@ -240,7 +240,7 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
         musicLevels={view.musicLevels}
         garden={view.garden ?? <Garden sessions={view.sessions} />}
         onHoverChange={applyHover}
-        onBubbleClick={() => coordinator.pinSecondary()}
+        onBubbleClick={(activity) => coordinator.pin(activity.id)}
         onNotificationAction={runtime.runAction}
         onNotificationDismiss={(notification) => coordinator.endNotification(notification.id)}
         onAskDecision={runtime.gestures.onAskDecision}

@@ -21,7 +21,12 @@ const RAW = {
   buildingAt: 1_700_000_001_000,
   ready: 1_700_000_061_000,
   inspectorUrl: 'https://vercel.com/sordulo/sordulo-os-app/abc',
-  meta: { githubCommitRef: 'main', githubCommitMessage: 'feat: île\n\nCorps du message\nsuite' },
+  meta: {
+    githubCommitRepo: 'sordulo-OS-APP',
+    githubCommitOrg: 'sordulocontact-ux',
+    githubCommitRef: 'main',
+    githubCommitMessage: 'feat: île\n\nCorps du message\nsuite',
+  },
 }
 
 describe('normalizeDeployment', () => {
@@ -36,6 +41,7 @@ describe('normalizeDeployment', () => {
       createdAt: 1_700_000_000_500,
       buildingAt: 1_700_000_001_000,
       readyAt: 1_700_000_061_000,
+      repo: 'sordulo-OS-APP',
       branch: 'main',
       commitMessage: 'feat: île',
       teamId: 'team_1',
@@ -49,12 +55,34 @@ describe('normalizeDeployment', () => {
 
   it('garde https:// déjà présent, sans Git : branche et message nuls', () => {
     const d = normalizeDeployment({ uid: 'a', url: 'https://x.app', readyState: 'ERROR', createdAt: 1 }, null)
-    expect(d).toMatchObject({ url: 'https://x.app', branch: null, commitMessage: null, inspectorUrl: null, projectName: 'https://x.app' })
+    expect(d).toMatchObject({
+      url: 'https://x.app',
+      repo: null,
+      branch: null,
+      commitMessage: null,
+      inspectorUrl: null,
+      projectName: 'https://x.app',
+    })
   })
 
   it('lit GitLab et Bitbucket', () => {
-    const meta = { gitlabCommitRef: 'dev', gitlabCommitMessage: 'fix' }
-    expect(normalizeDeployment({ ...RAW, meta }, null)).toMatchObject({ branch: 'dev', commitMessage: 'fix' })
+    const gitlab = { gitlabProjectName: 'site-ibe', gitlabCommitRef: 'dev', gitlabCommitMessage: 'fix' }
+    expect(normalizeDeployment({ ...RAW, meta: gitlab }, null)).toMatchObject({
+      repo: 'site-ibe',
+      branch: 'dev',
+      commitMessage: 'fix',
+    })
+    const bitbucket = { bitbucketRepoName: 'app-ibe', bitbucketCommitRef: 'prod', bitbucketCommitMessage: 'release' }
+    expect(normalizeDeployment({ ...RAW, meta: bitbucket }, null)).toMatchObject({
+      repo: 'app-ibe',
+      branch: 'prod',
+      commitMessage: 'release',
+    })
+  })
+
+  it('nom du dépôt vide ou absent : null', () => {
+    expect(normalizeDeployment({ ...RAW, meta: { githubCommitRepo: '  ' } }, null)?.repo).toBeNull()
+    expect(normalizeDeployment({ ...RAW, meta: 'x' }, null)?.repo).toBeNull()
   })
 
   it('message de commit en CRLF : première ligne seulement', () => {

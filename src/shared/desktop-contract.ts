@@ -32,10 +32,12 @@ export type IslandEdge = 'top' | 'bottom' | 'left' | 'right'
 /**
  * Size of the island window (CSS / logical px), set by Rust from the edge: horizontal for top / bottom, vertical
  * for left / right (widest open card 440 + spring overshoot, along the edge the tallest card or stacked compact
- * state).
+ * state). Horizontal height: tallest open view (musicOpen on Mac with the "also running" list unfolded to
+ * MEET_BACKGROUND.maxExpandedRows, 366) + spring overshoot. Must match `HORIZONTAL_SIZE` / `VERTICAL_SIZE` in
+ * src-tauri/src/island_window/geometry.rs.
  */
 export const ISLAND_WINDOW_SIZE = {
-  horizontal: { width: 640, height: 300 },
+  horizontal: { width: 640, height: 420 },
   vertical: { width: 520, height: 480 },
 } as const
 
@@ -218,20 +220,56 @@ export interface MusicState {
 }
 
 /**
- * Spotify account connected in the desktop app (Web API, OAuth PKCE, tokens kept by Rust in the app data
- * folder). Lets the island show what plays on any device of the account (phone, speaker), after the computer's
- * own player. Shown on the Connectors page.
+ * Spotify connection used by this computer. The connection belongs to the Sordulo OS account, not to the
+ * computer: each person pastes the Client ID of their own Spotify app (developer.spotify.com) in the Spotify
+ * card, the desktop app authorizes the account (OAuth PKCE, no secret) and the refresh token is saved on the
+ * account (table spotify_connections, migration 0009). The island window reads that row and sends it to Rust
+ * (spotifySetConnection); Rust keeps everything in memory, nothing on disk. Lets the island show what plays on
+ * any device of the account (phone, speaker), after the computer's own player.
  */
 export interface SpotifyStatus {
+  /** Rust has a usable connection (sent by the front and not refused by Spotify). */
   connected: boolean
   /** Spotify display name of the connected account; null when not connected. */
   account: string | null
   /** Premium account: the island can control playback on the other devices. */
   premium: boolean
-  /** Access lost (revoked, expired, password changed): connect again. */
+  /**
+   * Spotify refused the refresh token on this computer. Rust stopped using it and sent a SpotifyTokenChange
+   * with refreshToken null: the island re-reads the account row (another computer may have rotated the token)
+   * and sends it again, or marks the account « À reconnecter ». Cleared by the next connection sent.
+   */
   needsReconnect: boolean
   /** A connection is waiting for the user in the browser. */
   connecting: boolean
+}
+
+/** Row of the Sordulo OS account sent to Rust by spotifySetConnection (only with a refresh token). */
+export interface SpotifyConnection {
+  /** Client ID of the person's Spotify app (not a secret with PKCE). */
+  clientId: string
+  refreshToken: string
+  /** Display name saved on the account; Rust re-reads it from Spotify (its own value wins). */
+  account: string | null
+  premium: boolean
+}
+
+/** Result of spotifyConnect, saved on the Sordulo OS account by the front. */
+export interface SpotifyAuthorization {
+  refreshToken: string
+  account: string
+  premium: boolean
+}
+
+/**
+ * DESKTOP_EVENTS.spotifyToken, island window. refreshToken set: Spotify rotated the refresh token, replace
+ * previousRefreshToken by it on the account (only if the row still holds it). refreshToken null: Spotify refused
+ * previousRefreshToken, re-read the row before marking the account « À reconnecter ». Repeated by Rust while the
+ * row still holds previousRefreshToken.
+ */
+export interface SpotifyTokenChange {
+  previousRefreshToken: string
+  refreshToken: string | null
 }
 
 /**
@@ -408,7 +446,7 @@ export const DESKTOP_EVENTS = {
   deploymentsEnabled: 'desktop://deployments-enabled',
   /** Payload ClaudeRelayEvent, island window: a Claude Code hook arrived. */
   claude: 'desktop://claude',
-  /** Payload ClaudeConnection, island window: hooks connected / disconnected, or a hook arrived. */
+  /** Payload ClaudeConnection, island and main windows: hooks connected / disconnected, or a hook arrived. */
   claudeConnection: 'desktop://claude-connection',
   /**
    * Payload MusicState | null, island window: what is playing changed (track, play / pause, cover, position
@@ -417,6 +455,8 @@ export const DESKTOP_EVENTS = {
   music: 'desktop://music',
   /** Payload SpotifyStatus, all windows: the Spotify connection changed (connected, disconnected, access lost). */
   spotify: 'desktop://spotify',
+  /** Payload SpotifyTokenChange, island window: the refresh token rotated (save it) or was refused (re-read the row). */
+  spotifyToken: 'desktop://spotify-token',
   /** Payload MusicLevels, island window: live bands and beat of the music played by the computer (Windows). */
   musicLevels: 'desktop://music-levels',
   /** Payload UpdateStatus, main window: the update state changed. */
@@ -472,6 +512,10 @@ export const DESKTOP_COMMANDS = {
   getDeploymentsEnabled: 'get_deployments_enabled',
   /** () => ClaudeConnection */
   claudeGetConnection: 'claude_get_connection',
+  /** () => ClaudeConnection — main window only: writes the hooks in ~/.claude/settings.json (like the tray menu). */
+  claudeConnect: 'claude_connect',
+  /** () => ClaudeConnection — main window only: removes the hooks. */
+  claudeDisconnect: 'claude_disconnect',
   /** ({ requestId: string, decision: ClaudeDecision }) => void — answers a pending PermissionRequest. */
   claudeAnswer: 'claude_answer',
   /** Île : met au premier plan la fenêtre VS Code (ou l'app) d'une session Claude, sur son dossier. */
@@ -496,13 +540,19 @@ export const DESKTOP_COMMANDS = {
   /** () => SpotifyStatus */
   spotifyStatus: 'spotify_status',
   /**
-   * ({ clientId: string }) => SpotifyStatus — opens the Spotify authorization page in the default browser and
-   * waits (up to 3 minutes) for its redirect to http://127.0.0.1:43127/callback. clientId: the Spotify app's
-   * Client ID (VITE_SPOTIFY_CLIENT_ID, not a secret with PKCE), kept with the tokens to refresh them.
+   * ({ clientId: string }) => SpotifyAuthorization — main window only: opens the Spotify authorization page in
+   * the default browser and waits (up to 3 minutes) for its redirect to http://127.0.0.1:43127/callback.
+   * clientId: the Client ID saved on the account. The front saves the result on the account, then sends it with
+   * spotifySetConnection.
    */
   spotifyConnect: 'spotify_connect',
-  /** () => SpotifyStatus — forgets the tokens. */
-  spotifyDisconnect: 'spotify_disconnect',
+  /** () => SpotifyStatus — main window only: stops a connection waiting in the browser. */
+  spotifyCancelConnect: 'spotify_cancel_connect',
+  /**
+   * ({ connection: SpotifyConnection | null }) => SpotifyStatus — island and main windows: the account row (null:
+   * no refresh token, no row, or signed out of Sordulo OS). Same token as Rust's: kept (access token, refusal).
+   */
+  spotifySetConnection: 'spotify_set_connection',
   /** () => UpdateStatus */
   getUpdateStatus: 'get_update_status',
   /**
