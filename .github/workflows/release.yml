@@ -1,6 +1,6 @@
-# Release de l'app de bureau : compile Mac (universel, signé) et Windows (NSIS) en parallèle, puis publie
-# UNE release GitHub du tag avec les installeurs, latest.json (mises à jour automatiques) et des copies aux
-# noms stables pour la page de téléchargement :
+# Release de l'app de bureau : compile Mac (universel, signé) et Windows (NSIS) en parallèle, et chacun
+# publie dès qu'il est prêt dans UNE release GitHub du tag (desktop-platform.yml) : installeurs,
+# latest.json (mises à jour automatiques) et copies aux noms stables pour la page de téléchargement :
 #   https://github.com/sordulocontact-ux/sordulo-OS-APP/releases/latest/download/Sordulo-OS-macOS.dmg
 #   https://github.com/sordulocontact-ux/sordulo-OS-APP/releases/latest/download/Sordulo-OS-Windows-setup.exe
 #
@@ -69,121 +69,36 @@ jobs:
           echo "Version $version (publication : $publish)"
           { echo "version=$version"; echo "tag=v$version"; echo "publish=$publish"; } >> "$GITHUB_OUTPUT"
 
-  build:
-    name: Compilation ${{ matrix.name }}
+  # Chaque système est publié dès qu'il est prêt (Windows en quelques minutes, Mac plus tard) et
+  # un échec de l'un n'empêche pas la publication de l'autre : voir desktop-platform.yml.
+  macos:
+    name: macOS
     needs: prepare
-    strategy:
-      # Chaque système va au bout : un échec Mac n'annule pas le build Windows (et inversement). La
-      # publication attend quand même les deux.
-      fail-fast: false
-      matrix:
-        include:
-          - name: macOS
-            os: macos-latest
-            target: universal-apple-darwin
-            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
-          - name: Windows
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
-            rust-targets: x86_64-pc-windows-msvc
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.rust-targets }}
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-          key: ${{ matrix.target }}
-
-      - run: npm ci
-
-      - name: Version ${{ needs.prepare.outputs.version }}
-        # Push sur main : la version n'est écrite que dans la copie du run (package.json, Cargo.toml/lock).
-        run: node scripts/release.mjs ${{ needs.prepare.outputs.version }} --files-only
-
-      - name: Compilation et installeurs
-        run: npm run desktop:build -- --target ${{ matrix.target }} --out release-assets
-        env:
-          # Front embarqué : clés publiques (la RLS protège les données) et API Vercel.
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_API_BASE_URL: https://sordulo-os-app.vercel.app
-          # Signature des mises à jour (latest.json).
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # Signature Mac (ignorée sous Windows) : Tauri importe le .p12 dans un trousseau temporaire.
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-${{ matrix.name }}
-          path: release-assets/
-          if-no-files-found: error
-          retention-days: 7
-
-  publish:
-    name: Publication de la release
-    needs: [prepare, build]
-    if: needs.prepare.outputs.publish == 'true'
-    runs-on: ubuntu-latest
     permissions:
       contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: release-*
-          path: release-assets
-          merge-multiple: true
+    uses: ./.github/workflows/desktop-platform.yml
+    secrets: inherit
+    with:
+      name: macOS
+      os: macos-latest
+      target: universal-apple-darwin
+      rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+      version: ${{ needs.prepare.outputs.version }}
+      tag: ${{ needs.prepare.outputs.tag }}
+      publish: ${{ needs.prepare.outputs.publish }}
 
-      - name: latest.json
-        shell: bash
-        env:
-          REPO: ${{ github.repository }}
-          TAG: ${{ needs.prepare.outputs.tag }}
-        run: |
-          node --input-type=module - <<'EOF'
-          import { readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-          const dir = 'release-assets'
-          const base = `https://github.com/${process.env.REPO}/releases/download/${process.env.TAG}`
-          const fragments = readdirSync(dir).filter((f) => /^updater-.+\.json$/.test(f))
-          if (fragments.length !== 2) throw new Error(`2 fragments attendus (Mac + Windows), ${fragments.length} trouvés`)
-          const latest = { version: '', notes: `Sordulo OS ${process.env.TAG}`, pub_date: new Date().toISOString(), platforms: {} }
-          for (const file of fragments) {
-            const { version, platforms } = JSON.parse(readFileSync(`${dir}/${file}`, 'utf8'))
-            latest.version = version
-            for (const [key, { signature, asset }] of Object.entries(platforms)) {
-              latest.platforms[key] = { signature, url: `${base}/${asset}` }
-            }
-            rmSync(`${dir}/${file}`)
-          }
-          writeFileSync(`${dir}/latest.json`, `${JSON.stringify(latest, null, 2)}\n`)
-          console.log(Object.keys(latest.platforms).join(', '))
-          EOF
-          ls -l release-assets
-
-      - name: Release GitHub
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ needs.prepare.outputs.tag }}
-        run: |
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            # Relance du workflow : on remplace les fichiers de la release existante.
-            gh release upload "$TAG" release-assets/* --clobber
-            gh release edit "$TAG" --draft=false --latest
-          else
-            # Tag poussé : déjà là (--target ignoré). Push sur main : le tag est créé sur le commit compilé.
-            gh release create "$TAG" release-assets/* --target "$GITHUB_SHA" --title "Sordulo OS $TAG" --generate-notes --latest
-          fi
+  windows:
+    name: Windows
+    needs: prepare
+    permissions:
+      contents: write
+    uses: ./.github/workflows/desktop-platform.yml
+    secrets: inherit
+    with:
+      name: Windows
+      os: windows-latest
+      target: x86_64-pc-windows-msvc
+      rust-targets: x86_64-pc-windows-msvc
+      version: ${{ needs.prepare.outputs.version }}
+      tag: ${{ needs.prepare.outputs.tag }}
+      publish: ${{ needs.prepare.outputs.publish }}

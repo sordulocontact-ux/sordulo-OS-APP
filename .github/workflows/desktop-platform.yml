@@ -1,0 +1,145 @@
+# Une plateforme de l'app de bureau : compilation, puis publication dans la release du tag dès qu'elle
+# est prête, sans attendre l'autre système (appelé deux fois par release.yml, Mac et Windows).
+#
+# Publication : la release est créée par la première plateforme prête (le plus souvent Windows), la
+# seconde y ajoute ses installeurs et sa ligne dans latest.json. Tant que la seconde manque, ses apps
+# installées reçoivent « aucune mise à jour publiée pour ce système » et restent sur leur version.
+# Les deux publications d'un même tag passent l'une après l'autre (concurrence `publish-<tag>`), pour
+# que latest.json ne soit jamais écrit en même temps par les deux.
+name: Plateforme app de bureau
+
+on:
+  workflow_call:
+    inputs:
+      name: { type: string, required: true }
+      os: { type: string, required: true }
+      target: { type: string, required: true }
+      rust-targets: { type: string, required: true }
+      version: { type: string, required: true }
+      tag: { type: string, required: true }
+      publish: { type: string, required: true }
+
+jobs:
+  build:
+    name: Compilation ${{ inputs.name }}
+    runs-on: ${{ inputs.os }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ inputs.rust-targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ inputs.target }}
+
+      - run: npm ci
+
+      - name: Version ${{ inputs.version }}
+        # Push sur main : la version n'est écrite que dans la copie du run (package.json, Cargo.toml/lock).
+        run: node scripts/release.mjs ${{ inputs.version }} --files-only
+
+      - name: Compilation et installeurs
+        run: npm run desktop:build -- --target ${{ inputs.target }} --out release-assets
+        env:
+          # Front embarqué : clés publiques (la RLS protège les données) et API Vercel.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_API_BASE_URL: https://sordulo-os-app.vercel.app
+          # Signature des mises à jour (latest.json).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Signature Mac (ignorée sous Windows) : Tauri importe le .p12 dans un trousseau temporaire.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ inputs.name }}
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publication ${{ inputs.name }}
+    needs: build
+    if: inputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: publish-${{ inputs.tag }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-${{ inputs.name }}
+          path: release-assets
+
+      - name: latest.json
+        # Fusion avec le latest.json déjà publié dans cette release par l'autre plateforme (s'il existe).
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          mkdir -p published
+          if gh release download "$TAG" --pattern latest.json --dir published 2>/dev/null; then
+            echo "latest.json déjà publié : fusion"
+          else
+            echo "Premier système publié pour $TAG"
+          fi
+          node --input-type=module - <<'EOF'
+          import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+          const dir = 'release-assets'
+          const base = `https://github.com/${process.env.REPO}/releases/download/${process.env.TAG}`
+          const fragments = readdirSync(dir).filter((f) => /^updater-.+\.json$/.test(f))
+          if (fragments.length !== 1) throw new Error(`1 fragment attendu, ${fragments.length} trouvés`)
+          const fragment = JSON.parse(readFileSync(`${dir}/${fragments[0]}`, 'utf8'))
+          rmSync(`${dir}/${fragments[0]}`)
+          const published = existsSync('published/latest.json')
+            ? JSON.parse(readFileSync('published/latest.json', 'utf8'))
+            : null
+          // Les lignes de l'autre système ne sont gardées que si elles sont de la même version.
+          const kept = published?.version === fragment.version ? published.platforms : {}
+          const latest = {
+            version: fragment.version,
+            notes: `Sordulo OS ${process.env.TAG}`,
+            pub_date: published?.version === fragment.version ? published.pub_date : new Date().toISOString(),
+            platforms: { ...kept },
+          }
+          for (const [key, { signature, asset }] of Object.entries(fragment.platforms)) {
+            latest.platforms[key] = { signature, url: `${base}/${asset}` }
+          }
+          writeFileSync(`${dir}/latest.json`, `${JSON.stringify(latest, null, 2)}\n`)
+          console.log(`latest.json : ${Object.keys(latest.platforms).join(', ')}`)
+          EOF
+          ls -l release-assets
+
+      - name: Release GitHub
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # Seconde plateforme, ou relance du workflow : ajout ou remplacement des fichiers.
+            gh release upload "$TAG" release-assets/* --clobber
+            gh release edit "$TAG" --draft=false
+          else
+            # Tag poussé : déjà là (--target ignoré). Push sur main : le tag est créé sur le commit compilé.
+            gh release create "$TAG" release-assets/* --target "$GITHUB_SHA" --title "Sordulo OS $TAG" --generate-notes --latest
+          fi
