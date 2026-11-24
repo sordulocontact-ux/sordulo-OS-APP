@@ -281,6 +281,15 @@ pub fn spring_step(pos: f64, vel: f64, target: f64, dt: f64) -> (f64, f64) {
 }
 
 /// Le ressort est arrivé : à moins de `pos_eps` de la cible et plus lent que `vel_eps` (par coordonnée).
+/// Distance à la place (px CSS) sous laquelle la goutte lâchée reprend la forme du bord : elle se
+/// reforme en se posant (ressort du front un peu plus long que ces derniers pixels), pas en vol.
+pub const LAND_DISTANCE_CSS: f64 = 28.0;
+
+/// La fenêtre lancée (coin `pos`, unités de fenêtre) est presque à sa place `target`.
+pub fn landing(pos: (f64, f64), target: (f64, f64), unit_scale: f64) -> bool {
+    (pos.0 - target.0).hypot(pos.1 - target.1) < LAND_DISTANCE_CSS * unit_scale
+}
+
 pub fn spring_settled(pos: f64, vel: f64, target: f64, pos_eps: f64, vel_eps: f64) -> bool {
     (pos - target).abs() < pos_eps && vel.abs() < vel_eps
 }
@@ -461,6 +470,16 @@ mod tests {
         let mid = eased_grab(from, to, GRAB_EASE_SECS / 2.0);
         // Sortie douce : plus de la moitié du chemin à mi-temps.
         assert!(mid.0 > 310.0 && mid.0 < 320.0);
+    }
+
+    #[test]
+    fn the_drop_reforms_only_when_landing() {
+        let target = (1000.0, 0.0);
+        assert!(!landing((700.0, 300.0), target, 1.0));
+        assert!(!landing((1000.0, 40.0), target, 1.0));
+        assert!(landing((1000.0, 20.0), target, 1.0));
+        // Écran à 150 % : distance comptée en px CSS.
+        assert!(landing((1000.0, 40.0), target, 1.5));
     }
 
     #[test]

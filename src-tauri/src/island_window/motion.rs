@@ -187,6 +187,9 @@ struct Spring {
     unit_scale: f64,
     started: Instant,
     last: Instant,
+    /// Lâcher d'un glisser : la goutte garde sa forme pendant le vol, `end` est émis à l'arrivée
+    /// (`geometry::landing`) pour qu'elle reprenne la forme du bord en se posant, pas avant.
+    land: bool,
 }
 
 struct Island {
@@ -496,8 +499,8 @@ impl Island {
         // Même place que l'aperçu, sauf si le lancer vise nettement ailleurs.
         let target = Self::aim(&drag.monitors, point, velocity, scale, drag.aimed);
         self.hide_ghost();
-        emit_drag(&self.app, IslandDragPhase::End);
         let Some((index, edge)) = target else {
+            emit_drag(&self.app, IslandDragPhase::End);
             self.until_place = 0;
             return;
         };
@@ -514,6 +517,9 @@ impl Island {
             screen: Some(monitor.id.clone()),
         };
         self.move_to(monitor.screen, edge, saved, throw, now);
+        if let Mode::Spring(spring) = &mut self.mode {
+            spring.land = true;
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -682,6 +688,7 @@ impl Island {
             unit_scale: screen.unit_scale,
             started: now,
             last: now,
+            land: false,
         });
     }
 
@@ -708,6 +715,15 @@ impl Island {
         let settled = geometry::spring_settled(px, vx, tx, pos_eps, vel_eps)
             && geometry::spring_settled(py, vy, ty, pos_eps, vel_eps);
         let timed_out = now.duration_since(spring.started).as_secs_f64() > SPRING_MAX_SECS;
+        if spring.land
+            && (settled
+                || timed_out
+                || geometry::landing((px, py), (tx, ty), spring.unit_scale))
+        {
+            // La goutte arrive : le front lui rend la forme du bord pendant les derniers pixels.
+            spring.land = false;
+            emit_drag(&self.app, IslandDragPhase::End);
+        }
         if settled || timed_out {
             // Position et taille finales exactes.
             if let Err(e) = placement::apply_rect(&self.window, self.space, spring.target) {

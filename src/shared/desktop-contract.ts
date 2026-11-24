@@ -75,7 +75,8 @@ export interface IslandDragStart {
 /**
  * Drag of the island, driven by Rust (the window follows the cursor at ~60 Hz while the left button is down,
  * then is thrown to an edge with a spring). `start`: the drag began (front keeps the island closed, no
- * hover). `end`: button released; an islandPlacement event follows (possibly the same placement).
+ * hover). `end`: the thrown island is landing (a few px from its place, so the drop takes back the edge shape
+ * as it lands), or the release found no place. The islandPlacement event comes at release (possibly the same).
  */
 export interface IslandDrag {
   phase: 'start' | 'end'
