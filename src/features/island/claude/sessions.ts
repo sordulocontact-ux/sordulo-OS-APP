@@ -10,6 +10,8 @@
  *   SessionEnd, ou après FORGET_AFTER_MS sans aucun événement (terminal fermé sans SessionEnd).
  * - Projet : projet Sordulo OS dont le nom correspond au dossier (./projects.ts), sinon le nom du dossier.
  * - Tâche : début du premier prompt (UserPromptSubmit). Étape : dernier outil, en français (./steps.ts).
+ * - Activité (animation du Claude de l'île) : celle de l'outil en cours (PreToolUse, `toolActivity`) ; `think`
+ *   après un prompt ou la fin d'un outil ; null à la fin du tour et après un refus.
  * - `startedAt` : début du tour en cours (dernier prompt), sinon de la session ; le temps écoulé en part.
  * - Statut : `working` pendant le travail ; `waiting` pendant une demande d'autorisation (et après « Plus
  *   tard » ou un délai écoulé, tant que Claude Code attend la réponse dans le terminal) ; `done` après Stop ;
@@ -49,6 +51,7 @@ import {
   patienceLabel,
   refusalLabel,
   TASK_MAX_CHARS,
+  toolActivity,
   truncate,
 } from './steps'
 
@@ -237,6 +240,7 @@ function createRecord(event: ClaudeRelayEvent, projects: readonly ClaudeProjectR
       conflict: false,
       error: false,
       subagents: 0,
+      activity: null,
     },
     lastEventAt: event.at,
     turnFiles: new Map(),
@@ -320,6 +324,7 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
           step: null,
           startedAt: event.at,
           error: false,
+          activity: 'think',
         }),
         turnFiles: new Map(),
         inTurn: true,
@@ -340,6 +345,7 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
             : (describeStep(event.toolName, event.toolSummary, record.session.cwd || null) ?? session.step),
           error: false,
           subagents: session.subagents + (isSubagentTool(event.toolName) ? 1 : 0),
+          activity: toolActivity(event.toolName),
         }),
         inTurn: true,
         handedToTerminal: false,
@@ -357,7 +363,12 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
         if (!turnFiles.has(key)) turnFiles = new Map(turnFiles).set(key, event.filePath)
       }
       record = {
-        ...withSession(resumeFromBackground(record), { status: statusAfterAsks(pending), error: false }),
+        // Outil fini : Claude réfléchit à la suite jusqu'au prochain outil.
+        ...withSession(resumeFromBackground(record), {
+          status: statusAfterAsks(pending),
+          error: false,
+          activity: 'think',
+        }),
         pending,
         turnFiles,
         inTurn: true,
@@ -411,6 +422,7 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
             step: patienceLabel(backgroundShells, backgroundAgents, lastBackgroundShell),
             subagents: 0,
             error: false,
+            activity: null,
           }),
           pending: [],
           inTurn: false,
@@ -420,7 +432,7 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
       }
       const files = record.turnFiles.size
       record = {
-        ...withSession(record, { status: 'done', step: null, subagents: 0, error: false }),
+        ...withSession(record, { status: 'done', step: null, subagents: 0, error: false, activity: null }),
         pending: [],
         inTurn: false,
         handedToTerminal: false,
@@ -507,7 +519,12 @@ function onDecision(
       }
       return replaceRecord(
         state,
-        withSession(base, { status: pending.length > 0 ? 'waiting' : 'idle', error: true, step: refusal }),
+        withSession(base, {
+          status: pending.length > 0 ? 'waiting' : 'idle',
+          error: true,
+          step: refusal,
+          activity: null,
+        }),
       )
     }
   }

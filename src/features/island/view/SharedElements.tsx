@@ -40,8 +40,8 @@ export interface SharedElementsProps {
   eqBarRef: (index: number, el: SVGRectElement | null) => void;
   /** Pochette du morceau en cours ; null : dégradé de repli. */
   artworkUrl: string | null;
-  /** La session Claude affichée travaille : le Claude de l'île s'anime. */
-  agentWorking: boolean;
+  /** Session Claude affichée (le Claude de l'île joue ce qu'elle fait) ; null : aucune. */
+  agent: Pick<ClaudeSession, "status" | "activity" | "error" | "startedAt"> | null;
   reduced: boolean;
 }
 
@@ -54,9 +54,10 @@ export function SharedElements({
   waveBarRef,
   eqBarRef,
   artworkUrl,
-  agentWorking,
+  agent,
   reduced,
 }: SharedElementsProps) {
+  const agentWorking = agent?.status === "working";
   const segs = sessions.slice(0, MAX_SESSION_ROWS);
   return (
     <div className={styles.shared} aria-hidden="true">
@@ -82,7 +83,13 @@ export function SharedElements({
         className={cx(styles.sh, styles.agentIcon)}
         ref={(el) => register("agentIcon", el)}
       >
-        <ClaudeMascot working={agentWorking} reduced={reduced} />
+        <ClaudeMascot
+          status={agent?.status ?? null}
+          activity={agent?.activity ?? null}
+          error={agent?.error ?? false}
+          startedAt={agent?.startedAt ?? null}
+          reduced={reduced}
+        />
       </span>
       <span
         className={cx(styles.sh, styles.dots, !agentWorking && styles.still)}

@@ -16,7 +16,12 @@ import { ISLAND_WINDOW_SIZE, type CallService } from "../../../shared/desktop-co
 import { CALL_SERVICES, callBrand } from "../brands";
 import { Garden } from "../garden";
 import { SPRING, WAVE, edgePlatform, islandSize, sizeKeyFor } from "../geometry";
-import type { IslandEdge, IslandPlatform, NotificationKind } from "../types";
+import type {
+  ClaudeActivity,
+  IslandEdge,
+  IslandPlatform,
+  NotificationKind,
+} from "../types";
 import { Island, islandLabel, type IslandDropZone } from "../view";
 import { musicHasProgress } from "../view/music";
 import {
@@ -46,6 +51,16 @@ function windowSizeFor(edge: IslandEdge) {
 type Backdrop = "light" | "dark";
 
 const SCENARIO_IDS = Object.keys(SCENARIOS) as ScenarioId[];
+/** Activités du Claude de l'île, dans l'ordre des boutons du labo. */
+const LAB_ACTIVITIES: ReadonlyArray<readonly [ClaudeActivity, string]> = [
+  ["read", "Lit"],
+  ["search", "Fouille"],
+  ["write", "Écrit"],
+  ["command", "Commande"],
+  ["web", "Web"],
+  ["think", "Réfléchit"],
+  ["subagent", "Sous-agent"],
+];
 const NO_HIT_RECTS = () => undefined;
 
 /** Onde simulée façon prototype (nextSample) : des phases de parole et de silence, niveaux 0..1. */
@@ -494,6 +509,42 @@ export default function IslandLab() {
             Survol de l’île : vue ouverte, ses boutons agissent sur cette
             musique simulée. En pause, les barres se mettent à plat et les
             Claude du jardin ne dansent plus.
+          </p>
+        </Group>
+
+        <Group title="Claude de l’île">
+          <div className={styles.buttons}>
+            {LAB_ACTIVITIES.map(([activity, label]) => (
+              <Button
+                key={activity}
+                size="sm"
+                onClick={() => runtime.setAgentActivity(activity)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+          <div className={styles.buttons}>
+            <Button size="sm" onClick={() => runtime.agentMoment("start")}>
+              Réveil
+            </Button>
+            <Button size="sm" onClick={() => runtime.agentMoment("done")}>
+              Fin
+            </Button>
+            <Button size="sm" onClick={() => runtime.agentMoment("error")}>
+              Erreur
+            </Button>
+            <Button size="sm" onClick={() => runtime.agentMoment("waiting")}>
+              Attend une autorisation
+            </Button>
+            <Button size="sm" onClick={() => runtime.toggleAgentLongSession()}>
+              Session longue ou courte
+            </Button>
+          </div>
+          <p className={styles.hint}>
+            La session seule (bouton « Session Claude » si besoin). Commande :
+            au bout de 7 s, il attend en tapant du pied. Session longue :
+            bâillements et front essuyé.
           </p>
         </Group>
 

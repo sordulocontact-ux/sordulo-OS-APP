@@ -1,6 +1,10 @@
 /*
- * Claude de l'île : silhouette, yeux et paupières repris du jardin (Garden.module.css), couleur Claude.
- * Les gestes et clignements sont joués par ClaudeMascot.tsx (API Web Animations, valeurs dans mascot.ts).
+ * Claude de l'île : silhouette, yeux, paupières et pattes repris du jardin (Garden.module.css), couleur Claude,
+ * bras à part (pour s'étirer, taper, écrire, se gratter) et accessoires de ses activités.
+ * Positions en % de l'icône : grille de 16 × 16 cases, une case = 6,25 %. Les scènes (mascotScenes.ts) et les
+ * clignements sont joués par ClaudeMascot.tsx (API Web Animations).
+ * Couches : derrière (dossier, mini Claude), le Claude, devant (dossier, clavier, invite), au-dessus (pensées,
+ * bulles, sueur, étincelles).
  */
 
 .mascot {
@@ -15,15 +19,27 @@
   height: 100%;
 }
 
+/* Dans le dossier : ce qui plonge sous le bord bas de l'icône (les pattes) ne dépasse pas sous le dossier */
+.mascot[data-prop='folder'] {
+  clip-path: inset(-100% -300% 0 -100%);
+}
+
+.layer,
 .figure,
+.upper,
 .face {
   position: absolute;
   inset: 0;
+}
+
+.figure,
+.face {
   transform-origin: 50% 80%;
 }
 
-.body {
-  composes: body from '../garden/Garden.module.css';
+/* Haut du corps : hochements et étirements autour des hanches */
+.upper {
+  transform-origin: 50% 68.75%;
 }
 
 .leg {
@@ -46,6 +62,36 @@
   composes: leg4 from '../garden/Garden.module.css';
 }
 
+/* Corps sans les bras (rangées 7-8, colonnes 0-1 et 14-15), dessinés à part par .arm, et plein à la place des
+   yeux : les yeux (.eye) sont posés dessus et bougent proprement quand il regarde ailleurs (avec des trous dans
+   le masque, comme au jardin, le trou restait en place et l'œil paraissait déformé). */
+.torso {
+  position: absolute;
+  inset: 0;
+  background: var(--garden-tint);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%224%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%225%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%226%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%227%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%228%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%229%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%2210%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3C%2Fsvg%3E")
+    center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%224%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%225%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%226%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%227%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%228%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%229%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%2210%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3C%2Fsvg%3E")
+    center / 100% 100% no-repeat;
+}
+
+/* Bras : deux cases de chaque côté, rangées 7-8 ; ils se déplacent (pas de rotation, ce sont des carrés) */
+.arm {
+  position: absolute;
+  top: 43.75%;
+  width: 12.5%;
+  height: 12.5%;
+  background: var(--garden-tint);
+}
+
+.armL {
+  left: 0;
+}
+
+.armR {
+  left: 87.5%;
+}
+
 .eye {
   composes: eye from '../garden/Garden.module.css';
 }
@@ -60,4 +106,274 @@
 
 .right {
   composes: right from '../garden/Garden.module.css';
+}
+
+/* Bouche (bâillement) : deux cases sous les yeux, cachée au repos */
+.mouth {
+  position: absolute;
+  left: 43.75%;
+  top: 50%;
+  width: 12.5%;
+  height: 6.25%;
+  background: var(--island-garden-eye);
+  opacity: 0;
+  transform-origin: 50% 0;
+}
+
+/* --- Accessoires -------------------------------------------------------------------------------------- */
+
+.prop {
+  position: absolute;
+  display: block;
+  overflow: visible;
+  opacity: 0;
+  transition: opacity var(--duration-fast) ease;
+}
+
+.mascot[data-prop='paper'] .paper,
+.mascot[data-prop='folder'] .folderBack,
+.mascot[data-prop='folder'] .folderFront,
+.mascot[data-prop='pencil'] .pencil,
+.mascot[data-prop='pencil'] .notepad,
+.mascot[data-prop='keyboard'] .keyboard,
+.mascot[data-prop='keyboard'] .prompt,
+.mascot[data-prop='lens'] .lens {
+  opacity: 1;
+}
+
+/* Feuille tenue à deux mains (lit) : colonnes 4-11, rangées 8-13 */
+.paper {
+  left: 25%;
+  top: 50%;
+  width: 50%;
+  height: 37.5%;
+}
+
+/* Carnet (écrit) : colonnes 3-10, rangées 11-14 */
+.notepad {
+  left: 18.75%;
+  top: 68.75%;
+  width: 50%;
+  height: 25%;
+}
+
+.sheet {
+  fill: var(--island-mascot-paper);
+}
+
+.line {
+  fill: var(--island-mascot-line);
+}
+
+/* Crayon dans la patte droite : cinq cases en diagonale, la pointe sous la patte */
+.pencil {
+  left: -50%;
+  top: -150%;
+  width: 250%;
+  height: 250%;
+}
+
+.pencilBody {
+  fill: var(--island-mascot-pencil);
+}
+
+.pencilTip {
+  fill: var(--island-mascot-pencil-tip);
+}
+
+.eraser {
+  fill: var(--island-mascot-eraser);
+}
+
+/* Dossier (fouille) : le fond derrière lui (colonnes 2-13, rangées 6-9), le devant devant lui (rangées 10-15) */
+.folderBack {
+  left: 12.5%;
+  top: 37.5%;
+  width: 75%;
+  height: 25%;
+  fill: var(--island-mascot-folder-back);
+}
+
+.folderFront {
+  left: 6.25%;
+  top: 62.5%;
+  width: 87.5%;
+  height: 37.5%;
+}
+
+.folder {
+  fill: var(--island-mascot-folder);
+}
+
+.folderLip {
+  fill: var(--island-mascot-folder-lip);
+}
+
+/* Clavier (commande) : colonnes 3-12, rangées 13-14 ; invite « >_ » en haut à droite */
+.keyboard {
+  left: 18.75%;
+  top: 81.25%;
+  width: 62.5%;
+  height: 12.5%;
+}
+
+.keys {
+  fill: var(--island-mascot-keyboard);
+}
+
+.key {
+  fill: var(--island-mascot-key);
+}
+
+.prompt {
+  left: 81.25%;
+  top: 0;
+  width: 31.25%;
+  height: 18.75%;
+  fill: var(--island-mascot-cursor);
+}
+
+.cursor {
+  animation: cursorBlink var(--island-mascot-duration-cursor) steps(1) infinite;
+}
+
+@keyframes cursorBlink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Loupe (web) : centrée sur l'œil droit, manche en bas à droite */
+.lens {
+  left: 50%;
+  top: 18.75%;
+  width: 56.25%;
+  height: 56.25%;
+}
+
+.ring {
+  fill: var(--island-mascot-lens);
+}
+
+.glass {
+  fill: var(--island-mascot-glass);
+}
+
+.pupil {
+  fill: var(--island-garden-eye);
+}
+
+.handle {
+  fill: var(--island-mascot-handle);
+}
+
+/* Mini Claude (sous-agent) : silhouette complète à moitié taille, les pieds sur le même sol */
+.mini {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.miniBody {
+  position: absolute;
+  inset: 0;
+  background: var(--garden-tint);
+  transform: scale(0.5);
+  transform-origin: 50% 81.25%;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%224%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%225%22%20width%3D%226%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%226%22%20width%3D%222%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%226%22%20width%3D%226%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%226%22%20width%3D%222%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%227%22%20width%3D%2216%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%228%22%20width%3D%2216%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%229%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%2210%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%222%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%222%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%222%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%222%22%2F%3E%3C%2Fsvg%3E")
+    center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%222%22%20y%3D%223%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%224%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%225%22%20width%3D%226%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%225%22%20width%3D%222%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%226%22%20width%3D%222%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%226%22%20width%3D%226%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%226%22%20width%3D%222%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%227%22%20width%3D%2216%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%228%22%20width%3D%2216%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%229%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%2210%22%20width%3D%2212%22%20height%3D%221%22%2F%3E%3Crect%20x%3D%223%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%222%22%2F%3E%3Crect%20x%3D%225%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%222%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%222%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%222%22%2F%3E%3C%2Fsvg%3E")
+    center / 100% 100% no-repeat;
+}
+
+/* --- Au-dessus : pensées, bulles, sueur, étincelles (cachées, montrées par les scènes) ---------------- */
+
+.fx {
+  position: absolute;
+  display: block;
+  overflow: visible;
+  opacity: 0;
+}
+
+/* Bulle de pensée : trois ronds qui montent en haut à droite de la tête */
+.think {
+  border-radius: 50%;
+  background: var(--island-mascot-thought);
+}
+
+.think1 {
+  left: 81.25%;
+  top: 12.5%;
+  width: 6.25%;
+  height: 6.25%;
+}
+
+.think2 {
+  left: 87.5%;
+  top: 0;
+  width: 6.25%;
+  height: 6.25%;
+}
+
+.think3 {
+  left: 93.75%;
+  top: -18.75%;
+  width: 12.5%;
+  height: 12.5%;
+}
+
+/* Bulles ✓ (fin) et ? (erreur) : en haut à droite de la tête, colonnes 11-17, rangées -4 à 3 */
+.bubble {
+  left: 68.75%;
+  top: -25%;
+  width: 43.75%;
+  height: 50%;
+}
+
+.bubbleDone {
+  fill: var(--island-mascot-done);
+}
+
+.bubbleErr {
+  fill: var(--island-mascot-err);
+}
+
+.glyph {
+  fill: var(--island-mascot-ink);
+}
+
+/* Goutte de sueur : au bord droit du front */
+.sweat {
+  left: 81.25%;
+  top: 18.75%;
+  width: 6.25%;
+  height: 12.5%;
+  border-radius: 50% 50% 50% 50% / 30% 30% 70% 70%;
+  background: var(--island-mascot-sweat);
+}
+
+/* Étincelles : une case, au centre de la tête (les scènes les envoient ailleurs) */
+.spark {
+  left: 46.875%;
+  top: 37.5%;
+  width: 6.25%;
+  height: 6.25%;
+  background: var(--island-mascot-spark);
+}
+
+/* Animations réduites : les accessoires seuls, immobiles (la pensée et les bulles comprises) */
+.mascot[data-reduced='true'][data-prop='thought'] .think,
+.mascot[data-reduced='true'][data-bubble='done'] .bubbleDone,
+.mascot[data-reduced='true'][data-bubble='err'] .bubbleErr {
+  opacity: 1;
+}
+
+.mascot[data-reduced='true'] .cursor {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor {
+    animation: none;
+  }
 }

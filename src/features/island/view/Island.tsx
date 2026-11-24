@@ -489,7 +489,7 @@ export function Island(props: IslandProps) {
             waveBarRef={waveBarRef}
             eqBarRef={eqBarRef}
             artworkUrl={music?.artworkUrl ?? null}
-            agentWorking={agentSession?.status === 'working'}
+            agent={agentSession}
             reduced={reduced}
           />
           {/* Sous-agents : devant la pochette, ils sont petits et ne la cachent pas */}

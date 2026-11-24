@@ -5,6 +5,7 @@
  * l'entrée de l'outil (`toolSummary`), chemin relatif au dossier de la session ; on le remet en forme ici.
  * Pur : ni React ni Tauri.
  */
+import type { ClaudeActivity } from '../types'
 
 /** Au-delà de cette longueur, un chemin est raccourci au milieu (« src/…/view/Island.tsx »). */
 export const STEP_PATH_MAX_CHARS = 44
@@ -75,6 +76,32 @@ export function mcpServerName(toolName: string): string | null {
   const match = /^mcp__(.+?)__/.exec(toolName)
   if (!match?.[1]) return null
   return match[1].replace(/^claude_ai_/, '').replace(/[_-]+/g, ' ').trim() || null
+}
+
+/**
+ * Activité du Claude de l'île pendant un outil : lit, fouille, écrit, lance une commande, va sur le web, lance
+ * un sous-agent. Les autres outils (tâches, skills, MCP…) : il réfléchit.
+ */
+export function toolActivity(toolName: string | null): ClaudeActivity {
+  if (!toolName) return 'think'
+  if (isShellTool(toolName)) return 'command'
+  if (isSubagentTool(toolName)) return 'subagent'
+  if (isWriteTool(toolName)) return 'write'
+  switch (toolName) {
+    case 'Read':
+    case 'NotebookRead':
+      return 'read'
+    case 'Grep':
+    case 'Glob':
+    case 'LS':
+    case 'ToolSearch':
+      return 'search'
+    case 'WebFetch':
+    case 'WebSearch':
+      return 'web'
+    default:
+      return 'think'
+  }
 }
 
 /** Outils qui écrivent un fichier (comptés dans les fichiers modifiés et les conflits). */

@@ -9,6 +9,7 @@ import { createSpotifyReconnectNotification } from "../catalog";
 import { claudeActivityFor } from "../claude";
 import { IslandCoordinator, systemClock, type TimerId } from "../coordinator";
 import type {
+  ClaudeActivity,
   ClaudeSession,
   IslandMusic,
   IslandNotification,
@@ -513,6 +514,49 @@ export class LabRuntime {
   endCall(first: "upload" | "analyse" = "upload"): void {
     this.coordinator.endMeet();
     this.runProgress(first);
+  }
+
+  // --- Claude de l'île : activité et moments de la session seule -------------------------------------------
+
+  /** Session seule au travail sur `activity` (le Claude de l'île joue la scène correspondante). */
+  setAgentActivity(activity: ClaudeActivity): void {
+    if (this.sessions.length === 0) this.addAgent();
+    this.patchSession(0, { status: "working", activity, error: false });
+    this.emit();
+  }
+
+  /** Moments du Claude de l'île : réveil (début du travail), fin, erreur, demande d'autorisation. */
+  agentMoment(moment: "start" | "done" | "error" | "waiting"): void {
+    if (this.sessions.length === 0) this.addAgent();
+    const patches: Record<typeof moment, Partial<ClaudeSession>> = {
+      start: { status: "working", activity: "think", error: false },
+      done: { status: "done", activity: null, error: false },
+      error: { status: "idle", activity: null, error: true },
+      waiting: { status: "waiting", error: false },
+    };
+    const patch = patches[moment];
+    if (moment === "start" && this.sessions[0]?.status === "working") {
+      // Réveil : la session passe d'abord hors travail (en pause), puis reprend.
+      this.patchSession(0, { status: "idle", activity: null });
+      this.emit();
+      this.later(600, () => {
+        this.patchSession(0, patch);
+        this.emit();
+      });
+      return;
+    }
+    this.patchSession(0, patch);
+    this.emit();
+  }
+
+  /** Session au travail depuis 10 min (bâillements, front essuyé), ou qui vient de commencer. */
+  toggleAgentLongSession(): void {
+    const s = this.sessions[0];
+    if (!s) return;
+    const now = systemClock.now();
+    const long = now - s.startedAt >= 5 * 60_000;
+    this.patchSession(0, { startedAt: long ? now : now - 10 * 60_000 });
+    this.emit();
   }
 
   // --- Jardin des Claude : événements simulés sur les sessions ------------------------------------------------

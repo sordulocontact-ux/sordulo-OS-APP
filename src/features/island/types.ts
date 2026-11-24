@@ -277,6 +277,12 @@ export interface IslandNotification {
 /** `background` : tour fini mais Claude patiente (shell ou sous-agent lancé en arrière-plan). */
 export type ClaudeSessionStatus = 'working' | 'waiting' | 'background' | 'done' | 'idle' | 'sleep'
 
+/**
+ * Ce que fait Claude, tiré de l'outil en cours (claude/steps.ts, `toolActivity`) : animation du Claude de l'île.
+ * `think` : entre deux outils (après un prompt ou la fin d'un outil, Claude réfléchit).
+ */
+export type ClaudeActivity = 'read' | 'search' | 'write' | 'command' | 'web' | 'think' | 'subagent'
+
 export interface ClaudeSession {
   /** session_id de Claude Code. */
   id: string
@@ -298,6 +304,8 @@ export interface ClaudeSession {
   error: boolean
   /** Sous-agents en cours (jardin). */
   subagents: number
+  /** Ce que fait Claude pendant le tour (animation du Claude de l'île) ; absent ou null hors du travail. */
+  activity?: ClaudeActivity | null
 }
 
 /** Demande d'autorisation (hook PermissionRequest) en attente d'une réponse dans l'île. */

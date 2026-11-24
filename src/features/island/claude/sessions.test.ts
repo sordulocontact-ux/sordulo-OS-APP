@@ -112,6 +112,18 @@ describe('sessions Claude Code', () => {
     ])
   })
 
+  it('activité du Claude de l’île : outil en cours, réflexion entre deux outils, rien après le tour', () => {
+    const prompt = run([ev('UserPromptSubmit', { message: 'Corrige le bug' })])
+    expect(prompt.sessions[0]?.activity).toBe('think')
+    const reading = run([ev('PreToolUse', { toolName: 'Read', toolSummary: 'CLAUDE.md' })], prompt.state)
+    expect(reading.sessions[0]?.activity).toBe('read')
+    const searching = run([ev('PreToolUse', { toolName: 'Grep', toolSummary: 'dots' })], reading.state)
+    expect(searching.sessions[0]?.activity).toBe('search')
+    const after = run([ev('PostToolUse', { toolName: 'Grep' })], searching.state)
+    expect(after.sessions[0]?.activity).toBe('think')
+    expect(run([ev('Stop')], after.state).sessions[0]?.activity).toBeNull()
+  })
+
   it('sous-agents comptés', () => {
     const { sessions } = run([
       ev('PreToolUse', { toolName: 'Task', toolSummary: 'Explorer' }),

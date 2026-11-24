@@ -419,6 +419,32 @@
   --island-garden-duration-note: 1000ms;
   --island-garden-duration-ask: 1200ms;
   --island-garden-duration-spark: 600ms;
+
+  /*
+   * Claude de l'île : accessoires de ses activités (src/features/island/view/ClaudeMascot) — feuille et carnet,
+   * crayon, dossier, clavier et invite, loupe, pensées, bulles ✓ et ?, sueur, étincelles ; clignement du curseur.
+   */
+  --island-mascot-paper: var(--island-garden-light);
+  --island-mascot-line: var(--island-garden-grey);
+  --island-mascot-pencil: #f2c14e;
+  --island-mascot-pencil-tip: #8e8e93;
+  --island-mascot-eraser: var(--island-garden-blush);
+  --island-mascot-folder: #f2c14e;
+  --island-mascot-folder-lip: #ffd97a;
+  --island-mascot-folder-back: #b8862b;
+  --island-mascot-keyboard: #48484a;
+  --island-mascot-key: #8e8e93;
+  --island-mascot-cursor: var(--island-garden-light);
+  --island-mascot-lens: var(--island-garden-light);
+  --island-mascot-glass: #f0b39e;
+  --island-mascot-handle: #8e8e93;
+  --island-mascot-thought: var(--island-garden-light);
+  --island-mascot-done: var(--island-success);
+  --island-mascot-err: var(--island-alert);
+  --island-mascot-ink: var(--island-garden-ink);
+  --island-mascot-sweat: #64d2ff;
+  --island-mascot-spark: #ffd60a;
+  --island-mascot-duration-cursor: 900ms;
 }
 
 @media (prefers-reduced-motion: reduce) {

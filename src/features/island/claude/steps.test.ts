@@ -8,6 +8,7 @@ import {
   isWaitingForInput,
   refusalLabel,
   shortenPath,
+  toolActivity,
   truncate,
   webDomain,
 } from './steps'
@@ -54,6 +55,24 @@ describe('étape tirée de l’outil', () => {
     expect(step.endsWith('…')).toBe(true)
     expect(step.length).toBeLessThan(80)
     expect(truncate('abc', 5)).toBe('abc')
+  })
+})
+
+describe('activité tirée de l’outil', () => {
+  it('lit, fouille, écrit, commande, web, sous-agent ; sinon réfléchit', () => {
+    expect(toolActivity('Read')).toBe('read')
+    expect(toolActivity('Grep')).toBe('search')
+    expect(toolActivity('Glob')).toBe('search')
+    expect(toolActivity('Edit')).toBe('write')
+    expect(toolActivity('Write')).toBe('write')
+    expect(toolActivity('Bash')).toBe('command')
+    expect(toolActivity('PowerShell')).toBe('command')
+    expect(toolActivity('WebSearch')).toBe('web')
+    expect(toolActivity('WebFetch')).toBe('web')
+    expect(toolActivity('Task')).toBe('subagent')
+    expect(toolActivity('TodoWrite')).toBe('think')
+    expect(toolActivity('mcp__claude_ai_Figma__get_screenshot')).toBe('think')
+    expect(toolActivity(null)).toBe('think')
   })
 })
 
