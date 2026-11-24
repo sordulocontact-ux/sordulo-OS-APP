@@ -27,7 +27,9 @@ function seeded(seed: number): () => number {
 const ACTIVITIES: ClaudeActivity[] = ['read', 'search', 'write', 'command', 'web', 'think', 'subagent']
 const VARIATIONS = Object.keys(VARIATION_WEIGHTS) as MascotVariation[]
 /** Effets cachés au repos : ils commencent et finissent invisibles. */
-const HIDDEN = /^(think|bubble|sweat|spark|mini)/
+const HIDDEN = /^(bubble|sweat|spark|mini)/
+/** Sortent d'un coup et restent : ils commencent invisibles et finissent au repos (les engrenages). */
+const POP = /^gears$/
 
 function allScenes(): MascotScene[] {
   const scenes: MascotScene[] = []
@@ -63,6 +65,9 @@ describe('scènes du Claude de l’île', () => {
         const last = t.keyframes[t.keyframes.length - 1]
         if (t.part === 'lids') {
           expect(last?.height).toBe('0%')
+        } else if (POP.test(t.part)) {
+          expect(first?.opacity).toBe(0)
+          expect(last?.transform).toBe(REST_TRANSFORM)
         } else if (first?.transform && !HIDDEN.test(t.part)) {
           expect(last?.transform, `${scene.name} / ${t.part}`).toBe(first.transform)
         }
@@ -81,7 +86,7 @@ describe('scènes du Claude de l’île', () => {
     for (const activity of ACTIVITIES) {
       const scene = activityScene({ activity, activityElapsed: 0, repeat: false }, rand)
       for (const t of scene.tracks) {
-        if (t.part === 'lids' || HIDDEN.test(t.part)) continue
+        if (t.part === 'lids' || HIDDEN.test(t.part) || POP.test(t.part)) continue
         expect(t.keyframes[0]?.transform, `${scene.name} / ${t.part}`).toBe(REST_TRANSFORM)
       }
     }
@@ -150,6 +155,15 @@ describe('scènes du Claude de l’île', () => {
     expect(detectMoment({ status: 'working', error: false }, { status: 'done', error: false })).toBe('done')
     expect(detectMoment({ status: 'waiting', error: false }, { status: 'idle', error: true })).toBe('error')
     expect(detectMoment({ status: 'idle', error: true }, { status: 'idle', error: true })).toBeNull()
+  })
+
+  it('réfléchit : les engrenages sortent la première fois, puis restent sans ressortir', () => {
+    const rand = seeded(8)
+    const first = activityScene({ activity: 'think', activityElapsed: 0, repeat: false }, rand)
+    const again = activityScene({ activity: 'think', activityElapsed: 5000, repeat: true }, rand)
+    expect(first.tracks.map((t) => t.part)).toContain('gears')
+    expect(again.tracks.map((t) => t.part)).not.toContain('gears')
+    expect(again.prop).toBe('thought')
   })
 
   it('fin : bulle ✓ et étincelles ; erreur : bulle ?', () => {

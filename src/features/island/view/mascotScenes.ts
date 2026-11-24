@@ -5,7 +5,7 @@
  * Trois familles :
  * - **Activité** (session au travail, selon l'outil en cours, `ClaudeActivity`) : lit une feuille, fouille dans
  *   un dossier, écrit au crayon, tape une commande (attend en tapant du pied si elle dure), cherche à la loupe,
- *   réfléchit (bulle de pensée), lance un sous-agent (un mini Claude part en courant).
+ *   réfléchit (engrenages au-dessus de la tête), lance un sous-agent (un mini Claude part en courant).
  * - **Variation** glissée de temps en temps entre deux scènes d'activité : s'étire, bâille (session longue), se
  *   gratte la tête, se retourne, trébuche, s'essuie le front (commande longue), ou un des gestes de mascot.ts.
  * - **Moment** : réveil en sursaut (début du travail), danse avec ✓ et étincelles (fin), recul avec « ? »
@@ -30,9 +30,7 @@ export type MascotPart =
   | 'leg4'
   | 'paper'
   | 'lens'
-  | 'think1'
-  | 'think2'
-  | 'think3'
+  | 'gears'
   | 'bubbleDone'
   | 'bubbleErr'
   | 'sweat'
@@ -80,6 +78,8 @@ export const ACTIVITY_PROP: Readonly<Record<ClaudeActivity, MascotProp | null>> 
 export const SCENES = {
   /** Chance qu'une scène d'activité laisse la place à une variation (jamais deux variations de suite). */
   variationChance: 0.22,
+  /** Chance qu'une idée jaillisse des engrenages (étincelles) à la fin d'une scène de réflexion. */
+  ideaChance: 0.3,
   /** Commande en cours depuis plus longtemps : il attend en tapant du pied, s'essuie le front. */
   longCommandMs: 7000,
   /** Session au travail depuis plus longtemps : il bâille, s'essuie le front. */
@@ -135,9 +135,7 @@ const PART_CELLS: Partial<Record<MascotPart, readonly [number, number]>> = {
   mouth: [2, 1],
   paper: [8, 6],
   lens: [9, 9],
-  think1: [1, 1],
-  think2: [1, 1],
-  think3: [2, 2],
+  gears: [11, 7],
   bubbleDone: [7, 8],
   bubbleErr: [7, 8],
   sweat: [1, 2],
@@ -386,33 +384,41 @@ function webScene(rand: () => number): MascotScene {
   ])
 }
 
-/** Réfléchit : regarde en l'air, la patte contre la tempe, une bulle de pensée monte au-dessus de sa tête. */
-function thinkScene(rand: () => number): MascotScene {
+/**
+ * Réfléchit : des engrenages tournent au-dessus de sa tête (ils sortent d'un coup la première fois, puis restent
+ * tant qu'il réfléchit), il les regarde, tapote sa tempe, et parfois une idée jaillit (étincelles).
+ */
+function thinkScene(rand: () => number, repeat: boolean): MascotScene {
   const d = between(SCENES.durations.think, rand)
-  const dot = (part: MascotPart, from: number, rise: number): MascotTrack =>
-    track(
-      part,
-      d,
-      [
-        { at: 0, o: 0, sx: 0.3, sy: 0.3 },
-        { at: from, o: 0, sx: 0.3, sy: 0.3 },
-        { at: from + 0.08, o: 1 },
-        { at: 0.82, o: 1, y: -rise },
-        { at: 1, o: 0, y: -rise - 1 },
-      ],
-      { easing: 'ease-out' },
-    )
   const tap: Pose[] = [{ at: 0 }, { at: 0.12, y: -3 }]
   for (let i = 0; i < 3; i++) tap.push({ at: 0.3 + i * 0.15, y: -3.5 }, { at: 0.37 + i * 0.15, y: -3 })
   tap.push({ at: 0.88, y: -3 }, { at: 1 })
-  return sceneOf('think', 'activity', 'thought', [
-    hold('face', d, { x: -1, y: -1 }, 0.1, 0.85),
+  const side = rand() < 0.5 ? -1 : 1
+  const tracks: MascotTrack[] = [
+    // Les yeux suivent les engrenages : en haut, d'un côté puis de l'autre.
+    track('face', d, [{ at: 0 }, { at: 0.1, y: -1 }, { at: 0.4, x: side, y: -1 }, { at: 0.7, x: -side, y: -1 }, { at: 0.88, y: -1 }, { at: 1 }]),
     track('figure', d, [{ at: 0 }, { at: 0.35, r: -3 }, { at: 0.7, r: 3 }, { at: 1 }]),
     track('armR', d, tap),
-    dot('think1', 0.12, 0),
-    dot('think2', 0.26, 0.5),
-    dot('think3', 0.4, 1),
-  ])
+  ]
+  if (!repeat) {
+    tracks.push(
+      track(
+        'gears',
+        d,
+        [
+          { at: 0, o: 0, sx: 0.2, sy: 0.2 },
+          { at: 0.06, o: 1, sx: 1.2, sy: 1.2 },
+          { at: 0.12, o: 1 },
+          { at: 1, o: 1 },
+        ],
+        { easing: 'ease-out' },
+      ),
+    )
+  }
+  // Une idée de temps en temps : étincelles au-dessus des engrenages (centre des engrenages : 1,5 case à
+  // droite et 7 cases au-dessus du centre de la tête, place des étincelles).
+  if (rand() < SCENES.ideaChance) tracks.push(...burst(rand, d * 0.8, 1.5, -7, 4, [2, 4]))
+  return sceneOf('think', 'activity', 'thought', tracks)
 }
 
 /** Lance un sous-agent : un mini Claude sort de derrière lui et part en courant ; il lui fait signe. */
@@ -466,7 +472,7 @@ export function activityScene(ctx: ActivityContext, rand: () => number): MascotS
     case 'web':
       return webScene(rand)
     case 'think':
-      return thinkScene(rand)
+      return thinkScene(rand, ctx.repeat)
     case 'subagent':
       return ctx.repeat ? watchScene(rand) : subagentScene()
   }

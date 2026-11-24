@@ -1,0 +1,140 @@
+/*
+ * Couleurs et animations en images des accessoires en pixel art (pixelArt.ts), partagées par le Claude de l'île
+ * et ceux du jardin. La place de chaque accessoire est dans le module de celui qui le dessine.
+ */
+
+.art {
+  position: absolute;
+  display: block;
+  overflow: visible;
+}
+
+.sheet {
+  fill: var(--island-mascot-paper);
+}
+
+.line {
+  fill: var(--island-mascot-line);
+}
+
+.pencilBody {
+  fill: var(--island-mascot-pencil);
+}
+
+.pencilTip {
+  fill: var(--island-mascot-pencil-tip);
+}
+
+.eraser {
+  fill: var(--island-mascot-eraser);
+}
+
+.folder {
+  fill: var(--island-mascot-folder);
+}
+
+.folderLip {
+  fill: var(--island-mascot-folder-lip);
+}
+
+.folderBack {
+  fill: var(--island-mascot-folder-back);
+}
+
+.keys {
+  fill: var(--island-mascot-keyboard);
+}
+
+.key {
+  fill: var(--island-mascot-key);
+}
+
+.cursor {
+  fill: var(--island-mascot-cursor);
+}
+
+.glass {
+  fill: var(--island-mascot-glass);
+}
+
+.pupil {
+  fill: var(--island-garden-eye);
+}
+
+.ring {
+  fill: var(--island-mascot-lens);
+}
+
+.handle {
+  fill: var(--island-mascot-handle);
+}
+
+.gear {
+  fill: var(--island-mascot-gear);
+}
+
+.gearSmall {
+  fill: var(--island-mascot-gear-small);
+}
+
+/* Animation à deux images : `a` la première moitié, `b` la seconde (les engrenages tournent) */
+.frameA {
+  animation: frameA var(--island-mascot-duration-gear) steps(1) infinite;
+}
+
+.frameB {
+  opacity: 0;
+  animation: frameB var(--island-mascot-duration-gear) steps(1) infinite;
+}
+
+@keyframes frameA {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes frameB {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Curseur et touches qui clignotent */
+.blink {
+  animation: blink var(--island-mascot-duration-cursor) steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Animations réduites (attribut posé par l'île ou le jardin) : première image seule, rien ne clignote */
+[data-reduced='true'] .frameA,
+[data-reduced='true'] .blink {
+  animation: none;
+}
+
+[data-reduced='true'] .frameB {
+  animation: none;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frameA,
+  .blink {
+    animation: none;
+  }
+
+  .frameB {
+    animation: none;
+    opacity: 0;
+  }
+}

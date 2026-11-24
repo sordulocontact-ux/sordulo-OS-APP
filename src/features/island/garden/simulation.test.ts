@@ -454,6 +454,61 @@ describe('musique', () => {
   })
 })
 
+describe('pauses de travail', () => {
+  it('il marche, se pose avec l’accessoire de son activité, puis repart se poser ailleurs', () => {
+    const sim = new GardenSim(seeded(31))
+    sim.reset([session(0, { activity: 'read' })], OPTS)
+    const w = main(sim, 's0')
+    const spots: number[] = []
+    let walked = false
+    let props = 0
+    for (let t = 0; t < 60; t += DT) {
+      sim.step(DT, FRAME)
+      const v = walkerVisual(w, 'working', visualCtx, sim.activityOf(w))
+      if (w.mode === 'pause' && w.busy) {
+        expect(v.prop).toBe('paper')
+        props += 1
+        if (walked) spots.push(w.x)
+        walked = false
+      } else {
+        if (w.mode === 'walk' && w.vel > 0) walked = true
+        expect(v.prop).toBeNull()
+      }
+    }
+    expect(props).toBeGreaterThan(0)
+    // Plusieurs endroits différents, avec de la marche entre deux.
+    const distinct = spots.filter((x, i) => i === 0 || Math.abs(x - (spots[i - 1] ?? x)) > 3)
+    expect(distinct.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('l’accessoire suit l’activité de la session ; engrenages quand il réfléchit ou sans activité connue', () => {
+    const sim = new GardenSim(seeded(32))
+    sim.reset([session(0, { activity: 'search' })], OPTS)
+    const w = main(sim, 's0')
+    run(sim, 1)
+    w.mode = 'pause'
+    w.busy = true
+    w.t = 5
+    const prop = () => walkerVisual(w, sim.statusOf(w), visualCtx, sim.activityOf(w)).prop
+    expect(prop()).toBe('folder')
+    sim.sync([session(0, { activity: 'write' })], OPTS)
+    expect(prop()).toBe('pencil')
+    sim.sync([session(0, { activity: 'think' })], OPTS)
+    expect(prop()).toBe('thought')
+    sim.sync([session(0, { activity: null })], OPTS)
+    expect(prop()).toBe('thought')
+    // Hors du travail : pas d'accessoire.
+    expect(walkerVisual(w, 'done', visualCtx, 'read').prop).toBeNull()
+  })
+
+  it('animations réduites : immobile, l’accessoire toujours visible quand la session travaille', () => {
+    const sim = new GardenSim(seeded(33))
+    sim.reset([session(0, { activity: 'web' })], REDUCED)
+    const w = main(sim, 's0')
+    expect(walkerVisual(w, 'working', { ...visualCtx, reduced: true }, 'web').prop).toBe('lens')
+  })
+})
+
 describe('marche', () => {
   /** Hasard fixe : jamais de pause ni de saut spontanés, vitesse de croisière au plus haut. */
   const steady: Rng = () => 0.99
@@ -731,15 +786,20 @@ describe('encoche du Mac', () => {
     const idle = main(sim, 's1')
     run(sim, 1, MAC_FRAME)
     idle.x = right + 1
-    let stoppedClose = 0
+    // « Reste » : arrêté contre l'encoche plus d'un quart de seconde (à la fin d'une rencontre près de
+    // l'encoche, il repart dès l'image suivante : une image à l'arrêt ne compte pas).
+    const stoppedFor = new Map<number, number>()
+    let longest = 0
     for (let t = 0; t < 40; t += DT) {
       sim.step(DT, MAC_FRAME)
       for (const w of sim.walkers) {
-        if (w.sub || w.dead || w.delay > 0 || w.mode === 'interact' || w.y !== 0) continue
-        if (w.vel === 0 && tooClose(w) && t > 3) stoppedClose += 1
+        if (w.sub || w.dead || w.delay > 0 || w.mode === 'interact' || w.y !== 0 || t <= 3) continue
+        const stopped = w.vel === 0 && tooClose(w) ? (stoppedFor.get(w.id) ?? 0) + DT : 0
+        stoppedFor.set(w.id, stopped)
+        longest = Math.max(longest, stopped)
       }
     }
-    expect(stoppedClose).toBe(0)
+    expect(longest).toBeLessThan(0.25)
     expect(tooClose(idle)).toBe(false)
   })
 

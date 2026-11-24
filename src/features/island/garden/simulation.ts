@@ -13,7 +13,8 @@
  *   un personnage. Le dessin lui-même est dans ./renderer.ts, la boucle dans ./Garden.tsx.
  * - Le hasard est injecté (`rng`) pour les tests.
  */
-import type { ClaudeSessionStatus, IslandPlatform } from '../types'
+import { activityProp, type GardenProp } from '../art/props'
+import type { ClaudeActivity, ClaudeSessionStatus, IslandPlatform } from '../types'
 import {
   GARDEN,
   GARDEN_ANGRY_TOKEN,
@@ -32,6 +33,8 @@ export interface GardenSession {
   conflict: boolean
   error: boolean
   subagents: number
+  /** Ce que fait la session (outil en cours) : accessoire du personnage quand il s'arrête pour travailler. */
+  activity?: ClaudeActivity | null
 }
 
 /** Humeur du jardin (prototype : mood) : appel en cours, musique (hors périmètre, scénario E). */
@@ -112,6 +115,10 @@ export interface Walker {
   cruiseT: number
   /** Freine avant une pause. */
   stopping: boolean
+  /** Pause de travail (session qui travaille) : il s'est posé pour faire ce que fait sa session. */
+  busy: boolean
+  /** Temps de marche avant de pouvoir se poser à nouveau (s) : il change d'endroit entre deux pauses. */
+  roam: number
   /** Phase des pattes (rad, une demi-période par pas) et amplitude du pas (0 : pattes posées, 1 : il marche). */
   gait: number
   stepAmp: number
@@ -228,6 +235,8 @@ export interface WalkerVisual {
   /** Yeux fermés (sieste, clignement) : dessinés en traits. */
   closed: boolean
   bubble: BubbleKind | null
+  /** Accessoire de son activité quand il s'est posé pour travailler ; null en marchant ou hors du travail. */
+  prop: GardenProp | null
   /** Profondeur courante (0 devant, GARDEN.depth.planes - 1 au fond) : assombrissement (--garden-depth). */
   depth: number
   /** Ordre d'affichage : profondeur d'abord (devant par-dessus), puis sous-agents, puis ceux qui sont perchés. */
@@ -288,6 +297,11 @@ export class GardenSim {
     return this.ias
   }
 
+  /** Activité de la session d'un personnage (outil en cours) ; null si inconnue. */
+  activityOf(w: Walker): ClaudeActivity | null {
+    return this.sessions.get(w.sessionId)?.activity ?? null
+  }
+
   /** Statut de la session d'un personnage (celle du parent pour un sous-agent). */
   statusOf(w: Walker): ClaudeSessionStatus {
     return this.sessions.get(w.sessionId)?.status ?? 'working'
@@ -337,6 +351,8 @@ export class GardenSim {
       vel: 0,
       cruiseT: this.rnd(GARDEN.walk.cruiseEvery),
       stopping: false,
+      busy: false,
+      roam: sub ? 0 : this.rnd(GARDEN.work.firstRoam),
       gait: 0,
       stepAmp: 0,
       px: NaN,
@@ -1109,7 +1125,10 @@ export class GardenSim {
     if (w.mode === 'check' || w.mode === 'pause') {
       w.t -= dt
       if (w.t <= 0) {
-        if (w.mode === 'check' || this.coin(GARDEN.pauseTurnChance)) w.dir *= -1
+        if (w.mode === 'check' || this.coin(w.busy ? GARDEN.work.turnChance : GARDEN.pauseTurnChance)) w.dir *= -1
+        // Fin d'une pause de travail : il marche un moment pour aller se poser ailleurs.
+        if (w.busy) w.roam = this.rnd(GARDEN.work.roam)
+        w.busy = false
         w.mode = 'walk'
       }
       return
@@ -1126,17 +1145,20 @@ export class GardenSim {
     const surge = 1 + GARDEN.walk.stepSurge * w.stepAmp * Math.cos(2 * w.gait)
     w.x += w.dir * w.vel * surge * dt
     w.cool -= dt
+    w.roam -= dt
     if (w.stopping) {
       // Pas d'arrêt contre l'encoche : il repart et s'arrêtera plus loin, de l'autre côté.
       if (w.vel <= GARDEN.walk.stopBelow && this.nearNotch(w, width)) {
         w.stopping = false
       } else if (w.vel <= GARDEN.walk.stopBelow) {
+        // Posé : il fait ce que fait sa session (réfléchit, lit, écrit…) avant d'aller ailleurs.
         w.vel = 0
         w.stopping = false
         w.mode = 'pause'
-        w.t = this.rnd(GARDEN.pauseDuration)
+        w.busy = true
+        w.t = this.rnd(GARDEN.work.duration)
       }
-    } else if (this.coin(dt * GARDEN.pauseRate)) {
+    } else if (w.roam <= 0 && this.coin(dt * GARDEN.work.rate)) {
       w.stopping = true
     } else if (!mood.call && w.y === 0 && this.coin(dt * GARDEN.hopRate)) w.vy = GARDEN.hopSpeed
     this.wrap(w, width)
@@ -1645,7 +1667,12 @@ const LEGS_DOWN: WalkerVisual['legs'] = [
 ]
 
 /** Comment dessiner un personnage (prototype : renderGarden). */
-export function walkerVisual(w: Walker, status: ClaudeSessionStatus, ctx: VisualContext): WalkerVisual {
+export function walkerVisual(
+  w: Walker,
+  status: ClaudeSessionStatus,
+  ctx: VisualContext,
+  activity: ClaudeActivity | null = null,
+): WalkerVisual {
   const ground = ctx.height - groundOffset(ctx.platform)
   const D = GARDEN.depth
   // Profondeur : au fond, un peu plus petit, pieds un peu plus haut (et assombri par le CSS).
@@ -1733,6 +1760,9 @@ export function walkerVisual(w: Walker, status: ClaudeSessionStatus, ctx: Visual
           ? 'err'
           : null
   const left = w.x - w.size / 2 + w.shake
+  // Posé pour travailler : l'accessoire de ce que fait sa session (animations réduites, immobile : toujours).
+  const working = !w.sub && status === 'working' && w.mode !== 'interact' && !w.sad
+  const prop = working && (ctx.reduced || (w.busy && w.mode === 'pause')) ? activityProp(activity) : null
 
   // Ombre de contact : rétrécit et s'éclaircit quand il quitte le sol ; aucune quand il est perché.
   const air = Math.min(1, w.y / GARDEN.shadow.fadeHeight)
@@ -1754,6 +1784,7 @@ export function walkerVisual(w: Walker, status: ClaudeSessionStatus, ctx: Visual
     lid,
     closed,
     bubble,
+    prop,
     depth,
     zIndex,
     legs,

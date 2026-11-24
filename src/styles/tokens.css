@@ -422,7 +422,8 @@
 
   /*
    * Claude de l'île : accessoires de ses activités (src/features/island/view/ClaudeMascot) — feuille et carnet,
-   * crayon, dossier, clavier et invite, loupe, pensées, bulles ✓ et ?, sueur, étincelles ; clignement du curseur.
+   * crayon, dossier, clavier et invite, loupe, engrenages, bulles ✓ et ?, sueur, étincelles ; durées des animations
+   * en images (curseur, engrenages) et de celles du jardin.
    */
   --island-mascot-paper: var(--island-garden-light);
   --island-mascot-line: var(--island-garden-grey);
@@ -438,13 +439,21 @@
   --island-mascot-lens: var(--island-garden-light);
   --island-mascot-glass: #f0b39e;
   --island-mascot-handle: #8e8e93;
-  --island-mascot-thought: var(--island-garden-light);
+  --island-mascot-gear: #c7c7cc;
+  --island-mascot-gear-small: #8e8e93;
   --island-mascot-done: var(--island-success);
   --island-mascot-err: var(--island-alert);
   --island-mascot-ink: var(--island-garden-ink);
   --island-mascot-sweat: #64d2ff;
   --island-mascot-spark: #ffd60a;
   --island-mascot-duration-cursor: 900ms;
+  /* Engrenages : un tour d'image (dents droites puis en diagonale) */
+  --island-mascot-duration-gear: 360ms;
+  /* Jardin : gribouillis du crayon, loupe qui balaie, page tournée, feuilles qui sortent du dossier */
+  --island-mascot-duration-scribble: 500ms;
+  --island-mascot-duration-sweep: 1800ms;
+  --island-mascot-duration-flip: 2400ms;
+  --island-mascot-duration-rummage: 1100ms;
 }
 
 @media (prefers-reduced-motion: reduce) {

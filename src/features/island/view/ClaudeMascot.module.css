@@ -3,8 +3,8 @@
  * bras à part (pour s'étirer, taper, écrire, se gratter) et accessoires de ses activités.
  * Positions en % de l'icône : grille de 16 × 16 cases, une case = 6,25 %. Les scènes (mascotScenes.ts) et les
  * clignements sont joués par ClaudeMascot.tsx (API Web Animations).
- * Couches : derrière (dossier, mini Claude), le Claude, devant (dossier, clavier, invite), au-dessus (pensées,
- * bulles, sueur, étincelles).
+ * Couches : derrière (dossier, mini Claude), le Claude, devant (dossier, clavier, invite), au-dessus (engrenages,
+ * bulles, sueur, étincelles). Dessins et couleurs des accessoires : ../art/pixelArt.ts et pixelArt.module.css.
  */
 
 .mascot {
@@ -137,7 +137,8 @@
 .mascot[data-prop='pencil'] .notepad,
 .mascot[data-prop='keyboard'] .keyboard,
 .mascot[data-prop='keyboard'] .prompt,
-.mascot[data-prop='lens'] .lens {
+.mascot[data-prop='lens'] .lens,
+.mascot[data-prop='thought'] .gears {
   opacity: 1;
 }
 
@@ -157,13 +158,7 @@
   height: 25%;
 }
 
-.sheet {
-  fill: var(--island-mascot-paper);
-}
 
-.line {
-  fill: var(--island-mascot-line);
-}
 
 /* Crayon dans la patte droite : cinq cases en diagonale, la pointe sous la patte */
 .pencil {
@@ -173,17 +168,8 @@
   height: 250%;
 }
 
-.pencilBody {
-  fill: var(--island-mascot-pencil);
-}
 
-.pencilTip {
-  fill: var(--island-mascot-pencil-tip);
-}
 
-.eraser {
-  fill: var(--island-mascot-eraser);
-}
 
 /* Dossier (fouille) : le fond derrière lui (colonnes 2-13, rangées 6-9), le devant devant lui (rangées 10-15) */
 .folderBack {
@@ -191,7 +177,6 @@
   top: 37.5%;
   width: 75%;
   height: 25%;
-  fill: var(--island-mascot-folder-back);
 }
 
 .folderFront {
@@ -201,13 +186,7 @@
   height: 37.5%;
 }
 
-.folder {
-  fill: var(--island-mascot-folder);
-}
 
-.folderLip {
-  fill: var(--island-mascot-folder-lip);
-}
 
 /* Clavier (commande) : colonnes 3-12, rangées 13-14 ; invite « >_ » en haut à droite */
 .keyboard {
@@ -217,30 +196,13 @@
   height: 12.5%;
 }
 
-.keys {
-  fill: var(--island-mascot-keyboard);
-}
 
-.key {
-  fill: var(--island-mascot-key);
-}
 
 .prompt {
   left: 81.25%;
   top: 0;
   width: 31.25%;
   height: 18.75%;
-  fill: var(--island-mascot-cursor);
-}
-
-.cursor {
-  animation: cursorBlink var(--island-mascot-duration-cursor) steps(1) infinite;
-}
-
-@keyframes cursorBlink {
-  50% {
-    opacity: 0;
-  }
 }
 
 /* Loupe (web) : centrée sur l'œil droit, manche en bas à droite */
@@ -251,21 +213,9 @@
   height: 56.25%;
 }
 
-.ring {
-  fill: var(--island-mascot-lens);
-}
 
-.glass {
-  fill: var(--island-mascot-glass);
-}
 
-.pupil {
-  fill: var(--island-garden-eye);
-}
 
-.handle {
-  fill: var(--island-mascot-handle);
-}
 
 /* Mini Claude (sous-agent) : silhouette complète à moitié taille, les pieds sur le même sol */
 .mini {
@@ -295,31 +245,21 @@
   opacity: 0;
 }
 
-/* Bulle de pensée : trois ronds qui montent en haut à droite de la tête */
-.think {
-  border-radius: 50%;
-  background: var(--island-mascot-thought);
+/* Engrenages de la réflexion : au-dessus de la tête (colonnes 4-14, rangées -4 à 2), ils sortent d'un coup
+   (scène « think ») et tournent tant qu'ils sont affichés */
+.gearsBox {
+  position: absolute;
+  left: 25%;
+  top: -25%;
+  width: 68.75%;
+  height: 43.75%;
+  transform-origin: 40% 100%;
 }
 
-.think1 {
-  left: 81.25%;
-  top: 12.5%;
-  width: 6.25%;
-  height: 6.25%;
-}
-
-.think2 {
-  left: 87.5%;
-  top: 0;
-  width: 6.25%;
-  height: 6.25%;
-}
-
-.think3 {
-  left: 93.75%;
-  top: -18.75%;
-  width: 12.5%;
-  height: 12.5%;
+.gears {
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 /* Bulles ✓ (fin) et ? (erreur) : en haut à droite de la tête, colonnes 11-17, rangées -4 à 3 */
@@ -361,19 +301,8 @@
   background: var(--island-mascot-spark);
 }
 
-/* Animations réduites : les accessoires seuls, immobiles (la pensée et les bulles comprises) */
-.mascot[data-reduced='true'][data-prop='thought'] .think,
+/* Animations réduites : les accessoires seuls, immobiles (engrenages arrêtés), et les bulles */
 .mascot[data-reduced='true'][data-bubble='done'] .bubbleDone,
 .mascot[data-reduced='true'][data-bubble='err'] .bubbleErr {
   opacity: 1;
-}
-
-.mascot[data-reduced='true'] .cursor {
-  animation: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cursor {
-    animation: none;
-  }
 }

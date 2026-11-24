@@ -23,32 +23,37 @@ export const LAB_CALL_APP = "Google Meet";
 export const LAB_REMOTE_APP = "Spotify sur iPhone de Maël";
 
 const SESSION_BASE: ReadonlyArray<
-  Pick<ClaudeSession, "projectName" | "task" | "step">
+  Pick<ClaudeSession, "projectName" | "task" | "step" | "activity">
 > = [
   {
     projectName: "PDS OS",
     task: "Écran de validation",
     step: "Modifie src/features/desktop/Island.tsx",
+    activity: "write",
   },
   {
     projectName: "PDS OS",
     task: "Kanban glisser-déposer",
     step: "Lit CLAUDE.md",
+    activity: "read",
   },
   {
     projectName: "Airbnb des studios",
     task: "Page d’accueil",
     step: "Cherche les tokens dans src/styles/tokens.css",
+    activity: "search",
   },
   {
     projectName: "Site Sordulo",
     task: "Formulaire de contact",
-    step: "Modifie src/features/desktop/Island.module.css",
+    step: "Réfléchit",
+    activity: "think",
   },
   {
     projectName: "Sordulo OS",
     task: "Hooks Claude Code",
     step: "Lance npm run typecheck",
+    activity: "command",
   },
 ];
 
@@ -71,6 +76,7 @@ export function makeSessions(
     branch: "main",
     task: base.task,
     step: base.step,
+    activity: base.activity ?? null,
     status: "working",
     startedAt: now - (i * 97 + 40) * 1000,
     conflict: false,

@@ -390,6 +390,189 @@
   }
 }
 
+/*
+ * Accessoires des pauses de travail (renderer.ts, dessins de ../art/pixelArt.ts) : cachés, montrés selon
+ * `data-prop` du personnage. Positions en cases de la grille 16 × 16 (une case = 6,25 %).
+ */
+.prop {
+  position: absolute;
+  display: block;
+  opacity: 0;
+  transition: opacity var(--duration-fast) ease;
+}
+
+.mascot[data-prop='paper'] .propPaper,
+.mascot[data-prop='folder'] .propFolderBack,
+.mascot[data-prop='folder'] .propFolderFront,
+.mascot[data-prop='folder'] .propSheet,
+.mascot[data-prop='pencil'] .propNotepad,
+.mascot[data-prop='pencil'] .propPencil,
+.mascot[data-prop='keyboard'] .propKeyboard,
+.mascot[data-prop='keyboard'] .propPrompt,
+.mascot[data-prop='lens'] .propLens,
+.mascot[data-prop='thought'] .propGears {
+  opacity: 1;
+}
+
+/* Lit : feuille tenue devant lui (colonnes 4-11, rangées 8-13), il tourne la page de temps en temps */
+.propPaper {
+  left: 25%;
+  top: 50%;
+  width: 50%;
+  height: 37.5%;
+  animation: gardenFlip var(--island-mascot-duration-flip) steps(1) infinite;
+}
+
+@keyframes gardenFlip {
+  0% {
+    transform: scaleX(1);
+  }
+  86% {
+    transform: scaleX(0.5);
+  }
+  90% {
+    transform: scaleX(-1);
+  }
+  94% {
+    transform: scaleX(0.5);
+  }
+  98% {
+    transform: scaleX(1);
+  }
+}
+
+/* Fouille : le fond du dossier derrière lui, le devant devant ses pattes, des feuilles qui en sortent */
+.propFolderBack {
+  left: 12.5%;
+  top: 37.5%;
+  width: 75%;
+  height: 25%;
+}
+
+.propFolderFront {
+  left: 6.25%;
+  top: 50%;
+  width: 87.5%;
+  height: 37.5%;
+}
+
+.mascot[data-prop='folder'] .propSheet {
+  left: 37.5%;
+  top: 56.25%;
+  width: 12.5%;
+  height: 12.5%;
+  background: var(--island-mascot-paper);
+  animation: gardenRummage var(--island-mascot-duration-rummage) steps(6) infinite;
+}
+
+.mascot[data-prop='folder'] .propSheet2 {
+  left: 56.25%;
+  animation-delay: calc(var(--island-mascot-duration-rummage) / 2);
+  animation-direction: reverse;
+}
+
+@keyframes gardenRummage {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(-100%, -250%) rotate(-30deg);
+  }
+  100% {
+    transform: translate(-200%, 0) rotate(-60deg);
+  }
+}
+
+/* Écrit : carnet devant lui (colonnes 3-10, rangées 9-12), crayon qui gribouille, pointe sur le carnet */
+.propNotepad {
+  left: 18.75%;
+  top: 56.25%;
+  width: 50%;
+  height: 25%;
+}
+
+.propPencil {
+  left: 50%;
+  top: 25%;
+  width: 31.25%;
+  height: 31.25%;
+  animation: gardenScribble var(--island-mascot-duration-scribble) steps(1) infinite;
+}
+
+@keyframes gardenScribble {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-40%, 20%);
+  }
+  50% {
+    transform: translate(-20%, 0);
+  }
+  75% {
+    transform: translate(-60%, 20%);
+  }
+}
+
+/* Commande : clavier devant ses pattes (colonnes 3-12, rangées 11-12), invite « >_ » en haut à droite */
+.propKeyboard {
+  left: 18.75%;
+  top: 68.75%;
+  width: 62.5%;
+  height: 12.5%;
+}
+
+.propPrompt {
+  left: 81.25%;
+  top: 0;
+  width: 31.25%;
+  height: 18.75%;
+}
+
+/* Web : la loupe passe d'un œil à l'autre */
+.propLens {
+  left: 50%;
+  top: 18.75%;
+  width: 56.25%;
+  height: 56.25%;
+  animation: gardenSweep var(--island-mascot-duration-sweep) ease-in-out infinite;
+}
+
+@keyframes gardenSweep {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  45%,
+  55% {
+    transform: translate(-77.78%, 5%);
+  }
+}
+
+/* Réfléchit : engrenages au-dessus de la tête (colonnes 4-14, rangées -4 à 2), qui tournent en images */
+.propGears {
+  left: 25%;
+  top: -25%;
+  width: 68.75%;
+  height: 43.75%;
+}
+
+.garden[data-reduced='true'] .propPaper,
+.garden[data-reduced='true'] .propSheet,
+.garden[data-reduced='true'] .propPencil,
+.garden[data-reduced='true'] .propLens {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .propPaper,
+  .propSheet,
+  .propPencil,
+  .propLens {
+    animation: none;
+  }
+}
+
 /* Animations réduites : la bulle d'attente ne rebondit plus (les effets ne sont plus créés) */
 .garden[data-reduced='true'] .bubble.wait {
   animation: none;

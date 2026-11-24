@@ -22,6 +22,7 @@ import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ISLAND_SIZES, SHARED_ELEMENTS } from '../geometry'
 import type { ClaudeSession, IslandState } from '../types'
 import { GardenEnvContext, gardenBeat, type GardenEnv } from './context'
+import { artClassNames } from '../art/artClasses'
 import styles from './Garden.module.css'
 import { GardenRenderer, type GardenClassNames } from './renderer'
 import { GardenSim, type GardenIconStart, type GardenMood, type GardenSyncOptions } from './simulation'
@@ -70,6 +71,19 @@ function classNames(): GardenClassNames {
     note: c('note'),
     spark: c('spark'),
     ask: c('ask'),
+    prop: c('prop'),
+    propPaper: c('propPaper'),
+    propFolderBack: c('propFolderBack'),
+    propFolderFront: c('propFolderFront'),
+    propSheet: c('propSheet'),
+    propSheet2: c('propSheet2'),
+    propNotepad: c('propNotepad'),
+    propPencil: c('propPencil'),
+    propKeyboard: c('propKeyboard'),
+    propPrompt: c('propPrompt'),
+    propLens: c('propLens'),
+    propGears: c('propGears'),
+    art: artClassNames(),
   }
 }
 

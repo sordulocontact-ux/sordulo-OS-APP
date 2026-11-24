@@ -2,7 +2,7 @@
  * Le Claude de l'île (icône partagée `agentIcon`) : même silhouette et mêmes yeux que les personnages du
  * jardin, avec des bras et des accessoires. Il cligne des yeux à intervalles aléatoires et enchaîne des scènes
  * (mascotScenes.ts) : au travail, celle de ce qu'il fait (lit, fouille, écrit, tape une commande, cherche à la
- * loupe, réfléchit, lance un sous-agent), avec de temps en temps une variation (s'étire, bâille, se gratte la
+ * loupe, réfléchit avec des engrenages au-dessus de la tête, lance un sous-agent), avec de temps en temps une variation (s'étire, bâille, se gratte la
  * tête…) ; un moment quand l'état change (réveil, fin, erreur) ; pendant une demande d'autorisation, il te
  * regarde en tapant du pied ; au repos, il regarde autour de lui.
  * Sous prefers-reduced-motion : immobile, l'accessoire de l'activité seul.
@@ -21,6 +21,8 @@ import {
   type MascotPart,
   type MascotScene,
 } from './mascotScenes'
+import { ART } from '../art/pixelArt'
+import { PixelArtSvg } from '../art/PixelArtSvg'
 import styles from './ClaudeMascot.module.css'
 
 export interface ClaudeMascotProps {
@@ -223,10 +225,7 @@ export function ClaudeMascot({ status, activity, error, startedAt, reduced }: Cl
     >
       {/* Derrière lui : le fond du dossier, le mini Claude du sous-agent */}
       <span className={styles.layer}>
-        <svg className={`${styles.prop} ${styles.folderBack}`} viewBox="0 0 12 4" shapeRendering="crispEdges">
-          <rect x="0" y="0" width="4" height="1" />
-          <rect x="0" y="1" width="12" height="3" />
-        </svg>
+        <PixelArtSvg art={ART.folderBack} className={`${styles.prop} ${styles.folderBack}`} />
         <span ref={part('mini')} className={styles.mini}>
           <span className={styles.miniBody} />
         </span>
@@ -247,86 +246,31 @@ export function ClaudeMascot({ status, activity, error, startedAt, reduced }: Cl
             <i ref={part('lids', 1)} className={`${styles.lid} ${styles.right}`} />
             <i ref={part('mouth')} className={styles.mouth} />
           </span>
-          {/* Feuille (lit) */}
-          <svg ref={part('paper')} className={`${styles.prop} ${styles.paper}`} viewBox="0 0 8 6">
-            <rect className={styles.sheet} x="0" y="0" width="8" height="6" />
-            <rect className={styles.line} x="1" y="1.25" width="6" height="0.5" />
-            <rect className={styles.line} x="1" y="2.75" width="5" height="0.5" />
-            <rect className={styles.line} x="1" y="4.25" width="6" height="0.5" />
-          </svg>
-          {/* Carnet (écrit) */}
-          <svg className={`${styles.prop} ${styles.notepad}`} viewBox="0 0 8 4">
-            <rect className={styles.sheet} x="0" y="0" width="8" height="4" />
-            <rect className={styles.line} x="1" y="1.25" width="6" height="0.5" />
-            <rect className={styles.line} x="1" y="2.5" width="4" height="0.5" />
-          </svg>
-          {/* Loupe (web) : verre teinté avec l'œil grossi */}
-          <svg ref={part('lens')} className={`${styles.prop} ${styles.lens}`} viewBox="0 0 9 9" shapeRendering="crispEdges">
-            <g className={styles.glass}>
-              <rect x="2" y="1" width="3" height="1" />
-              <rect x="1" y="2" width="5" height="3" />
-              <rect x="2" y="5" width="3" height="1" />
-            </g>
-            <rect className={styles.pupil} x="3" y="2" width="2" height="3" />
-            <g className={styles.ring}>
-              <rect x="2" y="0" width="3" height="1" />
-              <rect x="1" y="1" width="1" height="1" />
-              <rect x="5" y="1" width="1" height="1" />
-              <rect x="0" y="2" width="1" height="3" />
-              <rect x="6" y="2" width="1" height="3" />
-              <rect x="1" y="5" width="1" height="1" />
-              <rect x="5" y="5" width="1" height="1" />
-              <rect x="2" y="6" width="3" height="1" />
-            </g>
-            <g className={styles.handle}>
-              <rect x="6" y="6" width="1" height="1" />
-              <rect x="7" y="7" width="1" height="1" />
-              <rect x="8" y="8" width="1" height="1" />
-            </g>
-          </svg>
+          {/* Feuille (lit), carnet (écrit), loupe (web : verre teinté avec l'œil grossi) */}
+          <PixelArtSvg ref={part('paper')} art={ART.paper} className={`${styles.prop} ${styles.paper}`} />
+          <PixelArtSvg art={ART.notepad} className={`${styles.prop} ${styles.notepad}`} />
+          <PixelArtSvg ref={part('lens')} art={ART.lens} className={`${styles.prop} ${styles.lens}`} />
           <span ref={part('armL')} className={`${styles.arm} ${styles.armL}`} />
           <span ref={part('armR')} className={`${styles.arm} ${styles.armR}`}>
             {/* Crayon (écrit) : pointe en bas à gauche de la patte, gomme en haut à droite */}
-            <svg className={`${styles.prop} ${styles.pencil}`} viewBox="0 0 5 5" shapeRendering="crispEdges">
-              <rect className={styles.pencilTip} x="0" y="4" width="1" height="1" />
-              <g className={styles.pencilBody}>
-                <rect x="1" y="3" width="1" height="1" />
-                <rect x="2" y="2" width="1" height="1" />
-                <rect x="3" y="1" width="1" height="1" />
-              </g>
-              <rect className={styles.eraser} x="4" y="0" width="1" height="1" />
-            </svg>
+            <PixelArtSvg art={ART.pencil} className={`${styles.prop} ${styles.pencil}`} />
           </span>
         </span>
       </span>
 
       {/* Devant lui : le devant du dossier, le clavier et l'invite de commande */}
       <span className={styles.layer}>
-        <svg className={`${styles.prop} ${styles.folderFront}`} viewBox="0 0 14 6" shapeRendering="crispEdges">
-          <rect className={styles.folder} x="0" y="0" width="14" height="6" />
-          <rect className={styles.folderLip} x="0" y="0" width="14" height="1" />
-        </svg>
-        <svg className={`${styles.prop} ${styles.keyboard}`} viewBox="0 0 10 2" shapeRendering="crispEdges">
-          <rect className={styles.keys} x="0" y="0" width="10" height="2" />
-          <rect className={styles.key} x="1" y="0" width="1" height="1" />
-          <rect className={styles.key} x="3" y="0" width="1" height="1" />
-          <rect className={styles.key} x="5" y="0" width="1" height="1" />
-          <rect className={styles.key} x="7" y="0" width="1" height="1" />
-          <rect className={styles.key} x="3" y="1" width="4" height="1" />
-        </svg>
-        <svg className={`${styles.prop} ${styles.prompt}`} viewBox="0 0 5 3" shapeRendering="crispEdges">
-          <rect x="0" y="0" width="1" height="1" />
-          <rect x="1" y="1" width="1" height="1" />
-          <rect x="0" y="2" width="1" height="1" />
-          <rect className={styles.cursor} x="2" y="2" width="2" height="1" />
-        </svg>
+        <PixelArtSvg art={ART.folderFront} className={`${styles.prop} ${styles.folderFront}`} />
+        <PixelArtSvg art={ART.keyboard} className={`${styles.prop} ${styles.keyboard}`} />
+        <PixelArtSvg art={ART.prompt} className={`${styles.prop} ${styles.prompt}`} />
       </span>
 
-      {/* Au-dessus : pensées, bulles ✓ et ?, sueur, étincelles */}
+      {/* Au-dessus : engrenages, bulles ✓ et ?, sueur, étincelles */}
       <span className={styles.layer}>
-        <i ref={part('think1')} className={`${styles.fx} ${styles.think} ${styles.think1}`} />
-        <i ref={part('think2')} className={`${styles.fx} ${styles.think} ${styles.think2}`} />
-        <i ref={part('think3')} className={`${styles.fx} ${styles.think} ${styles.think3}`} />
+        {/* Engrenages de la réflexion : ils tournent tant qu'ils sont affichés (animation en images) */}
+        <span ref={part('gears')} className={styles.gearsBox}>
+          <PixelArtSvg art={ART.gears} className={`${styles.prop} ${styles.gears}`} />
+        </span>
         <svg
           ref={part('bubbleDone')}
           className={`${styles.fx} ${styles.bubble} ${styles.bubbleDone}`}

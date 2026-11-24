@@ -86,9 +86,12 @@ export const GARDEN = {
   /** Facteurs de vitesse : pendant un appel, en bouderie. */
   callSlowdown: 0.5,
   sulkSlowdown: 0.6,
-  /** Pause : probabilité par seconde, durée, chance de repartir dans l'autre sens. */
-  pauseRate: 0.08,
-  pauseDuration: [1, 2.6] as Range,
+  /**
+   * Pauses de travail (session qui travaille) : après avoir marché `roam` s (2,5 à 5 s ; 1 à 3 s au début), il
+   * se pose (probabilité par seconde `rate`) pour faire ce que fait sa session, avec l'accessoire de l'activité,
+   * pendant `duration` s, puis repart ailleurs (chance de faire demi-tour). Fin d'une rencontre : `pauseTurnChance`.
+   */
+  work: { rate: 0.6, roam: [2.5, 5] as Range, firstRoam: [1, 3] as Range, duration: [3.5, 7] as Range, turnChance: 0.5 },
   pauseTurnChance: 0.35,
   /** Petit saut spontané (rare) : probabilité par seconde, vitesse verticale. */
   hopRate: 0.04,

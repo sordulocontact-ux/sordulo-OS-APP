@@ -7,6 +7,8 @@
  * Un personnage : ombre de contact (au sol, sous tous les personnages) + sprite = pattes séparées (colonnes
  * 3, 5, 10, 12 du masque) sous le haut du corps (corps, yeux, paupières), qui se balance et hoche la tête.
  */
+import { ART, createArtSvg, type ArtClassNames } from '../art/pixelArt'
+import type { GardenProp } from '../art/props'
 import {
   BUBBLE_TEXT,
   walkerVisual,
@@ -54,6 +56,21 @@ export interface GardenClassNames {
   note: string
   spark: string
   ask: string
+  /** Accessoires des pauses de travail : classe commune, place et animation de chacun. */
+  prop: string
+  propPaper: string
+  propFolderBack: string
+  propFolderFront: string
+  propSheet: string
+  propSheet2: string
+  propNotepad: string
+  propPencil: string
+  propKeyboard: string
+  propPrompt: string
+  propLens: string
+  propGears: string
+  /** Tons et animations en images des dessins (../art/pixelArt.module.css). */
+  art: ArtClassNames
 }
 
 /** Variable CSS de la couleur du corps (lue par Garden.module.css). */
@@ -79,6 +96,9 @@ interface Sprite {
   lid: number
   closed: boolean
   bubbleKind: BubbleKind | null | undefined
+  /** Accessoire affiché ; les dessins sont créés au premier besoin. */
+  prop: GardenProp | null
+  propsBuilt: boolean
   shadowTransform: string
   shadowOpacity: string
 }
@@ -202,9 +222,45 @@ export class GardenRenderer {
       lid: -1,
       closed: false,
       bubbleKind: undefined,
+      prop: null,
+      propsBuilt: false,
       shadowTransform: '',
       shadowOpacity: '',
     }
+  }
+
+  /**
+   * Accessoires d'un personnage, créés une fois (cachés ; `data-prop` du sprite montre celui de son activité) :
+   * fond du dossier derrière le corps, devant du dossier, feuilles qui en sortent et clavier devant ; feuille,
+   * carnet, crayon, loupe, invite et engrenages avec le haut du corps (ils suivent son balancement).
+   */
+  private buildProps(sprite: Sprite): void {
+    const { cls } = this
+    const art = (name: keyof typeof ART, place: string) => createArtSvg(ART[name], cls.art, `${cls.prop} ${place}`)
+    const sheet = (place: string) => {
+      const el = document.createElement('i')
+      el.className = `${cls.prop} ${cls.propSheet} ${place}`
+      return el
+    }
+    const fig = sprite.upper.parentElement
+    if (fig) {
+      fig.insertBefore(art('folderBack', cls.propFolderBack), sprite.upper)
+      fig.appendChild(sheet(''))
+      fig.appendChild(sheet(cls.propSheet2))
+      fig.appendChild(art('folderFront', cls.propFolderFront))
+      fig.appendChild(art('keyboard', cls.propKeyboard))
+    }
+    for (const [name, place] of [
+      ['paper', cls.propPaper],
+      ['notepad', cls.propNotepad],
+      ['pencil', cls.propPencil],
+      ['lens', cls.propLens],
+      ['prompt', cls.propPrompt],
+      ['gears', cls.propGears],
+    ] as const) {
+      sprite.upper.appendChild(art(name, place))
+    }
+    sprite.propsBuilt = true
   }
 
   private removeSprite(sprite: Sprite): void {
@@ -302,6 +358,11 @@ export class GardenRenderer {
       sprite.bubble.className = v.bubble ? `${this.cls.bubble} ${this.cls[v.bubble]}` : this.cls.bubble
       sprite.bubble.textContent = v.bubble ? BUBBLE_TEXT[v.bubble] : ''
     }
+    if (v.prop !== sprite.prop) {
+      sprite.prop = v.prop
+      if (v.prop && !sprite.propsBuilt) this.buildProps(sprite)
+      if (sprite.propsBuilt) sprite.el.dataset.prop = v.prop ?? ''
+    }
   }
 
   /**
@@ -322,7 +383,7 @@ export class GardenRenderer {
         this.moveTo(node.main, crowd)
         this.moveTo(node.twin, crowd)
       }
-      const v = walkerVisual(w, sim.statusOf(w), ctx)
+      const v = walkerVisual(w, sim.statusOf(w), ctx, sim.activityOf(w))
       this.paint(node.main, v, v.left)
       this.paint(node.twin, v, v.twinLeft)
     }
