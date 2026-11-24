@@ -4,7 +4,9 @@
 //!
 //! - Jamais en dev : état `disabled`, le plugin n'est même pas enregistré (voir `register`).
 //! - Première vérification 60 s après le démarrage, puis toutes les 15 min. Une version plus récente
-//!   est téléchargée en arrière-plan et gardée en mémoire (état `ready`).
+//!   est téléchargée en arrière-plan et gardée en mémoire (état `ready`). Chaque vérification (cycle,
+//!   menu, Paramètres, « Installer » compris) regarde quand même `latest.json` : une version publiée
+//!   depuis remplace celle en attente, pour installer la dernière en une seule fois.
 //! - Installation seulement à un moment calme : fenêtre principale cachée et aucun enregistrement
 //!   (« arrêt en cours » compris), vérifié toutes les 30 s. Jamais pendant un enregistrement.
 //! - Installation : Windows lance l'installeur NSIS (mode silencieux) puis quitte aussitôt par
@@ -313,30 +315,49 @@ fn updater_builder(app: &AppHandle) -> UpdaterBuilder {
         })
 }
 
-/// Vérifie puis télécharge (appelant : verrou `work` tenu). Rien à faire si une mise à jour est
-/// déjà prête. Les erreurs passent l'état à `error` ; nouvel essai au prochain cycle.
+/// Vérifie puis télécharge (appelant : verrou `work` tenu). Toujours une vraie vérification, même
+/// quand une mise à jour attend déjà son moment calme : une release part à chaque push sur main, et
+/// installer la version en attente alors qu'une plus récente est publiée obligeait à une deuxième mise
+/// à jour juste après. La version en attente est remplacée si `latest.json` en annonce une autre (un
+/// installeur contient tout : pas besoin de passer par les versions intermédiaires), gardée sinon,
+/// et gardée aussi si la vérification échoue. Sans version en attente, les erreurs passent l'état à
+/// `error` ; nouvel essai au prochain cycle.
 fn check_and_download(app: &AppHandle) {
     let state = app.state::<UpdaterState>();
-    if state.pending().is_some() {
-        return;
-    }
+    let waiting = state
+        .pending()
+        .as_ref()
+        .map(|pending| pending.update.version.clone());
     publish(app, UpdateState::Checking, None, None);
     let result = (|| -> tauri_plugin_updater::Result<Option<Pending>> {
         let updater = updater_builder(app).build()?;
         let Some(update) = tauri::async_runtime::block_on(updater.check())? else {
             return Ok(None);
         };
-        log::info!("mise à jour : version {} trouvée, téléchargement", update.version);
+        if !replaces_waiting(waiting.as_deref(), &update.version) {
+            return Ok(None);
+        }
+        match &waiting {
+            Some(old) => log::info!(
+                "mise à jour : version {} publiée depuis la {old} en attente, téléchargement",
+                update.version
+            ),
+            None => log::info!("mise à jour : version {} trouvée, téléchargement", update.version),
+        }
         publish(app, UpdateState::Downloading, Some(update.version.clone()), None);
         // `download` vérifie la signature avant de rendre les octets.
         let bytes = tauri::async_runtime::block_on(update.download(|_, _| {}, || {}))?;
         Ok(Some(Pending { update, bytes }))
     })();
     match result {
-        Ok(None) => {
-            log::info!("mise à jour : aucune version plus récente");
-            publish(app, UpdateState::UpToDate, None, None);
-        }
+        Ok(None) => match waiting {
+            // Rien de plus récent que la version en attente : elle reste prête.
+            Some(version) => publish(app, UpdateState::Ready, Some(version), None),
+            None => {
+                log::info!("mise à jour : aucune version plus récente");
+                publish(app, UpdateState::UpToDate, None, None);
+            }
+        },
         Ok(Some(pending)) => {
             let version = pending.update.version.clone();
             log::info!(
@@ -348,8 +369,13 @@ fn check_and_download(app: &AppHandle) {
             publish(app, UpdateState::Ready, Some(version), None);
         }
         Err(e) => {
-            let message = error_message(&e);
             log::warn!("mise à jour : échec de la vérification ou du téléchargement : {e}");
+            if let Some(version) = waiting {
+                // La version déjà téléchargée reste installable.
+                publish(app, UpdateState::Ready, Some(version), None);
+                return;
+            }
+            let message = error_message(&e);
             // Échec du téléchargement : la version trouvée reste affichée.
             let available = {
                 let status = state.status();
@@ -360,6 +386,13 @@ fn check_and_download(app: &AppHandle) {
             publish(app, UpdateState::Error, available, Some(message));
         }
     }
+}
+
+/// Faut-il télécharger `found` (version annoncée par `latest.json`, plus récente que la version
+/// installée) alors que `waiting` est déjà téléchargée ? Oui sauf si c'est la même : les releases ne
+/// font que monter, une autre version annoncée est donc plus récente.
+fn replaces_waiting(waiting: Option<&str>, found: &str) -> bool {
+    waiting.map_or(true, |version| version.trim() != found.trim())
 }
 
 /// Installe si une mise à jour est prête et que le moment est calme.
@@ -662,6 +695,16 @@ fn can_check(status: &UpdateStatus) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn plus_recente_que_la_version_en_attente_remplacee() {
+        // Rien en attente : on télécharge ce qui est annoncé.
+        assert!(super::replaces_waiting(None, "0.2.16"));
+        // 0.2.14 en attente, 0.2.16 publiée entre-temps : on prend la 0.2.16.
+        assert!(super::replaces_waiting(Some("0.2.14"), "0.2.16"));
+        // Même version : on garde celle déjà téléchargée.
+        assert!(!super::replaces_waiting(Some("0.2.16"), "0.2.16"));
+    }
+
     use std::cmp::Ordering;
 
     use super::*;
