@@ -3,6 +3,21 @@ import claudeLogo from '../../assets/connectors/claude.png'
 import gmailLogo from '../../assets/connectors/gmail.png'
 import notionLogo from '../../assets/connectors/notion.png'
 import stripeLogo from '../../assets/connectors/stripe.png'
+// Symbole officiel de Vercel (triangle, proportions de vercel.com/geist/brands), hors Figma.
+import vercelLogo from '../../assets/connectors/vercel.svg'
+// Logos officiels hors Figma (23/11/2026) : svgl.app (Mistral, Supabase, Spotify, Google Agenda, Drive, Slack, Figma,
+// Google Meet) et icônes des sites de Deepgram, Pennylane et Qonto (réduite à 112 px).
+import deepgramLogo from '../../assets/connectors/deepgram.svg'
+import mistralLogo from '../../assets/connectors/mistral.svg'
+import supabaseLogo from '../../assets/connectors/supabase.svg'
+import spotifyLogo from '../../assets/connectors/spotify.svg'
+import googleAgendaLogo from '../../assets/connectors/google-agenda.svg'
+import googleDriveLogo from '../../assets/connectors/google-drive.svg'
+import slackLogo from '../../assets/connectors/slack.svg'
+import figmaLogo from '../../assets/connectors/figma.svg'
+import qontoLogo from '../../assets/connectors/qonto.png'
+import pennylaneLogo from '../../assets/connectors/pennylane.svg'
+import meetZoomLogo from '../../assets/connectors/google-meet.svg'
 
 export type ConnectorCategory = 'Communication' | 'Agenda' | 'Documents' | 'Design' | 'Paiement' | 'Comptabilité' | 'IA' | 'Infrastructure' | 'Musique'
 
@@ -36,6 +51,7 @@ export const CONNECTORS: Connector[] = [
   },
   {
     id: 'deepgram',
+    logo: deepgramLogo,
     name: 'Deepgram',
     category: 'IA',
     description: 'Transcrit les réunions avec séparation des voix.',
@@ -44,6 +60,7 @@ export const CONNECTORS: Connector[] = [
   },
   {
     id: 'mistral',
+    logo: mistralLogo,
     name: 'Mistral',
     category: 'IA',
     description: 'Prend le relais de Claude si l’analyse échoue.',
@@ -52,6 +69,7 @@ export const CONNECTORS: Connector[] = [
   },
   {
     id: 'supabase',
+    logo: supabaseLogo,
     name: 'Supabase',
     category: 'Infrastructure',
     description: 'Base de données, connexion et stockage des audios.',
@@ -59,7 +77,18 @@ export const CONNECTORS: Connector[] = [
     state: 'Actif : toutes les données de l’app y sont stockées.',
   },
   {
+    id: 'vercel',
+    logo: vercelLogo,
+    name: 'Vercel',
+    category: 'Infrastructure',
+    description: 'L’île de l’app de bureau montre les déploiements de production Vercel : chargement, en ligne, échec.',
+    details:
+      'L’île de l’app de bureau montre les déploiements de production Vercel : la construction en cours, puis « en ligne » ou l’échec avec un accès aux logs. La connexion est liée à votre compte Sordulo OS, pas à cet ordinateur : elle suit le compte sur tous vos appareils. Seuls les déploiements de production visibles par le jeton sont suivis (comptes personnel et équipes du jeton, tous projets).',
+    status: 'live',
+  },
+  {
     id: 'spotify',
+    logo: spotifyLogo,
     name: 'Spotify',
     category: 'Musique',
     description: 'L’île de l’app de bureau affiche la musique Spotify jouée sur n’importe quel appareil du compte, avec la pochette.',
@@ -77,6 +106,7 @@ export const CONNECTORS: Connector[] = [
   },
   {
     id: 'google-agenda',
+    logo: googleAgendaLogo,
     name: 'Google Agenda',
     category: 'Agenda',
     description: 'Proposer la transcription des réunions client prévues.',
@@ -84,6 +114,7 @@ export const CONNECTORS: Connector[] = [
   },
   {
     id: 'google-drive',
+    logo: googleDriveLogo,
     name: 'Google Drive',
     category: 'Documents',
     description: 'Importer un document de Drive comme entrée d’un projet.',
@@ -91,6 +122,7 @@ export const CONNECTORS: Connector[] = [
   },
   {
     id: 'slack',
+    logo: slackLogo,
     name: 'Slack',
     category: 'Communication',
     description: 'Recevoir les tickets validés et les relances dans un canal.',
@@ -106,6 +138,7 @@ export const CONNECTORS: Connector[] = [
   },
   {
     id: 'figma',
+    logo: figmaLogo,
     name: 'Figma',
     category: 'Design',
     description: 'Relier une maquette Figma à un ticket.',
@@ -121,6 +154,7 @@ export const CONNECTORS: Connector[] = [
   },
   {
     id: 'qonto',
+    logo: qontoLogo,
     name: 'Qonto',
     category: 'Comptabilité',
     description: 'Rapprocher les virements reçus des factures.',
@@ -128,6 +162,7 @@ export const CONNECTORS: Connector[] = [
   },
   {
     id: 'pennylane',
+    logo: pennylaneLogo,
     name: 'Pennylane',
     category: 'Comptabilité',
     description: 'Envoyer les factures émises à la comptabilité.',
@@ -135,6 +170,7 @@ export const CONNECTORS: Connector[] = [
   },
   {
     id: 'meet-zoom',
+    logo: meetZoomLogo,
     name: 'Google Meet / Zoom',
     category: 'Agenda',
     description:

@@ -265,6 +265,13 @@ pub struct FocusModeState {
     pub on: bool,
 }
 
+/// `DeploymentsEnabledState` du contrat.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeploymentsEnabledState {
+    pub on: bool,
+}
+
 /// `NavigatePayload` du contrat.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct NavigatePayload {
@@ -327,6 +334,9 @@ pub struct Shared {
     /// Case « Afficher la musique dans l'île » du menu du soleil (cochée au démarrage). Décochée : plus
     /// aucun sondage du lecteur, l'île ne reçoit plus que `null`.
     pub music_enabled: bool,
+    /// Case « Afficher les déploiements dans l'île » du menu du soleil (cochée au démarrage, non
+    /// mémorisée). Le sondage Vercel est fait par le front, qui lit cette valeur et l'événement.
+    pub deployments_enabled: bool,
 }
 
 pub struct DesktopState {
@@ -343,6 +353,7 @@ impl DesktopState {
         Self {
             shared: Mutex::new(Shared {
                 music_enabled: true,
+                deployments_enabled: true,
                 ..Shared::default()
             }),
             recorder: Mutex::new(platform::recorder()),
@@ -366,6 +377,12 @@ impl DesktopState {
     pub fn focus_mode(&self) -> FocusModeState {
         FocusModeState {
             on: self.shared().focus_mode,
+        }
+    }
+
+    pub fn deployments_enabled(&self) -> DeploymentsEnabledState {
+        DeploymentsEnabledState {
+            on: self.shared().deployments_enabled,
         }
     }
 
@@ -426,6 +443,14 @@ impl DesktopState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn deployments_enabled_by_default() {
+        let state = DesktopState::new();
+        assert!(state.shared().deployments_enabled);
+        let json = serde_json::to_value(state.deployments_enabled()).unwrap();
+        assert_eq!(json["on"], true);
+    }
 
     #[test]
     fn serializes_like_the_ts_contract() {

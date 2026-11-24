@@ -4,7 +4,7 @@
  * Textes repris du prototype (design/prototypes/ile-sordulo-os.html, objet NOTIFS) quand ils existent,
  * écrits dans le même ton sinon. Aucune couleur ici : chaque notification porte un ton (IslandTone)
  * que le rendu traduit en token `--island-*`. Les sortes prévues (devis, paiement, echeance, rappel,
- * deployed, relecture, fileAdded, conflictOk) sont prêtes : un prochain ticket n'a qu'à appeler
+ * relecture, fileAdded, conflictOk) sont prêtes : un prochain ticket n'a qu'à appeler
  * `createNotification(kind, params)` puis `coordinator.notify(...)`.
  * Pur : ni React ni Tauri.
  */
@@ -55,6 +55,8 @@ export interface NotificationParams {
   loginRequired: { appName?: string | null; route?: string };
   /** Accès au compte Spotify perdu. */
   spotifyReconnect: Record<string, never>;
+  /** Jeton Vercel refusé (invalide, expiré ou révoqué). */
+  vercelReconnect: Record<string, never>;
   /** Le micro est redevenu inactif pendant l'enregistrement. Interrompt : concerne l'appel en cours. */
   callEnded: { appName?: string | null; projectName?: string | null };
   /** « Enregistrer un appel » pendant un enregistrement. Interrompt : concerne l'appel en cours. */
@@ -76,6 +78,21 @@ export interface NotificationParams {
   pathCopied: { fileName: string };
   /** Regroupement, construit par la coordination. Bouton « Voir » ; action : fermer, sauf si précisée. */
   digest: { title: string; subtitle: string; action?: NotificationAction };
+  /**
+   * Déploiement de production en ligne. `url` : adresse ouverte par le bouton. `commitMessage` : sous-titre
+   * (sans commit : « Déploiement Vercel réussi »).
+   */
+  deployed: { projectName: string; url: string; commitMessage?: string | null };
+  /**
+   * Déploiement de production en échec. Sous-titre : message du commit, sinon la branche. `logsUrl` : page
+   * du déploiement dans Vercel (logs), ouverte par « Voir les logs ».
+   */
+  deployFailed: {
+    projectName: string;
+    logsUrl: string;
+    commitMessage?: string | null;
+    branch?: string | null;
+  };
   // Prévues, non branchées
   devis: {
     clientName: string;
@@ -104,7 +121,6 @@ export interface NotificationParams {
     projectName?: string | null;
     url: string;
   };
-  deployed: { projectName: string; url: string };
   /** Déclarée sans rôle relecteur en base (décision du ticket). */
   relecture: { authorInitials: string; taskTitle: string; route: string };
   fileAdded: { projectName: string; fileName: string; route: string };
@@ -234,6 +250,7 @@ export const notificationCatalog: {
       action: { type: "retryUpload" },
     }),
   spotifyReconnect: () => createSpotifyReconnectNotification(),
+  vercelReconnect: () => createVercelReconnectNotification(),
   loginRequired: (p) =>
     make("loginRequired", {
       visual: icon("sun"),
@@ -394,9 +411,20 @@ export const notificationCatalog: {
       visual: icon("check"),
       tone: "success",
       title: `${p.projectName} est en ligne`,
-      subtitle: "Déploiement Vercel réussi",
+      subtitle: p.commitMessage || "Déploiement Vercel réussi",
       button: "Ouvrir",
       action: { type: "openUrl", url: p.url },
+    }),
+  deployFailed: (p) =>
+    make("deployFailed", {
+      visual: icon("alert"),
+      tone: "danger",
+      title: `${p.projectName} : échec`,
+      subtitle:
+        p.commitMessage ||
+        (p.branch ? `Branche ${p.branch}` : "Déploiement Vercel de production"),
+      button: "Voir les logs",
+      action: { type: "openUrl", url: p.logsUrl },
     }),
   relecture: (p) =>
     make("relecture", {
@@ -427,7 +455,7 @@ export const notificationCatalog: {
     }),
 };
 
-/** Route de la page Connecteurs (carte Spotify) de la fenêtre principale. */
+/** Route de la page Connecteurs (cartes Spotify et Vercel) de la fenêtre principale. */
 export const CONNECTORS_ROUTE = "/connectors";
 
 /**
@@ -440,6 +468,22 @@ export function createSpotifyReconnectNotification(): IslandNotification {
     tone: "alert",
     title: "Reconnecte Spotify",
     subtitle: "L'accès au compte a expiré",
+    button: "Ouvrir",
+    action: { type: "openMain", route: CONNECTORS_ROUTE },
+    durationMs: LONG_NOTIFICATION_MS,
+  });
+}
+
+/**
+ * « Reconnecte Vercel » : Vercel refuse le jeton du compte, les déploiements n'apparaissent plus.
+ * Le bouton ouvre la page Connecteurs.
+ */
+export function createVercelReconnectNotification(): IslandNotification {
+  return make("vercelReconnect", {
+    visual: icon("alert"),
+    tone: "alert",
+    title: "Reconnecte Vercel",
+    subtitle: "Le jeton a expiré ou a été révoqué",
     button: "Ouvrir",
     action: { type: "openMain", route: CONNECTORS_ROUTE },
     durationMs: LONG_NOTIFICATION_MS,

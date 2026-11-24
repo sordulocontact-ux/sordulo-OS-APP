@@ -1,18 +1,20 @@
 /**
- * Accès réels des sources (parcours d'appel, concentration, musique) : commandes et événements Tauri
- * (src/lib/desktop.ts), Supabase, API, stockage local, URL blob: et canvas. Les tests injectent de faux
+ * Accès réels des sources (parcours d'appel, concentration, musique, déploiements) : commandes et événements
+ * Tauri (src/lib/desktop.ts), Supabase, API, API Vercel (src/lib/vercel.ts), stockage local, URL blob: et canvas. Les tests injectent de faux
  * accès à la place.
  */
 import { api, ApiRequestError } from '../../../../lib/api'
 import {
   deleteRecording,
   dismissPrompt,
+  getDeploymentsEnabled,
   getFocusMode,
   getMusic,
   getMusicArtwork,
   getStatus,
   musicCommand,
   onAudioLevel,
+  onDeploymentsEnabled,
   onFocusMode,
   onMicState,
   onMusic,
@@ -27,6 +29,12 @@ import {
 } from '../../../../lib/desktop'
 import { supabase } from '../../../../lib/supabase'
 import {
+  fetchProductionDeployments,
+  fetchProductionUrl,
+  fetchVercelTeams,
+  readVercelConnection,
+} from '../../../../lib/vercel'
+import {
   addPendingRecording,
   addTrackedInput,
   readLastProjectId,
@@ -40,6 +48,7 @@ import { uploadMeetingRecording } from '../../../inputs/uploadMeeting'
 import { paletteFromImageUrl } from '../../music/artwork'
 import type { AnalysisSourceDeps, PolledInput } from './analysis'
 import type { CallSourceDeps } from './call'
+import type { DeploymentsSourceDeps } from './deployments'
 import type { FocusModeDeps } from './focusMode'
 import type { MusicSourceDeps } from './music'
 import type { SpotifySourceDeps } from './spotify'
@@ -47,7 +56,13 @@ import type { UploadSourceDeps } from './upload'
 
 const INPUT_COLUMNS = 'id, project_id, kind, title, raw_text, created_at, status, error_message'
 
-export const desktopDeps: CallSourceDeps & UploadSourceDeps & AnalysisSourceDeps & FocusModeDeps & MusicSourceDeps & SpotifySourceDeps = {
+export const desktopDeps: CallSourceDeps &
+  UploadSourceDeps &
+  AnalysisSourceDeps &
+  FocusModeDeps &
+  MusicSourceDeps &
+  SpotifySourceDeps &
+  DeploymentsSourceDeps = {
   // Appel et enregistrement
   getStatus,
   startRecording,
@@ -125,4 +140,12 @@ export const desktopDeps: CallSourceDeps & UploadSourceDeps & AnalysisSourceDeps
   // Connexion Spotify
   spotifyStatus,
   onSpotify,
+
+  // Déploiements Vercel
+  getDeploymentsEnabled,
+  onDeploymentsEnabled,
+  readVercelConnection,
+  fetchVercelTeams: (token) => fetchVercelTeams(token),
+  fetchProductionDeployments: (token, teamId) => fetchProductionDeployments(token, teamId),
+  fetchProductionUrl: (token, deploymentId, teamId) => fetchProductionUrl(token, deploymentId, teamId),
 }

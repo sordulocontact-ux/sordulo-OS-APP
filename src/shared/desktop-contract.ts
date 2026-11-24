@@ -280,6 +280,11 @@ export interface FocusModeState {
   on: boolean
 }
 
+/** Tray menu check « Afficher les déploiements dans l'île » (not remembered between launches, like the music one). */
+export interface DeploymentsEnabledState {
+  on: boolean
+}
+
 /**
  * Automatic updates of the installed app (src-tauri/src/updater.rs). Dev builds never update:
  * `state` stays `disabled`.
@@ -399,6 +404,8 @@ export const DESKTOP_EVENTS = {
   navigate: 'desktop://navigate',
   /** Payload FocusModeState, island window: focus mode toggled in the tray menu. */
   focusMode: 'desktop://focus-mode',
+  /** Payload DeploymentsEnabledState, island window: « Afficher les déploiements dans l'île » toggled in the tray menu. */
+  deploymentsEnabled: 'desktop://deployments-enabled',
   /** Payload ClaudeRelayEvent, island window: a Claude Code hook arrived. */
   claude: 'desktop://claude',
   /** Payload ClaudeConnection, island window: hooks connected / disconnected, or a hook arrived. */
@@ -461,6 +468,8 @@ export const DESKTOP_COMMANDS = {
   getFocusMode: 'get_focus_mode',
   /** ({ on: boolean }) => FocusModeState — also updates the tray menu check. */
   setFocusMode: 'set_focus_mode',
+  /** () => DeploymentsEnabledState — island window: Vercel deployments shown in the island (tray menu check). */
+  getDeploymentsEnabled: 'get_deployments_enabled',
   /** () => ClaudeConnection */
   claudeGetConnection: 'claude_get_connection',
   /** ({ requestId: string, decision: ClaudeDecision }) => void — answers a pending PermissionRequest. */

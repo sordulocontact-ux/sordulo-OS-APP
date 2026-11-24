@@ -15,6 +15,7 @@ import {
   type ClaudeConnection,
   type ClaudeDecision,
   type ClaudeRelayEvent,
+  type DeploymentsEnabledState,
   type DesktopStatus,
   type FocusModeState,
   type IslandDrag,
@@ -102,6 +103,7 @@ export const islandDragStart = (args: IslandDragStart) =>
 export const openMainAt = (args: NavigatePayload) => call<void>(DESKTOP_COMMANDS.openMainAt, { route: args.route })
 
 export const getFocusMode = () => call<FocusModeState>(DESKTOP_COMMANDS.getFocusMode)
+export const getDeploymentsEnabled = () => call<DeploymentsEnabledState>(DESKTOP_COMMANDS.getDeploymentsEnabled)
 
 /** Also updates the tray menu check and emits DESKTOP_EVENTS.focusMode to the island. */
 export const setFocusMode = (args: FocusModeState) =>
@@ -194,6 +196,10 @@ export const onIslandGhost = (handler: (ghost: IslandGhost | null) => void) =>
 /** Main window: go to this route (sent by openMainAt). */
 export const onNavigate = (handler: (payload: NavigatePayload) => void) =>
   subscribe<NavigatePayload>(DESKTOP_EVENTS.navigate, handler)
+
+/** Island window: « Afficher les déploiements dans l’île » toggled in the tray menu. */
+export const onDeploymentsEnabled = (handler: (state: DeploymentsEnabledState) => void) =>
+  subscribe<DeploymentsEnabledState>(DESKTOP_EVENTS.deploymentsEnabled, handler)
 
 export const onFocusMode = (handler: (state: FocusModeState) => void) =>
   subscribe<FocusModeState>(DESKTOP_EVENTS.focusMode, handler)

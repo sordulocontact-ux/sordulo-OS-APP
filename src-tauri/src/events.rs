@@ -33,6 +33,8 @@ pub const EVENT_ISLAND_POINTER: &str = "desktop://island-pointer";
 pub const EVENT_NAVIGATE: &str = "desktop://navigate";
 /// `DESKTOP_EVENTS.focusMode` (payload `FocusModeState`), fenêtre de l'île.
 pub const EVENT_FOCUS_MODE: &str = "desktop://focus-mode";
+/// `DESKTOP_EVENTS.deploymentsEnabled` (payload `DeploymentsEnabledState`), fenêtre de l'île.
+pub const EVENT_DEPLOYMENTS_ENABLED: &str = "desktop://deployments-enabled";
 /// `DESKTOP_EVENTS.claude` (payload `ClaudeRelayEvent`), fenêtre de l'île.
 pub const EVENT_CLAUDE: &str = "desktop://claude";
 /// `DESKTOP_EVENTS.claudeConnection` (payload `ClaudeConnection`), fenêtre de l'île.

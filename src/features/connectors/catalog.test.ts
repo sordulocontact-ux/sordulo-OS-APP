@@ -13,6 +13,14 @@ describe('catalogue des connecteurs', () => {
     expect(spotify?.state).toBeUndefined()
   })
 
+  it('a un connecteur Vercel à état vivant, en Infrastructure', () => {
+    const vercel = CONNECTORS.find((c) => c.id === 'vercel')
+    expect(vercel?.status).toBe('live')
+    expect(vercel?.category).toBe('Infrastructure')
+    expect(filterConnectors(CONNECTORS, '', true, new Set(['vercel'])).map((c) => c.id)).toContain('vercel')
+    expect(filterConnectors(CONNECTORS, '', true).map((c) => c.id)).not.toContain('vercel')
+  })
+
   it('filtre par onglet, sans tenir compte des accents ni de la casse', () => {
     expect(filterConnectors(CONNECTORS, '', true).map((c) => c.id)).toEqual(['claude', 'deepgram', 'mistral', 'supabase'])
     expect(filterConnectors(CONNECTORS, '', true, new Set(['spotify'])).map((c) => c.id)).toEqual([

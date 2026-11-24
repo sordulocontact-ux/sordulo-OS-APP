@@ -62,7 +62,8 @@ const PROGRESS: Record<
 > = {
   upload: { label: "Import de l’audio", durationMs: 3200 },
   analyse: { label: "Analyse de l’appel", durationMs: 9000 },
-  deploy: { label: "Déploiement en cours", durationMs: 5200 },
+  // Comme la source « déploiements » : « projet · branche ».
+  deploy: { label: "PDS OS · main", durationMs: 5200 },
 };
 
 /** Délai entre la fin d'une progression et ce qui la suit (prototype : 350 ms). */
@@ -478,8 +479,15 @@ export class LabRuntime {
     this.emit();
   }
 
-  /** Progression qui se termine seule (le contrôleur de l'app fera de même) puis enchaîne. */
-  runProgress(stage: ProgressChainStage, chain = true): void {
+  /**
+   * Progression qui se termine seule (le contrôleur de l'app fera de même) puis enchaîne. Déploiement :
+   * `deployOutcome` choisit la fin (en ligne, ou échec avec « Voir les logs »).
+   */
+  runProgress(
+    stage: ProgressChainStage,
+    chain = true,
+    deployOutcome: "deployed" | "deployFailed" = "deployed",
+  ): void {
     const { label, durationMs } = PROGRESS[stage];
     const id = `prog:${stage}`;
     this.coordinator.addActivity({
@@ -497,7 +505,7 @@ export class LabRuntime {
       if (stage === "upload") this.runProgress("analyse");
       else if (stage === "analyse")
         this.coordinator.notify(sampleNotification("tickets"));
-      else this.coordinator.notify(sampleNotification("deployed"));
+      else this.coordinator.notify(sampleNotification(deployOutcome));
     });
   }
 

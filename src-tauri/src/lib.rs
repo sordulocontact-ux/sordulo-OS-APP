@@ -117,6 +117,7 @@ pub fn run() {
             commands::island_drag_start,
             commands::open_main_at,
             commands::get_focus_mode,
+            commands::get_deployments_enabled,
             commands::set_focus_mode,
             commands::claude_get_connection,
             commands::claude_answer,
