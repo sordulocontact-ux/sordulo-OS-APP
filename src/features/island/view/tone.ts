@@ -32,7 +32,7 @@ export const PROGRESS_VISUALS: Record<ProgressStage, { icon: IslandIconName; ton
   upload: { icon: 'upload', tone: 'neutral' },
   analyse: { icon: 'sun', tone: 'analysis' },
   file: { icon: 'folder', tone: 'neutral' },
-  deploy: { icon: 'cloud', tone: 'neutral' },
+  deploy: { icon: 'vercel', tone: 'neutral' },
 }
 
 /** Nom d'une activité dans le libellé de la bulle (« Afficher l’appel dans l’île »), prototype : ACT_NAMES. */

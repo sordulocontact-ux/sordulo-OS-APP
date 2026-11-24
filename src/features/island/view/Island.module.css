@@ -117,6 +117,12 @@
   fill: currentColor;
 }
 
+/* Logo plein dans une icône en trait (Vercel) : rempli, sans contour qui l'arrondirait. */
+.icoSolid {
+  fill: currentColor;
+  stroke: none;
+}
+
 .pixel {
   image-rendering: pixelated;
 }

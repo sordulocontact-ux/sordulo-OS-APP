@@ -61,6 +61,9 @@ function IconPaths({ name }: { name: IslandIconName }) {
           <path d="M12 10v4M12 17v.5" />
         </>
       )
+    case 'vercel':
+      // Symbole de Vercel (triangle plein, proportions de vercel.com/geist/brands), comme la carte du connecteur.
+      return <path className={styles.icoSolid} d="M12 3.35L22 20.65H2z" />
     case 'folder':
       return <path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
   }

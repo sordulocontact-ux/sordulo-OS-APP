@@ -237,6 +237,7 @@ export type IslandIconName =
   | 'upload'
   | 'sun'
   | 'cloud'
+  | 'vercel'
   | 'bell'
   | 'alert'
   | 'folder'
