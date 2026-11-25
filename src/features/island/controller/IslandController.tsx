@@ -29,7 +29,7 @@ import { syncSession } from '../../desktop/useSessionSync'
 import { Garden } from '../garden'
 import { useProjects } from '../../projects/useProjects'
 import { Island } from '../view'
-import { JELLY } from '../geometry'
+import { PUDDLE } from '../view/puddle'
 import type { DragMotionReader, IslandProjectOption } from '../view/types'
 import { placeFromPlacement, placeFromSearch, type IslandPlace } from './placement'
 import { startIslandRuntime, type IslandRuntime } from './runtime'
@@ -123,7 +123,7 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
   const motionRef = useRef<{ vx: number; vy: number; at: number } | null>(null)
   const dragMotion = useCallback<DragMotionReader>((nowMs) => {
     const m = motionRef.current
-    return m && nowMs - m.at < JELLY.staleMs ? m : null
+    return m && nowMs - m.at < PUDDLE.staleMs ? m : null
   }, [])
 
   /** Survol (Rust ou DOM). En sortant, un focus laissé par un clic de souris est rendu : l'île se referme. */
@@ -178,7 +178,7 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
         const started = drag.phase === 'start'
         draggingRef.current = started
         setDragging(started)
-        // Fin : la goutte se pose, plus de vitesse (elle s'écrase en arrivant).
+        // Fin : la flaque se pose, plus de vitesse (elle s'écrase en arrivant).
         if (!started) motionRef.current = null
         if (started) applyHover(false)
       }),

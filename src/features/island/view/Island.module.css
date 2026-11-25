@@ -44,7 +44,7 @@
   position: absolute;
   top: 0;
   left: 50%;
-  /* --drag-x / --drag-y : goutte du glisser, écrits par le moteur (décalage vers l'intérieur, retard) */
+  /* --drag-x / --drag-y : flaque du glisser, écrits par le moteur (décalage vers l'intérieur, retard) */
   transform: translateX(-50%) translate(var(--drag-x, 0), var(--drag-y, 0));
   pointer-events: auto;
   user-select: none;
@@ -55,8 +55,6 @@
   position: absolute;
   inset: 0;
   overflow: visible;
-  /* Étirement de la goutte du glisser (moteur), autour de son centre */
-  transform-origin: center;
 }
 
 .shapeBody {
@@ -72,7 +70,7 @@
   transition: opacity var(--island-duration-layer-in) ease;
 }
 
-/* Glisser : l'île devient une goutte noire (moteur), son contenu s'efface puis revient à l'arrivée */
+/* Glisser : l'île devient une flaque noire (moteur), son contenu s'efface puis revient à l'arrivée */
 .root[data-dragging='true'] .content {
   opacity: 0;
   transition: opacity var(--island-duration-layer-out) ease;

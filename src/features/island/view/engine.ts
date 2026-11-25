@@ -6,8 +6,9 @@
  * h en profondeur, voir edgeFrameSize) ; la forme est reportée dans le repère de l'écran (edgeShapeGeometry).
  * La boîte est placée au milieu du bord par la CSS (data-edge) : elle suit la taille écrite à chaque image.
  *
- * Glisser : la goutte se décale de ISLAND_DRAG_INSET vers l'intérieur de la fenêtre (--drag-x / --drag-y de la
- * boîte), s'étire avec la vitesse reçue de Rust et tremble (jelly.ts), en proportion du détachement du bord.
+ * Glisser : l'île devient une flaque (puddle.ts) décalée de ISLAND_DRAG_INSET vers l'intérieur de la fenêtre
+ * (--drag-x / --drag-y de la boîte), qui traîne derrière le curseur et ondule d'après la vitesse reçue de Rust,
+ * en proportion du détachement du bord ; à l'arrivée, elle s'écrase et s'étale le long du bord (splat).
  */
 import {
   ISLAND_DRAG_BLOB,
@@ -44,7 +45,23 @@ import {
   type SpringSettings,
 } from '../geometry'
 import type { IslandEdge, IslandPlatform, IslandSizeKey } from '../types'
-import { createJelly, jellySprings, jellyTransform, resetJelly, setJellyVelocity, stepJelly } from './jelly'
+import {
+  DRAG_VELOCITY_SPRING,
+  PUDDLE,
+  SPLAT_MAX_IMPACT,
+  boxRadius,
+  createPuddle,
+  pointAngle,
+  puddleLag,
+  puddlePath,
+  puddleSprings,
+  relaxPuddle,
+  resetPuddle,
+  setPuddleTargets,
+  splatPuddle,
+  stepPuddle,
+  type RoundedBox,
+} from './puddle'
 import { createSpring, isSpringAtRest, snapSpring, stepSpring, substeps, type Spring } from './spring'
 
 export interface EngineElements {
@@ -74,7 +91,7 @@ export interface EngineTarget {
   musicProgress: boolean
   /** Boutons de la musique affichés (faux : Spotify sur un autre appareil sans Premium). */
   musicControls: boolean
-  /** Glisser en cours : l'île devient une goutte ronde détachée du bord (ISLAND_DRAG_BLOB). */
+  /** Glisser en cours : l'île se détache du bord et devient une flaque (puddle.ts). */
   dragging?: boolean
 }
 
@@ -98,7 +115,7 @@ const px = (v: number) => `${v.toFixed(2)}px`
 
 const OPPOSITE = { left: 'right', right: 'left', top: 'bottom', bottom: 'top' } as const
 
-/** Direction de l'intérieur de la fenêtre depuis le bord (décalage de la goutte). */
+/** Direction de l'intérieur de la fenêtre depuis le bord (décalage de la flaque). */
 const INWARD: Record<IslandEdge, { x: number; y: number }> = {
   top: { x: 0, y: 1 },
   bottom: { x: 0, y: -1 },
@@ -115,7 +132,7 @@ function contentRadius(edge: IslandEdge, r: number): string {
   return `0 0 ${v} ${v}`
 }
 
-/** Taille d'un état (repère du bord) pour une cible ; pendant un glisser, la goutte. */
+/** Taille d'un état (repère du bord) pour une cible ; pendant un glisser, le rond de la flaque. */
 function frameSize(t: EngineTarget): IslandShapeSize {
   if (t.dragging) return { w: ISLAND_DRAG_BLOB, h: ISLAND_DRAG_BLOB, r: ISLAND_DRAG_BLOB / 2 }
   const platform = edgePlatform(t.platform, t.edge)
@@ -128,10 +145,13 @@ export class IslandEngine {
   private readonly w: Spring
   private readonly h: Spring
   private readonly r: Spring
-  /** Détachement du bord : 0 collée, 1 goutte du glisser (forme liquide, voir shapeGeometry). */
+  /** Détachement du bord : 0 collée, 1 flaque du glisser (voir shapeGeometry et renderDrop). */
   private readonly detach: Spring
-  /** Goutte liquide du glisser : étirement et retard d'après la vitesse de la fenêtre. */
-  private readonly jelly = createJelly()
+  /** Vitesse lissée de la fenêtre (px / s) : flaque et écrasement à l'arrivée. */
+  private readonly svx = createSpring(0)
+  private readonly svy = createSpring(0)
+  /** Flaque du glisser : contour et retard sur le curseur. */
+  private readonly puddle = createPuddle()
   private readonly bw: Spring
   private readonly bh: Spring
   private readonly bo: Spring
@@ -195,13 +215,16 @@ export class IslandEngine {
     }
     this.target = target
     const t = frameSize(target)
+    if (target.dragging && !prev.dragging) resetPuddle(this.puddle)
     this.w.t = t.w
     this.h.t = t.h
     this.r.t = t.r
     this.detach.t = target.dragging ? 1 : 0
     if (target.reduced) {
       ;[this.w, this.h, this.r, this.detach].forEach(snapSpring)
-      resetJelly(this.jelly)
+      this.resetDragFx()
+    } else if (prev.dragging && !target.dragging) {
+      this.splat()
     }
     if (platformChanged || edgeChanged) this.applyBubbleTarget()
     // Changement de bord : les éléments partagés se posent directement à leur place (la fenêtre a changé).
@@ -227,8 +250,39 @@ export class IslandEngine {
 
   /** Vitesse de la fenêtre (px CSS / s) pendant un glisser et son lancer ; null : immobile. */
   setMotion(motion: IslandMotion | null): void {
-    if (this.target.reduced) resetJelly(this.jelly)
-    else setJellyVelocity(this.jelly, motion)
+    if (this.target.reduced) {
+      this.resetDragFx()
+      return
+    }
+    this.svx.t = motion && Number.isFinite(motion.vx) ? motion.vx : 0
+    this.svy.t = motion && Number.isFinite(motion.vy) ? motion.vy : 0
+  }
+
+  private resetDragFx(): void {
+    this.svx.t = 0
+    this.svy.t = 0
+    ;[this.svx, this.svy].forEach(snapSpring)
+    resetPuddle(this.puddle)
+  }
+
+  /**
+   * La flaque lancée arrive sur le bord : élan vers le bord (vitesse lissée) changé en étalement. La forme
+   * s'élargit le long du bord au-delà de sa taille et s'aplatit, puis revient (ressort de la forme) ; les points
+   * du contour face au bord rentrent, ceux des côtés s'étalent.
+   */
+  private splat(): void {
+    const inward = INWARD[this.target.edge]
+    const impact = Math.min(SPLAT_MAX_IMPACT, Math.max(0, -(this.svx.x * inward.x + this.svy.x * inward.y)))
+    if (impact <= 0) return
+    this.w.v += impact * PUDDLE.splat
+    this.h.v -= impact * PUDDLE.splat * 0.15
+    splatPuddle(this.puddle, -inward.x, -inward.y, impact)
+  }
+
+  /** Cibles de la flaque, une fois par image, d'après la vitesse lissée. */
+  private updateDragFx(dt: number): void {
+    if (this.target.dragging) setPuddleTargets(this.puddle, dt, this.svx.x, this.svy.x)
+    else relaxPuddle(this.puddle)
   }
 
   /** Un élément partagé vient d'être monté ou démonté : à réécrire à la prochaine image. */
@@ -309,12 +363,16 @@ export class IslandEngine {
       it.o.t = this.gatedOpacity(it)
       if (this.target.reduced) snapSpring(it.o)
     }
+    this.updateDragFx(count * h)
+    const vel = DRAG_VELOCITY_SPRING
     for (let i = 0; i < count; i++) {
+      stepSpring(this.svx, h, vel.stiffness, vel.damping)
+      stepSpring(this.svy, h, vel.stiffness, vel.damping)
+      stepPuddle(this.puddle, h)
       stepSpring(this.w, h, sk, sc)
       stepSpring(this.h, h, sk, sc)
       stepSpring(this.r, h, sk, sc)
       stepSpring(this.detach, h, k, c)
-      stepJelly(this.jelly, h)
       stepSpring(this.bw, h, k, c)
       stepSpring(this.bh, h, k, c)
       stepSpring(this.bo, h, op.stiffness, op.damping)
@@ -337,7 +395,8 @@ export class IslandEngine {
   }
 
   private springs(): Spring[] {
-    const list = [this.w, this.h, this.r, this.detach, ...jellySprings(this.jelly), this.bw, this.bh, this.bo]
+    const list = [this.w, this.h, this.r, this.detach, this.bw, this.bh, this.bo]
+    list.push(this.svx, this.svy, ...puddleSprings(this.puddle))
     for (const it of this.items) list.push(it.x, it.y, it.s, it.o)
     return list
   }
@@ -364,22 +423,49 @@ export class IslandEngine {
     // Repère du bord, pour le jardin tourné de la pilule verticale (Island.module.css)
     cs.setProperty('--edge-along', px(g.along))
     cs.setProperty('--edge-depth', px(g.depth))
-    this.renderDrop()
+    this.renderDrop(g)
     this.renderBubble(g.width)
     this.renderShared()
   }
 
-  /** Goutte du glisser : décalage vers l'intérieur + retard (boîte), étirement (forme). Rien une fois collée. */
-  private renderDrop(): void {
+  /**
+   * Forme du glisser, en proportion du détachement du bord (rien une fois collée) : décalage vers l'intérieur,
+   * centre gardé à ISLAND_DRAG_BLOB / 2 + ISLAND_DRAG_INSET du bord quelle que soit la profondeur (Rust le met
+   * sous le curseur), retard sur le curseur, contour de la flaque.
+   */
+  private renderDrop(g: { width: number; height: number; radius: number; cap: number; d: string }): void {
     const amount = Math.max(0, Math.min(1, this.detach.x))
     const inward = INWARD[this.target.edge]
-    const j = jellyTransform(this.jelly, amount)
-    const { island, svg } = this.els
-    island.style.setProperty('--drag-x', px(inward.x * ISLAND_DRAG_INSET * amount + j.dx))
-    island.style.setProperty('--drag-y', px(inward.y * ISLAND_DRAG_INSET * amount + j.dy))
-    const flat = j.m11 === 1 && j.m12 === 0 && j.m22 === 1
-    const m = [j.m11, j.m12, j.m12, j.m22].map((v) => v.toFixed(4)).join(', ')
-    svg.style.transform = flat ? '' : `matrix(${m}, 0, 0)`
+    const lag = puddleLag(this.puddle, amount)
+    const { island, path } = this.els
+    const shift = (ISLAND_DRAG_INSET + (ISLAND_DRAG_BLOB - this.h.x) / 2) * amount
+    island.style.setProperty('--drag-x', px(inward.x * shift + lag.dx))
+    island.style.setProperty('--drag-y', px(inward.y * shift + lag.dy))
+    // Flaque : à partir de la moitié du détachement (la forme du bord n'a plus ses arrondis concaves), chaque
+    // point glisse du bord de la forme (rectangle arrondi) vers celui de la flaque ; en se posant, l'inverse.
+    if (amount <= 0.5) return
+    const blob = Math.pow((amount - 0.5) / 0.5, 0.6)
+    const edge = this.target.edge
+    const box: RoundedBox = {
+      a: g.width / 2,
+      b: g.height / 2,
+      radius: (sx, sy) => {
+        const towardEdge =
+          (edge === 'top' && sy < 0) ||
+          (edge === 'bottom' && sy > 0) ||
+          (edge === 'left' && sx < 0) ||
+          (edge === 'right' && sx > 0)
+        return towardEdge ? g.cap : g.radius
+      },
+    }
+    const radii = this.puddle.radii
+    path.setAttribute(
+      'd',
+      puddlePath(g.width / 2, g.height / 2, (i) => {
+        const rect = boxRadius(box, pointAngle(i))
+        return rect + ((radii[i]?.x ?? rect) - rect) * blob
+      }),
+    )
   }
 
   private renderBubble(islandWidth: number): void {

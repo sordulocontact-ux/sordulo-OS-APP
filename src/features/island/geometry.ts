@@ -305,29 +305,6 @@ export function layerSizeKeyFor(state: IslandState, withCall: boolean): IslandSi
 }
 
 // ---------------------------------------------------------------------------
-// Goutte liquide du glisser (view/jelly.ts)
-// ---------------------------------------------------------------------------
-
-/**
- * Réglages de la goutte du glisser. Étirement : (1 + m) dans le sens du mouvement, (1 − m) en travers (aire
- * gardée), m = vitesse × stretchPerSpeed, au plus maxStretch. Ressort peu amorti (rapport ≈ 0,28) : quand la
- * vitesse tombe, la goutte dépasse et s'écrase dans l'autre sens, puis tremble ~0,5 s. Retard : la goutte
- * traîne derrière le curseur de vitesse × lagSeconds (au plus maxLag px) et rebondit en avant à l'arrêt.
- */
-export const JELLY = {
-  stretchPerSpeed: 0.00022,
-  maxStretch: 0.3,
-  stiffness: 260,
-  damping: 9,
-  lagSeconds: 0.006,
-  maxLag: 6,
-  lagStiffness: 320,
-  lagDamping: 15,
-  /** Sans vitesse reçue depuis ce temps (ms), la goutte est considérée immobile. */
-  staleMs: 120,
-} as const
-
-// ---------------------------------------------------------------------------
 // Ressort (prototype : K, C, frame, stepSpring)
 // ---------------------------------------------------------------------------
 
@@ -516,6 +493,8 @@ export interface EdgeShapeGeometry {
   edge: number
   /** Rayon des coins opposés au bord, effectivement appliqué. */
   radius: number
+  /** Rayon des coins côté bord (forme détachée) ; 0 collée. */
+  cap: number
   /** Longueur de la zone de contenu le long du bord et profondeur (repère du bord). */
   along: number
   depth: number
@@ -554,7 +533,7 @@ export function edgeShapeGeometry(
   const height = side ? W : D
   const content: BoxRect = side ? { x: 0, y: e, width: D, height: L } : { x: e, y: 0, width: L, height: D }
   if (edge === 'top') {
-    return { d: g.d, width, height, edge: e, radius, along: L, depth: D, content }
+    return { d: g.d, width, height, edge: e, radius, cap, along: L, depth: D, content }
   }
   const flip = edge !== 'right'
   const p = (u: number, v: number) => {
@@ -570,7 +549,7 @@ export function edgeShapeGeometry(
     `M${p(cap, 0)}L${p(W - cap, 0)}${right}L${p(W - e, D - radius)}` +
     `${arc(radius, 1, W - e - radius, D)}L${p(e + radius, D)}` +
     `${arc(radius, 1, e, D - radius)}L${p(e, top)}${left}Z`
-  return { d, width, height, edge: e, radius, along: L, depth: D, content }
+  return { d, width, height, edge: e, radius, cap, along: L, depth: D, content }
 }
 
 /** Position de la boîte de l'île dans la fenêtre : au milieu du bord, collée à lui. */

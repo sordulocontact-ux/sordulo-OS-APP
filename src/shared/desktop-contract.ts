@@ -50,10 +50,10 @@ export const ISLAND_DRAG_BLOB = 44
 
 /**
  * Offset (CSS px) of the drop towards the inside of the window, away from the window side of its edge: the
- * front stretches the drop along its motion, and against the window side it would be cut off. Rust centres
- * this offset drop under the cursor.
+ * drop (a puddle) stretches behind its motion, and against the window side it would be cut off. Rust centres
+ * the drop at ISLAND_DRAG_BLOB / 2 + ISLAND_DRAG_INSET from the edge, under the cursor.
  */
-export const ISLAND_DRAG_INSET = 18
+export const ISLAND_DRAG_INSET = 48
 
 /** Where the island sits (DESKTOP_EVENTS.islandPlacement, DESKTOP_COMMANDS.getIslandPlacement). */
 export interface IslandPlacement {
@@ -84,7 +84,7 @@ export interface IslandDrag {
 
 /**
  * Velocity of the island window in CSS px / s, sent by Rust at ~60 Hz during a drag and the throw that follows
- * (until the drop lands, IslandDrag `end`). The front stretches the drop along it and lets it wobble.
+ * (until the drop lands, IslandDrag `end`). The puddle trails behind and stretches with it, then splats on the edge.
  */
 export interface IslandMotion {
   vx: number

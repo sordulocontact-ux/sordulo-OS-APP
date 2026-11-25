@@ -9,6 +9,7 @@
 }
 
 .header,
+.dragPicker,
 .stageBlock,
 .controls {
   max-width: var(--island-lab-max-width);
@@ -74,6 +75,11 @@
 .dragLayer {
   position: absolute;
   inset: 0;
+}
+
+/* Choix du style du glisser, au-dessus de la scène */
+.dragPicker {
+  margin-top: var(--space-4);
 }
 
 .scene[data-backdrop='light'] {

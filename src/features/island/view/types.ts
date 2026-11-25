@@ -90,7 +90,7 @@ export interface IslandProps {
   onDragStart?: (size: IslandDragStart) => void
   /**
    * Vitesse de la fenêtre pendant un glisser et son lancer (px CSS / s, desktop://island-motion), lue à chaque
-   * image : la goutte s'étire et tremble. null : immobile ou rien de récent. Absent : goutte immobile.
+   * image : la flaque traîne et ondule. null : immobile ou rien de récent. Absent : flaque immobile.
    */
   dragMotion?: DragMotionReader
   /** La souris est sur l'île (source : desktop://island-pointer côté Tauri, ou survol DOM dans le labo). */
