@@ -20,7 +20,6 @@ import { CALL_SERVICES, callBrand } from "../brands";
 import { Garden } from "../garden";
 import {
   BOUNCY_SPRING,
-  JELLY,
   SPRING,
   WAVE,
   dampingRatio,
@@ -37,6 +36,7 @@ import type {
 } from "../types";
 import { Island, islandLabel, type IslandDropZone } from "../view";
 import { musicHasProgress } from "../view/music";
+import { PUDDLE } from "../view/puddle";
 import type { DragMotionReader } from "../view/types";
 import {
   MAX_LAB_SESSIONS,
@@ -160,13 +160,18 @@ function Check({
 /** Part de la nouvelle mesure dans la vitesse lissée du glisser simulé (Rust lisse sur 150 ms). */
 const LAB_DRAG_SMOOTHING = 0.35;
 
+/** Lancer simulé comme dans l'app (geometry.rs) : ressort, vitesse plafonnée, arrivée à 28 px de la place. */
+const LAB_THROW = { stiffness: 320, damping: 25, maxSpeed: 5000, land: 28 };
+
 /**
- * Glisser simulé : pendant « Simuler le glisser », la goutte suit la souris dans la scène et sa vitesse est
- * donnée à l'île comme celle que Rust envoie (island-motion) : étirement, retard, tremblement à l'arrêt.
+ * Glisser simulé : île détachée, la flaque suit la souris dans la scène et sa vitesse est donnée à l'île comme
+ * celle que Rust envoie (island-motion). Au lâcher, elle est lancée vers son bord et s'y écrase.
  */
+
 function useLabDrag(
   active: boolean,
   layerRef: RefObject<HTMLDivElement | null>,
+  onLand: () => void,
 ) {
   const drag = useRef({
     x: 0,
@@ -176,10 +181,16 @@ function useLabDrag(
     at: -Infinity,
     grab: null as { x: number; y: number } | null,
     last: { x: 0, y: 0, t: 0 },
+    flight: 0,
   });
+  const landRef = useRef(onLand);
+  useEffect(() => {
+    landRef.current = onLand;
+  });
+  useEffect(() => () => cancelAnimationFrame(drag.current.flight), []);
 
   useEffect(() => {
-    if (active) return;
+    if (active || drag.current.flight) return;
     const d = drag.current;
     d.x = 0;
     d.y = 0;
@@ -190,11 +201,11 @@ function useLabDrag(
 
   const reader = useCallback<DragMotionReader>((nowMs) => {
     const d = drag.current;
-    return nowMs - d.at < JELLY.staleMs ? { vx: d.vx, vy: d.vy } : null;
+    return nowMs - d.at < PUDDLE.staleMs ? { vx: d.vx, vy: d.vy } : null;
   }, []);
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    if (!active || e.button !== 0) return;
+    if (!active || e.button !== 0 || drag.current.flight) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     const d = drag.current;
@@ -220,8 +231,50 @@ function useLabDrag(
       layerRef.current.style.transform = `translate(${d.x}px, ${d.y}px)`;
     }
   };
+  /**
+   * Lâcher : la forme est lancée vers sa place (le bord de la scène) avec un ressort qui part de la vitesse du
+   * geste ; à LAB_THROW.land px de la place, le glisser se termine (la flaque s'écrase sur le bord).
+   */
   const onPointerUp = () => {
-    drag.current.grab = null;
+    const d = drag.current;
+    if (!d.grab) return;
+    d.grab = null;
+    const speed = Math.hypot(d.vx, d.vy);
+    if (speed > LAB_THROW.maxSpeed) {
+      d.vx = (d.vx / speed) * LAB_THROW.maxSpeed;
+      d.vy = (d.vy / speed) * LAB_THROW.maxSpeed;
+    }
+    let last = performance.now();
+    let landed = false;
+    const tick = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const ax = -LAB_THROW.stiffness * d.x - LAB_THROW.damping * d.vx;
+      const ay = -LAB_THROW.stiffness * d.y - LAB_THROW.damping * d.vy;
+      d.vx += ax * dt;
+      d.vy += ay * dt;
+      d.x += d.vx * dt;
+      d.y += d.vy * dt;
+      d.at = now;
+      if (!landed && Math.hypot(d.x, d.y) < LAB_THROW.land) {
+        landed = true;
+        landRef.current();
+      }
+      const settled = Math.hypot(d.x, d.y) < 0.5 && Math.hypot(d.vx, d.vy) < 5;
+      if (settled) {
+        d.x = 0;
+        d.y = 0;
+        d.at = -Infinity;
+        d.flight = 0;
+        if (layerRef.current) layerRef.current.style.transform = "";
+        return;
+      }
+      if (layerRef.current) {
+        layerRef.current.style.transform = `translate(${d.x}px, ${d.y}px)`;
+      }
+      d.flight = requestAnimationFrame(tick);
+    };
+    d.flight = requestAnimationFrame(tick);
   };
 
   return {
@@ -251,6 +304,7 @@ export default function IslandLab() {
   const { reader: dragMotion, handlers: dragHandlers } = useLabDrag(
     dragging,
     dragLayerRef,
+    () => setDragging(false),
   );
   // « Mac avec encoche » ne vaut qu'en haut ; ailleurs, la variante sans encoche.
   const platform = edgePlatform(chosenPlatform, edge);
@@ -318,6 +372,26 @@ export default function IslandLab() {
           même état, même plateforme, même survol.
         </p>
       </header>
+
+      <section
+        className={`${styles.group} ${styles.dragPicker}`}
+        aria-label="Glisser de l’île"
+      >
+        <div className={styles.buttons}>
+          <Button
+            size="sm"
+            variant={dragging ? "primary" : "secondary"}
+            aria-pressed={dragging}
+            onClick={() => setDragging(!dragging)}
+          >
+            {dragging ? "Reposer l’île" : "Détacher l’île (flaque)"}
+          </Button>
+        </div>
+        <p className={styles.hint}>
+          Traîner la flaque dans la scène à la souris puis lâcher : comme dans
+          l’app, elle est lancée vers son bord et s’y écrase.
+        </p>
+      </section>
 
       <div className={styles.stageBlock}>
         <div
@@ -910,14 +984,6 @@ export default function IslandLab() {
                 ))}
               </Select>
             </label>
-            <Button
-              size="sm"
-              variant={dragging ? "primary" : "secondary"}
-              aria-pressed={dragging}
-              onClick={() => setDragging(!dragging)}
-            >
-              Simuler le glisser (traîner la goutte)
-            </Button>
             <label className={styles.inline}>
               Service d’appel
               <Select

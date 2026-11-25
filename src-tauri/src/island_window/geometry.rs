@@ -30,8 +30,8 @@ pub const AIM_SETTLE_SECS: f64 = 0.12;
 /// Diamètre de la goutte que devient l'île pendant un glisser (px CSS) : `ISLAND_DRAG_BLOB` du contrat.
 pub const DRAG_BLOB: f64 = 44.0;
 /// Décalage de la goutte vers l'intérieur de la fenêtre (px CSS) : `ISLAND_DRAG_INSET` du contrat. Le front
-/// l'étire dans le sens du mouvement : collée au bord de la fenêtre, elle y serait coupée.
-pub const DRAG_INSET: f64 = 18.0;
+/// en fait une flaque qui s'étire derrière le mouvement : collée au bord de la fenêtre, elle y serait coupée.
+pub const DRAG_INSET: f64 = 48.0;
 /// Temps pour que la goutte vienne se centrer sous le curseur au début du glisser (s).
 pub const GRAB_EASE_SECS: f64 = 0.16;
 
@@ -587,10 +587,10 @@ mod tests {
 
     #[test]
     fn the_drop_sits_inside_the_window() {
-        assert_eq!(drop_center(IslandEdge::Top, 640.0, 300.0, 1.0), (320.0, 40.0));
-        assert_eq!(drop_center(IslandEdge::Bottom, 640.0, 300.0, 1.0), (320.0, 260.0));
-        assert_eq!(drop_center(IslandEdge::Left, 520.0, 480.0, 1.0), (40.0, 240.0));
-        assert_eq!(drop_center(IslandEdge::Right, 1040.0, 960.0, 2.0), (960.0, 480.0));
+        assert_eq!(drop_center(IslandEdge::Top, 640.0, 300.0, 1.0), (320.0, 70.0));
+        assert_eq!(drop_center(IslandEdge::Bottom, 640.0, 300.0, 1.0), (320.0, 230.0));
+        assert_eq!(drop_center(IslandEdge::Left, 520.0, 480.0, 1.0), (70.0, 240.0));
+        assert_eq!(drop_center(IslandEdge::Right, 1040.0, 960.0, 2.0), (900.0, 480.0));
     }
 
     #[test]
