@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { BackLink, Badge, Button, EmptyState, ErrorState, Icon, LoadingState, Spinner, useToast } from '../../components/ui'
 import micIcon from '../../assets/icons/mic.svg'
@@ -26,6 +26,7 @@ import {
 } from './diff'
 import { AiNoteModal } from './AiNoteModal'
 import { executePlan } from './save'
+import { ticketCardId } from './reviewSync'
 import { TicketCard } from './TicketCard'
 import { PROCESSING_STATUSES, useInputTasks, useInputTickets, useReviewInput } from './useReviewData'
 import styles from './ReviewPage.module.css'
@@ -137,6 +138,7 @@ function ReviewBoard({ project, input, tickets, tasks, members, projectTickets }
   const [noteOpen, setNoteOpen] = useState(false)
 
   const proposed = tickets.filter((ticket) => ticket.status === 'proposed')
+  const highlight = useTicketHighlight(proposed)
   const processed = tickets.filter((ticket) => ticket.status !== 'proposed')
   const titleById = useMemo(
     () => new Map([...projectTickets, ...tickets].map((ticket) => [ticket.id, ticket.title])),
@@ -334,6 +336,8 @@ function ReviewBoard({ project, input, tickets, tasks, members, projectTickets }
                   dirty={ticket.id in drafts && hasChanges(ticket, tasksOf(ticket), draft)}
                   busy={busyIds.has(ticket.id)}
                   frozen={bulk}
+                  highlighted={highlight.id === ticket.id}
+                  onHighlightEnd={highlight.clear}
                   onChange={(next) => setDrafts((previous) => ({ ...previous, [ticket.id]: next }))}
                   onValidate={() => void validateOne(ticket)}
                   onReject={() => void rejectOne(ticket)}
@@ -366,4 +370,48 @@ function ReviewBoard({ project, input, tickets, tasks, members, projectTickets }
       <AiNoteModal open={noteOpen} onClose={() => setNoteOpen(false)} projectId={projectId} onApply={applyNote} />
     </section>
   )
+}
+
+/**
+ * Arrivée sur `?ticket=<id>` (« Modifier dans l'app » de l'île) : une fois par arrivée, la carte du ticket
+ * est amenée sous les yeux et mise en évidence brièvement, puis le paramètre est retiré de l'URL (comme
+ * `?task=` dans le kanban). Un ticket qui n'est plus proposé : rien à montrer.
+ */
+function useTicketHighlight(proposed: readonly Ticket[]): { id: string | null; clear: () => void } {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const ticketParam = searchParams.get('ticket')
+  const [highlightId, setHighlightId] = useState<string | null>(null)
+  const [seen, setSeen] = useState<string | null>(null)
+  const scrolledId = useRef<string | null>(null)
+
+  // Décidé au rendu (état ajusté pendant le rendu), l'URL nettoyée dans l'effet.
+  if (ticketParam && ticketParam !== seen) {
+    setSeen(ticketParam)
+    if (proposed.some((ticket) => ticket.id === ticketParam)) setHighlightId(ticketParam)
+  } else if (!ticketParam && seen) {
+    setSeen(null)
+  }
+
+  useEffect(() => {
+    if (!ticketParam) return
+    const next = new URLSearchParams(searchParams)
+    next.delete('ticket')
+    setSearchParams(next, { replace: true })
+  }, [ticketParam, searchParams, setSearchParams])
+
+  useEffect(() => {
+    if (!highlightId) {
+      scrolledId.current = null
+      return
+    }
+    if (scrolledId.current === highlightId) return
+    const card = document.getElementById(ticketCardId(highlightId))
+    if (!card) return
+    scrolledId.current = highlightId
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    card.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+    card.focus({ preventScroll: true })
+  }, [highlightId])
+
+  return { id: highlightId, clear: () => setHighlightId(null) }
 }

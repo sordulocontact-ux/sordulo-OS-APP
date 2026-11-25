@@ -35,6 +35,7 @@ import { backgroundRows, islandLabel, type BackgroundRow } from './labels'
 import { ActivityLayers } from './layers'
 import { createIslandStage, startIslandLoop, type IslandLoop, type LiveData, type LiveElements } from './loop'
 import { musicHasProgress, musicStyle } from './music'
+import { reviewKeyAction } from './review'
 import { SharedElements } from './SharedElements'
 import { ACTIVITY_NAMES } from './tone'
 import type { ActivityOfKind, IslandProps } from './types'
@@ -57,6 +58,8 @@ export function Island(props: IslandProps) {
     dragMotion,
     hover,
     call,
+    markers: markersProp,
+    review: reviewProp,
     audioLevels,
     sessions,
     drop,
@@ -74,6 +77,9 @@ export function Island(props: IslandProps) {
     onCallIgnore,
     onProjectChange,
     onStopRecording,
+    onMarkMoment,
+    onUndoMarker,
+    onReviewAction,
     onAnswerSession,
     onOpenSession,
     onChoiceDecision,
@@ -81,6 +87,8 @@ export function Island(props: IslandProps) {
     onHitRectsChange,
   } = props
   const music = musicProp ?? null
+  const markers = markersProp ?? null
+  const review = reviewProp ?? null
   // Variante dessinée : l'encoche n'existe qu'en haut ('win' ailleurs, même sur Mac).
   const platform = edgePlatform(platformProp, edge)
 
@@ -164,6 +172,9 @@ export function Island(props: IslandProps) {
   // Question à choix de Claude : taille haute pour loger les choix (agentQuestion, la hauteur de agentAskCall
   // sans la ligne de l'appel, donc sans l'icône ni le minuteur d'appel). Pendant un vrai appel : agentAskCall.
   const questionAsk = state === 'agentAsk' && Boolean(snapshot.ask?.questions) && !withCall
+  // Notification à deux boutons : plus large. Raison de la présélection sous l'appel détecté : plus haute.
+  const notifSecondary = state === 'notif' && Boolean(snapshot.notification?.secondary)
+  const callReason = Boolean(call?.reason?.trim())
   const target: EngineTarget = useMemo(
     () => ({
       key: questionAsk ? 'agentQuestion' : sizeKeyFor(state, open, withCall, musicGarden, progressNamed),
@@ -176,6 +187,8 @@ export function Island(props: IslandProps) {
       musicProgress,
       musicControls,
       dragging,
+      notifSecondary,
+      callReason,
     }),
     [
       state,
@@ -193,6 +206,8 @@ export function Island(props: IslandProps) {
       musicProgress,
       musicControls,
       dragging,
+      notifSecondary,
+      callReason,
     ],
   )
 
@@ -445,6 +460,22 @@ export function Island(props: IslandProps) {
     if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusWithin(false)
   }
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (state === 'review') {
+      // Validation dans l'île : ← / → précédent / suivant, Entrée valider (sur un autre bouton : ce bouton),
+      // Retour arrière refuser, Échap fermer. Pas de répétition en gardant Entrée ou Retour arrière enfoncée.
+      if (!review) {
+        if (e.key === 'Escape') onReviewAction?.({ type: 'close' })
+        return
+      }
+      const target = e.target instanceof HTMLElement ? e.target : null
+      const onButton = target !== null && target.closest('button') !== null
+      const action = reviewKeyAction(e.key, review, onButton)
+      if (!action) return
+      e.preventDefault()
+      if (e.repeat && (action.type === 'validate' || action.type === 'reject')) return
+      onReviewAction?.(action)
+      return
+    }
     if (e.key !== 'Escape') return
     if (state === 'notif' && snapshot.notification) onNotificationDismiss(snapshot.notification)
     else if (state === 'appel') onCallIgnore()
@@ -497,6 +528,8 @@ export function Island(props: IslandProps) {
             snapshot={snapshot}
             call={call}
             meet={meet}
+            markers={markers}
+            review={review}
             meetRows={meetRows}
             progress={progress}
             music={music}
@@ -510,6 +543,9 @@ export function Island(props: IslandProps) {
               onCallIgnore,
               onProjectChange,
               onStopRecording,
+              onMarkMoment,
+              onUndoMarker,
+              onReviewAction,
               onAskDecision,
               onAnswerSession,
               onOpenSession,
@@ -537,6 +573,7 @@ export function Island(props: IslandProps) {
             progress={shownProgress}
             platform={platform}
             ringRef={ringRef}
+            markers={markers}
           />
           {/* Sous-agents : devant la pochette, ils sont petits et ne la cachent pas */}
           {hasGarden && (
@@ -575,7 +612,7 @@ export function Island(props: IslandProps) {
         )}
       </button>
       <p className={styles.srOnly} aria-live="polite">
-        {islandLabel(snapshot, sessionCount, call?.appName ?? null, music)}
+        {islandLabel(snapshot, sessionCount, call?.appName ?? null, music, review)}
       </p>
     </div>
   )

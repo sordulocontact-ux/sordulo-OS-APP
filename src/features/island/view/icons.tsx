@@ -66,6 +66,13 @@ function IconPaths({ name }: { name: IslandIconName }) {
       return <path className={styles.icoSolid} d="M12 3.35L22 20.65H2z" />
     case 'folder':
       return <path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
+    case 'mail':
+      return (
+        <>
+          <rect x="3.5" y="5.5" width="17" height="13" rx="2.5" />
+          <path d="M4.5 7.5l7.5 6 7.5-6" />
+        </>
+      )
   }
 }
 

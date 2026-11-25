@@ -3,6 +3,8 @@
  */
 import { MEET_BACKGROUND } from '../geometry'
 import type { Activity, ClaudeSession, IslandMusic, IslandSnapshot, ProgressStage } from '../types'
+import { reviewLabel } from './review'
+import type { IslandReview } from './types'
 
 /** mm:ss d'une durée en ms (prototype : mmss). */
 export function formatElapsed(ms: number): string {
@@ -222,17 +224,20 @@ const STATE_LABELS = {
   agent: 'Session Claude',
   dragWake: 'Fichier en cours de glissement',
   dragOver: 'Dépôt d’un fichier',
+  review: 'Tickets à valider',
 } as const
 
 /**
  * Annonce de la région aria-live (prototype : label), complétée du contenu utile pour un lecteur d'écran :
- * titre de la notification, commande demandée, app de l'appel détecté, morceau en cours.
+ * titre de la notification, commande demandée, app de l'appel détecté, morceau en cours, ticket à valider
+ * (« Ticket 2 sur 5 : titre »).
  */
 export function islandLabel(
   snapshot: IslandSnapshot,
   sessionCount: number,
   callAppName: string | null,
   music: IslandMusic | null = null,
+  review: IslandReview | null = null,
 ): string {
   const { state } = snapshot
   switch (state) {
@@ -257,6 +262,8 @@ export function islandLabel(
       const c = snapshot.choice
       return c ? `${c.title}, ${c.eyebrow} : ${c.secondary ? `${c.secondary} ou ` : ''}${c.primary}` : 'Décision à prendre'
     }
+    case 'review':
+      return reviewLabel(review)
     case 'appel':
       // Nom d'app vide : enregistrement lancé à la main (menu du soleil, bouton du header).
       if (callAppName === '') return 'Enregistrer un appel'

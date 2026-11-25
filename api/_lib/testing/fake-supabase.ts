@@ -2,8 +2,8 @@
  * TESTS SEULEMENT. Client Supabase admin simulé en mémoire : tables (sous-ensemble de PostgREST
  * utilisé par l'API : select / insert / update / delete, eq / is / in / not is null, order, limit,
  * single / maybeSingle, count) et Auth admin (getUser, createUser, generateLink, listUsers,
- * getUserById, deleteUser). Reproduit le trigger « nouveau compte → membre relié par email » et l'unicité
- * des membres par organisation (email, compte).
+ * getUserById, deleteUser). Reproduit le trigger « nouveau compte → membre relié par email », l'unicité
+ * des membres par organisation (email, compte) et celle des entrées par origine externe.
  */
 type Row = Record<string, unknown>
 type Filter = (row: Row) => boolean
@@ -45,12 +45,27 @@ function memberDefaults(): Row {
   }
 }
 
-const DEFAULTS: Record<string, () => Row> = {
-  members: memberDefaults,
+/** Valeurs par défaut de la base pour une entrée (id, colonnes de la migration 0024). */
+function inputDefaults(): Row {
+  return { id: crypto.randomUUID(), markers: [], external_ref: null }
 }
 
-/** Unicité des membres : (organisation, email insensible à la casse) et (organisation, compte). */
+const DEFAULTS: Record<string, () => Row> = {
+  members: memberDefaults,
+  inputs: inputDefaults,
+}
+
+/**
+ * Unicité des membres : (organisation, email insensible à la casse) et (organisation, compte).
+ * Entrées : (organisation, external_ref) quand external_ref est renseigné (index partiel de la migration 0024).
+ */
 function violatesUnique(table: string, row: Row, rows: Row[]): boolean {
+  if (table === 'inputs') {
+    return (
+      row.external_ref != null &&
+      rows.some((other) => other !== row && other.organization_id === row.organization_id && other.external_ref === row.external_ref)
+    )
+  }
   if (table !== 'members') return false
   return rows.some(
     (other) =>

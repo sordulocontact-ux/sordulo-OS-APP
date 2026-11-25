@@ -536,6 +536,70 @@ describe('overlays du contrôleur', () => {
   })
 })
 
+describe('overlay review (validation dans l’île)', () => {
+  it('fait attendre les notifications ordinaires jusqu’à sa fermeture', () => {
+    const { clock, island, snap } = setup()
+    island.showOverlay('review')
+    const a = plain()
+    island.notify(a)
+    clock.advance(20_000)
+    expect(snap()).toMatchObject({ state: 'review', notification: null })
+    island.hideOverlay('review')
+    clock.advance(450)
+    expect(snap().notification?.id).toBe(a.id)
+  })
+
+  it('laisse passer une interruption puis revient à review', () => {
+    const { clock, island, snap } = setup()
+    island.showOverlay('review')
+    island.notify(plain())
+    const urgent = rappel()
+    island.notify(urgent)
+    expect(snap().notification?.id).toBe(urgent.id)
+    island.endNotification(urgent.id)
+    expect(snap()).toMatchObject({ state: 'review', notification: null })
+    clock.advance(10_000)
+    // La notification ordinaire attend toujours la fin de review.
+    expect(snap().state).toBe('review')
+  })
+
+  it('revient à review après une demande d’autorisation mise de côté', () => {
+    const { clock, island, snap } = setup()
+    island.showOverlay('review')
+    island.requestAsk(ask('r1'))
+    expect(snap().state).toBe('agentAsk')
+    clock.advance(ASK_IDLE_MS)
+    expect(snap().state).toBe('review')
+  })
+
+  it('revient à review après un autre overlay', () => {
+    const { island, snap } = setup()
+    island.showOverlay('review')
+    island.showOverlay('dragWake')
+    island.showOverlay('dragOver')
+    expect(snap().state).toBe('dragOver')
+    island.hideOverlay()
+    expect(snap().state).toBe('review')
+    island.showOverlay('appel')
+    island.hideOverlay('appel')
+    expect(snap().state).toBe('review')
+  })
+
+  it('hideOverlay(review) la retire même mise de côté', () => {
+    const { clock, island, snap } = setup()
+    island.addActivity(music)
+    island.showOverlay('review')
+    const urgent = rappel()
+    island.notify(urgent)
+    island.hideOverlay('review')
+    expect(snap().notification?.id).toBe(urgent.id)
+    island.endNotification(urgent.id)
+    expect(snap().state).toBe('music')
+    clock.advance(1000)
+    expect(snap().state).toBe('music')
+  })
+})
+
 describe('instantané', () => {
   it('garde son identité sans changement et en change à chaque changement', () => {
     const { island } = setup()

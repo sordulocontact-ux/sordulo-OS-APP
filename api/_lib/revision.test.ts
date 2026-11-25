@@ -89,7 +89,7 @@ const revision = (tickets: RevisionTicket[]): Revision => ({ tickets, project_in
 describe('REVISION_SYSTEM_PROMPT', () => {
   it('reprend les règles de l’analyse puis ajoute celles de la révision', () => {
     expect(REVISION_SYSTEM_PROMPT.startsWith(ANALYSIS_SYSTEM_PROMPT)).toBe(true)
-    for (const fragment of ['id null', 'project_instructions', 'préférences durables', 'moins de 3000 caractères', 'assignee_member_id']) {
+    for (const fragment of ['id null', 'project_instructions', 'préférences durables', 'moins de 3000 caractères', 'assignee_member_id', 'ni from_marker']) {
       expect(REVISION_SYSTEM_PROMPT).toContain(fragment)
     }
   })
@@ -299,6 +299,26 @@ describe('buildRevisionMessage', () => {
     expect(message.length).toBeLessThan(REVISION_INPUT_MAX_CHARS + 5000)
   })
 
+  it('signale les moments marqués de la réunion', () => {
+    const utterances = [
+      { speaker: 0, start: 0, end: 4, text: 'Bonjour.' },
+      { speaker: 0, start: 60, end: 64, text: 'La page Finance est confuse.' },
+    ]
+    const message = buildRevisionMessage(
+      ctx({
+        input: {
+          kind: 'meeting',
+          title: null,
+          rawText: null,
+          transcript: { provider: 'x', language: 'fr', duration_seconds: 64, utterances },
+          speakerNames: {},
+          markers: [70],
+        },
+      }),
+    )
+    expect(message).toContain(['[0:00] Voix 1 : Bonjour.', '<moment_marque>', '[1:00] Voix 1 : La page Finance est confuse.', '</moment_marque>'].join('\n'))
+  })
+
   it('ne casse pas sur une entrée vide', () => {
     expect(buildRevisionMessage(ctx({ input: { kind: 'written', title: null, rawText: ' ', transcript: null, speakerNames: {} } }))).toContain(
       "(texte de l'entrée indisponible)",
@@ -372,6 +392,8 @@ describe('reviseTickets : ticket à plusieurs tâches', () => {
     raw_text: 'La page Finance est confuse.',
     transcript: null,
     speaker_names: {},
+    markers: [],
+    external_ref: null,
     status: 'ready',
     updated_at: '2026-11-20T10:00:00Z',
   } as unknown as Input
@@ -397,5 +419,94 @@ describe('reviseTickets : ticket à plusieurs tâches', () => {
     await reviseTickets(db.client as unknown as SupabaseClient, input, { note: 'Renomme', tickets: [] })
     expect(db.rows('tasks').map((t) => t.assignee_member_id)).toEqual([SACHA, MAEL])
     expect(db.rows('tickets')[0]?.title).toBe('Nouveau titre')
+  })
+})
+
+describe('reviseTickets : étoile des moments marqués', () => {
+  const ORG = '11111111-1111-4111-8111-111111111111'
+  const PROJECT = '22222222-2222-4222-8222-222222222222'
+  const INPUT = '33333333-3333-4333-8333-333333333333'
+  let db: FakeSupabase
+
+  const input = {
+    id: INPUT,
+    organization_id: ORG,
+    project_id: PROJECT,
+    kind: 'meeting',
+    title: 'Point hebdo',
+    raw_text: null,
+    transcript: {
+      provider: 'deepgram:nova-3',
+      language: 'fr',
+      duration_seconds: 700,
+      utterances: [
+        { speaker: 1, start: 100, end: 108, text: 'La page Finance est vraiment confuse pour nos clients.' },
+        { speaker: 1, start: 600, end: 606, text: 'Il faudrait aussi un export des factures en CSV.' },
+      ],
+    },
+    speaker_names: {},
+    markers: [110],
+    external_ref: null,
+    status: 'ready',
+    updated_at: '2026-11-20T10:00:00Z',
+  } as unknown as Input
+
+  beforeEach(() => {
+    db = new FakeSupabase()
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test')
+    vi.stubEnv('ANTHROPIC_MODEL', 'claude-test')
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    db.seed('members', [{ id: MAEL, organization_id: ORG, name: 'Maël', email: 'mael@sordulo.fr', role: 'admin' }])
+    db.seed('projects', [{ id: PROJECT, organization_id: ORG, client_id: null, name: 'App Ibé', tone_of_voice: null, ai_instructions: null }])
+    db.seed('inputs', [input as unknown as Record<string, unknown>])
+    db.seed('tickets', [
+      {
+        id: T1,
+        organization_id: ORG,
+        project_id: PROJECT,
+        input_id: INPUT,
+        title: 'Revoir la page Finance',
+        description: 'Description',
+        type: 'modification',
+        priority: 'medium',
+        source_quote: 'La page Finance est vraiment confuse',
+        status: 'proposed',
+        area: 'Finance',
+        assignment_note: null,
+        from_marker: true,
+        created_at: '2026-11-20T10:00:00Z',
+      },
+    ])
+    db.seed('tasks', [
+      { id: 'task-1', organization_id: ORG, project_id: PROJECT, ticket_id: T1, title: 'Revoir', skill: 'dev', estimate_hours: 1, assignee_member_id: MAEL, position: 0 },
+    ])
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.restoreAllMocks()
+  })
+
+  function claudeReturns(output: Revision): void {
+    const message = { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(output) }], usage: { input_tokens: 1, output_tokens: 1 } }
+    vi.spyOn(Anthropic.Messages.prototype, 'stream').mockReturnValue({ finalMessage: () => Promise.resolve(message) } as never)
+  }
+
+  it('un ticket révisé garde son étoile ; un nouveau l’a seulement si sa citation est près d’un repère', async () => {
+    claudeReturns(
+      revision([
+        out({ title: 'Clarifier la page Finance', source_quote: 'Il faudrait aussi un export des factures en CSV' }),
+        out({ id: null, title: 'Détailler la page Finance', source_quote: 'La page Finance est vraiment confuse pour nos clients' }),
+        out({ id: null, title: 'Exporter les factures', source_quote: 'Il faudrait aussi un export des factures en CSV' }),
+        out({ id: null, title: 'Ajouter une aide', source_quote: 'une phrase absente de la transcription' }),
+      ]),
+    )
+    await reviseTickets(db.client as unknown as SupabaseClient, input, { note: 'Découpe', tickets: [] })
+    const starOf = (title: string) => db.rows('tickets').find((t) => t.title === title)?.from_marker
+    expect(starOf('Clarifier la page Finance')).toBe(true)
+    expect(starOf('Détailler la page Finance')).toBe(true)
+    expect(starOf('Exporter les factures')).toBe(false)
+    expect(starOf('Ajouter une aide')).toBe(false)
+    const request = vi.mocked(Anthropic.Messages.prototype.stream).mock.calls[0]![0] as { messages: { content: string }[] }
+    expect(request.messages[0]?.content).toContain('<moment_marque>')
   })
 })

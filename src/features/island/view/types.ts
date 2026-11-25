@@ -4,6 +4,7 @@
  */
 import type { ReactNode } from 'react'
 import type { CallService, IslandDragStart, IslandMotion, IslandRect } from '../../../shared/desktop-contract'
+import type { TicketType } from '../../../shared/types'
 import type {
   Activity,
   ActivityKind,
@@ -13,6 +14,7 @@ import type {
   IslandEdge,
   IslandNotification,
   IslandMusic,
+  NotificationAction,
   MusicLevelsReader,
   IslandPlatform,
   IslandSnapshot,
@@ -43,7 +45,67 @@ export interface IslandCallPrompt {
   projects: readonly IslandProjectOption[]
   /** Projet choisi ; null : aucun. */
   selectedProjectId: string | null
+  /**
+   * Pourquoi ce projet est présélectionné, affiché sous la liste (« D'après l'agenda : Point Ibé ») ; absent ou
+   * null : rien (dernier projet utilisé).
+   */
+  reason?: string | null
 }
+
+/** Moments marqués pendant l'enregistrement (état `meet`). */
+export interface IslandMarkers {
+  /** Repères posés depuis le début de l'appel. */
+  count: number
+  /** Heure (epoch ms) du dernier repère ajouté : petite étoile brève dans l'île ; null : aucun. */
+  lastAddedAt: number | null
+  /** Jusqu'à quand (epoch ms) « Annuler » retire le dernier repère ; null : pas d'annulation possible. */
+  undoUntil: number | null
+}
+
+/** Ticket proposé, tel que l'île le montre dans l'état `review`. */
+export interface IslandReviewTicket {
+  id: string
+  type: TicketType
+  title: string
+  /** Description complète : la vue la raccourcit. */
+  description: string
+  /** Extrait de la réunion ou du retour (source_quote) ; null : aucun. */
+  quote: string | null
+  /** Personne attribuée (tâches du ticket) ; null : non attribué. */
+  assignee: { name: string; initials: string } | null
+  /** Vient d'un moment marqué pendant l'appel : étoile. */
+  fromMarker: boolean
+}
+
+/** Données de l'état `review` (validation des tickets dans l'île). */
+export interface IslandReview {
+  inputTitle: string
+  projectName: string
+  /** Tickets encore proposés, dans l'ordre de l'écran de validation. Vide et `loading` faux : tout est traité. */
+  tickets: readonly IslandReviewTicket[]
+  /** Ticket affiché (« 2 sur 5 » = index 1 sur 5 tickets). */
+  index: number
+  loading: boolean
+  /** Un enregistrement est en cours (boutons désactivés). */
+  busy: boolean
+  /** Erreur du dernier enregistrement, en français ; null : aucune. */
+  error: string | null
+  /** Dernier refus, annulable quelques secondes (« Annuler ») ; null : rien à annuler. */
+  undo: { ticketTitle: string } | null
+}
+
+/** Geste de l'état `review` (boutons et clavier : flèches, Entrée, Retour arrière, Échap). */
+export type IslandReviewAction =
+  | { type: 'previous' }
+  | { type: 'next' }
+  | { type: 'validate' }
+  | { type: 'reject' }
+  | { type: 'validateAll' }
+  /** « Modifier dans l'app » : écran de validation sur ce ticket. */
+  | { type: 'openInApp' }
+  /** « Annuler » le dernier refus. */
+  | { type: 'undo' }
+  | { type: 'close' }
 
 export type IslandDropZone = 'transcribe' | 'analyse' | 'files' | 'claude'
 
@@ -99,6 +161,10 @@ export interface IslandProps {
   hover: boolean
   /** Données de l'état `appel` ; null hors de cet état. */
   call: IslandCallPrompt | null
+  /** Moments marqués de l'enregistrement en cours ; null ou absent : aucun enregistrement, pas de bouton « Marquer ». */
+  markers?: IslandMarkers | null
+  /** Données de l'état `review` ; null ou absent hors de cet état. */
+  review?: IslandReview | null
   /** Niveaux sonores récents 0..1 (le plus récent en dernier) ; absent : onde simulée comme le prototype. */
   audioLevels?: readonly number[]
   /** Sessions Claude Code connues (étape, tâche, statut). */
@@ -122,8 +188,8 @@ export interface IslandProps {
    * « aussi en cours » Musique ou progression (cette activité).
    */
   onBubbleClick: (activity: Activity) => void
-  /** Bouton de la notification. */
-  onNotificationAction: (notification: IslandNotification) => void
+  /** Bouton de la notification ; `action` : celle du deuxième bouton (`secondary`), sinon `notification.action`. */
+  onNotificationAction: (notification: IslandNotification, action?: NotificationAction) => void
   /** Échap pendant une notification. */
   onNotificationDismiss: (notification: IslandNotification) => void
   /** Plus tard / Refuser / Autoriser. */
@@ -142,6 +208,12 @@ export interface IslandProps {
   onProjectChange: (projectId: string) => void
   /** « Arrêter » au survol de l'enregistrement. */
   onStopRecording: () => void
+  /** « Marquer » dans la vue ouverte de l'enregistrement : repère au temps écoulé. */
+  onMarkMoment?: () => void
+  /** « Annuler » juste après un repère : retire le dernier. */
+  onUndoMarker?: () => void
+  /** Boutons et clavier de l'état `review`. */
+  onReviewAction?: (action: IslandReviewAction) => void
   /** « Répondre » sur une session en attente (multiOpen, agentOpen, ligne « aussi en cours »). */
   onAnswerSession: (sessionId: string) => void
   /** Clic sur une session (agentOpen, multiOpen, ligne « aussi en cours ») : sa fenêtre VS Code. */

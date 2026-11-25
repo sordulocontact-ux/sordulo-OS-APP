@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Badge, Button, EmptyState, Modal, SearchField } from '../../components/ui'
 import { CONNECTORS, connectorInitials, filterConnectors, type Connector } from './catalog'
 import { useClaudeCode } from './useClaudeCode'
+import { useGoogle, type GoogleConnector } from './useGoogle'
 import { useSpotify } from './useSpotify'
 import { useVercel } from './useVercel'
 import { SpotifyConnectModal } from './SpotifyConnectModal'
@@ -36,7 +37,29 @@ interface LiveCard {
   notice?: string
   error: string | null
   connected: boolean
+  /** Montre la phrase d'état dans la carte même quand le compte n'est pas connecté. */
+  showState?: boolean
   action: { label: string; variant: 'primary' | 'secondary'; loading: boolean; disabled: boolean; title?: string; run?: () => void }
+}
+
+function googleCard(google: GoogleConnector): LiveCard {
+  const { view } = google
+  return {
+    badge: view.badge,
+    state: view.state,
+    hint: view.hint,
+    error: google.error,
+    connected: view.connected,
+    showState: true,
+    action: {
+      label: view.action.label,
+      variant: view.action.kind === 'connect' || view.action.kind === 'reconnect' ? 'primary' : 'secondary',
+      loading: view.action.loading,
+      disabled: view.action.disabled,
+      title: view.action.title,
+      run: view.action.kind ? () => google.run(view.action.kind!) : undefined,
+    },
+  }
 }
 
 function StatusBadge({ connector, live }: { connector: Connector; live: Record<string, LiveCard> }) {
@@ -74,6 +97,8 @@ export function ConnectorsPage() {
   const vercel = useVercel()
   const mcp = useMcpTokens()
   const mcpView = describeMcp({ loading: mcp.loading, loadFailed: mcp.loadFailed, activeCount: mcp.tokens.length })
+  const googleCalendar = useGoogle('calendar')
+  const gmail = useGoogle('gmail')
 
   const live: Record<string, LiveCard> = {
     claude: {
@@ -128,9 +153,12 @@ export function ConnectorsPage() {
         },
       },
     },
+    'google-agenda': googleCard(googleCalendar),
+    gmail: googleCard(gmail),
     vercel: {
       badge: vercel.view.badge,
       state: vercel.view.state,
+      showState: true,
       error: vercel.error,
       connected: vercel.view.connected,
       action: {
@@ -212,7 +240,7 @@ export function ConnectorsPage() {
               <p className={styles.description}>{c.description}</p>
               {c.status === 'live' && live[c.id] ? (
                 <>
-                  {live[c.id]!.connected || c.id === 'vercel' || c.id === 'mcp' ? (
+                  {live[c.id]!.connected || live[c.id]!.showState || c.id === 'mcp' ? (
                     <p className={styles.cardState}>{live[c.id]!.state}</p>
                   ) : live[c.id]!.notice ? (
                     <p className={styles.cardState}>{live[c.id]!.notice}</p>

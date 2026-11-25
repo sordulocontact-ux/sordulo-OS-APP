@@ -61,7 +61,9 @@ describe('source « analyse »', () => {
       kind: 'tickets',
       title: '4 tickets à valider',
       subtitle: 'Call Ibé, App Ibé',
-      action: { type: 'openMain', route: '/projects/p-1/inputs/i-1/review' },
+      button: 'Valider ici',
+      action: { type: 'reviewHere', inputId: 'i-1' },
+      secondary: { label: 'Ouvrir', action: { type: 'openMain', route: '/projects/p-1/inputs/i-1/review' } },
     })
     expect(t.tracked()).toEqual([])
   })

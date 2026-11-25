@@ -144,6 +144,48 @@
   align-items: baseline;
 }
 
+/* Répliques à ±30 s d'un moment marqué : fond qui déborde par l'ombre, sans décaler la grille. */
+.near {
+  background: var(--color-warning-soft);
+  box-shadow: 0 0 0 var(--space-1) var(--color-warning-soft);
+}
+
+/* Repère placé avant la première réplique qui le chevauche. */
+.marker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-warning);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.markers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-warning-soft);
+  border: var(--size-border) solid var(--color-warning-pill);
+  border-radius: var(--radius-md);
+}
+
+.markersTitle {
+  margin: 0;
+  color: var(--color-warning);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.markerLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .speaker {
   display: flex;
   align-items: center;

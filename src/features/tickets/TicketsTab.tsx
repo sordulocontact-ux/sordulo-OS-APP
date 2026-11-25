@@ -14,6 +14,7 @@ import {
 import { formatTimestamp, speakerLabel } from '../../shared/transcript'
 import { formatDate, inputLabel, PRIORITY_TONE, STATUS_TONE } from './format'
 import { findQuoteUtterance } from './quote'
+import { MarkerBadge } from './MarkerBadge'
 import { ticketBrief } from './ticketBrief'
 import { useProjectInputs, useProjectTickets, useTicketTaskStats, type TicketTaskStats } from './useProjectTickets'
 import styles from './TicketsTab.module.css'
@@ -186,6 +187,7 @@ function TicketItem({ ticket, input, stats, projectId, projectName, clientName }
           <Badge tone={PRIORITY_TONE[ticket.priority]}>Priorité {LABELS.ticketPriority[ticket.priority].toLowerCase()}</Badge>
           <Badge tone={STATUS_TONE[ticket.status]}>{LABELS.ticketStatus[ticket.status]}</Badge>
           {ticket.area ? <Badge>{ticket.area}</Badge> : null}
+          {ticket.from_marker ? <MarkerBadge /> : null}
         </div>
       </div>
       {ticket.description ? (

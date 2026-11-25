@@ -77,6 +77,15 @@
   fill: var(--island-mascot-gear-small);
 }
 
+/* Étoile des moments marqués */
+.star {
+  fill: var(--island-mascot-spark);
+}
+
+.starShade {
+  fill: var(--island-mascot-pencil);
+}
+
 /* Animation à deux images : `a` la première moitié, `b` la seconde (les engrenages tournent) */
 .frameA {
   animation: frameA var(--island-mascot-duration-gear) steps(1) infinite;

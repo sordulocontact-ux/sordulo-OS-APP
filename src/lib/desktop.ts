@@ -27,6 +27,11 @@ import {
   type MicState,
   type MusicCommand,
   type MusicState,
+  type GoogleAccess,
+  type GoogleAuthorization,
+  type GoogleService,
+  type GoogleStatus,
+  type RecordingMarkers,
   type SpotifyAuthorization,
   type SpotifyConnection,
   type SpotifyStatus,
@@ -160,6 +165,23 @@ export const spotifyCancelConnect = () => call<SpotifyStatus>(DESKTOP_COMMANDS.s
 export const spotifySetConnection = (connection: SpotifyConnection | null) =>
   call<SpotifyStatus>(DESKTOP_COMMANDS.spotifySetConnection, { connection })
 
+/** Marque un moment de l'enregistrement en cours (bouton « Marquer » de l'île). */
+export const addRecordingMarker = () => call<RecordingMarkers>(DESKTOP_COMMANDS.addRecordingMarker)
+/** Retire le dernier moment marqué (« Annuler »). */
+export const removeLastRecordingMarker = () => call<RecordingMarkers>(DESKTOP_COMMANDS.removeLastRecordingMarker)
+
+/** Connecteurs Google de l'ordinateur (les lignes du compte sont dans Supabase : src/lib/google.ts). */
+export const googleStatus = () => call<GoogleStatus>(DESKTOP_COMMANDS.googleStatus)
+export const googleConnect = (args: { service: GoogleService }) =>
+  call<GoogleAuthorization>(DESKTOP_COMMANDS.googleConnect, { service: args.service })
+export const googleCancelConnect = () => call<GoogleStatus>(DESKTOP_COMMANDS.googleCancelConnect)
+export const googleAccessToken = (args: { service: GoogleService; refreshToken: string; forceRefresh?: boolean }) =>
+  call<GoogleAccess>(DESKTOP_COMMANDS.googleAccessToken, {
+    service: args.service,
+    refreshToken: args.refreshToken,
+    forceRefresh: args.forceRefresh ?? false,
+  })
+
 /** Version of the running app (Tauri config), e.g. "0.2.0". */
 export const getAppVersion = () => getVersion()
 
@@ -226,6 +248,12 @@ export const onSpotify = (handler: (status: SpotifyStatus) => void) =>
 /** Island window: the refresh token rotated (save it on the account) or was refused (re-read the row). */
 export const onSpotifyToken = (handler: (change: SpotifyTokenChange) => void) =>
   subscribe<SpotifyTokenChange>(DESKTOP_EVENTS.spotifyToken, handler)
+
+export const onRecordingMarkers = (handler: (markers: RecordingMarkers) => void) =>
+  subscribe<RecordingMarkers>(DESKTOP_EVENTS.recordingMarkers, handler)
+
+export const onGoogle = (handler: (status: GoogleStatus) => void) =>
+  subscribe<GoogleStatus>(DESKTOP_EVENTS.google, handler)
 
 /** Island window: live bands and beat of the music played by this computer (Windows), ~30 per second. */
 export const onMusicLevels = (handler: (levels: MusicLevels) => void) =>

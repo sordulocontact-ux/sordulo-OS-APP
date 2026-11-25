@@ -20,6 +20,16 @@ import type {
   ProgressStage,
 } from "../types";
 import type { IslandCallPrompt, IslandDropInfo, IslandDropZone } from "../view";
+import type { IslandMarkers, IslandReview, IslandReviewAction } from "../view/types";
+import {
+  LAB_CALL_REASON,
+  LAB_MARKER_UNDO_MS,
+  labMarkerAdded,
+  labMarkerRemoved,
+  labReview,
+  reduceLabReview,
+  type LabReviewVariant,
+} from "./labCalls";
 import { musicPosition } from "../view/music";
 import { ACTIVITY_NAMES } from "../view/tone";
 import {
@@ -36,7 +46,7 @@ import {
   type DropFile,
   type DropOptions,
 } from "./fixtures";
-import type { ChoiceDecision, IslandChoice, NotificationKind } from "../types";
+import type { ChoiceDecision, IslandChoice, NotificationAction, NotificationKind } from "../types";
 import {
   islandViewOf,
   proposalAppliedNotification,
@@ -93,6 +103,10 @@ export interface LabView {
   focusMode: boolean;
   /** Dernières réactions aux boutons de l'île, la plus récente en premier. */
   log: readonly string[];
+  /** Moments marqués de l'appel simulé ; null : pas d'appel. */
+  markers: IslandMarkers | null;
+  /** Validation des tickets dans l'île ; null hors de l'état review. */
+  review: IslandReview | null;
 }
 
 type ProgressChainStage = Extract<
@@ -153,6 +167,8 @@ export class LabRuntime {
   private forcedHover = false;
   private realHover = false;
   private log: string[] = [];
+  private markers: IslandMarkers | null = null;
+  private review: IslandReview | null = null;
   private view: LabView;
   /** Décisions du labo affichées ou mises de côté, par id. */
   private readonly choices = new Map<string, LabChoice>();
@@ -205,6 +221,8 @@ export class LabRuntime {
       hover: this.forcedHover || this.realHover,
       focusMode: this.focusMode,
       log: this.log,
+      markers: this.markers,
+      review: this.review,
     };
   }
 
@@ -285,6 +303,8 @@ export class LabRuntime {
     this.music = null;
     this.musicRemote = false;
     this.choices.clear();
+    this.markers = null;
+    this.review = null;
     this.emit();
   }
 
@@ -315,6 +335,53 @@ export class LabRuntime {
     this.coordinator.showOverlay("appel");
     this.emit();
   }
+
+  /** Appel détecté pendant un événement de l'agenda : projet présélectionné et raison sous la liste. */
+  detectCallFromCalendar(): void {
+    this.detectCall();
+    if (this.call) this.call = { ...this.call, reason: LAB_CALL_REASON };
+    this.emit();
+  }
+
+  /** Appel en cours avec des moments déjà marqués (« Marquer » et le raccourci en ajoutent). */
+  startMeetWithMarkers(count: number): void {
+    this.startMeet();
+    this.markers = { count, lastAddedAt: null, undoUntil: null };
+    this.emit();
+  }
+
+  markMoment = (): void => {
+    if (!this.coordinator.getActivity("meet")) return;
+    this.markers = labMarkerAdded(this.markers, systemClock.now());
+    this.remember(`Moment marqué (${this.markers.count})`);
+    this.later(LAB_MARKER_UNDO_MS, () => {
+      if (this.markers) this.markers = { ...this.markers, undoUntil: null };
+      this.emit();
+    });
+    this.emit();
+  };
+
+  undoMarker = (): void => {
+    this.markers = labMarkerRemoved(this.markers);
+    this.remember("Dernier repère retiré");
+    this.emit();
+  };
+
+  /** État review (validation des tickets dans l'île). */
+  showReview(variant: LabReviewVariant): void {
+    this.review = labReview(variant);
+    this.coordinator.showOverlay("review");
+    this.emit();
+  }
+
+  reviewAction = (action: IslandReviewAction): void => {
+    if (!this.review) return;
+    this.remember(`Validation : ${action.type}`);
+    const next = reduceLabReview(this.review, action);
+    this.review = next;
+    if (!next) this.coordinator.hideOverlay("review");
+    this.emit();
+  };
 
   startMeet(): void {
     const project = LAB_PROJECTS[0];
@@ -590,6 +657,7 @@ export class LabRuntime {
 
   /** Fin d'appel : le contrôleur ajoute ensuite l'import (ou, comme le prototype, directement l'analyse). */
   endCall(first: "upload" | "analyse" = "upload"): void {
+    this.markers = null;
     this.coordinator.endMeet();
     this.runProgress(first);
   }
@@ -832,12 +900,12 @@ export class LabRuntime {
     this.emit();
   };
 
-  pressNotification = (notification: IslandNotification): void => {
+  pressNotification = (notification: IslandNotification, chosen?: NotificationAction): void => {
     this.coordinator.endNotification(notification.id);
     this.remember(
-      `Bouton « ${notification.button ?? "Fermer"} » : ${notification.title}`,
+      `Bouton « ${chosen ? (notification.secondary?.label ?? "second") : (notification.button ?? "Fermer")} » : ${notification.title}`,
     );
-    const action = notification.action;
+    const action = chosen ?? notification.action;
     if (action.type === "undoFiling")
       this.coordinator.notify(
         undoneNotification({
@@ -855,7 +923,8 @@ export class LabRuntime {
         this.offerChoice(readyManyChoice(lab.items, SAMPLE_BATCH_ID, SAMPLE_NAMES), lab);
     } else if (action.type === "undoProposal")
       this.coordinator.notify(proposalUndoneNotification());
-    if (notification.action.type === "stopRecording") this.stopRecording();
+    if (action.type === "stopRecording") this.stopRecording();
+    else if (action.type === "reviewHere") this.showReview("tickets");
     else if (
       notification.action.type === "showSessions" &&
       this.sessions.length === 0

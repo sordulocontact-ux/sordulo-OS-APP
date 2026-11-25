@@ -14,7 +14,7 @@ import {
 } from '../../src/shared/assignment.js'
 import type { Client, Input, InputStatus, Member, MemberAbsence, Project, Transcript } from '../../src/shared/types.js'
 import { analyzeInput, type OpenTicketSummary } from './analysis.js'
-import type { ProcessedTicket } from './analysis-postprocess.js'
+import { resolveTicketMarkers, type ProcessedTicket } from './analysis-postprocess.js'
 import { createSignedReadUrl } from './storage.js'
 import { getSupabaseAdmin } from './supabaseAdmin.js'
 import { transcribeFromUrl } from './transcription.js'
@@ -263,6 +263,7 @@ async function saveTickets(
     type: t.type,
     priority: t.priority,
     source_quote: t.source_quote,
+    from_marker: t.from_marker,
     status: 'proposed',
     related_ticket_id: t.related_ticket_id,
     area: t.area,
@@ -378,12 +379,15 @@ export async function processInput(inputId: string): Promise<void> {
         rawText: input.raw_text,
         transcript,
         speakerNames: input.speaker_names ?? {},
+        markers: input.markers,
       },
     })
     console.log(`[process] input=${inputId} analyse ok : ${tickets.length} tickets, ${Date.now() - analysisStarted} ms`)
 
     step = 'enregistrement'
-    const fresh = await dropAlreadyValidated(admin, input.id, tickets)
+    // Étoile des moments marqués : recalculée d'après le temps de la citation dans la transcription.
+    const marked = resolveTicketMarkers(tickets, transcript, input.markers)
+    const fresh = await dropAlreadyValidated(admin, input.id, marked)
     const saved = await saveTickets(admin, ctx, fresh, workload)
     await setStatus(admin, input.id, 'ready')
     console.log(

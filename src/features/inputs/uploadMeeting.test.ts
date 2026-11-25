@@ -19,8 +19,8 @@ vi.mock('../../lib/supabase', () => ({
 }))
 
 const { ApiRequestError } = await import('../../lib/api')
-const { MeetingUploadError, uploadMeetingRecording } = await import('./uploadMeeting')
-const { AUDIO_MAX_BYTES } = await import('../../shared/api-contract')
+const { MeetingUploadError, cleanMarkers, uploadMeetingRecording } = await import('./uploadMeeting')
+const { AUDIO_MAX_BYTES, MARKERS_MAX } = await import('../../shared/api-contract')
 
 const created = {
   input: { id: 'input-1' },
@@ -97,5 +97,25 @@ describe('uploadMeetingRecording', () => {
     const big = { size: AUDIO_MAX_BYTES + 1 } as Blob
     await expect(uploadMeetingRecording(params({ file: big }))).rejects.toBeInstanceOf(MeetingUploadError)
     expect(createInput).not.toHaveBeenCalled()
+  })
+
+  it('sends the marked moments with the meeting input, cleaned', async () => {
+    await uploadMeetingRecording(params({ markers: [42.5, -1, 12, Number.NaN, 12] }))
+    expect(createInput).toHaveBeenCalledWith(expect.objectContaining({ kind: 'meeting', markers: [12, 42.5] }))
+  })
+
+  it('sends no markers field without marked moments', async () => {
+    await uploadMeetingRecording(params({ markers: [] }))
+    await uploadMeetingRecording(params())
+    for (const [request] of createInput.mock.calls) expect(request).not.toHaveProperty('markers')
+  })
+})
+
+describe('cleanMarkers', () => {
+  it('keeps finite, non negative, sorted, unique seconds, at most MARKERS_MAX', () => {
+    expect(cleanMarkers([3, 1, 1, Infinity, -2, 2.5])).toEqual([1, 2.5, 3])
+    expect(cleanMarkers(undefined)).toEqual([])
+    expect(cleanMarkers(null)).toEqual([])
+    expect(cleanMarkers(Array.from({ length: MARKERS_MAX + 5 }, (_, i) => i))).toHaveLength(MARKERS_MAX)
   })
 })

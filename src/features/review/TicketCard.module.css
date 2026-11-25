@@ -4,6 +4,24 @@
   gap: var(--space-4);
 }
 
+/* Arrivée depuis l'île (?ticket=) : anneau et fond qui s'estompent, comme le kanban. */
+.highlighted {
+  animation: highlight var(--duration-highlight) var(--easing-standard);
+}
+
+@keyframes highlight {
+  0%,
+  40% {
+    background-color: var(--color-primary-soft);
+    box-shadow: var(--shadow-focus);
+  }
+
+  100% {
+    background-color: var(--color-surface);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
 .header {
   display: flex;
   flex-wrap: wrap;
@@ -20,6 +38,7 @@
 
 .badges {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-1);
 }
 

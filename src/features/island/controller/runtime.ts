@@ -80,7 +80,7 @@ export interface IslandRuntime {
   view: PatchStore<IslandViewData>
   bus: IslandBus
   /** Bouton d'une notification : ferme la notification puis exécute son action. */
-  runAction: (notification: IslandNotification) => void
+  runAction: (notification: IslandNotification, action?: NotificationAction) => void
   /** Gestes de l'île, distribués aux sources qui les prennent. */
   gestures: IslandGestures
   dispose: () => void
@@ -154,10 +154,10 @@ export function startIslandRuntime(options: IslandRuntimeOptions): IslandRuntime
     }
   }
 
-  function runAction(notification: IslandNotification): void {
+  function runAction(notification: IslandNotification, chosen?: NotificationAction): void {
     if (disposed) return
     coordinator.endNotification(notification.id)
-    const action: NotificationAction = notification.action
+    const action: NotificationAction = chosen ?? notification.action
     const takers = handles.flatMap(({ handle }) => {
       const handler = handle.actions?.[action.type] as IslandActionHandler<typeof action.type> | undefined
       return handler ? [handler] : []
@@ -200,6 +200,9 @@ export function startIslandRuntime(options: IslandRuntimeOptions): IslandRuntime
     onOpenSession: gesture('onOpenSession'),
     onChoiceDecision: gesture('onChoiceDecision'),
     onMusicCommand: gesture('onMusicCommand'),
+    onMarkMoment: gesture('onMarkMoment'),
+    onUndoMarker: gesture('onUndoMarker'),
+    onReviewAction: gesture('onReviewAction'),
   }
 
   return {

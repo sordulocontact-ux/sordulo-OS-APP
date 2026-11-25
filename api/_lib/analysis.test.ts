@@ -48,6 +48,31 @@ describe('buildUserMessage', () => {
       }),
     )
     expect(message).toContain('[1:02] Ibé : Le logo est flou.')
+    expect(message).not.toContain('moment_marque')
+  })
+
+  it('entoure les passages à ±30 s d’un moment marqué', () => {
+    const message = buildUserMessage(
+      context({
+        kind: 'meeting',
+        rawText: null,
+        speakerNames: { '1': 'Ibé' },
+        markers: [130],
+        transcript: {
+          provider: 'deepgram:nova-3',
+          language: 'fr',
+          duration_seconds: 300,
+          utterances: [
+            { speaker: 0, start: 2, end: 5, text: 'Bonjour.' },
+            { speaker: 1, start: 120, end: 126, text: 'Le logo est flou.' },
+            { speaker: 0, start: 250, end: 252, text: 'Merci.' },
+          ],
+        },
+      }),
+    )
+    expect(message).toContain(
+      ['[0:02] Voix 1 : Bonjour.', '<moment_marque>', '[2:00] Ibé : Le logo est flou.', '</moment_marque>', '[4:10] Voix 1 : Merci.'].join('\n'),
+    )
   })
 
   it('refuse une entrée vide', () => {
@@ -103,6 +128,14 @@ describe('ANALYSIS_SYSTEM_PROMPT', () => {
     expect(ANALYSIS_SYSTEM_PROMPT).toContain('lever la règle 16')
   })
 
+  it('signale les moments marqués : pas de demande sans ticket, from_marker, priorité inchangée', () => {
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain('<moment_marque>')
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain('elle ne doit pas rester sans ticket')
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain('from_marker : true si le ticket vient')
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain('ne change pas la priorité')
+    expect(ANALYSIS_SYSTEM_PROMPT).not.toContain('—')
+  })
+
   it('reste stable (aucune date ni identifiant) pour le cache', () => {
     expect(ANALYSIS_SYSTEM_PROMPT).not.toMatch(/\d{4}-\d{2}-\d{2}/)
     expect(ANALYSIS_SYSTEM_PROMPT).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/i)
@@ -116,6 +149,15 @@ describe('format de sortie structurée', () => {
       expect(schema).not.toContain(keyword)
     }
   })
+
+  it('demande from_marker (booléen obligatoire)', () => {
+    const schema = zodOutputFormat(AnalysisSchema).schema as {
+      properties: { tickets: { items: { properties: Record<string, { type?: string }>; required: string[] } } }
+    }
+    const ticket = schema.properties.tickets.items
+    expect(ticket.properties.from_marker?.type).toBe('boolean')
+    expect(ticket.required).toContain('from_marker')
+  })
 })
 
 describe('analyzeInput : repli Mistral', () => {
@@ -127,6 +169,7 @@ describe('analyzeInput : repli Mistral', () => {
         type: 'modification',
         priority: 'medium',
         source_quote: 'Le bouton est trop petit.',
+        from_marker: false,
         area: 'Paiement',
         related_ticket_id: null,
         assignee_member_id: MAEL,

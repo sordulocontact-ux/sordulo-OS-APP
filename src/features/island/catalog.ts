@@ -43,6 +43,11 @@ export interface NotificationParams {
     inputTitle: string;
     projectName: string;
     route: string;
+    /**
+     * Entrée analysée : avec des tickets proposés, bouton « Valider ici » (validation dans l'île) et « Ouvrir »
+     * (écran de validation de l'app). Absent : seulement le bouton de l'app.
+     */
+    inputId?: string;
   };
   /** Analyse d'une entrée en erreur. */
   analysisError: { message: string; inputId: string };
@@ -134,6 +139,12 @@ export interface NotificationParams {
   filing: FreeNotificationParams;
   /** Notification de la base (passage de main) : composée par appNotifications/logic.ts. */
   appNotification: FreeNotificationParams;
+  /** Mail reçu d'un contact client (Gmail). `subject` vide : « (sans objet) ». */
+  mailFeedback: { clientName: string; subject: string; messageId: string };
+  /** Relance des mails restés sans réponse ; `first` : le premier, pour le sous-titre quand il est seul. */
+  mailReminder: { count: number; clientNames: readonly string[]; first?: { clientName: string; subject: string } };
+  /** Accès Google refusé pour ce service. */
+  googleReconnect: { service: "calendar" | "gmail" };
 }
 
 /** Notification composée ailleurs (logique pure testée) : textes, visuel, ton, bouton et action. */
@@ -162,6 +173,7 @@ interface Fields {
   subtitle: string;
   button: string | null;
   action: NotificationAction;
+  secondary?: { label: string; action: NotificationAction } | null;
   durationMs?: number;
   interrupt?: boolean;
 }
@@ -176,6 +188,7 @@ function make(kind: NotificationKind, fields: Fields): IslandNotification {
     subtitle: fields.subtitle,
     button: fields.button,
     action: fields.action,
+    ...(fields.secondary ? { secondary: fields.secondary } : {}),
     durationMs: fields.durationMs ?? DEFAULT_NOTIFICATION_MS,
     interrupt: fields.interrupt ?? false,
   };
@@ -250,8 +263,16 @@ export const notificationCatalog: {
           ? `${plural(p.count, "ticket", "tickets")} à valider`
           : "Aucun ticket proposé",
       subtitle: `${p.inputTitle}, ${p.projectName}`,
-      button: p.count > 0 ? "Valider" : "Ouvrir",
-      action: { type: "openMain", route: p.route },
+      ...(p.count > 0 && p.inputId
+        ? {
+            button: "Valider ici",
+            action: { type: "reviewHere", inputId: p.inputId },
+            secondary: { label: "Ouvrir", action: { type: "openMain", route: p.route } },
+          }
+        : {
+            button: p.count > 0 ? "Valider" : "Ouvrir",
+            action: { type: "openMain", route: p.route },
+          }),
       durationMs: LONG_NOTIFICATION_MS,
     }),
   analysisError: (p) =>
@@ -468,6 +489,43 @@ export const notificationCatalog: {
       subtitle: p.taskTitle,
       button: "Relire",
       action: { type: "openMain", route: p.route },
+    }),
+  mailFeedback: (p) =>
+    make("mailFeedback", {
+      visual: icon("mail"),
+      tone: "info",
+      title: `${p.clientName} a envoyé un retour`,
+      subtitle: p.subject.trim() || "(sans objet)",
+      button: "Analyser",
+      action: { type: "analyzeMail", messageId: p.messageId },
+      secondary: { label: "Ignorer", action: { type: "ignoreMail", messageId: p.messageId } },
+      durationMs: LONG_NOTIFICATION_MS,
+    }),
+  mailReminder: (p) =>
+    make("mailReminder", {
+      visual: icon("mail"),
+      tone: "info",
+      title:
+        p.count > 1
+          ? `${p.count} mails clients pas encore traités`
+          : "Un mail client pas encore traité",
+      subtitle:
+        p.count === 1 && p.first
+          ? `${p.first.clientName} : ${p.first.subject.trim() || "(sans objet)"}`
+          : p.clientNames.join(", "),
+      button: "Voir",
+      action: { type: "showPendingMails" },
+      durationMs: LONG_NOTIFICATION_MS,
+    }),
+  googleReconnect: (p) =>
+    make("googleReconnect", {
+      visual: icon("alert"),
+      tone: "alert",
+      title: p.service === "gmail" ? "Reconnecte Gmail" : "Reconnecte Google Agenda",
+      subtitle: "L'accès au compte Google a expiré",
+      button: "Ouvrir",
+      action: { type: "openMain", route: CONNECTORS_ROUTE },
+      durationMs: LONG_NOTIFICATION_MS,
     }),
   fileAdded: (p) =>
     make("fileAdded", {

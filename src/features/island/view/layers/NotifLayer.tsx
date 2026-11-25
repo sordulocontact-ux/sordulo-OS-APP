@@ -1,9 +1,11 @@
 /**
- * Notification : icône ou avatar, titre, sous-titre, bouton, barre de temps (pause au survol), et la ligne
- * d'appel au-dessus pendant un appel (notifCall : icône, onde et minuteur partagés).
+ * Notification : icône ou avatar, titre, sous-titre, bouton (et un deuxième, `secondary`, à sa gauche), barre de
+ * temps (pause au survol), et la ligne d'appel au-dessus pendant un appel (notifCall : icône, onde et minuteur
+ * partagés). Avec deux boutons, la forme s'élargit (NOTIF_SECONDARY) : titre et sous-titre restent lisibles.
  */
 import { Fragment, type CSSProperties } from 'react'
-import type { IslandNotification } from '../../types'
+import { islandSize } from '../../geometry'
+import type { IslandNotification, NotificationAction } from '../../types'
 import { cx } from '../cx'
 import { useLastNonNull } from '../hooks'
 import { ClaudeIcon, IslandIcon } from '../icons'
@@ -34,11 +36,17 @@ export function NotifLayer({
   ...base
 }: BaseLayerProps & {
   notification: IslandNotification | null
-  onNotificationAction: (notification: IslandNotification) => void
+  onNotificationAction: (notification: IslandNotification, action?: NotificationAction) => void
 }) {
   const shown = useLastNonNull(notification)
-  const style: Record<string, string> = {}
+  const secondary = shown?.secondary ?? null
+  const style: Record<string, string | number> = {}
   if (shown) style['--nd'] = `${shown.durationMs}ms`
+  if (secondary) {
+    style.width = islandSize(base.platform, base.withCall ? 'notifCall' : 'notif', 0, true, true, {
+      notifSecondary: true,
+    }).w
+  }
   return (
     <Layer
       {...base}
@@ -74,6 +82,15 @@ export function NotifLayer({
                 <small>{shown.subtitle}</small>
               </span>
             </>
+          )}
+          {secondary && (
+            <button
+              type="button"
+              className={cx(styles.btn, styles.btnGhost, styles.btnSm)}
+              onClick={() => onNotificationAction(shown, secondary.action)}
+            >
+              {secondary.label}
+            </button>
           )}
           {shown.button && (
             <button

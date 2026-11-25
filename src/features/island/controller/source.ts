@@ -12,7 +12,7 @@ import type { PatchStore, ReadableStore } from './store'
 /** Données du rendu que les sources fournissent (le reste vient de la coordination). */
 export type IslandViewData = Pick<
   IslandProps,
-  'call' | 'audioLevels' | 'sessions' | 'drop' | 'hotZone' | 'garden' | 'music' | 'musicLevels'
+  'call' | 'audioLevels' | 'sessions' | 'drop' | 'hotZone' | 'garden' | 'music' | 'musicLevels' | 'markers' | 'review'
 >
 
 export const EMPTY_VIEW_DATA: IslandViewData = {
@@ -24,6 +24,8 @@ export const EMPTY_VIEW_DATA: IslandViewData = {
   garden: undefined,
   music: null,
   musicLevels: undefined,
+  markers: null,
+  review: null,
 }
 
 /** Gestes de l'île qu'une source peut prendre en charge (les autres sont gérés par le contrôleur). */
@@ -40,6 +42,9 @@ export type IslandGestures = Pick<
 > & {
   /** Facultatif pour <Island> (labo, tests), toujours fourni par le contrôleur. */
   onMusicCommand: NonNullable<IslandProps['onMusicCommand']>
+  onMarkMoment: NonNullable<IslandProps['onMarkMoment']>
+  onUndoMarker: NonNullable<IslandProps['onUndoMarker']>
+  onReviewAction: NonNullable<IslandProps['onReviewAction']>
 }
 
 export type IslandGestureName = keyof IslandGestures

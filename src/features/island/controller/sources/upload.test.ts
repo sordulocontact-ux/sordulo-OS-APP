@@ -13,6 +13,7 @@ const RESULT: RecordingResult = {
   mimeType: 'audio/mpeg',
   projectId: 'p-1',
   title: null,
+  markers: [],
 }
 
 const CREATED = { input: { id: 'i-1' } as Input, upload: { bucket: 'audio', path: 'x', token: 't' } }
@@ -107,5 +108,17 @@ describe('source « envoi »', () => {
     t.runtime.bus.emit('recordingStopping')
     t.runtime.bus.emit('recordingStopFailed', { message: 'x' })
     expect(t.snap().primary).toBeNull()
+  })
+
+  it('les moments marqués partent avec l’entrée ; un enregistrement gardé sans repères en envoie aucun', async () => {
+    const t = setup()
+    t.runtime.bus.emit('recordingStopped', { ...RESULT, markers: [12.5, 300] })
+    await flush()
+    expect(t.deps.uploadMeetingRecording.mock.calls[0]![0].markers).toEqual([12.5, 300])
+    const old = { ...RESULT, path: 'C:/rec/ancien.mp3' } as Partial<RecordingResult>
+    delete old.markers
+    t.runtime.bus.emit('recordingStopped', old as RecordingResult)
+    await flush()
+    expect(t.deps.uploadMeetingRecording.mock.calls[1]![0].markers).toEqual([])
   })
 })

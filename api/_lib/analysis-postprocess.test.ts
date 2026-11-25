@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Analysis, AnalysisTask } from '../../src/shared/analysis-schema.js'
-import { postProcessAnalysis } from './analysis-postprocess.js'
+import { postProcessAnalysis, resolveFromMarker, resolveTicketMarkers, type ProcessedTicket } from './analysis-postprocess.js'
 
 const OPEN_ID = '3f0c1d8e-5b7a-4c2e-9f11-2a6b8d4e0c99'
 const MAEL = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
@@ -18,6 +18,7 @@ function analysis(tasks: AnalysisTask[], related: string | null = null): Analysi
         type: 'bug',
         priority: 'medium',
         source_quote: 'le menu ne s’ouvre plus',
+        from_marker: true,
         area: ' Menu  principal ',
         related_ticket_id: related,
         assignee_member_id: null,
@@ -96,5 +97,71 @@ describe('postProcessAnalysis', () => {
     input.tickets[0]!.assignee_member_id = MAEL
     input.tickets[0]!.assignment_reason = '   '
     expect(postProcessAnalysis(input, [], [MAEL])[0]).toMatchObject({ assignee_member_id: MAEL, assignment_reason: null })
+  })
+})
+
+describe('postProcessAnalysis : from_marker', () => {
+  it('garde l’avis de l’IA (recalculé ensuite par le serveur)', () => {
+    expect(postProcessAnalysis(analysis([]), [], [])[0]?.from_marker).toBe(true)
+    const input = analysis([])
+    input.tickets[0]!.from_marker = false
+    expect(postProcessAnalysis(input, [], [])[0]?.from_marker).toBe(false)
+  })
+})
+
+describe('resolveFromMarker', () => {
+  const transcript = {
+    utterances: [
+      { speaker: 0, start: 10, end: 15, text: 'Bonjour, on fait le point sur l’application.' },
+      { speaker: 1, start: 120, end: 130, text: 'Le menu ne s’ouvre plus sur mobile depuis la mise à jour.' },
+      { speaker: 1, start: 400, end: 410, text: 'Et le logo de la page d’accueil est flou.' },
+    ],
+  }
+
+  it('entrée sans repère : toujours false, même si l’IA dit oui', () => {
+    expect(resolveFromMarker('le menu ne s’ouvre plus', true, transcript, [])).toBe(false)
+    expect(resolveFromMarker('le menu ne s’ouvre plus', true, transcript, null)).toBe(false)
+    expect(resolveFromMarker('le menu ne s’ouvre plus', true, null, undefined)).toBe(false)
+  })
+
+  it('citation retrouvée près d’un repère (±30 s) : true, même si l’IA dit non', () => {
+    expect(resolveFromMarker('le menu ne s’ouvre plus', false, transcript, [150])).toBe(true)
+    expect(resolveFromMarker('le menu ne s’ouvre plus', false, transcript, [95])).toBe(true)
+  })
+
+  it('citation retrouvée loin de tout repère : false, même si l’IA dit oui', () => {
+    expect(resolveFromMarker('le logo de la page d’accueil est flou', true, transcript, [150])).toBe(false)
+    expect(resolveFromMarker('le menu ne s’ouvre plus', true, transcript, [161])).toBe(false)
+  })
+
+  it('citation introuvable ou absente : avis de l’IA', () => {
+    expect(resolveFromMarker('le bouton est trop petit', true, transcript, [150])).toBe(true)
+    expect(resolveFromMarker('le bouton est trop petit', false, transcript, [150])).toBe(false)
+    expect(resolveFromMarker(null, true, transcript, [150])).toBe(true)
+    expect(resolveFromMarker('le menu ne s’ouvre plus', true, null, [150])).toBe(true)
+  })
+})
+
+describe('resolveTicketMarkers', () => {
+  const ticket = (source_quote: string | null, from_marker: boolean): ProcessedTicket => ({
+    title: 'Ticket',
+    description: '',
+    type: 'bug',
+    priority: 'medium',
+    source_quote,
+    from_marker,
+    area: null,
+    related_ticket_id: null,
+    assignee_member_id: null,
+    assignment_reason: null,
+    tasks: [],
+  })
+  const transcript = { utterances: [{ speaker: 0, start: 60, end: 64, text: 'Le menu ne s’ouvre plus.' }] }
+
+  it('recalcule chaque ticket sans toucher le reste', () => {
+    const tickets = [ticket('le menu ne s’ouvre plus', false), ticket('introuvable', true), ticket(null, false)]
+    expect(resolveTicketMarkers(tickets, transcript, [70]).map((t) => t.from_marker)).toEqual([true, true, false])
+    expect(resolveTicketMarkers(tickets, transcript, []).map((t) => t.from_marker)).toEqual([false, false, false])
+    expect(tickets[0]?.from_marker).toBe(false) // pas de mutation
   })
 })

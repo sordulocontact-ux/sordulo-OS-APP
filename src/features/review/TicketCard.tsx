@@ -21,6 +21,8 @@ import {
   type TicketDraft,
   type TicketErrors,
 } from './diff'
+import { MarkerBadge } from '../tickets/MarkerBadge'
+import { ticketCardId } from './reviewSync'
 import { TaskRow } from './TaskRow'
 import styles from './TicketCard.module.css'
 
@@ -35,6 +37,9 @@ interface TicketCardProps {
   busy: boolean
   /** Another action (save all) is running: freeze the form. */
   frozen: boolean
+  /** Arrivée sur `?ticket=<id>` (île) : mise en évidence brève. */
+  highlighted?: boolean
+  onHighlightEnd?: () => void
   onChange: (draft: TicketDraft) => void
   onValidate: () => void
   onReject: () => void
@@ -49,6 +54,8 @@ export function TicketCard({
   dirty,
   busy,
   frozen,
+  highlighted = false,
+  onHighlightEnd,
   onChange,
   onValidate,
   onReject,
@@ -74,12 +81,22 @@ export function TicketCard({
   const hours = ticketHours(draft.tasks.map((task) => ({ estimate_hours: parseEstimate(task.estimate) ?? null })))
 
   return (
-    <Card className={styles.card} aria-labelledby={headingId} role="group">
+    <Card
+      id={ticketCardId(ticket.id)}
+      tabIndex={-1}
+      className={[styles.card, highlighted ? styles.highlighted : ''].filter(Boolean).join(' ')}
+      aria-labelledby={headingId}
+      role="group"
+      onAnimationEnd={(e) => {
+        if (highlighted && e.target === e.currentTarget) onHighlightEnd?.()
+      }}
+    >
       <header className={styles.header}>
         <h2 id={headingId} className={styles.heading}>
           {titleForLabel}
         </h2>
         <div className={styles.badges}>
+          {ticket.from_marker ? <MarkerBadge /> : null}
           {ticket.area ? <Badge>{ticket.area}</Badge> : null}
           {dirty ? <Badge tone="warning">Modifications non enregistrées</Badge> : null}
         </div>

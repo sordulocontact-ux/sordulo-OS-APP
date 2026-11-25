@@ -9,6 +9,7 @@ const valid = {
       type: 'modification',
       priority: 'high',
       source_quote: 'le bouton de paiement est vraiment trop petit',
+      from_marker: false,
       area: 'Paiement',
       related_ticket_id: null,
       assignee_member_id: null,
@@ -38,6 +39,11 @@ describe('AnalysisSchema', () => {
   it('refuse un champ manquant', () => {
     const { source_quote: _unused, ...withoutQuote } = valid.tickets[0]!
     expect(AnalysisSchema.safeParse({ tickets: [withoutQuote] }).success).toBe(false)
+    const { from_marker: _marker, ...withoutMarker } = valid.tickets[0]!
+    expect(AnalysisSchema.safeParse({ tickets: [withoutMarker] }).success).toBe(false)
+  })
+  it('refuse un from_marker qui n’est pas un booléen', () => {
+    expect(AnalysisSchema.safeParse({ tickets: [{ ...valid.tickets[0]!, from_marker: 'oui' }] }).success).toBe(false)
   })
 })
 

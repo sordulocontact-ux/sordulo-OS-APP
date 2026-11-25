@@ -22,6 +22,7 @@ const validAnalysis = {
       type: 'modification',
       priority: 'medium',
       source_quote: 'Le bouton est trop petit.',
+      from_marker: false,
       area: 'Paiement',
       related_ticket_id: null,
       assignee_member_id: null,
@@ -61,6 +62,8 @@ describe('analyzeWithMistral', () => {
     ])
     expect(args.responseFormat.type).toBe('json_schema')
     expect(args.responseFormat.jsonSchema.schemaDefinition.properties.tickets).toBeDefined()
+    expect(args.responseFormat.jsonSchema.schemaDefinition.properties.tickets.items.properties.from_marker).toEqual({ type: 'boolean' })
+    expect(tickets[0]?.from_marker).toBe(false)
   })
 
   it('refait une tentative quand le JSON est invalide', async () => {

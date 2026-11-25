@@ -1,0 +1,351 @@
+/*
+ * Validation des tickets dans l'île (état `review`). Hauteurs des lignes et marges : REVIEW_LAYOUT de
+ * src/features/island/geometry.ts (la taille de la forme en dépend). Boutons, icônes, spinner : Island.module.css.
+ * Couleurs et tailles : tokens `--island-*` de src/styles/tokens.css.
+ * Mac (autour de l'encoche) : contenu sous l'encoche, comme layerAsk (rien sous les 32 px du haut).
+ */
+
+.layer {
+  padding: var(--island-space-14) var(--island-space-16);
+}
+
+[data-platform='mac'] .layer {
+  padding-top: var(--island-space-44);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+}
+
+/* Cible de focus de secours (chargement) : pas de contour autour de toute la carte */
+.layer .card:focus-visible {
+  outline: none;
+}
+
+/* En-tête : entrée et projet à gauche, flèches et position à droite */
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-12);
+  min-height: var(--island-size-34);
+  flex: none;
+}
+
+.headText {
+  flex: 1;
+  min-width: 0;
+}
+
+.headText strong,
+.headText small {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: var(--island-line-height);
+}
+
+.headText strong {
+  font-size: var(--island-font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.headText small {
+  font-size: var(--island-font-size-sm);
+  color: var(--island-muted);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-4);
+  flex: none;
+}
+
+.navBtn {
+  width: var(--island-control-height-xs);
+  height: var(--island-control-height-xs);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--island-ghost);
+  color: var(--island-text);
+  cursor: pointer;
+}
+
+.navBtn svg {
+  width: var(--island-size-14);
+  height: var(--island-size-14);
+}
+
+.position {
+  padding: 0 var(--island-space-4);
+  font-size: var(--island-font-size-xs);
+  color: var(--island-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Type, étoile, titre */
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-8);
+  height: var(--island-size-20);
+  margin-top: var(--island-space-10);
+  min-width: 0;
+  flex: none;
+}
+
+.type {
+  display: inline-flex;
+  align-items: center;
+  height: var(--island-size-20);
+  padding: 0 var(--island-space-8);
+  border-radius: var(--radius-pill);
+  font-size: var(--island-font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  flex: none;
+  color: var(--type-tone);
+  background: color-mix(in srgb, var(--type-tone) var(--island-tint), transparent);
+}
+
+.typeBug {
+  --type-tone: var(--island-type-bug);
+}
+
+.typeModification {
+  --type-tone: var(--island-type-modification);
+}
+
+.typeNew {
+  --type-tone: var(--island-type-new);
+}
+
+.star {
+  position: relative;
+  width: var(--island-size-14);
+  height: var(--island-size-14);
+  flex: none;
+}
+
+.star .starArt {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--island-font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--island-line-height);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Description et extrait : deux lignes au plus (le texte est déjà raccourci, voir review.ts) */
+.description,
+.quote {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-size: var(--island-font-size-sm);
+  line-height: var(--island-line-height);
+  overflow-wrap: anywhere;
+  flex: none;
+}
+
+.description {
+  margin: var(--island-space-4) 0 0;
+  color: var(--island-text-soft);
+}
+
+.quote {
+  margin: var(--island-space-6) 0 0;
+  padding-left: var(--island-space-8);
+  border-left: var(--island-size-2) solid var(--island-line);
+  color: var(--island-muted);
+}
+
+/* Personne attribuée, et à droite le bandeau (refus annulable ou erreur). Carte pleine : 8 px au-dessus (REVIEW_LAYOUT) */
+.metaRow {
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-12);
+  height: var(--island-control-height-xs);
+  /* Collée aux boutons : sans extrait (ou description courte), la place libre passe au-dessus de la ligne */
+  margin: auto 0 var(--island-space-10);
+  min-width: 0;
+  flex: none;
+}
+
+.assignee {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--island-space-6);
+  min-width: 0;
+  /* Le nom reste entier : c'est le bandeau « Ticket refusé » qui se raccourcit */
+  flex: none;
+}
+
+.avatar {
+  width: var(--island-size-22);
+  height: var(--island-size-22);
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+  background: var(--island-avatar);
+  color: var(--island-text);
+  font-size: var(--island-font-size-badge);
+  font-weight: var(--font-weight-semibold);
+}
+
+.avatarEmpty {
+  background: transparent;
+  border: 1px dashed var(--island-muted);
+}
+
+.assigneeName {
+  font-size: var(--island-font-size-sm);
+  color: var(--island-text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.error {
+  margin-left: auto;
+  min-width: 0;
+  font-size: var(--island-font-size-xs);
+  color: var(--island-danger);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.undo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--island-space-6);
+  height: var(--island-control-height-xs);
+  margin-left: auto;
+  min-width: 0;
+  max-width: 100%;
+  padding-left: var(--island-space-10);
+  border: 1px solid var(--island-line);
+  border-radius: var(--radius-pill);
+  background: var(--island-field);
+}
+
+.undoText {
+  min-width: 0;
+  font-size: var(--island-font-size-xs);
+  color: var(--island-text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.undo .undoBtn {
+  height: 100%;
+  padding: 0 var(--island-space-10);
+  font-size: var(--island-font-size-xs);
+  flex: none;
+}
+
+/* Boutons, en bas (la ligne de la personne attribuée prend la place libre au-dessus d'elle) */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-8);
+  flex: none;
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* Occupé (enregistrement en cours) ou au bout de la liste : visible et focalisable, sans effet */
+.card .inactive {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.card .inactive:active {
+  transform: none;
+}
+
+/* Chargement, erreur sans ticket, tout traité */
+.state {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--island-space-8);
+  text-align: center;
+}
+
+.stateIcon {
+  width: var(--island-size-36);
+  height: var(--island-size-36);
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--island-tone);
+  background: color-mix(in srgb, var(--island-tone) var(--island-tint), transparent);
+}
+
+.stateIcon svg {
+  width: var(--island-size-20);
+  height: var(--island-size-20);
+}
+
+/* Coche dessinée d'emblée (son tracé animé n'est joué que dans les notifications) */
+.stateIcon svg path {
+  stroke-dashoffset: 0;
+}
+
+.stateIconPlain {
+  background: transparent;
+}
+
+.stateIcon .stateSpin {
+  width: var(--island-size-20);
+  height: var(--island-size-20);
+}
+
+.stateTitle {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  max-width: 100%;
+  font-size: var(--island-font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--island-line-height);
+}
+
+.state .undo {
+  margin-left: 0;
+}
+
+.stateActions {
+  display: flex;
+  gap: var(--island-space-8);
+  margin-top: var(--island-space-4);
+}

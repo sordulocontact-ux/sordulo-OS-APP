@@ -1,6 +1,7 @@
 /**
  * Dessins en pixel art des accessoires des Claude (feuille, carnet, crayon, dossier, clavier et invite, loupe,
- * engrenages), partagés par le Claude de l'île (view/ClaudeMascot) et ceux du jardin (garden/renderer).
+ * engrenages), partagés par le Claude de l'île (view/ClaudeMascot) et ceux du jardin (garden/renderer), et
+ * l'étoile des moments marqués (enregistrement et validation des tickets dans l'île).
  * Une case = un pixel de la grille 16 × 16 du personnage. Les couleurs sont des classes (tons) de
  * pixelArt.module.css, branchées sur les tokens `--island-mascot-*`.
  *
@@ -26,6 +27,8 @@ export type ArtTone =
   | 'handle'
   | 'gear'
   | 'gearSmall'
+  | 'star'
+  | 'starShade'
 
 export interface PixelRect {
   x: number
@@ -156,6 +159,23 @@ export const ART = {
     w: 11,
     h: 7,
     rects: [...bigGear('gear', 'a'), ...smallGear('gearSmall', 'b').map((p) => ({ ...p, x: p.x + 6, y: p.y + 1 }))],
+  },
+  /**
+   * Étoile d'un moment marqué (7 × 7, affichée à 14 px : une case = 2 px) : pointe en haut, bras pleine largeur,
+   * deux jambes écartées ; le côté droit et les jambes dans un ton plus sombre (relief).
+   */
+  star: {
+    w: 7,
+    h: 7,
+    rects: [
+      r(3, 0, 1, 1, 'star'),
+      r(2, 1, 3, 1, 'star'),
+      r(0, 2, 6, 1, 'star'),
+      r(1, 3, 4, 1, 'star'),
+      r(2, 4, 2, 1, 'star'),
+      ...cells('star', [[1, 5], [2, 5], [1, 6]]),
+      ...cells('starShade', [[6, 2], [5, 3], [4, 4], [4, 5], [5, 5], [5, 6]]),
+    ],
   },
 } as const satisfies Record<string, PixelArt>
 

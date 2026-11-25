@@ -19,6 +19,11 @@ export const AnalysisTicketSchema = z.object({
   type: z.enum(TICKET_TYPES),
   priority: z.enum(TICKET_PRIORITIES),
   source_quote: z.string(),
+  /**
+   * Ticket tiré d'un passage marqué pendant l'appel (<moment_marque>). Avis de l'IA : le serveur le remplace
+   * par le temps de la citation dans la transcription quand il la retrouve (api/_lib/analysis-postprocess.ts).
+   */
+  from_marker: z.boolean(),
   area: z.string(),
   related_ticket_id: z.string().nullable(),
   /** Personne désignée par les consignes du projet (id de <equipe>), null pour laisser le code choisir. */

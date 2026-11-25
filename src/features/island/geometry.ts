@@ -95,6 +95,47 @@ export const PROGRESS_NAMED_MAC = { wing: 136, notchMargin: 8 } as const
 export const PROGRESS_NAMED_MAC_WIDTH = MAC_NOTCH_WIDTH + 2 * PROGRESS_NAMED_MAC.wing
 
 /**
+ * Validation des tickets dans l'île (clé `review`, absente du prototype) : un ticket à la fois, mêmes marges
+ * que layerAsk (haut 14, Mac 44 sous l'encoche ; côtés 16 ; bas 14). Lignes, de haut en bas :
+ * en-tête 34 (titre de l'entrée et projet à gauche, flèches et « 2 sur 5 » à droite), écart 10, type + titre 20,
+ * écart 4, description sur deux lignes 32 (12 px à 1,3), écart 6, extrait sur deux lignes 32, écart 8,
+ * personne attribuée et bandeau (refus annulable ou erreur) 24, écart 10, boutons 28 (Modifier dans l'app,
+ * Tout valider, Refuser, Valider). Largeur : les quatre boutons sur une ligne (≈ 377 px) dans la zone de contenu.
+ */
+export const REVIEW_LAYOUT = {
+  width: { win: 440, mac: 460 },
+  top: { win: 14, mac: 44 },
+  bottom: 14,
+  rows: [34, 10, 20, 4, 32, 6, 32, 8, 24, 10, 28],
+} as const
+
+/** Hauteur de la carte de validation : haut (Mac : sous l'encoche) + lignes + bas. */
+function reviewHeight(platform: IslandPlatform): number {
+  return REVIEW_LAYOUT.top[platform] + REVIEW_LAYOUT.rows.reduce((a, b) => a + b, 0) + REVIEW_LAYOUT.bottom
+}
+
+/**
+ * Notification à deux boutons (`secondary` : « Ignorer » à côté d'« Analyser », « Ouvrir » à côté de « Valider
+ * ici ») : notif et notifCall s'élargissent de `extra` px, pour que le titre et le sous-titre gardent environ
+ * 170 px à côté des deux boutons (sinon une centaine).
+ */
+export const NOTIF_SECONDARY = { extra: { win: 80, mac: 80 } } as const
+
+/**
+ * Raison de la présélection du projet sous la liste de l'appel détecté (« D'après l'agenda : Point Ibé ») :
+ * écart 6 + une ligne de 12 px à 1,3 (16), ajoutés à la hauteur de `appel` seulement quand il y a une raison.
+ */
+export const CALL_REASON_ROW = 22
+
+/** Ce qui change la taille d'un état en plus des lignes « aussi en cours » et de la musique (voir islandSize). */
+export interface IslandSizeExtras {
+  /** Notification à deux boutons : notif et notifCall plus larges (NOTIF_SECONDARY). */
+  notifSecondary?: boolean
+  /** Raison de la présélection du projet sous la liste de l'appel : appel plus haute (CALL_REASON_ROW). */
+  callReason?: boolean
+}
+
+/**
  * Dimensions par clé de taille, en px CSS. Copie exacte de S.
  * `meetOpen` (survol de l'enregistrement, absent du prototype) reprend les dimensions de `agentOpen`.
  * `musicOpen` (survol de la musique, absent du prototype) : pochette de 56 px, progression, boutons du lecteur
@@ -133,6 +174,7 @@ export const ISLAND_SIZES: Record<IslandPlatform, Record<IslandSizeKey, IslandSh
     notif: { w: 340, h: 64, r: 22 },
     notifCall: { w: 340, h: 100, r: 24 },
     choice: { w: 384, h: 116, r: 24 },
+    review: { w: REVIEW_LAYOUT.width.win, h: reviewHeight('win'), r: 26 },
   },
   mac: {
     repos: { w: 186, h: 32, r: 9 },
@@ -158,6 +200,7 @@ export const ISLAND_SIZES: Record<IslandPlatform, Record<IslandSizeKey, IslandSh
     notif: { w: 360, h: 96, r: 24 },
     notifCall: { w: 370, h: 96, r: 24 },
     choice: { w: 400, h: 148, r: 26 },
+    review: { w: REVIEW_LAYOUT.width.mac, h: reviewHeight('mac'), r: 26 },
   },
 }
 
@@ -242,7 +285,8 @@ export function backgroundVisibleRows(count: number): number {
 /**
  * Dimensions d'une clé de taille ; meetOpen, musicOpen et progressOpen grandissent avec les lignes « aussi en cours » (jusqu'à
  * MEET_BACKGROUND.maxExpandedRows), musicOpen perd la ligne de progression quand elle n'est pas connue
- * (`musicProgress` faux).
+ * (`musicProgress` faux). `extras` : notification à deux boutons (plus large), raison de la présélection sous
+ * l'appel détecté (plus haute).
  */
 export function islandSize(
   platform: IslandPlatform,
@@ -250,9 +294,13 @@ export function islandSize(
   meetRows = 0,
   musicProgress = true,
   musicControls = true,
+  extras: IslandSizeExtras = {},
 ): IslandShapeSize {
   const size = ISLAND_SIZES[platform][key]
   let h = size.h
+  let w = size.w
+  if ((key === 'notif' || key === 'notifCall') && extras.notifSecondary) w += NOTIF_SECONDARY.extra[platform]
+  if (key === 'appel' && extras.callReason) h += CALL_REASON_ROW
   if (key === 'musicOpen' && !musicProgress) h -= MUSIC_OPEN.progressRow
   if (key === 'musicOpen' && !musicControls) h -= MUSIC_OPEN.controlsRow
   // Lignes « aussi en cours » : sous l'appel (meetOpen), la musique (musicOpen) et la progression (progressOpen,
@@ -263,7 +311,7 @@ export function islandSize(
     const { rowH, gap } = MEET_BACKGROUND[platform]
     h += gap + rows * rowH
   }
-  return h === size.h ? size : { ...size, h }
+  return h === size.h && w === size.w ? size : { ...size, w, h }
 }
 
 /**
@@ -597,6 +645,7 @@ export type SharedElementId =
   | 'progIcon'
   | 'progRing'
   | 'progLabel'
+  | 'markCount'
 
 /** Position depuis le bord d'ancrage de la zone de contenu (x) et le haut (y), taille (s), opacité (o). */
 export interface SharedPosition {
@@ -646,6 +695,27 @@ const PROG_CLOSED = {
   win: { icon: { x: 13, y: 11, s: PROGRESS_OPEN.closedIconSize }, ring: { x: 13, y: 11 } },
   mac: { icon: { x: 13, y: 7, s: PROGRESS_OPEN.closedIconSize }, ring: { x: 13, y: 7 } },
 } as const
+
+/**
+ * Moments marqués pendant l'enregistrement (`markCount` : étoile en pixel art 14 px + nombre de repères), juste à
+ * gauche du minuteur : `timerWidth` (« 00:00 » en 11 px, chiffres à chasse fixe) + `gap`. Fermée sous Windows,
+ * entre l'onde (finit à 13 + 16 + 6 + 77 = 112 px) et le minuteur : ≈ 30 px, de quoi loger « ★ 9 » (24 px).
+ * Mac : dans l'aile droite de l'encoche (92 px pour meet), au plus `macMaxWidth` px sans passer sous l'encoche
+ * (« ★ 100 », 38 px, tient tout juste). Ouverte : à gauche du minuteur, en haut à droite.
+ */
+export const MARK_COUNT = {
+  timerWidth: 28,
+  gap: 6,
+  starSize: 14,
+  /**
+   * Largeur maximale fermée sur Mac : aile droite la plus étroite (meet et notifCall, 370 px) moins la place du
+   * minuteur le plus écarté du bord (14 px, notifCall) et 6 px avant l'encoche : 38 px.
+   */
+  macMaxWidth: (370 - MAC_NOTCH_WIDTH) / 2 - (14 + 28 + 6) - 6,
+} as const
+
+/** Distance au bord droit de l'élément `markCount` quand le minuteur est à `timerX` du bord droit. */
+const markX = (timerX: number) => timerX + MARK_COUNT.timerWidth + MARK_COUNT.gap
 
 /**
  * Copie de SH. Ajouts pour `meetOpen` (absent du prototype, composé comme agentOpen) : le minuteur monte
@@ -770,6 +840,22 @@ export const SHARED_ELEMENTS: Record<SharedElementId, SharedElementSpec> = {
       progressOpen: { x: 16 + PROGRESS_OPEN.iconSize + 12, y: 46, o: 0 },
     },
   },
+  // Moments marqués (ajout) : à gauche du minuteur partout où il est affiché, même hauteur que lui.
+  markCount: {
+    anchor: 'right',
+    win: {
+      meet: { x: markX(13), y: 13 },
+      notifCall: { x: markX(14), y: 13 },
+      agentAskCall: { x: markX(14), y: 13 },
+      meetOpen: { x: markX(16), y: 24 },
+    },
+    mac: {
+      meet: { x: markX(13), y: 9 },
+      notifCall: { x: markX(14), y: 9 },
+      agentAskCall: { x: markX(14), y: 9 },
+      meetOpen: { x: markX(16), y: 54 },
+    },
+  },
 }
 
 export const SHARED_ELEMENT_IDS = Object.keys(SHARED_ELEMENTS) as SharedElementId[]
@@ -837,6 +923,7 @@ export interface VerticalOverride {
 
 export const VERTICAL_SHARED: Partial<Record<SharedElementId, Partial<Record<IslandSizeKey, VerticalOverride>>>> = {
   timer: { meet: { cross: 'center' } },
+  markCount: { meet: { cross: 'center' } },
   dots: { agent: { cross: 'center' } },
   musicEq: { music: { cross: 'center' }, musicGarden: { cross: 'center' } },
   count: { multi: { cross: 'center' } },

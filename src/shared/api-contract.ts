@@ -11,6 +11,8 @@ export interface CreateWrittenInputRequest {
   kind: 'written'
   title?: string
   rawText: string
+  /** Origine externe (Message-ID d'un mail Gmail) : une seule entrée par organisation, sinon 409. */
+  externalRef?: string
 }
 
 /** POST /api/inputs/create — meeting: creates the input (status "uploaded") and returns a signed upload URL. */
@@ -21,7 +23,14 @@ export interface CreateMeetingInputRequest {
   fileName: string
   contentType: string
   sizeBytes: number
+  /** Moments marqués pendant l'appel : secondes depuis le début de l'audio (au plus MARKERS_MAX). */
+  markers?: number[]
 }
+
+/** Repères par enregistrement, au plus. */
+export const MARKERS_MAX = 100
+/** Longueur maximale d'une origine externe (`externalRef`). */
+export const EXTERNAL_REF_MAX_LENGTH = 512
 
 export type CreateInputRequest = CreateWrittenInputRequest | CreateMeetingInputRequest
 

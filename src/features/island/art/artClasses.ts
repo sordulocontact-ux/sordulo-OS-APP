@@ -27,6 +27,8 @@ export function artClassNames(): ArtClassNames {
     handle: c('handle'),
     gear: c('gear'),
     gearSmall: c('gearSmall'),
+    star: c('star'),
+    starShade: c('starShade'),
   }
 }
 

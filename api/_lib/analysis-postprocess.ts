@@ -3,7 +3,9 @@
  * schema cannot express (known ids, finite estimates) and keeps one task per ticket.
  */
 import type { Analysis } from '../../src/shared/analysis-schema.js'
-import type { Skill, TicketPriority, TicketType } from '../../src/shared/types.js'
+import { findQuoteUtterance } from '../../src/shared/quote.js'
+import { isNearMarker } from '../../src/shared/transcript.js'
+import type { Skill, TicketPriority, TicketType, Transcript } from '../../src/shared/types.js'
 
 export interface ProcessedTask {
   title: string
@@ -18,6 +20,11 @@ export interface ProcessedTicket {
   type: TicketType
   priority: TicketPriority
   source_quote: string | null
+  /**
+   * Tiré d'un passage autour d'un moment marqué (étoile). Avis de l'IA à la sortie de postProcessAnalysis,
+   * remplacé par le calcul du serveur (resolveTicketMarkers) avant l'enregistrement.
+   */
+  from_marker: boolean
   /** Partie du produit concernée, null si l'analyse n'en donne pas. */
   area: string | null
   related_ticket_id: string | null
@@ -115,10 +122,36 @@ export function postProcessAnalysis(
       type: ticket.type,
       priority: ticket.priority,
       source_quote: quote === '' ? null : quote,
+      from_marker: ticket.from_marker,
       area,
       related_ticket_id: related,
       ...cleanAssignment(team, ticket.assignee_member_id, ticket.assignment_reason),
       tasks: [mergeTasks(title, ticket.tasks)],
     }
   })
+}
+
+/**
+ * Étoile d'un ticket (`from_marker`), calculée par le serveur plutôt que crue sur parole : entrée sans repère,
+ * false ; citation retrouvée dans la transcription, vrai si son intervention touche la fenêtre d'un repère
+ * (±MARKER_WINDOW_SECS) ; citation absente ou introuvable, l'avis de l'IA.
+ */
+export function resolveFromMarker(
+  quote: string | null | undefined,
+  aiValue: boolean,
+  transcript: Pick<Transcript, 'utterances'> | null | undefined,
+  markers: readonly number[] | null | undefined,
+): boolean {
+  if (!markers || markers.length === 0) return false
+  const utterance = findQuoteUtterance(transcript, quote)
+  return utterance ? isNearMarker(utterance.start, utterance.end, markers) : aiValue
+}
+
+/** Applique resolveFromMarker à chaque ticket de l'analyse (avant l'enregistrement). */
+export function resolveTicketMarkers(
+  tickets: readonly ProcessedTicket[],
+  transcript: Pick<Transcript, 'utterances'> | null | undefined,
+  markers: readonly number[] | null | undefined,
+): ProcessedTicket[] {
+  return tickets.map((t) => ({ ...t, from_marker: resolveFromMarker(t.source_quote, t.from_marker, transcript, markers) }))
 }

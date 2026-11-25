@@ -93,6 +93,10 @@ export interface EngineTarget {
   musicControls: boolean
   /** Glisser en cours : l'île se détache du bord et devient une flaque (puddle.ts). */
   dragging?: boolean
+  /** Notification à deux boutons : notif et notifCall plus larges (NOTIF_SECONDARY). */
+  notifSecondary?: boolean
+  /** Raison de la présélection sous l'appel détecté : appel plus haute (CALL_REASON_ROW). */
+  callReason?: boolean
 }
 
 interface SharedItem {
@@ -136,7 +140,8 @@ function contentRadius(edge: IslandEdge, r: number): string {
 function frameSize(t: EngineTarget): IslandShapeSize {
   if (t.dragging) return { w: ISLAND_DRAG_BLOB, h: ISLAND_DRAG_BLOB, r: ISLAND_DRAG_BLOB / 2 }
   const platform = edgePlatform(t.platform, t.edge)
-  return edgeFrameSize(islandSize(platform, t.key, t.meetRows, t.musicProgress, t.musicControls), t.edge, t.key)
+  const extras = { notifSecondary: t.notifSecondary, callReason: t.callReason }
+  return edgeFrameSize(islandSize(platform, t.key, t.meetRows, t.musicProgress, t.musicControls, extras), t.edge, t.key)
 }
 
 export class IslandEngine {
@@ -551,13 +556,14 @@ export class IslandEngine {
    */
   ghostPlacement(): { left: number; width: number; height: number; dx: number } | null {
     if (!this.bubbleShown || this.rootWidth <= 0 || this.target.edge !== 'top') return null
-    const { key, meetRows, musicProgress, musicControls } = this.target
+    const { key, meetRows, musicProgress, musicControls, notifSecondary, callReason } = this.target
     const platform = this.platform()
     const cx = this.rootWidth / 2
     const island = shapeGeometry(this.w.x, this.h.x, this.r.x, platform)
     const b = shapeGeometry(this.bw.x, this.bh.x, BUBBLE_SIZES[platform].r, platform)
     const left = cx + island.width / 2 + BUBBLE_GAP + b.edge
-    const arrival = cx - islandSize(platform, key, meetRows, musicProgress, musicControls).w / 2 + GHOST.inset
+    const extras = { notifSecondary, callReason }
+    const arrival = cx - islandSize(platform, key, meetRows, musicProgress, musicControls, extras).w / 2 + GHOST.inset
     const dx = arrival - (left + (b.innerWidth - GHOST.iconSize) / 2)
     return { left, width: b.innerWidth, height: b.height, dx }
   }

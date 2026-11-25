@@ -184,6 +184,7 @@ export function analysisDoneNotification(params: {
     inputTitle: inputTitle(input),
     projectName: projectName ?? 'le projet',
     route: count > 0 ? reviewPath(input.project_id, input.id) : inputPath(input.project_id, input.id),
+    inputId: input.id,
   })
 }
 

@@ -1,6 +1,6 @@
 import { api, ApiRequestError } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
-import { AUDIO_MAX_BYTES, type CreateInputResponse } from '../../shared/api-contract'
+import { AUDIO_MAX_BYTES, MARKERS_MAX, type CreateInputResponse } from '../../shared/api-contract'
 import type { Input } from '../../shared/types'
 import { formatFileSize } from './inputUtils'
 
@@ -36,10 +36,19 @@ export interface UploadMeetingParams {
   file: Blob
   fileName: string
   contentType: string
+  /** Moments marqués pendant l'appel (secondes depuis le début de l'audio) ; absent ou vide : aucun. */
+  markers?: readonly number[]
   resume?: UploadResume
   onStep?: (step: UploadStep) => void
   /** Called as soon as the input exists (before the upload). */
   onCreated?: (created: CreateInputResponse) => void
+}
+
+/** Markers the API accepts: finite, not negative, sorted, without duplicates, at most MARKERS_MAX. */
+export function cleanMarkers(markers: readonly number[] | null | undefined): number[] {
+  if (!Array.isArray(markers)) return []
+  const valid = markers.filter((m): m is number => typeof m === 'number' && Number.isFinite(m) && m >= 0)
+  return [...new Set(valid)].sort((a, b) => a - b).slice(0, MARKERS_MAX)
 }
 
 /**
@@ -67,6 +76,7 @@ export async function uploadMeetingRecording(params: UploadMeetingParams): Promi
   try {
     if (!resume.created) {
       onStep?.('creating')
+      const markers = cleanMarkers(params.markers)
       resume.created = await api.createInput({
         projectId,
         kind: 'meeting',
@@ -74,6 +84,7 @@ export async function uploadMeetingRecording(params: UploadMeetingParams): Promi
         fileName,
         contentType,
         sizeBytes: file.size,
+        ...(markers.length > 0 ? { markers } : {}),
       })
       onCreated?.(resume.created)
     }

@@ -101,6 +101,9 @@ const samples: NotificationParams = {
     button: "Voir",
     action: { type: "openNotification", notificationId: "n-1", route: "/prospects/p-1" },
   },
+  mailFeedback: { clientName: "Ibé", subject: "Retours", messageId: "m-1" },
+  mailReminder: { count: 2, clientNames: ["Ibé", "Kiwi"] },
+  googleReconnect: { service: "gmail" },
 };
 
 const kinds = Object.keys(notificationCatalog) as NotificationKind[];
@@ -111,7 +114,7 @@ function build(kind: NotificationKind) {
 
 describe("catalogue des notifications", () => {
   it("construit chaque sorte avec sa sorte, un titre et un ton", () => {
-    expect(kinds).toHaveLength(28);
+    expect(kinds).toHaveLength(31);
     for (const kind of kinds) {
       const notification = build(kind);
       expect(notification.kind).toBe(kind);
@@ -134,9 +137,47 @@ describe("catalogue des notifications", () => {
       digest: 6000,
       spotifyReconnect: 7000,
       vercelReconnect: 7000,
+      mailFeedback: 7000,
+      mailReminder: 7000,
+      googleReconnect: 7000,
     };
     for (const kind of kinds)
       expect(build(kind).durationMs, kind).toBe(special[kind] ?? 4500);
+  });
+
+  it("tickets à valider : « Valider ici » dans l'île, « Ouvrir » l'écran de validation ; sans inputId, seulement l'app", () => {
+    expect(build("tickets")).toMatchObject({ button: "Valider", action: { type: "openMain" } });
+    const here = createNotification("tickets", { ...samples.tickets, inputId: "i-1" });
+    expect(here).toMatchObject({
+      button: "Valider ici",
+      action: { type: "reviewHere", inputId: "i-1" },
+      secondary: { label: "Ouvrir", action: { type: "openMain", route: samples.tickets.route } },
+    });
+    const none = createNotification("tickets", { ...samples.tickets, count: 0, inputId: "i-1" });
+    expect(none).toMatchObject({ title: "Aucun ticket proposé", button: "Ouvrir", action: { type: "openMain" } });
+    expect(none.secondary).toBeUndefined();
+  });
+
+  it("mail d'un client : Analyser et Ignorer ; relance regroupée ; reconnexion Google", () => {
+    expect(build("mailFeedback")).toMatchObject({
+      title: "Ibé a envoyé un retour",
+      subtitle: "Retours",
+      button: "Analyser",
+      action: { type: "analyzeMail", messageId: "m-1" },
+      secondary: { label: "Ignorer", action: { type: "ignoreMail", messageId: "m-1" } },
+    });
+    expect(createNotification("mailFeedback", { clientName: "Ibé", subject: " ", messageId: "m" }).subtitle).toBe("(sans objet)");
+    expect(build("mailReminder")).toMatchObject({
+      title: "2 mails clients pas encore traités",
+      subtitle: "Ibé, Kiwi",
+      button: "Voir",
+      action: { type: "showPendingMails" },
+    });
+    expect(
+      createNotification("mailReminder", { count: 1, clientNames: ["Ibé"], first: { clientName: "Ibé", subject: "Maquette" } }),
+    ).toMatchObject({ title: "Un mail client pas encore traité", subtitle: "Ibé : Maquette" });
+    expect(build("googleReconnect")).toMatchObject({ title: "Reconnecte Gmail", action: { type: "openMain", route: "/connectors" } });
+    expect(createNotification("googleReconnect", { service: "calendar" }).title).toBe("Reconnecte Google Agenda");
   });
 
   it("seuls le rappel et ce qui concerne l’appel en cours interrompent ; le rappel a Rejoindre et le lien", () => {

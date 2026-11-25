@@ -140,6 +140,8 @@ export interface RecordingState {
   /** Unix epoch in ms. */
   startedAt: number | null
   elapsedSecs: number
+  /** Moments marked during the current recording (0 when idle). */
+  markerCount: number
 }
 
 /** Returned by stop_recording. The file stays on disk until delete_recording. */
@@ -151,7 +153,54 @@ export interface RecordingResult {
   mimeType: string
   projectId: string
   title: string | null
+  /** Moments marked during the call: seconds from the start of the audio, sorted ([] when none). */
+  markers: number[]
 }
+
+/**
+ * Markers of the current recording, after a change (DESKTOP_EVENTS.recordingMarkers, all windows) and as the
+ * result of addRecordingMarker / removeLastRecordingMarker. A marker is added by the global shortcut
+ * (Windows Ctrl+Alt+M, macOS Ctrl+Cmd+M, registered only while recording) or by the island's « Marquer » button.
+ */
+export interface RecordingMarkers {
+  count: number
+  /** Seconds from the start of the audio of the newest marker; null when none. */
+  lastAtSecs: number | null
+  /** True when this change added a marker (star feedback), false when one was removed. */
+  added: boolean
+}
+
+/** Google connector of the account: one connection per service, each with its own read-only scope. */
+export type GoogleService = 'calendar' | 'gmail'
+
+/**
+ * Google OAuth of this computer. The Google app (Client ID + secret, « Desktop app » client) belongs to the
+ * agency and is compiled into the desktop app (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET at build time). The
+ * refresh token lives on the Sordulo OS account (table google_connections, migration 0024), never on disk.
+ */
+export interface GoogleStatus {
+  /** The Google Client ID and secret were compiled into this version. False: the cards explain it. */
+  configured: boolean
+  /** Service whose authorization is waiting in the browser; null otherwise. */
+  connecting: GoogleService | null
+}
+
+/** Result of googleConnect, saved on the Sordulo OS account by the front. */
+export interface GoogleAuthorization {
+  service: GoogleService
+  refreshToken: string
+  /** Email address of the Google account. */
+  account: string
+}
+
+/**
+ * Result of googleAccessToken. `refused`: Google refused the refresh token (revoked, expired after 7 days for
+ * an app in Testing mode, password changed): the front marks the connection « À reconnecter ». Network and
+ * other errors reject with a French message.
+ */
+export type GoogleAccess =
+  | { status: 'ok'; accessToken: string; /** Unix epoch in ms. */ expiresAt: number }
+  | { status: 'refused' }
 
 export interface DesktopStatus {
   mic: MicState
@@ -462,6 +511,10 @@ export const DESKTOP_EVENTS = {
   spotifyToken: 'desktop://spotify-token',
   /** Payload MusicLevels, island window: live bands and beat of the music played by the computer (Windows). */
   musicLevels: 'desktop://music-levels',
+  /** Payload RecordingMarkers, all windows: a moment was marked (shortcut or button) or the last one removed. */
+  recordingMarkers: 'desktop://recording-markers',
+  /** Payload GoogleStatus, all windows: a Google authorization started or ended. */
+  google: 'desktop://google',
   /** Payload UpdateStatus, main window: the update state changed. */
   updateStatus: 'desktop://update-status',
   /**
@@ -556,6 +609,27 @@ export const DESKTOP_COMMANDS = {
    * no refresh token, no row, or signed out of Sordulo OS). Same token as Rust's: kept (access token, refusal).
    */
   spotifySetConnection: 'spotify_set_connection',
+  /** () => RecordingMarkers — marks a moment at the elapsed time of the current recording; refused when idle. */
+  addRecordingMarker: 'add_recording_marker',
+  /** () => RecordingMarkers — removes the newest marker of the current recording (« Annuler »); refused when idle. */
+  removeLastRecordingMarker: 'remove_last_recording_marker',
+  /** () => GoogleStatus */
+  googleStatus: 'google_status',
+  /**
+   * ({ service: GoogleService }) => GoogleAuthorization — main window only: opens the Google authorization page
+   * (read-only scope of the service + email) in the default browser and waits (up to 3 minutes) for its
+   * redirect to a loopback address http://127.0.0.1:<port>. Refused when the app has no Google credentials.
+   */
+  googleConnect: 'google_connect',
+  /** () => GoogleStatus — main window only: stops an authorization waiting in the browser. */
+  googleCancelConnect: 'google_cancel_connect',
+  /**
+   * ({ service: GoogleService, refreshToken: string, forceRefresh?: boolean }) => GoogleAccess — island and main
+   * windows: an access token for the Google APIs (Calendar, Gmail are then called by the front, CORS allowed).
+   * Cached in memory until shortly before it expires; forceRefresh: true ignores the cache (after a 401 from a
+   * Google API).
+   */
+  googleAccessToken: 'google_access_token',
   /** () => UpdateStatus */
   getUpdateStatus: 'get_update_status',
   /**

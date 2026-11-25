@@ -232,6 +232,8 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
         dragMotion={dragMotion}
         hover={hover}
         call={view.call}
+        markers={view.markers}
+        review={view.review}
         audioLevels={view.audioLevels}
         sessions={view.sessions}
         drop={view.drop}
@@ -248,6 +250,9 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
         onCallIgnore={runtime.gestures.onCallIgnore}
         onProjectChange={runtime.gestures.onProjectChange}
         onStopRecording={runtime.gestures.onStopRecording}
+        onMarkMoment={runtime.gestures.onMarkMoment}
+        onUndoMarker={runtime.gestures.onUndoMarker}
+        onReviewAction={runtime.gestures.onReviewAction}
         onAnswerSession={runtime.gestures.onAnswerSession}
         onOpenSession={runtime.gestures.onOpenSession}
         onChoiceDecision={runtime.gestures.onChoiceDecision}

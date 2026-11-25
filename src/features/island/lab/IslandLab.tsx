@@ -412,6 +412,8 @@ export default function IslandLab() {
             dragMotion={dragMotion}
             hover={view.hover}
             call={view.call}
+            markers={view.markers}
+            review={view.review}
             audioLevels={audioLevels}
             sessions={view.sessions}
             drop={view.drop}
@@ -434,6 +436,9 @@ export default function IslandLab() {
             onCallIgnore={runtime.ignoreCall}
             onProjectChange={runtime.changeCallProject}
             onStopRecording={runtime.stopRecording}
+            onMarkMoment={runtime.markMoment}
+            onUndoMarker={runtime.undoMarker}
+            onReviewAction={runtime.reviewAction}
             onAnswerSession={runtime.answerSession}
             onOpenSession={runtime.openSession}
             onChoiceDecision={runtime.decideChoice}
@@ -499,6 +504,27 @@ export default function IslandLab() {
             </Button>
             <Button size="sm" onClick={() => apply((r) => r.startMeet())}>
               Appel en cours
+            </Button>
+            <Button size="sm" onClick={() => apply((r) => r.detectCallFromCalendar())}>
+              Appel détecté (agenda)
+            </Button>
+            <Button size="sm" onClick={() => apply((r) => r.startMeetWithMarkers(2))}>
+              Appel avec repères
+            </Button>
+            <Button size="sm" onClick={() => apply((r) => r.showReview("tickets"))}>
+              Valider ici
+            </Button>
+            <Button size="sm" onClick={() => apply((r) => r.showReview("busy"))}>
+              Validation : erreur
+            </Button>
+            <Button size="sm" onClick={() => apply((r) => r.showReview("loading"))}>
+              Validation : chargement
+            </Button>
+            <Button size="sm" onClick={() => apply((r) => r.showReview("done"))}>
+              Validation : tout traité
+            </Button>
+            <Button size="sm" onClick={() => apply((r) => r.showReview("error"))}>
+              Validation : illisible
             </Button>
             <Button size="sm" onClick={() => apply((r) => r.addMusic())}>
               Musique

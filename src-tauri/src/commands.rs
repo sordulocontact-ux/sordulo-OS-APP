@@ -7,6 +7,7 @@ use tauri::{AppHandle, Manager, State};
 use crate::claude::{self, ClaudeConnection, ClaudeDecision};
 use crate::dropped;
 use crate::events::{WINDOW_MAIN, WINDOW_PROMPT};
+use crate::google::{self, GoogleAccess, GoogleAuthorization, GoogleService, GoogleStatus};
 use crate::island_window;
 use crate::music::{self, MusicState};
 use crate::platform::MediaCommand;
@@ -16,7 +17,7 @@ use crate::spotify::{
 };
 use crate::state::{
     DesktopState, DesktopStatus, DeploymentsEnabledState, FocusModeState, IslandHitRects, IslandPlacement, IslandRect,
-    PromptReason, RecordingResult, RecordingState, UpdateStatus,
+    PromptReason, RecordingMarkers, RecordingResult, RecordingState, UpdateStatus,
 };
 use crate::tray;
 use crate::updater;
@@ -42,6 +43,20 @@ pub async fn start_recording(
 #[tauri::command]
 pub async fn stop_recording(app: AppHandle) -> Result<RecordingResult, String> {
     recording::stop(&app)
+}
+
+/// Marque un moment à la position actuelle de l'enregistrement (bouton « Marquer » de l'île ; le
+/// raccourci global passe directement par `recording::add_marker`). Refusé hors enregistrement.
+/// Asynchrone : hors du thread principal (le verrou de l'état peut être tenu par un démarrage).
+#[tauri::command]
+pub async fn add_recording_marker(app: AppHandle) -> Result<RecordingMarkers, String> {
+    recording::add_marker(&app)
+}
+
+/// Retire le repère le plus récent (« Annuler » de l'île). Refusé hors enregistrement.
+#[tauri::command]
+pub async fn remove_last_recording_marker(app: AppHandle) -> Result<RecordingMarkers, String> {
+    recording::remove_last_marker(&app)
 }
 
 #[tauri::command]
@@ -279,6 +294,63 @@ pub fn spotify_set_connection(
         return Err("Fenêtre non autorisée pour la connexion Spotify.".into());
     }
     spotify::set_connection(&app, connection)
+}
+
+/// État des connecteurs Google sur cet ordinateur (identifiants compilés, autorisation en cours).
+#[tauri::command]
+pub fn google_status(app: AppHandle) -> GoogleStatus {
+    google::status(&app)
+}
+
+/// Autorise Google Agenda ou Gmail (scope en lecture seule + email) : ouvre la page de Google dans le
+/// navigateur par défaut et attend la redirection sur la boucle locale (3 min au plus). Renvoie de quoi
+/// enregistrer la connexion sur le compte Sordulo OS (le front l'enregistre). Réservé à la fenêtre
+/// principale. Bloquant (serveur local, HTTP) : tourne dans `spawn_blocking`.
+#[tauri::command]
+pub async fn google_connect(
+    window: tauri::WebviewWindow,
+    app: AppHandle,
+    service: GoogleService,
+) -> Result<GoogleAuthorization, String> {
+    if window.label() != WINDOW_MAIN {
+        return Err("Seule la fenêtre principale peut connecter un compte Google.".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || google::connect(&app, service))
+        .await
+        .map_err(|e| format!("Connexion à Google interrompue : {e}"))?
+}
+
+/// Arrête une autorisation Google qui attend dans le navigateur. Réservé à la fenêtre principale.
+#[tauri::command]
+pub fn google_cancel_connect(
+    window: tauri::WebviewWindow,
+    app: AppHandle,
+) -> Result<GoogleStatus, String> {
+    if window.label() != WINDOW_MAIN {
+        return Err("Seule la fenêtre principale peut annuler la connexion à Google.".into());
+    }
+    Ok(google::cancel_connect(&app))
+}
+
+/// Jeton d'accès Google (Agenda, Gmail) à partir du jeton de rafraîchissement de la connexion du compte,
+/// gardé en mémoire jusqu'à peu avant son expiration ; `forceRefresh` (absent : faux) ignore ce jeton
+/// (après un 401 d'une API Google). Fenêtres principale et île. Bloquant (HTTP) : `spawn_blocking`.
+#[tauri::command]
+pub async fn google_access_token(
+    window: tauri::WebviewWindow,
+    app: AppHandle,
+    service: GoogleService,
+    refresh_token: String,
+    force_refresh: Option<bool>,
+) -> Result<GoogleAccess, String> {
+    if window.label() != WINDOW_MAIN && window.label() != WINDOW_PROMPT {
+        return Err("Fenêtre non autorisée pour les jetons Google.".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        google::access_token(&app, service, &refresh_token, force_refresh.unwrap_or(false))
+    })
+    .await
+    .map_err(|e| format!("Accès à Google interrompu : {e}"))?
 }
 
 #[tauri::command]

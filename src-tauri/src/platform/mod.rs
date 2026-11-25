@@ -6,7 +6,7 @@
 //!   Core Audio, onglets par AppleScript), enregistrement (micro + process tap), presse-papiers.
 //! - Musique en cours (`now_playing`, `media_command`) : `windows/media.rs` (contrôles multimédias du
 //!   système) et `macos/media.rs` (Spotify et Musique par AppleScript).
-//! - Ouverture d'une URL (`open_url`, connecteur Spotify) : `windows/open_url.rs` et `macos/open_url.rs`.
+//! - Ouverture d'une URL (`open_url`, connecteurs Spotify et Google) : `windows/open_url.rs` et `macos/open_url.rs`.
 //!
 //! Le reste de l'app (tray, commandes Tauri, boucle de détection) ne dépend QUE de ce module :
 //! jamais de `cfg(windows)` en dehors de `platform/`.
@@ -475,6 +475,25 @@ pub fn copy_text(text: &str) -> anyhow::Result<()> {
     }
 }
 
+/// Raccourci global « marquer un moment » sous Windows (format de `global-hotkey`) : Ctrl+Alt+M. Windows
+/// enregistre la touche virtuelle de la lettre M, quelle que soit la disposition du clavier.
+pub const MARKER_SHORTCUTS_WINDOWS: &[&str] = &["Control+Alt+KeyM"];
+/// macOS : Control+Command+M. Carbon enregistre une touche PHYSIQUE (position QWERTY) : sur un clavier
+/// AZERTY, la lettre M est à la place du « ; » QWERTY. Les deux positions sont donc prises, pour que
+/// Control+Command+M marche sur les deux claviers (l'autre combinaison, Control+Command+« ; » en QWERTY ou
+/// « , » en AZERTY, n'est prise que pendant un enregistrement).
+pub const MARKER_SHORTCUTS_MACOS: &[&str] = &["Control+Super+KeyM", "Control+Super+Semicolon"];
+
+/// Raccourcis « marquer un moment » de ce système, enregistrés seulement pendant un enregistrement
+/// (`marker_shortcut.rs`, tauri-plugin-global-shortcut, sans autorisation à demander).
+pub fn marker_shortcuts() -> &'static [&'static str] {
+    if cfg!(target_os = "macos") {
+        MARKER_SHORTCUTS_MACOS
+    } else {
+        MARKER_SHORTCUTS_WINDOWS
+    }
+}
+
 /// URL que l'app accepte d'ouvrir : `https://…` ou `spotify:…` seulement (jamais un chemin ni un
 /// programme), sans espace ni caractère de contrôle, longueur bornée.
 pub fn is_openable_url(url: &str) -> bool {
@@ -530,6 +549,11 @@ mod tests {
         assert!(!is_openable_url("file:///etc/passwd"));
         assert!(!is_openable_url("https://a b"));
         assert!(!is_openable_url("spotify:\n--args"));
+        // Page d'autorisation de Google (connecteurs Google Agenda et Gmail).
+        assert!(is_openable_url(
+            "https://accounts.google.com/o/oauth2/v2/auth?client_id=1-a.apps.googleusercontent.com\
+             &redirect_uri=http%3A%2F%2F127.0.0.1%3A50123%2Fcallback&scope=openid%20email"
+        ));
     }
 }
 

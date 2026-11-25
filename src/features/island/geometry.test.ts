@@ -42,6 +42,11 @@ import {
   islandSize,
   sizeKeyFor,
   waveBarHeight,
+  CALL_REASON_ROW,
+  MARK_COUNT,
+  NOTIF_SECONDARY,
+  REVIEW_LAYOUT,
+  VERTICAL_SHARED,
 } from './geometry'
 import { GARDEN } from './garden/constants'
 import type { IslandEdge, IslandSizeKey, IslandState } from './types'
@@ -662,11 +667,11 @@ describe('sharedPlacement', () => {
   })
 
   it('fits every compact element inside the vertical pill', () => {
-    const sizes: Partial<Record<string, number>> = { timer: 30, musicEq: 23, dots: 18, count: 8, meetGroup: 16, dropIcon: 18, seg0: 6, seg1: 6, seg2: 6, progRing: 18 }
+    const sizes: Partial<Record<string, number>> = { timer: 30, musicEq: 23, dots: 18, count: 8, meetGroup: 16, dropIcon: 18, seg0: 6, seg1: 6, seg2: 6, progRing: 18, markCount: 31 }
     const noGarden = { hasGarden: false, sessionCount: 3 }
     for (const key of COMPACT_SIZE_KEYS) {
       const pill = ISLAND_SIZES.win[key]
-      for (const id of ['meetGroup', 'timer', 'agentIcon', 'dots', 'count', 'seg0', 'seg1', 'seg2', 'dropIcon', 'musicCover', 'musicEq', 'progIcon', 'progRing', 'progLabel'] as const) {
+      for (const id of ['meetGroup', 'timer', 'agentIcon', 'dots', 'count', 'seg0', 'seg1', 'seg2', 'dropIcon', 'musicCover', 'musicEq', 'progIcon', 'progRing', 'progLabel', 'markCount'] as const) {
         const p = sharedPlacement(id, 'win', key, noGarden, 'left', sizes[id] ?? 0)
         if (!p || p.o === 0) continue
         const size = p.s ?? sizes[id] ?? 0
@@ -707,5 +712,138 @@ describe('hitRectsFor on every edge', () => {
       bubble: { current: { w: 44, h: 40 }, target: { w: 44, h: 40 } },
     })
     expect(rects).toHaveLength(1)
+  })
+})
+
+describe('review (validation des tickets dans l’île)', () => {
+  // Dépassement du ressort depuis l'arrêt : exp(-ζπ / √(1 - ζ²)) de l'écart parcouru.
+  const zeta = SPRING.damping / (2 * Math.sqrt(SPRING.stiffness))
+  const overshoot = Math.exp((-zeta * Math.PI) / Math.sqrt(1 - zeta * zeta))
+  const rows = REVIEW_LAYOUT.rows.reduce((a, b) => a + b, 0)
+
+  it('garde la clé review, au survol comme pendant un appel, et sa couche à la même taille', () => {
+    expect(sizeKeyFor('review', false, false)).toBe('review')
+    expect(sizeKeyFor('review', true, true)).toBe('review')
+    expect(layerSizeKeyFor('review', true)).toBe('review')
+    expect(COMPACT_SIZE_KEYS.has('review')).toBe(false)
+  })
+
+  it('compose la hauteur des lignes de la carte ; Mac : même contenu, sous l’encoche', () => {
+    expect(ISLAND_SIZES.win.review.h).toBe(REVIEW_LAYOUT.top.win + rows + REVIEW_LAYOUT.bottom)
+    expect(ISLAND_SIZES.mac.review.h).toBe(REVIEW_LAYOUT.top.mac + rows + REVIEW_LAYOUT.bottom)
+    expect(ISLAND_SIZES.mac.review.h - ISLAND_SIZES.win.review.h).toBe(REVIEW_LAYOUT.top.mac - REVIEW_LAYOUT.top.win)
+    // Rien sous l'encoche : le contenu commence sous ses 32 px, avec la marge des autres vues ouvertes.
+    expect(REVIEW_LAYOUT.top.mac).toBeGreaterThanOrEqual(ISLAND_SIZES.mac.repos.h + 12)
+    expect(ISLAND_SIZES.mac.review.w).toBeGreaterThan(MAC_NOTCH_WIDTH)
+  })
+
+  it('loge les quatre boutons sur une ligne (≈ 377 px) dans la zone de contenu', () => {
+    for (const platform of ['win', 'mac'] as const) {
+      expect(ISLAND_SIZES[platform].review.w - 2 * 16).toBeGreaterThanOrEqual(377)
+    }
+  })
+
+  it('tient dans la fenêtre de l’île sur chaque bord, dépassement du ressort compris', () => {
+    for (const platform of ['win', 'mac'] as const) {
+      const size = ISLAND_SIZES[platform].review
+      const peak = size.h + (size.h - ISLAND_SIZES.win.repos.h) * overshoot
+      expect(peak).toBeLessThanOrEqual(ISLAND_WINDOW_SIZE.horizontal.height)
+      expect(size.w + 2 * EDGE_RADIUS[platform]).toBeLessThanOrEqual(ISLAND_WINDOW_SIZE.horizontal.width)
+    }
+    // Côtés (variante Windows) : carte horizontale, sa hauteur court le long du bord.
+    for (const edge of ['left', 'right'] as const) {
+      const size = ISLAND_SIZES.win.review
+      const frame = edgeFrameSize(size, edge, 'review')
+      expect(frame).toEqual({ w: size.h, h: size.w, r: size.r })
+      expect(frame.w + (frame.w - ISLAND_SIZES.win.repos.h) * overshoot).toBeLessThanOrEqual(ISLAND_WINDOW_SIZE.vertical.height)
+      expect(frame.h).toBeLessThanOrEqual(ISLAND_WINDOW_SIZE.vertical.width)
+      const g = edgeShapeGeometry(frame.w, frame.h, frame.r, 'mac', edge)
+      expect(g.content).toMatchObject({ width: size.w, height: size.h })
+    }
+    // En bas : forme Windows, même sur Mac (pas d'encoche).
+    expect(edgePlatform('mac', 'bottom')).toBe('win')
+    const [rect] = hitRectsFor({
+      rootWidth: ISLAND_WINDOW_SIZE.horizontal.width,
+      rootHeight: ISLAND_WINDOW_SIZE.horizontal.height,
+      platform: 'mac',
+      edge: 'bottom',
+      island: { current: ISLAND_SIZES.win.repos, target: ISLAND_SIZES.win.review },
+      bubble: null,
+    })
+    expect(rect?.height).toBeGreaterThanOrEqual(ISLAND_SIZES.win.review.h)
+    expect((rect?.y ?? 0) + (rect?.height ?? 0)).toBeLessThanOrEqual(ISLAND_WINDOW_SIZE.horizontal.height)
+  })
+})
+
+describe('notification à deux boutons et raison de la présélection', () => {
+  it('élargit notif et notifCall seulement avec un deuxième bouton', () => {
+    for (const platform of ['win', 'mac'] as const) {
+      for (const key of ['notif', 'notifCall'] as const) {
+        const base = ISLAND_SIZES[platform][key]
+        expect(islandSize(platform, key)).toEqual(base)
+        expect(islandSize(platform, key, 0, true, true, { notifSecondary: true })).toEqual({
+          ...base,
+          w: base.w + NOTIF_SECONDARY.extra[platform],
+        })
+        expect(base.w + NOTIF_SECONDARY.extra[platform] + 2 * EDGE_RADIUS[platform]).toBeLessThanOrEqual(
+          ISLAND_WINDOW_SIZE.horizontal.width,
+        )
+      }
+      expect(islandSize(platform, 'agentOpen', 0, true, true, { notifSecondary: true })).toEqual(
+        ISLAND_SIZES[platform].agentOpen,
+      )
+    }
+  })
+
+  it('grandit l’appel détecté d’une ligne quand une raison est donnée', () => {
+    for (const platform of ['win', 'mac'] as const) {
+      const base = ISLAND_SIZES[platform].appel
+      expect(islandSize(platform, 'appel', 0, true, true, { callReason: true })).toEqual({ ...base, h: base.h + CALL_REASON_ROW })
+      expect(islandSize(platform, 'appel')).toEqual(base)
+      expect(islandSize(platform, 'notif', 0, true, true, { callReason: true })).toEqual(ISLAND_SIZES[platform].notif)
+    }
+  })
+})
+
+describe('markCount (moments marqués)', () => {
+  const ctx = { hasGarden: true, sessionCount: 0 }
+
+  it('se place juste à gauche du minuteur, à sa hauteur, partout où il est affiché', () => {
+    for (const platform of ['win', 'mac'] as const) {
+      for (const key of ['meet', 'meetOpen', 'notifCall', 'agentAskCall'] as const) {
+        const timer = sharedPosition('timer', platform, key, ctx)
+        const mark = sharedPosition('markCount', platform, key, ctx)
+        expect(mark, `${platform} ${key}`).not.toBeNull()
+        expect(mark?.y).toBe(timer?.y)
+        expect(mark?.x).toBe((timer?.x ?? 0) + MARK_COUNT.timerWidth + MARK_COUNT.gap)
+      }
+      expect(sharedPosition('markCount', platform, 'music', ctx)).toBeNull()
+    }
+  })
+
+  it('fermée sous Windows : entre la fin de l’onde et le minuteur', () => {
+    const w = ISLAND_SIZES.win.meet.w
+    const waveEnd = 13 + 16 + 6 + (WAVE.bars * 3 - 1)
+    const mark = sharedPosition('markCount', 'win', 'meet', ctx)
+    // « ★ 9 » : étoile 14 + écart 3 + chiffre 7.
+    expect(w - (mark?.x ?? 0) - (MARK_COUNT.starSize + 3 + 7)).toBeGreaterThanOrEqual(waveEnd + 4)
+  })
+
+  it('fermée sur Mac : dans l’aile droite, jamais sous l’encoche', () => {
+    for (const key of ['meet', 'notifCall', 'agentAskCall'] as const) {
+      const w = ISLAND_SIZES.mac[key].w
+      const wing = (w - MAC_NOTCH_WIDTH) / 2
+      const mark = sharedPosition('markCount', 'mac', key, ctx)
+      // Bord gauche de l'élément le plus large (« ★ 100 ») à au moins 6 px de l'encoche.
+      expect((mark?.x ?? 0) + MARK_COUNT.macMaxWidth + 6).toBeLessThanOrEqual(wing)
+      expect(mark?.y).toBeLessThan(ISLAND_SIZES.mac.repos.h)
+    }
+    expect(MARK_COUNT.macMaxWidth).toBeGreaterThanOrEqual(MARK_COUNT.starSize + 3 + 21)
+  })
+
+  it('reste dans la pilule verticale, centré en travers', () => {
+    expect(VERTICAL_SHARED.markCount?.meet).toEqual({ cross: 'center' })
+    const p = sharedPlacement('markCount', 'win', 'meet', ctx, 'left', 31)
+    expect(p).toEqual({ h: 'left', x: (ISLAND_SIZES.win.meet.h - 31) / 2, v: 'bottom', y: 13 + MARK_COUNT.timerWidth + MARK_COUNT.gap })
   })
 })

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ClaudeSession, IslandMusic, IslandNotification, IslandSnapshot } from '../types'
 import { MEET_BACKGROUND } from '../geometry'
 import { backgroundRowLabel, backgroundRows, formatElapsed, islandLabel, sessionsSummary, sessionsTitle } from './labels'
+import type { IslandReview } from './types'
 
 const snap = (over: Partial<IslandSnapshot>): IslandSnapshot => ({
   state: 'repos',
@@ -255,5 +256,42 @@ describe('backgroundRows', () => {
     expect(more && backgroundRowLabel(more)).toBe('Afficher les 3 autres activités')
     const info = backgroundRows([upload], [], null, { duringCall: true })[0]
     expect(info && backgroundRowLabel(info)).toBeNull()
+  })
+})
+
+describe('islandLabel (validation des tickets)', () => {
+  const review = (over: Partial<IslandReview> = {}): IslandReview => ({
+    inputTitle: 'Call Ibé',
+    projectName: 'App Ibé',
+    tickets: [1, 2, 3, 4, 5].map((n) => ({
+      id: `t${n}`,
+      type: 'bug' as const,
+      title: `Ticket ${n}`,
+      description: '',
+      quote: null,
+      assignee: null,
+      fromMarker: n === 2,
+    })),
+    index: 0,
+    loading: false,
+    busy: false,
+    error: null,
+    undo: null,
+    ...over,
+  })
+  const state = snap({ state: 'review' })
+
+  it('annonce le ticket affiché : « Ticket 2 sur 5 : titre », étoile comprise', () => {
+    expect(islandLabel(state, 0, null, null, review())).toBe('Ticket 1 sur 5 : Ticket 1')
+    expect(islandLabel(state, 0, null, null, review({ index: 1 }))).toBe('Ticket 2 sur 5 : Ticket 2, moment marqué')
+  })
+
+  it('annonce le chargement, l’erreur et la fin', () => {
+    expect(islandLabel(state, 0, null, null, review({ tickets: [], loading: true }))).toBe('Tickets à valider : chargement')
+    expect(islandLabel(state, 0, null, null, review({ tickets: [], error: 'Entrée introuvable' }))).toBe(
+      'Tickets à valider : Entrée introuvable',
+    )
+    expect(islandLabel(state, 0, null, null, review({ tickets: [] }))).toBe('Tous les tickets sont traités')
+    expect(islandLabel(state, 0, null)).toBe('Tickets à valider')
   })
 })

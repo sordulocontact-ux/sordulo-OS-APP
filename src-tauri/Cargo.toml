@@ -34,6 +34,9 @@ tauri-plugin-autostart = "2.5"
 # src/updater.rs.
 tauri-plugin-updater = "2"
 tauri-plugin-notification = "2"
+# Raccourci « marquer un moment » pendant un enregistrement (Ctrl+Alt+M sous Windows, Ctrl+Cmd+M sous
+# macOS), enregistré seulement le temps de l'enregistrement. Voir src/marker_shortcut.rs.
+tauri-plugin-global-shortcut = "2"
 serde = { version = "1", features = ["derive"] }
 # preserve_order : la fusion de ~/.claude/settings.json garde l'ordre des clés de l'utilisateur.
 serde_json = { version = "1", features = ["preserve_order"] }

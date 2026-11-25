@@ -20,6 +20,14 @@ describe('catalogue des connecteurs', () => {
     expect(claude?.category).toBe('IA')
   })
 
+  it('a des connecteurs Google Agenda et Gmail à état vivant, avec leurs détails', () => {
+    for (const id of ['google-agenda', 'gmail']) {
+      const c = CONNECTORS.find((x) => x.id === id)
+      expect(c?.status).toBe('live')
+      expect(c?.details).toContain('lecture seule')
+    }
+  })
+
   it('a un connecteur Supabase « bientôt »', () => {
     expect(CONNECTORS.find((c) => c.id === 'supabase')?.status).toBe('soon')
   })
@@ -49,12 +57,11 @@ describe('catalogue des connecteurs', () => {
   })
 
   it('a les services externes de la roadmap en « bientôt »', () => {
-    for (const id of ['stripe', 'gmail', 'google-agenda', 'yousign', 'github', 'e-invoicing']) {
+    // Gmail et Google Agenda sont vivants (cartes Google, test plus bas).
+    for (const id of ['stripe', 'yousign', 'github', 'e-invoicing']) {
       expect(CONNECTORS.find((c) => c.id === id)?.status, id).toBe('soon')
     }
     expect(CONNECTORS.find((c) => c.id === 'stripe')?.description).toMatch(/acomptes/i)
-    expect(CONNECTORS.find((c) => c.id === 'gmail')?.description).toMatch(/relances/)
-    expect(CONNECTORS.find((c) => c.id === 'google-agenda')?.description).toMatch(/calls/)
     expect(CONNECTORS.find((c) => c.id === 'yousign')?.description).toMatch(/contrats/)
     expect(CONNECTORS.find((c) => c.id === 'github')?.description).toMatch(/builds/)
     expect(CONNECTORS.find((c) => c.id === 'e-invoicing')?.description).toContain('1er septembre 2027')

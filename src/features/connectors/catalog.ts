@@ -93,16 +93,20 @@ export const CONNECTORS: Connector[] = [
     logo: gmailLogo,
     name: 'Gmail',
     category: 'Communication',
-    description: 'Trier les emails clients en entrées, envoyer devis et factures, et envoyer les relances préparées.',
-    status: 'soon',
+    description: 'Transformer un email client en entrée, sans copier-coller.',
+    details:
+      'L’île de l’app de bureau repère les retours clients reçus par mail et propose d’en faire une entrée du projet, sans copier-coller. Accès en lecture seule : Sordulo OS ne peut ni écrire, ni envoyer, ni supprimer de mail. Le contenu d’un mail n’est envoyé à l’analyse qu’après avoir cliqué sur « Analyser ». La connexion est liée à votre compte Sordulo OS et se fait depuis l’app de bureau.',
+    status: 'live',
   },
   {
     id: 'google-agenda',
     logo: googleAgendaLogo,
     name: 'Google Agenda',
     category: 'Agenda',
-    description: 'Relier les calls prévus aux projets et proposer leur transcription.',
-    status: 'soon',
+    description: 'Proposer la transcription des réunions client prévues.',
+    details:
+      'L’île de l’app de bureau lit votre agenda pour présélectionner le projet d’une réunion client au moment de transcrire l’appel, et pour rappeler les réunions à venir. Accès en lecture seule : Sordulo OS ne peut ni créer ni modifier d’événement. La connexion est liée à votre compte Sordulo OS et se fait depuis l’app de bureau.',
+    status: 'live',
   },
   {
     id: 'google-drive',

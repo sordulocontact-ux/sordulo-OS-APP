@@ -1,10 +1,14 @@
 /**
  * Accès réels des sources (parcours d'appel, concentration, musique, Spotify, déploiements) : commandes et
  * événements Tauri (src/lib/desktop.ts), Supabase, API, API Vercel (src/lib/vercel.ts), connexion Spotify du
- * compte (src/lib/spotify.ts), stockage local, URL blob: et canvas. Les tests injectent de faux accès à la place.
+ * compte (src/lib/spotify.ts), connexion Google Agenda du compte (src/lib/google.ts) et API Google Agenda
+ * (src/lib/googleCalendar.ts), annuaire des clients (src/lib/clientDirectory.ts), stockage local, URL blob: et
+ * canvas. Les tests injectent de faux accès à la place.
  */
 import { api, ApiRequestError } from '../../../../lib/api'
+import { loadClientDirectory } from '../../../../lib/clientDirectory'
 import {
+  addRecordingMarker,
   deleteRecording,
   dismissPrompt,
   getDeploymentsEnabled,
@@ -12,6 +16,7 @@ import {
   getMusic,
   getMusicArtwork,
   getStatus,
+  googleAccessToken,
   musicCommand,
   onAudioLevel,
   onDeploymentsEnabled,
@@ -20,14 +25,18 @@ import {
   onMusic,
   onMusicLevels,
   onPrompt,
+  onRecordingMarkers,
   onRecordingState,
   onSpotify,
   onSpotifyToken,
   readRecording,
+  removeLastRecordingMarker,
   spotifySetConnection,
   startRecording,
   stopRecording,
 } from '../../../../lib/desktop'
+import { markGoogleConnectionLost, readGoogleConnection } from '../../../../lib/google'
+import { fetchCalendarEvents } from '../../../../lib/googleCalendar'
 import {
   readSpotifyConnection,
   replaceSpotifyRefreshToken,
@@ -52,7 +61,9 @@ import {
 } from '../../../desktop/storage'
 import { uploadMeetingRecording } from '../../../inputs/uploadMeeting'
 import { paletteFromImageUrl } from '../../music/artwork'
+import { createCalendarStore } from '../calendarStore'
 import type { AnalysisSourceDeps, PolledInput } from './analysis'
+import type { CalendarSourceDeps } from './calendar'
 import type { CallSourceDeps } from './call'
 import type { DeploymentsSourceDeps } from './deployments'
 import type { FocusModeDeps } from './focusMode'
@@ -62,13 +73,17 @@ import type { UploadSourceDeps } from './upload'
 
 const INPUT_COLUMNS = 'id, project_id, kind, title, raw_text, created_at, status, error_message'
 
+/** Événements Google Agenda : écrits par la source « agenda », lus par la source « appel ». */
+const calendarEvents = createCalendarStore()
+
 export const desktopDeps: CallSourceDeps &
   UploadSourceDeps &
   AnalysisSourceDeps &
   FocusModeDeps &
   MusicSourceDeps &
   SpotifySourceDeps &
-  DeploymentsSourceDeps = {
+  DeploymentsSourceDeps &
+  CalendarSourceDeps = {
   // Appel et enregistrement
   getStatus,
   startRecording,
@@ -80,6 +95,11 @@ export const desktopDeps: CallSourceDeps &
   onAudioLevel,
   readLastProjectId,
   writeLastProjectId,
+  addRecordingMarker,
+  removeLastRecordingMarker,
+  onRecordingMarkers,
+  calendarEvents,
+  loadClientDirectory,
 
   // Envoi
   readRecording,
@@ -158,4 +178,10 @@ export const desktopDeps: CallSourceDeps &
   fetchVercelTeams: (token) => fetchVercelTeams(token),
   fetchProductionDeployments: (token, teamId) => fetchProductionDeployments(token, teamId),
   fetchProductionUrl: (token, deploymentId, teamId) => fetchProductionUrl(token, deploymentId, teamId),
+
+  // Google Agenda (ligne `calendar` de google_connections, jeton d'accès donné par Rust)
+  readGoogleConnection,
+  markGoogleConnectionLost,
+  googleAccessToken,
+  fetchCalendarEvents: (accessToken, now) => fetchCalendarEvents(accessToken, now),
 }

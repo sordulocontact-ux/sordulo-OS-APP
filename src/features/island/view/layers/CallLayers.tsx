@@ -3,16 +3,19 @@
  * L'icône, l'onde et le minuteur de l'enregistrement sont des éléments partagés (SharedElements).
  */
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { ART } from '../../art/pixelArt'
+import { PixelArtSvg } from '../../art/PixelArtSvg'
 import { islandSize } from '../../geometry'
 import type { IslandEdge, IslandPlatform, IslandState, MeetActivity } from '../../types'
-import { useLastNonNull } from '../hooks'
+import { useBefore, useLastNonNull } from '../hooks'
 import { CallIcon } from '../icons'
 import styles from '../Island.module.css'
 import { Layer } from '../Layer'
 import { cx } from '../cx'
 import type { BackgroundRow } from '../labels'
+import { markersLabel } from '../review'
 import { BackgroundList } from './BackgroundList'
-import type { IslandCallPrompt, IslandProjectOption } from '../types'
+import type { IslandCallPrompt, IslandMarkers, IslandProjectOption } from '../types'
 
 export interface BaseLayerProps {
   current: IslandState
@@ -180,6 +183,8 @@ function ProjectPicker({
 /**
  * Proposition d'enregistrement. `call.appName` vide : enregistrement lancé à la main (menu du soleil, bouton
  * du header) → « Enregistrer un appel », sans nom d'app, et « Annuler » au lieu de « Ignorer ».
+ * `call.reason` : pourquoi ce projet est présélectionné (« D'après l'agenda : Point Ibé »), une ligne discrète
+ * sous la liste ; la couche grandit alors de CALL_REASON_ROW (islandSize).
  */
 export function AppelLayer({
   call,
@@ -197,11 +202,14 @@ export function AppelLayer({
   const projects = shown?.projects ?? []
   const selected = shown?.selectedProjectId ?? projects[0]?.id ?? ''
   const manual = shown?.appName === ''
+  const reason = shown?.reason?.trim() || null
+  const height = islandSize(base.platform, 'appel', 0, true, true, { callReason: reason !== null }).h
   return (
     <Layer
       {...base}
       state="appel"
       className={styles.layerAppel}
+      style={{ height }}
       role="dialog"
       label={manual ? 'Enregistrer un appel' : 'Appel détecté'}
     >
@@ -240,6 +248,11 @@ export function AppelLayer({
           Transcrire
         </button>
       </div>
+      {reason && (
+        <p className={styles.appelReason} title={reason}>
+          {reason}
+        </p>
+      )}
     </Layer>
   )
 }
@@ -249,12 +262,18 @@ export function AppelLayer({
  * pendant l'enregistrement.
  * Au survol (meetOpen, absent du prototype, composé comme agentOpen) : app, projet, bouton « Arrêter », puis
  * ce qui tourne aussi (sessions Claude, progressions, musique), une ligne cliquable chacun comme dans multiOpen.
+ * Moments marqués (`markers`) : « Marquer » à côté d'« Arrêter », puis « Annuler » tant que le dernier repère
+ * peut être retiré (le bouton « Marquer » se réduit alors à son étoile pour que la ligne tienne à côté de
+ * l'onde) ; l'étoile et le nombre de repères sont un élément partagé (markCount), à gauche du minuteur.
  */
 export function MeetLayer({
   meet,
   rows,
   open,
+  markers,
   onStopRecording,
+  onMarkMoment,
+  onUndoMarker,
   onSelectRow,
   ...base
 }: BaseLayerProps & {
@@ -262,22 +281,53 @@ export function MeetLayer({
   /** Ce qui tourne aussi (dépliée : toutes les lignes) ; la hauteur de la couche suit. */
   rows: readonly BackgroundRow[]
   open: boolean
+  /** Moments marqués ; null : pas de bouton « Marquer ». */
+  markers: IslandMarkers | null
   onStopRecording: () => void
+  onMarkMoment?: () => void
+  onUndoMarker?: () => void
   onSelectRow: (row: BackgroundRow) => void
 }) {
   const shown = useLastNonNull(meet)
   const app = shown?.appName ?? 'l’app d’appel'
   const height = islandSize(base.platform, 'meetOpen', rows.length).h
+  const canUndo = useBefore(markers?.undoUntil ?? null) && Boolean(onUndoMarker)
+  const marked = (markers?.count ?? 0) > 0
   return (
     <Layer {...base} state="meet" open={open} label={`Appel ${app} en cours de transcription`} style={{ height }}>
       <div className={styles.detail}>
-        <div className={cx(styles.headText, styles.headTextPlain)}>
+        <div className={cx(styles.headText, styles.headTextPlain, marked && styles.headTextMarked)}>
           <strong>Enregistrement en cours</strong>
           <small>
             {app}, {shown?.projectName ?? 'sans projet'}
+            {marked && markers && <span className={styles.srOnly}>, {markersLabel(markers.count)}</span>}
           </small>
         </div>
         <div className={styles.meetRow}>
+          {markers && canUndo && (
+            <button
+              type="button"
+              className={cx(styles.btn, styles.btnGhost, styles.btnSm)}
+              onClick={onUndoMarker}
+              aria-label="Annuler le dernier moment marqué"
+            >
+              Annuler
+            </button>
+          )}
+          {markers && onMarkMoment && (
+            <button
+              type="button"
+              className={cx(styles.btn, styles.btnGhost, styles.btnSm, styles.markBtn, canUndo && styles.markBtnIcon)}
+              onClick={onMarkMoment}
+              aria-label={canUndo ? 'Marquer un autre moment' : 'Marquer ce moment'}
+              title="Marquer ce moment"
+            >
+              <span className={styles.markStar} aria-hidden="true">
+                <PixelArtSvg art={ART.star} className={styles.markStarArt ?? ''} />
+              </span>
+              {!canUndo && <span>Marquer</span>}
+            </button>
+          )}
           <button
             type="button"
             className={cx(styles.btn, styles.btnMain, styles.btnSm)}

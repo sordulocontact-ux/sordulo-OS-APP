@@ -171,6 +171,9 @@ export const NOTIFICATION_LABELS: Record<NotificationKind, string> = {
   conflictOk: "Conflit résolu",
   filing: "Rangement : rangé automatiquement",
   appNotification: "Notification de la base",
+  mailFeedback: "Retour client par mail",
+  mailReminder: "Mails pas encore traités",
+  googleReconnect: "Reconnecte Google",
 };
 
 export const NOTIFICATION_KINDS = Object.keys(
@@ -188,6 +191,7 @@ export function sampleNotification(kind: NotificationKind): IslandNotification {
         inputTitle: "Call Ibé",
         projectName: "PDS OS",
         route: "/review",
+        inputId: "input-lab",
       });
     case "analysisError":
       return createNotification("analysisError", {
@@ -328,6 +332,19 @@ export function sampleNotification(kind: NotificationKind): IslandNotification {
         ? view.notification
         : createNotification("digest", { title: "Notification", subtitle: "" });
     }
+    case "mailFeedback":
+      return createNotification("mailFeedback", {
+        clientName: "Ibé",
+        subject: "Retours sur la maquette de l’accueil",
+        messageId: "mail-lab-1",
+      });
+    case "mailReminder":
+      return createNotification("mailReminder", {
+        count: 2,
+        clientNames: ["Ibé", "Kiwi Studio"],
+      });
+    case "googleReconnect":
+      return createNotification("googleReconnect", { service: "calendar" });
   }
 }
 

@@ -62,14 +62,15 @@ describe('statut de l’entrée → suite du parcours', () => {
     expect(inputPhase('error')).toBe('error')
   })
 
-  it('« N tickets à valider » ouvre l’écran de validation', () => {
+  it('« N tickets à valider » : Valider ici, Ouvrir mène à l’écran de validation', () => {
     const n = analysisDoneNotification({ input, proposedCount: 6, projectName: 'App Ibé' })
     expect(n).toMatchObject({
       kind: 'tickets',
       title: '6 tickets à valider',
       subtitle: 'Call Ibé, App Ibé',
-      button: 'Valider',
-      action: { type: 'openMain', route: '/projects/p-1/inputs/i-1/review' },
+      button: 'Valider ici',
+      action: { type: 'reviewHere', inputId: 'i-1' },
+      secondary: { label: 'Ouvrir', action: { type: 'openMain', route: '/projects/p-1/inputs/i-1/review' } },
     })
   })
 

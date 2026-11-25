@@ -194,8 +194,101 @@
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  gap: var(--island-space-8);
   height: var(--island-size-28);
   margin-top: var(--island-space-10);
+}
+
+/*
+ * Moments marqués (ticket « Appels plus utiles dans l'île ») : bouton « Marquer » avec son étoile en pixel art,
+ * réduit à l'étoile pendant « Annuler » ; étoile et nombre de repères à gauche du minuteur (élément partagé
+ * markCount, positions dans geometry.ts) ; éclat bref à chaque repère.
+ */
+.markBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--island-space-4);
+}
+
+.markBtnIcon {
+  width: var(--island-control-height-sm);
+  justify-content: center;
+  padding: 0;
+}
+
+.markStar {
+  position: relative;
+  display: inline-block;
+  width: var(--island-size-14);
+  height: var(--island-size-14);
+  flex: none;
+}
+
+.markStar .markStarArt {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.markCount {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--island-space-3);
+  height: var(--island-size-14);
+  font-size: var(--island-font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--island-text-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.markFlash .markStarArt:not(.markPing) {
+  animation: markPop var(--island-garden-duration-star) var(--island-easing-pop);
+}
+
+/* Éclat d'un repère : même durée que MARK_FLASH_MS (review.ts) */
+.markPing {
+  animation: markPing var(--island-duration-mark-flash) ease-out forwards;
+}
+
+@keyframes markPop {
+  0% {
+    transform: scale(0.4);
+  }
+  60% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes markPing {
+  0% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+
+/* Animations réduites : rien ne bouge, le nombre prend la couleur de l'étoile le temps de l'éclat */
+.root[data-reduced='true'] .markStarArt {
+  animation: none;
+}
+
+.root[data-reduced='true'] .markPing {
+  display: none;
+}
+
+.root[data-reduced='true'] .markFlash .markNumber {
+  color: var(--island-mascot-spark);
+}
+
+/* Le titre de l'enregistrement s'arrête avant l'étoile et le nombre de repères (à gauche du minuteur) */
+.headTextPlain.headTextMarked {
+  padding-right: calc(var(--island-space-52) + var(--island-space-32));
 }
 
 /*
@@ -1237,6 +1330,17 @@
   display: flex;
   gap: var(--island-space-8);
   margin-top: var(--island-space-14);
+}
+
+/* Pourquoi ce projet est présélectionné (« D'après l'agenda : Point Ibé ») : une ligne discrète (CALL_REASON_ROW) */
+.appelReason {
+  margin: var(--island-space-6) 0 0;
+  font-size: var(--island-font-size-sm);
+  line-height: var(--island-line-height);
+  color: var(--island-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .select {

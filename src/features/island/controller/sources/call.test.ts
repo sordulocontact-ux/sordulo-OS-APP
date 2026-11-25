@@ -1,17 +1,21 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { ClientDirectoryEntry } from '../../../../lib/clientDirectory'
+import type { CalendarEvent } from '../../../../lib/googleCalendar'
 import type {
   AudioLevel,
   MicState,
   PromptPayload,
   PromptReason,
+  RecordingMarkers,
   RecordingResult,
   RecordingState,
 } from '../../../../shared/desktop-contract'
 import type { RecordingCall } from '../../../desktop/storage'
+import { createCalendarStore } from '../calendarStore'
 import { fakeEvent, flush, setupRuntime } from '../testUtils'
-import { MEET_ID, createCallSource, type CallSourceDeps } from './call'
+import { MARKER_UNDO_MS, MEET_ID, createCallSource, type CallSourceDeps } from './call'
 
-const IDLE: RecordingState = { status: 'idle', projectId: null, title: null, startedAt: null, elapsedSecs: 0 }
+const IDLE: RecordingState = { status: 'idle', projectId: null, title: null, startedAt: null, elapsedSecs: 0, markerCount: 0 }
 const DISCORD: MicState = { active: true, apps: [{ id: 'discord', displayName: 'Discord', service: 'discord' }] }
 const CHROME: MicState = { active: true, apps: [{ id: 'chrome', displayName: 'chrome.exe', service: null }] }
 const RESULT: RecordingResult = {
@@ -21,11 +25,40 @@ const RESULT: RecordingResult = {
   mimeType: 'audio/mpeg',
   projectId: 'p-2',
   title: null,
+  markers: [],
 }
 
-function recording(projectId: string, startedAt: number): RecordingState {
-  return { status: 'recording', projectId, title: null, startedAt, elapsedSecs: 0 }
+function recording(projectId: string, startedAt: number, markerCount = 0): RecordingState {
+  return { status: 'recording', projectId, title: null, startedAt, elapsedSecs: 0, markerCount }
 }
+
+/** Heure de départ de l'horloge simulée (testUtils). */
+const T0 = 1_000_000
+
+function calendarEvent(fields: Partial<CalendarEvent> = {}): CalendarEvent {
+  return {
+    id: 'ev-1',
+    title: 'Point Ibé',
+    start: T0 + 60_000,
+    end: T0 + 31 * 60_000,
+    allDay: false,
+    status: 'confirmed',
+    myResponse: 'accepted',
+    attendees: ['lea@ibe.fr'],
+    meetingUrl: 'https://meet.google.com/abc-defg-hij',
+    appName: 'Google Meet',
+    ...fields,
+  }
+}
+
+const DIRECTORY: ClientDirectoryEntry[] = [
+  {
+    clientId: 'c-ibe',
+    clientName: 'Ibé',
+    emails: ['lea@ibe.fr'],
+    projects: [{ id: 'p-1', name: 'App Ibé', status: 'in_progress', createdAt: '2026-10-01' }],
+  },
+]
 
 function setup(
   options: {
@@ -34,12 +67,18 @@ function setup(
     lastProject?: string | null
     mic?: MicState
     storedCall?: RecordingCall | null
+    events?: CalendarEvent[]
+    directory?: ClientDirectoryEntry[] | Error
   } = {},
 ) {
   const prompt = fakeEvent<PromptPayload>()
   const recordingState = fakeEvent<RecordingState>()
   const mic = fakeEvent<MicState>()
   const level = fakeEvent<AudioLevel>()
+  const markersEvent = fakeEvent<RecordingMarkers>()
+  const calendarEvents = createCalendarStore()
+  if (options.events) calendarEvents.set(options.events)
+  let markerCount = 0
   const deps = {
     getStatus: vi.fn(async () => ({ mic: options.mic ?? DISCORD, recording: options.status ?? IDLE })),
     startRecording: vi.fn(async (args: { projectId: string }) => recording(args.projectId, 1_000_500)),
@@ -53,12 +92,28 @@ function setup(
     writeLastProjectId: vi.fn(),
     readRecordingCall: vi.fn(() => options.storedCall ?? null),
     writeRecordingCall: vi.fn(),
+    addRecordingMarker: vi.fn(async (): Promise<RecordingMarkers> => {
+      markerCount += 1
+      return { count: markerCount, lastAtSecs: markerCount * 10, added: true }
+    }),
+    removeLastRecordingMarker: vi.fn(async (): Promise<RecordingMarkers> => {
+      markerCount = Math.max(0, markerCount - 1)
+      return { count: markerCount, lastAtSecs: markerCount > 0 ? markerCount * 10 : null, added: false }
+    }),
+    onRecordingMarkers: markersEvent.subscribe,
+    calendarEvents,
+    loadClientDirectory: vi.fn(async () => {
+      const directory = options.directory ?? DIRECTORY
+      if (directory instanceof Error) throw directory
+      return directory
+    }),
   } satisfies CallSourceDeps
   const env = setupRuntime({ sources: [createCallSource(deps)], signedIn: options.signedIn })
   const send = (reason: PromptReason, state: RecordingState = IDLE, micState: MicState = DISCORD) =>
     prompt.emit({ reason, mic: micState, recording: state })
   const call = () => env.runtime.view.get().call
-  return { ...env, deps, prompt, recordingState, mic, level, send, call }
+  const markers = () => env.runtime.view.get().markers
+  return { ...env, deps, prompt, recordingState, mic, level, markersEvent, calendarEvents, send, call, markers }
 }
 
 describe('source « appel »', () => {
@@ -267,5 +322,187 @@ describe('source « appel »', () => {
     await flush()
     t.recordingState.emit(IDLE)
     expect(t.snap().state).toBe('repos')
+  })
+})
+
+describe('source « appel » : moments marqués', () => {
+  async function recordingSetup() {
+    const t = setup()
+    await flush()
+    t.send('mic-active')
+    await flush()
+    t.runtime.gestures.onCallAccept('p-1')
+    await flush()
+    return t
+  }
+
+  it('hors enregistrement : pas de repères ; Transcrire : compteur à 0', async () => {
+    const t = setup()
+    await flush()
+    expect(t.markers()).toBeNull()
+    t.send('mic-active')
+    await flush()
+    t.runtime.gestures.onMarkMoment()
+    expect(t.deps.addRecordingMarker).not.toHaveBeenCalled()
+    t.runtime.gestures.onCallAccept('p-1')
+    expect(t.markers()).toEqual({ count: 0, lastAddedAt: null, undoUntil: null })
+  })
+
+  it('Marquer : repère posé par Rust, étoile et « Annuler » pendant 5 s', async () => {
+    const t = await recordingSetup()
+    t.runtime.gestures.onMarkMoment()
+    await flush()
+    expect(t.deps.addRecordingMarker).toHaveBeenCalledTimes(1)
+    expect(t.markers()).toEqual({ count: 1, lastAddedAt: T0, undoUntil: T0 + MARKER_UNDO_MS })
+    t.clock.advance(MARKER_UNDO_MS)
+    expect(t.markers()).toEqual({ count: 1, lastAddedAt: T0, undoUntil: null })
+  })
+
+  it('l’événement de Rust après la réponse de la commande ne rejoue pas l’étoile', async () => {
+    const t = await recordingSetup()
+    t.runtime.gestures.onMarkMoment()
+    await flush()
+    const first = t.markers()
+    t.clock.advance(1000)
+    t.markersEvent.emit({ count: 1, lastAtSecs: 10, added: true })
+    expect(t.markers()).toBe(first)
+  })
+
+  it('raccourci global : l’événement seul ajoute le repère', async () => {
+    const t = await recordingSetup()
+    t.clock.advance(2000)
+    t.markersEvent.emit({ count: 1, lastAtSecs: 42, added: true })
+    expect(t.markers()).toEqual({ count: 1, lastAddedAt: T0 + 2000, undoUntil: T0 + 2000 + MARKER_UNDO_MS })
+    expect(t.deps.addRecordingMarker).not.toHaveBeenCalled()
+  })
+
+  it('Annuler : retire le dernier repère, seulement pendant les 5 s', async () => {
+    const t = await recordingSetup()
+    t.runtime.gestures.onMarkMoment()
+    await flush()
+    t.runtime.gestures.onMarkMoment()
+    await flush()
+    t.runtime.gestures.onUndoMarker()
+    await flush()
+    expect(t.deps.removeLastRecordingMarker).toHaveBeenCalledTimes(1)
+    expect(t.markers()).toEqual({ count: 1, lastAddedAt: T0, undoUntil: null })
+    t.runtime.gestures.onUndoMarker()
+    await flush()
+    expect(t.deps.removeLastRecordingMarker).toHaveBeenCalledTimes(1)
+
+    t.runtime.gestures.onMarkMoment()
+    await flush()
+    t.clock.advance(MARKER_UNDO_MS + 1)
+    t.runtime.gestures.onUndoMarker()
+    await flush()
+    expect(t.deps.removeLastRecordingMarker).toHaveBeenCalledTimes(1)
+  })
+
+  it('page rechargée pendant l’appel : compteur repris de Rust ; arrêt : plus de repères', async () => {
+    const t = setup({ status: recording('p-1', 999_000, 3) })
+    await flush()
+    expect(t.markers()).toEqual({ count: 3, lastAddedAt: null, undoUntil: null })
+    t.recordingState.emit(recording('p-1', 999_000, 4))
+    expect(t.markers()?.count).toBe(4)
+    t.runtime.gestures.onStopRecording()
+    expect(t.markers()).toBeNull()
+  })
+
+  it('l’enregistrement s’arrête ailleurs : plus de repères ; un événement tardif est ignoré', async () => {
+    const t = setup({ status: recording('p-1', 999_000, 1) })
+    await flush()
+    t.recordingState.emit(IDLE)
+    expect(t.markers()).toBeNull()
+    t.markersEvent.emit({ count: 2, lastAtSecs: 20, added: true })
+    expect(t.markers()).toBeNull()
+  })
+
+  it('démarrage manqué : plus de repères', async () => {
+    const t = setup()
+    await flush()
+    t.deps.startRecording.mockRejectedValueOnce('Aucun micro')
+    t.send('mic-active')
+    await flush()
+    t.runtime.gestures.onCallAccept('p-1')
+    await flush()
+    expect(t.markers()).toBeNull()
+  })
+})
+
+describe('source « appel » : agenda', () => {
+  it('événement en cours : projet du client présélectionné avec la raison, titre de l’entrée', async () => {
+    const t = setup({ lastProject: 'p-2', events: [calendarEvent()] })
+    await flush()
+    t.send('mic-active')
+    await flush()
+    expect(t.deps.loadClientDirectory).toHaveBeenCalledTimes(1)
+    expect(t.call()).toMatchObject({ selectedProjectId: 'p-1', reason: "D'après l'agenda : Point Ibé" })
+    t.runtime.gestures.onCallAccept(t.call()!.selectedProjectId)
+    await flush()
+    expect(t.deps.startRecording).toHaveBeenCalledWith({ projectId: 'p-1', title: 'Point Ibé' })
+  })
+
+  it('un autre projet choisi : la raison disparaît, le titre de l’événement reste', async () => {
+    const t = setup({ events: [calendarEvent()] })
+    await flush()
+    t.send('mic-active')
+    await flush()
+    t.runtime.gestures.onProjectChange('p-2')
+    expect(t.call()).toMatchObject({ selectedProjectId: 'p-2', reason: null })
+    t.runtime.gestures.onCallAccept('p-2')
+    await flush()
+    expect(t.deps.startRecording).toHaveBeenCalledWith({ projectId: 'p-2', title: 'Point Ibé' })
+  })
+
+  it('annuaire illisible : présélection par le titre, sinon dernier projet ; jamais bloquant', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const t = setup({ lastProject: 'p-2', directory: new Error('réseau'), events: [calendarEvent({ title: 'Démo App Ibé' })] })
+    await flush()
+    t.send('mic-active')
+    await flush()
+    expect(t.snap().state).toBe('appel')
+    expect(t.call()).toMatchObject({ selectedProjectId: 'p-1', reason: "D'après l'agenda : Démo App Ibé" })
+    warn.mockRestore()
+  })
+
+  it('événement lointain, refusé ou sur la journée : comportement habituel', async () => {
+    const t = setup({
+      lastProject: 'p-2',
+      events: [
+        calendarEvent({ id: 'loin', start: T0 + 3_600_000, end: T0 + 7_200_000 }),
+        calendarEvent({ id: 'refus', myResponse: 'declined' }),
+        calendarEvent({ id: 'jour', allDay: true, start: T0 - 60_000 }),
+      ],
+    })
+    await flush()
+    t.send('manual-start', IDLE, { active: false, apps: [] })
+    await flush()
+    expect(t.call()).toMatchObject({ selectedProjectId: 'p-2', reason: null })
+    expect(t.deps.loadClientDirectory).not.toHaveBeenCalled()
+    t.runtime.gestures.onCallAccept('p-2')
+    await flush()
+    expect(t.deps.startRecording).toHaveBeenCalledWith({ projectId: 'p-2', title: null })
+  })
+
+  it('agenda lu pendant que la proposition est ouverte : présélection mise à jour', async () => {
+    const t = setup({ lastProject: 'p-2' })
+    await flush()
+    t.send('mic-active')
+    await flush()
+    expect(t.call()).toMatchObject({ selectedProjectId: 'p-2', reason: null })
+    t.calendarEvents.set([calendarEvent()])
+    await flush()
+    expect(t.call()).toMatchObject({ selectedProjectId: 'p-1', reason: "D'après l'agenda : Point Ibé" })
+  })
+
+  it('annuaire gardé en cache entre deux propositions', async () => {
+    const t = setup({ events: [calendarEvent()] })
+    await flush()
+    t.send('mic-active')
+    await flush()
+    t.runtime.gestures.onCallIgnore()
+    t.send('mic-active')
+    await flush()
+    expect(t.deps.loadClientDirectory).toHaveBeenCalledTimes(1)
   })
 })

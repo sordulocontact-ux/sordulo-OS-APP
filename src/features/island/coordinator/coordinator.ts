@@ -56,9 +56,12 @@
  *   jamais regroupée), affichée en `choice`. Sans le curseur (ni le clavier) sur l'île pendant CHOICE_IDLE_MS,
  *   elle est mise de côté (retour à la principale) et `onSetAside` est appelé : la source peut la remontrer.
  * - `resolveChoice(id)` : décision prise (bouton, Échap). Ferme la décision affichée ou la retire de la file.
- * - `showOverlay('appel' | 'dragWake' | 'dragOver')` / `hideOverlay(overlay?)` : états montrés par le
- *   contrôleur. La file attend tant qu'ils sont affichés ; la file repart 450 ms après hideOverlay.
+ * - `showOverlay('appel' | 'dragWake' | 'dragOver' | 'review')` / `hideOverlay(overlay?)` : états montrés par
+ *   le contrôleur. La file attend tant qu'ils sont affichés ; la file repart 450 ms après hideOverlay.
  *   Un overlay qui arrive pendant une notification ou une demande la remet en tête de file.
+ *   `review` (validation des tickets dans l'île) se met seulement de côté : une interruption (notification
+ *   `interrupt`, demande d'autorisation) ou un autre overlay passe devant, puis l'île revient à `review`.
+ *   Les notifications ordinaires attendent sa fermeture. `hideOverlay('review')` la retire aussi de côté.
  * - `setFocusMode(on)` : mode concentration (menu du soleil).
  * - `dispose()` : arrête les minuteurs et oublie les abonnés.
  */
@@ -89,7 +92,10 @@ export const CHOICE_IDLE_MS = 20_000
 export const DIGEST_THRESHOLD = 2
 
 /** Overlays montrés et retirés par le contrôleur (les notifications et demandes sont gérées ici). */
-export type ControllerOverlay = 'appel' | 'dragWake' | 'dragOver'
+export type ControllerOverlay = 'appel' | 'dragWake' | 'dragOver' | 'review'
+
+/** Overlays mis de côté (et repris ensuite) par une interruption ou un autre overlay, plutôt que perdus. */
+const RESUMABLE_OVERLAYS: ReadonlySet<ControllerOverlay> = new Set<ControllerOverlay>(['review'])
 
 /** Activité à ajouter : l'ordre d'arrivée est donné par la coordination. */
 export type ActivityInput = ActivityPayload & { id: string }
@@ -188,6 +194,8 @@ export class IslandCoordinator {
   /** Mises de côté par le mode concentration pendant l'appel. */
   private held: IslandNotification[] = []
   private current: Current | null = null
+  /** Overlay repris (RESUMABLE_OVERLAYS) mis de côté par ce qui est affiché par-dessus. */
+  private suspended: ControllerOverlay | null = null
   private pumpTimer: TimerId | null = null
   private hovered = false
   private focusMode: boolean
@@ -322,6 +330,7 @@ export class IslandCoordinator {
     if (current?.type === 'notification' && (id === undefined || current.entry.notification.id === id)) {
       this.stopNotificationTimer(current)
       this.current = null
+      this.resumeSuspended()
       this.schedulePump()
       this.commit()
       return
@@ -428,6 +437,10 @@ export class IslandCoordinator {
   showOverlay(overlay: ControllerOverlay): void {
     if (this.disposed) return
     const current = this.current
+    if (current?.type === 'overlay' && current.overlay !== overlay && RESUMABLE_OVERLAYS.has(current.overlay)) {
+      this.suspended = current.overlay
+    }
+    if (this.suspended === overlay) this.suspended = null
     if (current?.type === 'notification') {
       this.stopNotificationTimer(current)
       this.queue.unshift(current.entry)
@@ -444,14 +457,20 @@ export class IslandCoordinator {
 
   /** Retire l'overlay affiché (celui-ci seulement si précisé) ; la file repart 450 ms après. */
   hideOverlay(overlay?: ControllerOverlay): void {
-    if (this.current?.type !== 'overlay') return
-    if (overlay !== undefined && this.current.overlay !== overlay) return
+    const shown = this.current?.type === 'overlay' ? this.current.overlay : null
+    if (overlay !== undefined && overlay === this.suspended && shown !== overlay) {
+      this.suspended = null
+      return
+    }
+    if (shown === null) return
+    if (overlay !== undefined && shown !== overlay) return
     this.goHome()
   }
 
   /** Arrête les minuteurs et oublie les abonnés. La coordination ne doit plus servir ensuite. */
   dispose(): void {
     this.disposed = true
+    this.suspended = null
     if (this.current?.type === 'notification') this.stopNotificationTimer(this.current)
     if (this.current?.type === 'ask' || this.current?.type === 'choice') this.stopIdle(this.current)
     if (this.pumpTimer !== null) this.clock.clearTimeout(this.pumpTimer)
@@ -506,8 +525,16 @@ export class IslandCoordinator {
     if (this.current?.type === 'notification') this.stopNotificationTimer(this.current)
     if (this.current?.type === 'ask' || this.current?.type === 'choice') this.stopIdle(this.current)
     this.current = null
+    this.resumeSuspended()
     this.schedulePump()
     this.commit()
+  }
+
+  /** Rien n'est plus affiché : l'overlay mis de côté (review) revient. */
+  private resumeSuspended(): void {
+    if (this.current !== null || this.suspended === null) return
+    this.current = { type: 'overlay', overlay: this.suspended }
+    this.suspended = null
   }
 
   private schedulePump(): void {
@@ -522,7 +549,14 @@ export class IslandCoordinator {
 
   /** Prototype : pumpNotifs. Affiche la suivante si rien n'est par-dessus la principale. */
   private pump(): void {
-    if (this.disposed || this.current !== null || this.queue.length === 0) return
+    if (this.disposed || this.queue.length === 0) return
+    const current = this.current
+    if (current !== null) {
+      // Seule une interruption passe devant un overlay repris (review), qui revient après elle.
+      if (current.type !== 'overlay' || !RESUMABLE_OVERLAYS.has(current.overlay) || !this.queue.some(isInterrupt)) return
+      this.suspended = current.overlay
+      this.current = null
+    }
     const interruptIndex = this.queue.findIndex(isInterrupt)
     if (interruptIndex >= 0) {
       const [entry] = this.queue.splice(interruptIndex, 1)

@@ -47,9 +47,11 @@ export type IslandState =
   | 'dragOver'
   /** Décision à prendre dans l'île (rangement d'un fichier, proposition de l'IA) : voir IslandChoice. */
   | 'choice'
+  /** Validation des tickets proposés dans l'île, un à la fois (« Valider ici » de la notification tickets). */
+  | 'review'
 
 /** États qui passent par-dessus l'activité principale (prototype : `isOverlay`). */
-export type IslandOverlay = 'appel' | 'notif' | 'agentAsk' | 'dragWake' | 'dragOver' | 'choice'
+export type IslandOverlay = 'appel' | 'notif' | 'agentAsk' | 'dragWake' | 'dragOver' | 'choice' | 'review'
 
 /**
  * Clé de taille (prototype : objet `S`) : l'état, plus le survol et les variantes pendant un appel.
@@ -87,6 +89,8 @@ export type IslandSizeKey =
   | 'notifCall'
   /** Décision (IslandChoice) : mêmes dimensions que `appel` (« Transcrire cet appel ? »). */
   | 'choice'
+  /** Validation des tickets dans l'île (carte d'un ticket et ses boutons). */
+  | 'review'
 
 // ---------------------------------------------------------------------------
 // Activités : une principale dans l'île, la suivante dans la bulle à droite
@@ -239,6 +243,12 @@ export type NotificationKind =
   | 'filing'
   /** Notification de la base (table notifications) : passage de main d'un collègue ou de l'IA (appNotifications/logic.ts). */
   | 'appNotification'
+  /** Mail d'un contact client (Gmail) : « Ibé a envoyé un retour », boutons Analyser et Ignorer. */
+  | 'mailFeedback'
+  /** Relance unique et regroupée des mails clients restés sans réponse : « 2 mails clients pas encore traités ». */
+  | 'mailReminder'
+  /** Accès Google (Agenda ou Gmail) refusé : « Reconnecte Google Agenda », bouton vers la page Connecteurs. */
+  | 'googleReconnect'
 
 /** Icônes de l'île (prototype : objet I, tracés 24 × 24 en trait). */
 export type IslandIconName =
@@ -255,6 +265,8 @@ export type IslandIconName =
   | 'bell'
   | 'alert'
   | 'folder'
+  /** Enveloppe : mail d'un client (Gmail). */
+  | 'mail'
 
 /** Couleur d'accent d'une notification ou d'une progression ; chaque valeur correspond à un token `--island-*`. */
 export type IslandTone = 'neutral' | 'success' | 'alert' | 'danger' | 'info' | 'claude' | 'analysis' | 'call'
@@ -294,6 +306,14 @@ export type NotificationAction =
   | { type: 'openNotification'; notificationId: string; route: string | null }
   /** Annule une proposition de l'IA appliquée (rpc undo_ai_proposal). */
   | { type: 'undoProposal'; proposalId: string; notificationId: string | null }
+  /** Ouvre l'île sur la validation des tickets proposés de cette entrée (« Valider ici »). */
+  | { type: 'reviewHere'; inputId: string }
+  /** Crée une entrée écrite à partir de ce mail Gmail et lance l'analyse (« Analyser »). */
+  | { type: 'analyzeMail'; messageId: string }
+  /** Ne propose plus ce mail (« Ignorer »). */
+  | { type: 'ignoreMail'; messageId: string }
+  /** Relance des mails non traités : les repropose un par un. */
+  | { type: 'showPendingMails' }
 
 export interface IslandNotification {
   /** Unique par notification émise. */
@@ -306,6 +326,11 @@ export interface IslandNotification {
   /** Libellé du bouton ; null : pas de bouton. */
   button: string | null
   action: NotificationAction
+  /**
+   * Deuxième bouton, à gauche du premier (« Ignorer » à côté d'« Analyser », « Ouvrir » à côté de « Valider
+   * ici »). Absent ou null : un seul bouton.
+   */
+  secondary?: { label: string; action: NotificationAction } | null
   /** Durée d'affichage (ms) : 4 500 par défaut, 7 000 pour les rappels et les tickets à valider. */
   durationMs: number
   /** Passe devant tout le reste (prototype : INTERRUPT). Vrai pour `rappel`. */

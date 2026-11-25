@@ -25,6 +25,7 @@ Schéma : `migrations/*.sql`, appliquées dans l'ordre. Il doit correspondre à 
 | `0019_security_hardening.sql` | Correctifs de la revue de sécurité : contrats et fichiers de devis / factures / contrats réservés à admin et finance, responsable d'un prospect réservé à l'admin et figé après conversion, `create_notification` limitée, chemins Storage imposés |
 | `0020_partners_notes.sql` | Réseau de partenaires (`partners`, `partner_projects`) et `notes` (perso ou équipe) |
 | `0018_import_document_from_file.sql` | RPC serveur `import_document_from_file` : devis / facture importé d'un fichier, numéro d'origine gardé |
+| `0024_calls_google.sql` | Moments marqués d'une entrée (`inputs.markers`), origine externe unique par organisation (`inputs.external_ref`, Message-ID d'un mail Gmail), étoile d'un ticket (`tickets.from_marker`), connexions Google par compte et par service (`google_connections`) |
 
 Ordre d'application : dans l'ordre des noms (`npm run db:migrate`). En production, appliquer chaque migration **avant** de pousser le code qui en dépend ; 0001 à 0020 sont appliquées en production et notées dans `sordulo_meta.migrations` (25/11/2026).
 
@@ -84,6 +85,14 @@ Ajouter un test à chaque nouvelle politique, colonne protégée ou RPC.
 - Statut du projet, seulement vers l'avant et jamais s'il est archivé : devis envoyé → `quote_sent` ; devis accepté → `in_progress` ; toutes les factures (type `invoice`, non annulées) payées → `paid`.
 - Prospects : pas de suppression ; `created_by` et `owner_member_id` = membre connecté par défaut ; `won_at` posé au passage en `won`, remis à null s'il le quitte. `client_id` n'est posé que par `supabase.rpc('convert_prospect', { p_prospect_id })`, qui crée le client et son contact principal, passe le prospect en `won` et renvoie l'id du client (idempotent).
 - `supabase.rpc('member_sign_in_status', { p_organization_id })` (admins) : `{ member_id, signed_in }` par membre, `signed_in` = le compte relié s'est déjà connecté (`auth.users.last_sign_in_at`). `/api/members/invite` reliant `user_id` dès l'invitation, `user_id` seul ne le dit pas.
+
+## Appels et Google (`0024`)
+
+- `inputs.markers` : moments marqués pendant l'enregistrement d'un appel (raccourci ou bouton « Marquer » de l'île), en secondes depuis le début de l'audio. Tableau jsonb de 100 nombres `>= 0` au plus, `[]` par défaut (contrôle `inputs_markers_valid`, `23514`). Envoyés par `/api/inputs/create` (`markers`, triés et arrondis au dixième). L'analyse signale à Claude les passages à ±30 s d'un repère (`MARKER_WINDOW_SECS`, `src/shared/transcript.ts`).
+- `inputs.external_ref` : origine externe d'une entrée, l'en-tête `Message-ID` d'un mail Gmail (identique dans toutes les boîtes). 1 à 512 caractères, pas blanc. Unique par organisation (index partiel `inputs_org_external_ref_key`, `23505`) : un mail reçu par deux personnes ne donne qu'une entrée, `/api/inputs/create` répond 409 avec l'id de l'entrée existante. La même valeur est permise dans deux organisations.
+- `tickets.from_marker` : ticket tiré d'un passage autour d'un repère (étoile). `false` par défaut, posé par le serveur seulement (citation retrouvée dans la transcription, l'avis de Claude si elle est introuvable). Un ticket révisé par une note garde le sien.
+- Droits de `inputs` et `tickets` inchangés : les nouvelles colonnes suivent les droits par table.
+- `google_connections` : une ligne par compte et par service (`calendar`, `gmail`), clé `(user_id, service)` (upsert `onConflict: 'user_id,service'`). `refresh_token` (1 à 2048 caractères, null = accès perdu, la carte affiche « À reconnecter »), `account` (adresse du compte Google, 320 caractères au plus), `cursor_at` (Gmail : les mails reçus avant ne sont pas proposés). Chacun ne lit, n'écrit et ne supprime que ses lignes (`user_id = auth.uid()`), admins compris ; `anon` n'a aucun droit ; supprimer le compte supprime ses lignes. Tests : `tests/google.test.ts` et `tests/calls.test.ts`.
 
 ## Émetteurs de facturation, numérotation, import (`0005`)
 

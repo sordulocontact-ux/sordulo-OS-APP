@@ -51,6 +51,7 @@ import type { MemberRole } from '../shared/types'
 import { SetPasswordButton } from '../features/auth/SetPasswordButton'
 import { useAuth } from '../features/auth/useAuth'
 import { useCurrentMember } from '../features/auth/useCurrentMember'
+import { useIslandReviewSync } from '../features/review/useIslandReviewSync'
 import { currentWindowLabel, isDesktop, onNavigate } from '../lib/desktop'
 import { DESKTOP_WINDOWS } from '../shared/desktop-contract'
 import styles from './AppLayout.module.css'
@@ -209,6 +210,7 @@ export function AppLayout() {
   }
   const toggleGroup = (id: string) =>
     updatePrefs({ ...prefs, closed: prefs.closed.includes(id) ? prefs.closed.filter((g) => g !== id) : [...prefs.closed, id] })
+  useIslandReviewSync()
 
   // Ferme le menu du compte au clic à l'extérieur ou avec Échap.
   useEffect(() => {

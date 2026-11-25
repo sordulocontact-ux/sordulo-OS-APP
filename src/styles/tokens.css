@@ -169,6 +169,8 @@
   /* Motion */
   --duration-fast: 120ms;
   --duration-normal: 200ms;
+  /* Mise en avant d'un élément (fondu de couleur, sans mouvement : non remis à 0 par prefers-reduced-motion) */
+  --duration-highlight: 2400ms;
   --easing-standard: cubic-bezier(0.2, 0, 0, 1);
 
   /* Layers */
@@ -227,6 +229,10 @@
   --island-danger: #ff6961;
   --island-info: #0a84ff;
   --island-analysis: #ffb340;
+  /* Types de ticket dans l'île (validation) : versions lisibles sur le noir de --color-type-* */
+  --island-type-bug: var(--island-danger);
+  --island-type-modification: var(--island-info);
+  --island-type-new: #a48af5;
   /* Texte */
   --island-font-size-badge: 9px;
   --island-font-size-xs: 11px;
@@ -342,6 +348,8 @@
   --island-duration-notif: 4500ms;
   /* Boucles : points, roue, pastilles (le Claude de l'île : view/mascot.ts) */
   --island-duration-dots: 1200ms;
+  /* Éclat de l'étoile d'un moment marqué (= MARK_FLASH_MS dans island/view/review.ts) */
+  --island-duration-mark-flash: 1200ms;
   --island-delay-dots: 150ms;
   --island-duration-spin: 800ms;
   --island-duration-beat: 1200ms;

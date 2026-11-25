@@ -470,6 +470,10 @@ export interface Input {
   created_by: string | null
   /** Devis accepté d'où vient l'entrée (migration 0011, propose_tasks_from_quote) ; une entrée par devis. */
   quote_id: string | null
+  /** Moments marqués pendant l'appel : secondes depuis le début de l'audio, triées (migration 0024). */
+  markers: number[]
+  /** Origine externe, unique par organisation : Message-ID du mail Gmail analysé (migration 0024). */
+  external_ref: string | null
   created_at: string
   updated_at: string
 }
@@ -490,6 +494,8 @@ export interface Ticket {
   area: string | null
   /** Pourquoi le ticket est allé à cette personne (charge, habitude). */
   assignment_note: string | null
+  /** Vient d'un passage autour d'un moment marqué pendant l'appel (étoile, migration 0024). */
+  from_marker: boolean
   created_at: string
 }
 

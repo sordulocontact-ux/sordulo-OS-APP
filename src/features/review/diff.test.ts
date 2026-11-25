@@ -34,6 +34,7 @@ const ticket: Ticket = {
   related_ticket_id: null,
   area: null,
   assignment_note: null,
+  from_marker: false,
   created_at: '2026-11-18T10:00:00Z',
 }
 

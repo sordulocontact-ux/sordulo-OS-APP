@@ -35,6 +35,7 @@ function ticket(title: string): ProcessedTicket {
     type: 'modification',
     priority: 'medium',
     source_quote: null,
+    from_marker: false,
     area: null,
     related_ticket_id: null,
     assignee_member_id: null,
@@ -65,6 +66,8 @@ function seed(toneOfVoice: string | null, aiInstructions: string | null = null):
       raw_text: 'Le bouton est trop petit.',
       transcript: null,
       speaker_names: {},
+      markers: [],
+      external_ref: null,
       status: 'analyzing',
       updated_at: '2026-11-20T10:00:00Z',
     },
@@ -183,5 +186,79 @@ describe('processInput : mémoire du projet', () => {
     await processInput(INPUT)
     expect(db.rows('tasks')[0]?.assignee_member_id).not.toBe(PAUL)
     expect(String(db.rows('tickets')[0]?.assignment_note)).not.toContain('Consigne')
+  })
+})
+
+describe('processInput : moments marqués', () => {
+  const MEETING = '44444444-4444-4444-8444-444444444444'
+  const utterances = [
+    { speaker: 0, start: 5, end: 9, text: 'Bonjour à tous.' },
+    { speaker: 1, start: 120, end: 128, text: 'Le bouton de paiement est vraiment trop petit sur mobile.' },
+    { speaker: 1, start: 600, end: 606, text: 'Et le logo de la page d’accueil est un peu flou.' },
+  ]
+
+  function seedMeeting(markers: number[]): void {
+    seed(null)
+    db.seed('inputs', [
+      {
+        id: MEETING,
+        organization_id: ORG,
+        project_id: PROJECT,
+        kind: 'meeting',
+        title: 'Point hebdo',
+        raw_text: null,
+        audio_path: 'org/projet/reunion.mp3',
+        transcript: { provider: 'deepgram:nova-3', language: 'fr', duration_seconds: 620, utterances },
+        speaker_names: {},
+        markers,
+        external_ref: null,
+        status: 'uploaded',
+        updated_at: '2026-11-20T10:00:00Z',
+      },
+    ])
+  }
+
+  const quoted = (title: string, quote: string | null, fromMarker: boolean): ProcessedTicket => ({
+    ...ticket(title),
+    source_quote: quote,
+    from_marker: fromMarker,
+  })
+  const starOf = (title: string) => db.rows('tickets').find((t) => t.title === title)?.from_marker
+
+  it('transmet les repères à l’analyse', async () => {
+    seedMeeting([130])
+    await processInput(MEETING)
+    expect(state.contexts[0]?.input.markers).toEqual([130])
+  })
+
+  it('étoile d’après le temps de la citation (±30 s), avis de l’IA si elle est introuvable', async () => {
+    seedMeeting([140])
+    state.tickets = [
+      quoted('Agrandir le bouton', 'le bouton de paiement est vraiment trop petit', false),
+      quoted('Rendre le logo net', 'le logo de la page d’accueil est un peu flou', true),
+      quoted('Revoir le menu', 'une phrase qui n’est pas dans la transcription', true),
+      quoted('Changer la couleur', null, false),
+    ]
+    await processInput(MEETING)
+    expect(db.rows('inputs').find((i) => i.id === MEETING)?.status).toBe('ready')
+    expect(starOf('Agrandir le bouton')).toBe(true)
+    expect(starOf('Rendre le logo net')).toBe(false)
+    expect(starOf('Revoir le menu')).toBe(true)
+    expect(starOf('Changer la couleur')).toBe(false)
+  })
+
+  it('entrée sans repère : aucune étoile, même si l’IA en met', async () => {
+    seedMeeting([])
+    state.tickets = [quoted('Agrandir le bouton', 'le bouton de paiement est vraiment trop petit', true)]
+    await processInput(MEETING)
+    expect(starOf('Agrandir le bouton')).toBe(false)
+  })
+
+  it('retour écrit : aucune étoile', async () => {
+    seed(null)
+    state.tickets = [quoted('Agrandir le bouton', 'Le bouton est trop petit.', true)]
+    await processInput(INPUT)
+    expect(starOf('Agrandir le bouton')).toBe(false)
+    expect(state.contexts[0]?.input.markers).toEqual([])
   })
 })

@@ -8,6 +8,7 @@
  * - Échec : notification « L'envoi de l'audio a échoué », Réessayer reprend sans doublon (entrée déjà créée,
  *   fichier déjà envoyé : voir UploadResume de src/features/inputs/uploadMeeting.ts).
  * - Au démarrage, une fois connecté : « Un appel n'a pas été envoyé », Réessayer.
+ * - Les moments marqués pendant l'appel (RecordingResult.markers, gardés dans la file) partent avec l'entrée.
  */
 import type { RecordingResult } from '../../../../shared/desktop-contract'
 import type { Input } from '../../../../shared/types'
@@ -28,6 +29,12 @@ export interface UploadSourceDeps {
 const NO_RESUME: UploadResume = { created: null, uploaded: false }
 
 /** MeetingUploadError porte la reprise (lu sans importer la classe, qui tire l'API et Supabase). */
+/** Repères d'un enregistrement de la file (un enregistrement gardé par une version d'avant n'en a pas). */
+export function markersOf(result: RecordingResult): number[] {
+  const markers: unknown = (result as Partial<RecordingResult>).markers
+  return Array.isArray(markers) ? markers.filter((m): m is number => typeof m === 'number') : []
+}
+
 function resumeOf(error: unknown): UploadResume | null {
   if (!error || typeof error !== 'object' || !('resume' in error)) return null
   const resume = (error as { resume: unknown }).resume
@@ -67,6 +74,7 @@ export function createUploadSource(deps: UploadSourceDeps): IslandSource {
             file,
             fileName: recordingFileName(result, new Date(ctx.clock.now())),
             contentType: result.mimeType,
+            markers: markersOf(result),
             resume: resumes.get(path) ?? NO_RESUME,
             onCreated: (created) => resumes.set(path, { ...(resumes.get(path) ?? NO_RESUME), created }),
           })

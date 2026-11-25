@@ -10,17 +10,27 @@ import type {
   IslandSnapshot,
   MeetActivity,
   MusicCommand,
+  NotificationAction,
   PermissionAsk,
   PermissionDecision,
 } from '../../types'
 import type { BackgroundRow } from '../labels'
-import type { ActivityOfKind, IslandCallPrompt, IslandDropInfo, IslandDropZone } from '../types'
+import type {
+  ActivityOfKind,
+  IslandCallPrompt,
+  IslandDropInfo,
+  IslandDropZone,
+  IslandMarkers,
+  IslandReview,
+  IslandReviewAction,
+} from '../types'
 import { MusicLayer, ProgressLayer } from './ActivityLayers'
 import { AppelLayer, MeetLayer, type BaseLayerProps } from './CallLayers'
 import { ChoiceLayer } from './ChoiceLayer'
 import { AgentLayer, AskLayer, MultiLayer } from './ClaudeLayers'
 import { DragOverLayer, DragWakeLayer } from './DragLayers'
 import { NotifLayer } from './NotifLayer'
+import { ReviewLayer } from './ReviewLayer'
 
 export interface ActivityLayersProps {
   base: BaseLayerProps
@@ -29,6 +39,10 @@ export interface ActivityLayersProps {
   snapshot: IslandSnapshot
   call: IslandCallPrompt | null
   meet: MeetActivity | null
+  /** Moments marqués de l'enregistrement en cours ; null : pas de bouton « Marquer ». */
+  markers: IslandMarkers | null
+  /** Validation des tickets dans l'île ; null hors de l'état `review`. */
+  review: IslandReview | null
   /** Lignes « aussi en cours » sous l'appel et sous la musique au survol (dépliées : toutes). */
   meetRows: readonly BackgroundRow[]
   progress: ActivityOfKind<'progress'> | null
@@ -48,10 +62,13 @@ export interface ActivityLayersProps {
     onCallIgnore: () => void
     onProjectChange: (projectId: string) => void
     onStopRecording: () => void
+    onMarkMoment?: () => void
+    onUndoMarker?: () => void
+    onReviewAction?: (action: IslandReviewAction) => void
     onAskDecision: (decision: PermissionDecision, ask: PermissionAsk) => void
     onAnswerSession: (sessionId: string) => void
     onOpenSession: (sessionId: string) => void
-    onNotificationAction: (notification: IslandNotification) => void
+    onNotificationAction: (notification: IslandNotification, action?: NotificationAction) => void
     onChoiceDecision: (decision: ChoiceDecision, choice: IslandChoice, always: boolean) => void
     onMusicCommand?: (command: MusicCommand) => void
     /** Clic sur une ligne « aussi en cours » (session, activité, « N autres activités »). */
@@ -65,6 +82,8 @@ export function ActivityLayers({
   snapshot,
   call,
   meet,
+  markers,
+  review,
   meetRows,
   progress,
   music,
@@ -90,7 +109,10 @@ export function ActivityLayers({
         meet={meet}
         rows={meetRows}
         open={open && state === 'meet'}
+        markers={markers}
         onStopRecording={handlers.onStopRecording}
+        onMarkMoment={handlers.onMarkMoment}
+        onUndoMarker={handlers.onUndoMarker}
         onSelectRow={handlers.onSelectRow}
       />
       <MusicLayer
@@ -135,6 +157,7 @@ export function ActivityLayers({
         onAskDecision={handlers.onAskDecision}
       />
       <ChoiceLayer {...base} choice={snapshot.choice} onChoiceDecision={handlers.onChoiceDecision} />
+      <ReviewLayer {...base} review={review} onReviewAction={handlers.onReviewAction} />
       <NotifLayer {...base} notification={snapshot.notification} onNotificationAction={handlers.onNotificationAction} />
     </>
   )

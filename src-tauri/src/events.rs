@@ -42,6 +42,12 @@ pub const EVENT_SPOTIFY: &str = "desktop://spotify";
 /// `DESKTOP_EVENTS.musicLevels` (payload `MusicLevels`), fenêtre de l'île, ~30 fois par seconde pendant
 /// l'analyse du son de la musique jouée par l'ordinateur (Windows ; jamais sur macOS).
 pub const EVENT_MUSIC_LEVELS: &str = "desktop://music-levels";
+/// `DESKTOP_EVENTS.recordingMarkers` (payload `RecordingMarkers`), toutes les fenêtres : un moment a été marqué
+/// (raccourci ou bouton) ou le dernier repère retiré.
+pub const EVENT_RECORDING_MARKERS: &str = "desktop://recording-markers";
+/// `DESKTOP_EVENTS.google` (payload `GoogleStatus`), toutes les fenêtres : une autorisation Google a commencé
+/// ou s'est terminée.
+pub const EVENT_GOOGLE: &str = "desktop://google";
 /// `DESKTOP_EVENTS.updateStatus` (payload `UpdateStatus`), fenêtre principale.
 pub const EVENT_UPDATE_STATUS: &str = "desktop://update-status";
 /// `CLAUDE_PERMISSION_TIMEOUT_MS` : attente maximale d'une réponse de l'île à un PermissionRequest (10 min).
@@ -56,6 +62,12 @@ pub const URL_SCHEME: &str = "sordulo";
 mod tests {
     use super::*;
     use crate::music_levels::MusicLevels;
+
+    #[test]
+    fn evenements_des_reperes_et_de_google() {
+        assert_eq!(EVENT_RECORDING_MARKERS, "desktop://recording-markers");
+        assert_eq!(EVENT_GOOGLE, "desktop://google");
+    }
 
     #[test]
     fn music_levels_a_la_forme_du_contrat() {

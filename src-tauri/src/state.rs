@@ -5,8 +5,8 @@
 //! Verrous : `shared` (métadonnées), `recorder` (enregistreur), `island_hits` (zones cliquables de l'île,
 //! lues ~60 fois par seconde, jamais pris avec un autre verrou) et `music` (dernier état de la musique et sa
 //! pochette, voir `music.rs` : peut prendre `shared` ensuite, jamais l'inverse).
-//! `shared` et `recorder` : seul `start_recording` tient les deux en même temps, toujours dans l'ordre
-//! `shared` puis `recorder`. L'arrêt relâche `shared` avant de prendre `recorder` (la finalisation du
+//! `shared` et `recorder` : seuls `start_recording` et `add_recording_marker` (position du repère) tiennent
+//! les deux en même temps, toujours dans l'ordre `shared` puis `recorder`. L'arrêt relâche `shared` avant de prendre `recorder` (la finalisation du
 //! fichier peut durer), donc pas d'interblocage.
 
 use std::path::PathBuf;
@@ -105,6 +105,8 @@ pub struct RecordingState {
     /// Epoch Unix en ms.
     pub started_at: Option<u64>,
     pub elapsed_secs: u64,
+    /// Moments marqués pendant l'enregistrement en cours (0 au repos).
+    pub marker_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -114,6 +116,20 @@ pub struct RecordingResult {
     pub info: RecordingInfo,
     pub project_id: String,
     pub title: Option<String>,
+    /// Moments marqués : secondes depuis le début de l'audio, triées, arrondies au dixième (`[]` sans repère).
+    pub markers: Vec<f64>,
+}
+
+/// `RecordingMarkers` du contrat : repères de l'enregistrement en cours après un changement
+/// (`desktop://recording-markers`) et réponse de `add_recording_marker` / `remove_last_recording_marker`.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordingMarkers {
+    pub count: usize,
+    /// Secondes depuis le début de l'audio du repère le plus récent (au dixième) ; `null` sans repère.
+    pub last_at_secs: Option<f64>,
+    /// Vrai quand ce changement a ajouté un repère (étoile), faux sinon (retrait, ou appui ignoré).
+    pub added: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -312,6 +328,8 @@ pub struct Session {
     pub title: Option<String>,
     pub started_at: u64,
     pub path: PathBuf,
+    /// Moments marqués (secondes depuis le début de l'audio, triées, au plus `markers::MAX_MARKERS`).
+    pub markers: Vec<f64>,
 }
 
 #[derive(Debug, Default)]
@@ -405,6 +423,7 @@ impl DesktopState {
                 title: s.title.clone(),
                 started_at: Some(s.started_at),
                 elapsed_secs: self.elapsed_secs(s),
+                marker_count: s.markers.len(),
             },
         }
     }
@@ -467,6 +486,18 @@ mod tests {
         assert!(json["recording"]["projectId"].is_null());
         assert!(json["recording"]["startedAt"].is_null());
         assert_eq!(json["recording"]["elapsedSecs"], 0);
+        assert_eq!(json["recording"]["markerCount"], 0);
+        let mut keys: Vec<&str> = json["recording"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            ["elapsedSecs", "markerCount", "projectId", "startedAt", "status", "title"]
+        );
 
         let result = RecordingResult {
             info: RecordingInfo {
@@ -477,6 +508,7 @@ mod tests {
             },
             project_id: "p".into(),
             title: None,
+            markers: vec![12.3, 75.0],
         };
         let json = serde_json::to_value(&result).unwrap();
         for key in [
@@ -486,9 +518,34 @@ mod tests {
             "mimeType",
             "projectId",
             "title",
+            "markers",
         ] {
             assert!(json.get(key).is_some(), "champ manquant : {key}");
         }
+        assert_eq!(json["markers"], serde_json::json!([12.3, 75.0]));
+        assert_eq!(json.as_object().unwrap().len(), 7);
+    }
+
+    #[test]
+    fn recording_markers_matches_the_ts_contract() {
+        let markers = RecordingMarkers {
+            count: 2,
+            last_at_secs: Some(42.5),
+            added: true,
+        };
+        assert_eq!(
+            serde_json::to_value(&markers).unwrap(),
+            serde_json::json!({ "count": 2, "lastAtSecs": 42.5, "added": true })
+        );
+        let none = RecordingMarkers {
+            count: 0,
+            last_at_secs: None,
+            added: false,
+        };
+        assert_eq!(
+            serde_json::to_value(&none).unwrap(),
+            serde_json::json!({ "count": 0, "lastAtSecs": null, "added": false })
+        );
     }
 
     #[test]

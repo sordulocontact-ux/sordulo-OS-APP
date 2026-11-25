@@ -1,7 +1,8 @@
 //! Coque Tauri 2 de Sordulo OS : fenêtres (dont l'île), zone de notification, détection du micro,
 //! musique en cours (`music.rs`, avec Spotify sur un autre appareil : `spotify/` ; vrai son analysé en
 //! direct : `music_levels/`), relais Claude Code
-//! (`claude/`), commandes IPC.
+//! (`claude/`), connecteurs Google Agenda et Gmail (`google/`, OAuth commun dans `oauth/`), moments marqués
+//! pendant un enregistrement (`markers.rs`, raccourci global : `marker_shortcut.rs`), commandes IPC.
 //! Contrat avec le front : `src/shared/desktop-contract.ts`. Fonctions système : `platform/` uniquement.
 
 mod auth_link;
@@ -12,12 +13,16 @@ mod commands;
 mod editor_windows;
 mod dropped;
 mod events;
+mod google;
 mod island_window;
 mod logging;
+mod marker_shortcut;
+mod markers;
 mod monitor;
 mod music;
 mod music_levels;
 mod music_tempo;
+mod oauth;
 mod platform;
 mod recording;
 mod spotify;
@@ -48,11 +53,14 @@ pub fn run() {
                 }
             },
         ))
-        .plugin(autostart::plugin());
+        .plugin(autostart::plugin())
+        // Raccourci « marquer un moment », pris seulement pendant un enregistrement (voir marker_shortcut).
+        .plugin(marker_shortcut::plugin());
     // Notification « à jour » et, en release seulement, mises à jour automatiques (voir updater).
     let app = updater::register(builder)
         .manage(DesktopState::new())
         .manage(spotify::SpotifyState::new())
+        .manage(google::GoogleState::new())
         .setup(|app| {
             let handle = app.handle().clone();
             auth_link::register();
@@ -82,6 +90,7 @@ pub fn run() {
             island_window::spawn_pointer_loop(handle.clone());
             monitor::spawn_mic_loop(handle.clone());
             spotify::start(&handle);
+            google::start();
             music::spawn_music_loop(handle.clone());
             monitor::spawn_recording_ticker(handle);
             Ok(())
@@ -106,6 +115,8 @@ pub fn run() {
             commands::get_status,
             commands::start_recording,
             commands::stop_recording,
+            commands::add_recording_marker,
+            commands::remove_last_recording_marker,
             commands::read_recording,
             commands::delete_recording,
             commands::dismiss_prompt,
@@ -133,6 +144,10 @@ pub fn run() {
             commands::spotify_connect,
             commands::spotify_cancel_connect,
             commands::spotify_set_connection,
+            commands::google_status,
+            commands::google_connect,
+            commands::google_cancel_connect,
+            commands::google_access_token,
             commands::get_update_status,
             commands::check_update,
             commands::install_update_now,

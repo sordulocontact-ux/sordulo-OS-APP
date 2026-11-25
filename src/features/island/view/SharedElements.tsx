@@ -22,8 +22,10 @@ import { ClaudeMascot } from "./ClaudeMascot";
 import { CallIcon, DropIcon, IslandIcon, MusicCover } from "./icons";
 import styles from "./Island.module.css";
 import { ProgressRing } from "./layers/ActivityLayers";
+import { MarkCount } from "./MarkCount";
 import { EQ, EQ_BAR, eqBarGeometry, eqBarStyle } from "./music";
 import { PROGRESS_VISUALS, toneStyle } from "./tone";
+import type { IslandMarkers } from "./types";
 
 const SEG_IDS: SharedElementId[] = ["seg0", "seg1", "seg2", "seg3", "seg4"];
 
@@ -62,6 +64,8 @@ export interface SharedElementsProps {
   platform: IslandPlatform;
   /** Anneau de la progression (la boucle écrit stroke-dashoffset). */
   ringRef: (el: SVGCircleElement | null) => void;
+  /** Moments marqués de l'enregistrement (étoile et nombre à gauche du minuteur) ; null : rien. */
+  markers?: IslandMarkers | null;
 }
 
 export function SharedElements({
@@ -78,6 +82,7 @@ export function SharedElements({
   progress,
   platform,
   ringRef,
+  markers = null,
 }: SharedElementsProps) {
   const agentWorking = agent?.status === "working";
   const segs = sessions.slice(0, MAX_SESSION_ROWS);
@@ -207,6 +212,12 @@ export function SharedElements({
         ref={(el) => register("progLabel", el)}
       >
         {progress?.label}
+      </span>
+      <span
+        className={cx(styles.sh, styles.shText)}
+        ref={(el) => register("markCount", el)}
+      >
+        <MarkCount markers={markers} reduced={reduced} />
       </span>
     </div>
   );

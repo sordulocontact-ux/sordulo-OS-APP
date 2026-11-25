@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { BackLink, Badge, Button, Card, EmptyState, ErrorState, LoadingState, useToast, type BadgeTone } from '../../components/ui'
 import { api, ApiRequestError } from '../../lib/api'
 import { queryKeys } from '../../lib/queryKeys'
-import { formatTimestamp, speakerLabel } from '../../shared/transcript'
+import { formatTimestamp, isNearMarker, speakerLabel } from '../../shared/transcript'
 import type { Input } from '../../shared/types'
 import { DeleteInputButton } from './DeleteInputButton'
 import { DownloadInputButtons } from './DownloadInputButtons'
@@ -14,6 +14,7 @@ import { useInputTickets } from '../review/useReviewData'
 import { InputStatusBadge } from './InputStatusBadge'
 import { SpeakerNamesForm } from './SpeakerNamesForm'
 import { formatDateTime, inputTitle, kindLabel } from './inputUtils'
+import { cleanMarkers, markerAnchors, markerElementId } from './markers'
 import { useInput, useProposedTicketCount } from './useInputs'
 import styles from './InputDetailPage.module.css'
 
@@ -89,20 +90,67 @@ function Transcript({ input }: { input: Input }) {
   if (transcript.utterances.length === 0) {
     return <EmptyState title="Transcription vide" text="Aucune parole n'a été détectée dans le fichier." />
   }
+  const markers = cleanMarkers(input.markers)
+  const anchors = markerAnchors(transcript.utterances, markers)
+  const markerIndex = new Map(markers.map((marker, index) => [marker, index]))
+
+  function markerItems(index: number) {
+    return (anchors.get(index) ?? []).map((marker) => (
+      <li key={`marker-${marker}`} id={markerElementId(markerIndex.get(marker) ?? 0)} tabIndex={-1} className={styles.marker}>
+        <span aria-hidden="true">★</span> Moment marqué à {formatTimestamp(marker)}
+      </li>
+    ))
+  }
+
+  function goToMarker(index: number) {
+    const element = document.getElementById(markerElementId(index))
+    if (!element) return
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    element.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' })
+    element.focus({ preventScroll: true })
+  }
+
   return (
-    <ul className={styles.transcript}>
-      {transcript.utterances.map((u, index) => (
-        <li key={index} className={styles.utterance}>
-          <span className={styles.speaker}>
-            <Badge tone={SPEAKER_TONES[u.speaker % SPEAKER_TONES.length] ?? 'neutral'}>
-              {speakerLabel(u.speaker, input.speaker_names)}
-            </Badge>
-            <span className={styles.time}>{formatTimestamp(u.start)}</span>
-          </span>
-          <p className={styles.words}>{u.text}</p>
-        </li>
-      ))}
-    </ul>
+    <>
+      {markers.length > 0 ? (
+        <div className={styles.markers}>
+          <p className={styles.markersTitle}>
+            {markers.length === 1 ? "1 moment marqué pendant l'appel" : `${markers.length} moments marqués pendant l'appel`}
+          </p>
+          <ul className={styles.markerLinks} aria-label="Moments marqués">
+            {markers.map((marker, index) => (
+              <li key={marker}>
+                <Button variant="secondary" size="sm" onClick={() => goToMarker(index)}>
+                  <span aria-hidden="true">★</span> {formatTimestamp(marker)}
+                  <span className="visually-hidden"> : aller au moment marqué</span>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      <ul className={styles.transcript}>
+        {transcript.utterances.map((u, index) => {
+          const near = isNearMarker(u.start, u.end, markers)
+          return [
+            ...markerItems(index),
+            <li key={index} className={[styles.utterance, near ? styles.near : ''].filter(Boolean).join(' ')}>
+              <span className={styles.speaker}>
+                <Badge tone={SPEAKER_TONES[u.speaker % SPEAKER_TONES.length] ?? 'neutral'}>
+                  {speakerLabel(u.speaker, input.speaker_names)}
+                </Badge>
+                <span className={styles.time}>{formatTimestamp(u.start)}</span>
+              </span>
+              <p className={styles.words}>
+                {u.text}
+                {near ? <span className="visually-hidden"> (autour d'un moment marqué)</span> : null}
+              </p>
+            </li>,
+          ]
+        })}
+        {markerItems(transcript.utterances.length)}
+      </ul>
+    </>
   )
 }
 

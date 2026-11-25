@@ -43,7 +43,10 @@ Variables lues :
   APPLE_SIGNING_IDENTITY                    identité de signature Mac (absente : signature ad hoc)
   APPLE_CERTIFICATE (+ _PASSWORD)           certificat .p12 en base64, importé par Tauri dans un
                                             trousseau temporaire (CI)
-  VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_BASE_URL   front embarqué (ou .env.local)`
+  VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_BASE_URL   front embarqué (ou .env.local)
+  GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET    app Google de l'agence, compilée dans l'app (ou .env.local,
+                                            lu par src-tauri/build.rs) ; absentes : Google Agenda et
+                                            Gmail indisponibles dans cette version`
 
 function fail(message) {
   console.error(`\n✖ ${message}`)
@@ -104,6 +107,8 @@ function cleanEnv() {
     'APPLE_CERTIFICATE',
     'APPLE_CERTIFICATE_PASSWORD',
     'APPLE_SIGNING_IDENTITY',
+    'GOOGLE_CLIENT_ID',
+    'GOOGLE_CLIENT_SECRET',
   ]) {
     if (env[name] === '') delete env[name]
   }
