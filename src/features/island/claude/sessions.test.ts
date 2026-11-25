@@ -148,7 +148,7 @@ describe('sessions Claude Code', () => {
     expect(notifs(woken.effects).map((e) => e.type === 'notify' && e.kind)).toEqual(['claudeDone'])
   })
 
-  it('arrière-plan : compte shells et sous-agents, KillShell en retire un, un nouveau prompt remet à zéro', () => {
+  it('arrière-plan : compte shells et sous-agents, KillShell en retire un, un nouveau prompt oublie les shells', () => {
     const { sessions, state } = run([
       ev('UserPromptSubmit', { message: 'x' }),
       ev('PreToolUse', { toolName: 'Bash', toolSummary: 'npm run dev', background: true }),
@@ -159,8 +159,27 @@ describe('sessions Claude Code', () => {
       ev('Stop'),
     ])
     expect(sessions[0]).toMatchObject({ status: 'background', step: 'Patiente : un shell et un sous-agent en cours' })
+    // Le sous-agent n'a pas annoncé sa fin : Claude patiente encore ; les shells sont oubliés.
     const again = run([ev('UserPromptSubmit', { message: 'y' }), ev('Stop')], state)
-    expect(again.sessions[0]?.status).toBe('done')
+    expect(again.sessions[0]).toMatchObject({ status: 'background', step: 'Patiente : un sous-agent en cours', subagents: 1 })
+    const finished = run([ev('SubagentStop'), ev('UserPromptSubmit', { message: 'z' }), ev('Stop')], again.state)
+    expect(finished.sessions[0]?.status).toBe('done')
+  })
+
+  it('Claude qui attend ses sous-agents d’arrière-plan : on les voit toujours, même après un réveil', () => {
+    const agent = (name: string) => ev('PreToolUse', { toolName: 'Agent', toolSummary: name, background: true })
+    const patient = run([ev('UserPromptSubmit', { message: 'x' }), agent('A'), agent('B'), agent('C'), ev('Stop')])
+    expect(patient.sessions[0]).toMatchObject({ status: 'background', subagents: 3, step: 'Patiente : 3 sous-agents en cours' })
+    expect(claudeActivityFor(patient.sessions)).toEqual({ kind: 'multi' })
+    // Un sous-agent finit : il quitte le jardin, Claude est réveillé puis repatiente pour les deux autres.
+    const one = run([ev('SubagentStop')], patient.state)
+    expect(one.sessions[0]).toMatchObject({ status: 'background', subagents: 2, step: 'Patiente : 2 sous-agents en cours' })
+    const woken = run([ev('PreToolUse', { toolName: 'Read', toolSummary: 'rapport.md' }), ev('Stop')], one.state)
+    expect(woken.sessions[0]).toMatchObject({ status: 'background', subagents: 2 })
+    expect(notifs(woken.effects)).toEqual([])
+    expect(claudeActivityFor(woken.sessions)).toEqual({ kind: 'multi' })
+    const all = run([ev('SubagentStop'), ev('SubagentStop'), ev('PreToolUse', { toolName: 'Read', toolSummary: 'x' }), ev('Stop')], woken.state)
+    expect(all.sessions[0]).toMatchObject({ status: 'done', subagents: 0 })
   })
 
   it('sous-agent d’arrière-plan fini pendant le tour : le Stop dit « terminé »', () => {

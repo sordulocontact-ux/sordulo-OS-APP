@@ -314,6 +314,14 @@ export function gardenSessions<T extends GardenSession>(sessions: readonly T[]):
   return sessions.slice(0, GARDEN.maxSessions)
 }
 
+/**
+ * Animations réduites : les sous-agents sont montrés tant que leur parent travaille, ou patiente pendant
+ * qu'ils tournent en arrière-plan (demande de Maël, 25/11).
+ */
+function subsVisible(status: ClaudeSessionStatus): boolean {
+  return status === 'working' || status === 'background'
+}
+
 export class GardenSim {
   private list: Walker[] = []
   private ias: Interaction[] = []
@@ -521,7 +529,7 @@ export class GardenSim {
     if (opts.reduced) {
       this.settleStill(w)
       this.placeReducedSub(w, parent, k)
-      if (this.statusOf(parent) !== 'working') w.op = 0
+      if (!subsVisible(this.statusOf(parent))) w.op = 0
     }
     this.list.push(w)
     return w
@@ -726,10 +734,10 @@ export class GardenSim {
     for (const parent of this.mains()) {
       // Immobiles : personne ne reste à cheval sur le portail de l'encoche.
       parent.x = this.unfold(this.clearOfNotch(this.fold(parent.x), parent.size / 2))
-      const working = this.statusOf(parent) === 'working'
+      const shown = subsVisible(this.statusOf(parent))
       this.subsOf(parent).forEach((sub, k) => {
         this.placeReducedSub(sub, parent, k)
-        sub.op = working ? 1 : 0
+        sub.op = shown ? 1 : 0
       })
     }
   }
@@ -1895,7 +1903,7 @@ export function walkerVisual(
   let opacity = w.op
   if (w.delay > 0 || w.hidden) opacity = 0
   else if (!w.sub && status === 'idle') opacity = Math.min(w.op, GARDEN.idleOpacity)
-  if (ctx.reduced && w.sub && status !== 'working') opacity = 0
+  if (ctx.reduced && w.sub && !subsVisible(status)) opacity = 0
   opacity = Math.max(0, Math.min(1, opacity))
   const closed = w.blink > 0 || (!w.sub && status === 'sleep')
   const lid =

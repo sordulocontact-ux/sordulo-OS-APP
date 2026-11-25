@@ -19,11 +19,14 @@
  *   (« Inactive ») après SLEEP_AFTER_MS sans événement. `background` (« Patiente ») : Stop alors qu'un shell ou
  *   un sous-agent lancé en arrière-plan (`background` du relais) tourne encore ; pas de « Claude a terminé ». `error` : commande refusée (le relais ne dit pas
  *   quand un outil échoue : PostToolUse n'arrive qu'en cas de succès et le contrat ne porte pas l'erreur).
- * - Sous-agents : PreToolUse Task / Agent → +1, SubagentStop → -1, Stop → 0.
+ * - Sous-agents : PreToolUse Task / Agent → +1, SubagentStop → -1, Stop → 0, sauf ceux lancés en arrière-plan
+ *   qui tournent encore : gardés pendant que Claude patiente (demande de Maël, 25/11 : on voit toujours les
+ *   sous-agents, même quand le Claude qui les a lancés ne fait que les attendre).
  * - Arrière-plan (demande de Maël, 21/11) : PreToolUse en arrière-plan → shells ou sous-agents en attente +1 ;
  *   KillShell / TaskStop → -1 ; jamais plus de sous-agents en attente que de sous-agents en cours. Aucun hook
  *   ne dit quand un shell finit, mais Claude est réveillé à ce moment-là : le premier événement d'un nouveau
- *   tour après le Stop (prompt, outil) remet les compteurs à zéro, les lancements suivants recomptent.
+ *   tour après le Stop (prompt, outil) remet les shells à zéro, les lancements suivants recomptent. Les
+ *   sous-agents d'arrière-plan encore en cours restent comptés jusqu'à leur SubagentStop.
  *   Approximation : si un seul de plusieurs shells finit, le Stop suivant dit « terminé ».
  * - Fichiers modifiés : chemins distincts écrits (PostToolUse Edit / Write / MultiEdit / NotebookEdit)
  *   pendant le tour, du prompt au Stop (« Claude a terminé : N fichiers modifiés »).
@@ -254,9 +257,23 @@ function createRecord(event: ClaudeRelayEvent, projects: readonly ClaudeProjectR
 
 const NO_BACKGROUND = { backgroundShells: 0, backgroundAgents: 0, lastBackgroundShell: null } as const
 
+/**
+ * Nouveau tour (prompt, ou réveil après un Stop qui patientait) : aucun hook ne dit quand un shell finit, on
+ * les oublie et les lancements suivants recomptent. Les sous-agents d'arrière-plan, eux, annoncent leur fin
+ * (SubagentStop) : ceux qui tournent encore restent comptés (un sous-agent sur trois qui finit réveille Claude,
+ * les deux autres continuent).
+ */
+function forgetShells(record: ClaudeSessionRecord): ClaudeSessionRecord {
+  return {
+    ...record,
+    ...NO_BACKGROUND,
+    backgroundAgents: Math.min(record.backgroundAgents, record.session.subagents),
+  }
+}
+
 /** Événement d'un nouveau tour après un Stop qui patientait : la tâche attendue a fini, on recompte. */
 function resumeFromBackground(record: ClaudeSessionRecord): ClaudeSessionRecord {
-  return record.session.status === 'background' ? { ...record, ...NO_BACKGROUND } : record
+  return record.session.status === 'background' ? forgetShells(record) : record
 }
 
 /** Compteurs d'arrière-plan après un PreToolUse (lancement ou arrêt d'une tâche en arrière-plan). */
@@ -318,7 +335,7 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
     case 'UserPromptSubmit':
       resolveAll(record, effects)
       record = {
-        ...withSession(record, {
+        ...withSession(forgetShells(record), {
           status: 'working',
           task: session.task ?? (event.message ? truncate(event.message, TASK_MAX_CHARS) : null),
           step: null,
@@ -331,7 +348,6 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
         pending: [],
         handedToTerminal: false,
         idleNotified: false,
-        ...NO_BACKGROUND,
       }
       break
 
@@ -420,7 +436,8 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
           ...withSession(record, {
             status: 'background',
             step: patienceLabel(backgroundShells, backgroundAgents, lastBackgroundShell),
-            subagents: 0,
+            // Les sous-agents d'arrière-plan tournent encore : le jardin les garde autour de Claude qui patiente.
+            subagents: backgroundAgents,
             error: false,
             activity: null,
           }),
@@ -461,9 +478,15 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
 
     case 'SubagentStop':
       record = withSession(record, { subagents: Math.max(0, session.subagents - 1) })
-      // Un sous-agent d'arrière-plan qui finit pendant le tour : pas plus en attente qu'en cours.
-      if (record.session.status !== 'background' && record.backgroundAgents > record.session.subagents) {
+      // Un sous-agent d'arrière-plan qui finit (pendant le tour ou pendant que Claude patiente) : pas plus en
+      // attente qu'en cours.
+      if (record.backgroundAgents > record.session.subagents) {
         record = { ...record, backgroundAgents: record.session.subagents }
+        if (record.session.status === 'background') {
+          record = withSession(record, {
+            step: patienceLabel(record.backgroundShells, record.backgroundAgents, record.lastBackgroundShell),
+          })
+        }
       }
       if (record.session.status === 'sleep') record = withSession(record, { status: 'working' })
       break
