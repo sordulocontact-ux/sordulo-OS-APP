@@ -54,7 +54,7 @@ export interface SharedElementsProps {
   /** Pochette du morceau en cours ; null : dégradé de repli. */
   artworkUrl: string | null;
   /** Session Claude affichée (le Claude de l'île joue ce qu'elle fait) ; null : aucune. */
-  agent: Pick<ClaudeSession, "status" | "activity" | "error" | "startedAt"> | null;
+  agent: Pick<ClaudeSession, "status" | "activity" | "activityAt" | "error" | "startedAt"> | null;
   reduced: boolean;
   /** Progression affichée (gardée pendant le fondu de sortie) : icône et couleur de l'étape, libellé fermé. */
   progress: Pick<ProgressActivity, "stage" | "label"> | null;
@@ -110,6 +110,7 @@ export function SharedElements({
         <ClaudeMascot
           status={agent?.status ?? null}
           activity={agent?.activity ?? null}
+          activityAt={agent?.activityAt ?? null}
           error={agent?.error ?? false}
           startedAt={agent?.startedAt ?? null}
           reduced={reduced}

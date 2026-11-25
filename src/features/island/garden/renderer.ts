@@ -125,6 +125,8 @@ interface PortalNode {
   color: string
   depth: string
   geometry: string
+  /** z-index écrit (celui du Claude qui traverse). */
+  z: string
 }
 
 function clipPath(clip: ClipRange | null): string {
@@ -381,8 +383,25 @@ export class GardenRenderer {
       body.appendChild(spark)
     }
     side.appendChild(body)
-    this.layer.appendChild(side)
-    return { side, body, phase: null, busy: false, color: '', depth: '', geometry: '' }
+    this.crowd.appendChild(side)
+    return { side, body, phase: null, busy: false, color: '', depth: '', geometry: '', z: '' }
+  }
+
+  /**
+   * Range le portail dans le calque de son Claude, juste avant lui et au même z-index : le Claude passe toujours
+   * devant son portail, quel que soit son calque (jardin, devant la pochette, ou derrière le titre de la musique
+   * pour les plans du fond : avant, le portail restait dans le calque du jardin et ceux-là passaient derrière).
+   */
+  private stackPortal(node: PortalNode, walker: WalkerNode | undefined): void {
+    const anchor = walker?.main.shadowBox
+    const crowd = anchor?.parentElement ?? this.crowd
+    if (anchor && node.side.nextSibling !== anchor) crowd.insertBefore(node.side, anchor)
+    else if (!anchor && node.side.parentElement !== crowd) crowd.appendChild(node.side)
+    const z = walker?.main.z || '0'
+    if (z !== node.z) {
+      node.z = z
+      node.side.style.zIndex = z
+    }
   }
 
   /** Pose un portail et relance son animation quand la phase change. */
@@ -584,6 +603,7 @@ export class GardenRenderer {
         node = this.createPortal(p.side === 'left' ? -1 : 1)
         this.portals.set(p.key, node)
       }
+      this.stackPortal(node, this.walkers.get(p.id))
       this.paintPortal(node, p, ctx)
     }
     for (const [id, node] of this.portals) {

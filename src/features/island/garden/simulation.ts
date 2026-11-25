@@ -16,6 +16,7 @@
  * - Le hasard est injecté (`rng`) pour les tests.
  */
 import { activityProp, type GardenProp } from '../art/props'
+import { liveActivity } from '../claude/steps'
 import type { ClaudeActivity, ClaudeSessionStatus, IslandPlatform } from '../types'
 import {
   GARDEN,
@@ -37,6 +38,8 @@ export interface GardenSession {
   subagents: number
   /** Ce que fait la session (outil en cours) : accessoire du personnage quand il s'arrête pour travailler. */
   activity?: ClaudeActivity | null
+  /** Fin du dernier outil (epoch ms), null pendant qu'il tourne : voir liveActivity. */
+  activityAt?: number | null
 }
 
 /** Humeur du jardin (prototype : mood) : appel en cours, musique (hors périmètre, scénario E). */
@@ -408,9 +411,10 @@ export class GardenSim {
     return [...this.gates.values()]
   }
 
-  /** Activité de la session d'un personnage (outil en cours) ; null si inconnue. */
-  activityOf(w: Walker): ClaudeActivity | null {
-    return this.sessions.get(w.sessionId)?.activity ?? null
+  /** Activité à montrer (accessoire de la pause de travail) : celle du dernier outil, tenue un moment après. */
+  activityOf(w: Walker, now = Date.now()): ClaudeActivity | null {
+    const s = this.sessions.get(w.sessionId)
+    return s ? liveActivity(s.activity, s.activityAt, now) : null
   }
 
   /** Statut de la session d'un personnage (celle du parent pour un sous-agent). */

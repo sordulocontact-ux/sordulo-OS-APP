@@ -605,6 +605,7 @@
  * (animation-delay négatif) est écrit par le moteur : une phase reprise continue où elle en était.
  * SOUS les Claude (demande de Sacha) : le Claude passe devant le bord du portail, puis il est coupé au milieu
  * (le plan du portail) et la surface du portail reste visible au-delà : il entre dedans, il ne passe pas derrière.
+ * Le moteur range chaque portail dans le calque de son Claude, juste avant lui et au même z-index (stackPortal).
  */
 .portal {
   --garden-tint: color-mix(

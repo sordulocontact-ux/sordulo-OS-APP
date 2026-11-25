@@ -376,8 +376,13 @@ export interface ClaudeSession {
   error: boolean
   /** Sous-agents en cours (jardin). */
   subagents: number
-  /** Ce que fait Claude pendant le tour (animation du Claude de l'île) ; absent ou null hors du travail. */
+  /**
+   * Ce que fait Claude pendant le tour (animation du Claude de l'île et du jardin), d'après le dernier outil ;
+   * absent ou null hors du travail. À lire avec `liveActivity` (claude/steps.ts) et `activityAt`.
+   */
   activity?: ClaudeActivity | null
+  /** epoch ms de la fin du dernier outil ; null pendant qu'il tourne (l'activité tient tant qu'il tourne). */
+  activityAt?: number | null
 }
 
 /** Demande d'autorisation (hook PermissionRequest) en attente d'une réponse dans l'île. */

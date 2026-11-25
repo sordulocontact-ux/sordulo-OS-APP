@@ -14,6 +14,7 @@ import {
   type ClaudeInput,
   type ClaudeState,
 } from './sessions'
+import { ACTIVITY_HOLD_MS, liveActivity } from './steps'
 import { relayEvent, TEST_CWD } from './testEvents'
 
 const T0 = 1_000_000
@@ -112,15 +113,20 @@ describe('sessions Claude Code', () => {
     ])
   })
 
-  it('activité du Claude de l’île : outil en cours, réflexion entre deux outils, rien après le tour', () => {
-    const prompt = run([ev('UserPromptSubmit', { message: 'Corrige le bug' })])
+  it('activité du Claude de l’île : dernier outil tenu après sa fin, réflexion après un moment sans outil, rien après le tour', () => {
+    const prompt = run([ev('UserPromptSubmit', { message: 'Corrige le bug', at: T0 })])
     expect(prompt.sessions[0]?.activity).toBe('think')
-    const reading = run([ev('PreToolUse', { toolName: 'Read', toolSummary: 'CLAUDE.md' })], prompt.state)
-    expect(reading.sessions[0]?.activity).toBe('read')
-    const searching = run([ev('PreToolUse', { toolName: 'Grep', toolSummary: 'dots' })], reading.state)
+    const reading = run([ev('PreToolUse', { toolName: 'Read', toolSummary: 'CLAUDE.md', at: T0 + 100 })], prompt.state)
+    expect(reading.sessions[0]).toMatchObject({ activity: 'read', activityAt: null })
+    const searching = run([ev('PreToolUse', { toolName: 'Grep', toolSummary: 'dots', at: T0 + 200 })], reading.state)
     expect(searching.sessions[0]?.activity).toBe('search')
-    const after = run([ev('PostToolUse', { toolName: 'Grep' })], searching.state)
-    expect(after.sessions[0]?.activity).toBe('think')
+    // L'outil a fini en quelques ms : son activité tient, puis « réfléchit » après ACTIVITY_HOLD_MS sans outil.
+    const end = T0 + 250
+    const after = run([ev('PostToolUse', { toolName: 'Grep', at: end })], searching.state)
+    const s = after.sessions[0]
+    expect(s).toMatchObject({ activity: 'search', activityAt: end })
+    expect(liveActivity(s?.activity, s?.activityAt, end + ACTIVITY_HOLD_MS - 1)).toBe('search')
+    expect(liveActivity(s?.activity, s?.activityAt, end + ACTIVITY_HOLD_MS + 1)).toBe('think')
     expect(run([ev('Stop')], after.state).sessions[0]?.activity).toBeNull()
   })
 

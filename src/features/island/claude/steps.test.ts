@@ -10,10 +10,27 @@ import {
   shortenPath,
   toolActivity,
   truncate,
+  ACTIVITY_HOLD_MS,
+  liveActivity,
   webDomain,
 } from './steps'
 
 const CWD = 'C:\\Users\\mael\\sordulo-OS'
+
+describe('activité à montrer (liveActivity)', () => {
+  it('outil en cours : tenue tant qu’il tourne, même longtemps', () => {
+    expect(liveActivity('command', null, 10 * ACTIVITY_HOLD_MS)).toBe('command')
+  })
+  it('outil fini : tenu ACTIVITY_HOLD_MS, puis « réfléchit »', () => {
+    expect(liveActivity('read', 1000, 1000 + ACTIVITY_HOLD_MS)).toBe('read')
+    expect(liveActivity('read', 1000, 1001 + ACTIVITY_HOLD_MS)).toBe('think')
+  })
+  it('réfléchit ou rien : inchangé', () => {
+    expect(liveActivity('think', 0, 1e9)).toBe('think')
+    expect(liveActivity(null, 0, 1e9)).toBeNull()
+    expect(liveActivity(undefined, undefined, 0)).toBeNull()
+  })
+})
 
 describe('étape tirée de l’outil', () => {
   it('lecture, modification, écriture : chemin relatif au dossier de la session', () => {

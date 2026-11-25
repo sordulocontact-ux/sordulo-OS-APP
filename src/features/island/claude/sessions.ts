@@ -342,6 +342,7 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
           startedAt: event.at,
           error: false,
           activity: 'think',
+          activityAt: null,
         }),
         turnFiles: new Map(),
         inTurn: true,
@@ -362,6 +363,8 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
           error: false,
           subagents: session.subagents + (isSubagentTool(event.toolName) ? 1 : 0),
           activity: toolActivity(event.toolName),
+          // Outil en cours : son activité tient tant qu'il tourne (une longue commande garde son clavier).
+          activityAt: null,
         }),
         inTurn: true,
         handedToTerminal: false,
@@ -379,11 +382,12 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
         if (!turnFiles.has(key)) turnFiles = new Map(turnFiles).set(key, event.filePath)
       }
       record = {
-        // Outil fini : Claude réfléchit à la suite jusqu'au prochain outil.
+        // Outil fini : son activité tient jusqu'au prochain outil, ou ACTIVITY_HOLD_MS (liveActivity) avant de
+        // repasser à « réfléchit ».
         ...withSession(resumeFromBackground(record), {
           status: statusAfterAsks(pending),
           error: false,
-          activity: 'think',
+          activityAt: event.at,
         }),
         pending,
         turnFiles,

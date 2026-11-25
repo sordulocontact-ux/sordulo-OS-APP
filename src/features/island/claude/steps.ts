@@ -7,6 +7,28 @@
  */
 import type { ClaudeActivity } from '../types'
 
+/**
+ * Activité tenue après la fin d'un outil (ms). La plupart des outils (lire, chercher, éditer) durent quelques
+ * millisecondes et Claude passe ensuite des secondes à rédiger : revenir à « réfléchit » dès la fin de l'outil
+ * faisait que le Claude de l'île et du jardin ne montraient presque que les engrenages. L'activité reste donc
+ * celle du dernier outil jusqu'au suivant, et ne repasse à « réfléchit » qu'après ce délai sans outil.
+ */
+export const ACTIVITY_HOLD_MS = 4000
+
+/**
+ * Activité à montrer à l'instant `now` (epoch ms) : celle du dernier outil tant qu'il tourne (`activityAt` null)
+ * ou depuis moins de ACTIVITY_HOLD_MS après sa fin (`activityAt`), sinon « réfléchit ».
+ */
+export function liveActivity(
+  activity: ClaudeActivity | null | undefined,
+  activityAt: number | null | undefined,
+  now: number,
+): ClaudeActivity | null {
+  if (!activity) return null
+  if (activity === 'think' || activityAt == null) return activity
+  return now - activityAt > ACTIVITY_HOLD_MS ? 'think' : activity
+}
+
 /** Au-delà de cette longueur, un chemin est raccourci au milieu (« src/…/view/Island.tsx »). */
 export const STEP_PATH_MAX_CHARS = 44
 /** Au-delà de cette longueur, une commande, un motif ou une description sont coupés (« … »). */

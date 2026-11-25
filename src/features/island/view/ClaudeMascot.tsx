@@ -9,6 +9,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import type { ClaudeActivity, ClaudeSessionStatus } from '../types'
+import { liveActivity } from '../claude/steps'
 import { MASCOT, between } from './mascot'
 import {
   ACTIVITY_PROP,
@@ -28,8 +29,10 @@ import styles from './ClaudeMascot.module.css'
 export interface ClaudeMascotProps {
   /** Statut de la session affichée ; null : pas de session (repos). */
   status: ClaudeSessionStatus | null
-  /** Ce que fait Claude (outil en cours) ; null hors du travail. */
+  /** Ce que fait Claude (dernier outil) ; null hors du travail. */
   activity: ClaudeActivity | null
+  /** Fin du dernier outil (epoch ms), null pendant qu'il tourne : l'activité tient ACTIVITY_HOLD_MS après. */
+  activityAt?: number | null
   /** Session bloquée (commande refusée). */
   error: boolean
   /** Début du tour en cours (epoch ms) : bâillements et sueur quand ça dure. */
@@ -63,25 +66,26 @@ function createParts() {
 interface MascotInputs {
   status: ClaudeSessionStatus | null
   activity: ClaudeActivity | null
+  activityAt: number | null
   error: boolean
   startedAt: number | null
 }
 
-export function ClaudeMascot({ status, activity, error, startedAt, reduced }: ClaudeMascotProps) {
+export function ClaudeMascot({ status, activity, activityAt = null, error, startedAt, reduced }: ClaudeMascotProps) {
   const rootRef = useRef<HTMLSpanElement>(null)
   const [parts] = useState(createParts)
   const part = parts.ref
-  const inputsRef = useRef<MascotInputs>({ status, activity, error, startedAt })
+  const inputsRef = useRef<MascotInputs>({ status, activity, activityAt, error, startedAt })
   /** Rappel posé par la boucle des scènes : un moment ou un changement de phase la relance tout de suite. */
   const interruptRef = useRef<((moment: MascotMoment | null) => void) | null>(null)
 
   useEffect(() => {
     const previous = inputsRef.current
-    const next = { status, activity, error, startedAt }
+    const next = { status, activity, activityAt, error, startedAt }
     inputsRef.current = next
     const moment = detectMoment(previous, next)
     if (moment || mascotPhase(previous.status) !== mascotPhase(status)) interruptRef.current?.(moment)
-  }, [status, activity, error, startedAt])
+  }, [status, activity, activityAt, error, startedAt])
 
   useEffect(() => {
     const root = rootRef.current
@@ -136,8 +140,10 @@ export function ClaudeMascot({ status, activity, error, startedAt, reduced }: Cl
     const run = () => {
       sceneTimer = null
       const id = ++sceneId
-      const { status: s, activity: a, startedAt: since } = inputsRef.current
+      const { status: s, startedAt: since } = inputsRef.current
       const now = Date.now()
+      // Activité du dernier outil, tenue un moment après sa fin (sinon presque toujours « réfléchit »).
+      const a = liveActivity(inputsRef.current.activity, inputsRef.current.activityAt, now)
       if (a !== shownActivity || shownSince === null) {
         shownActivity = a
         shownSince = now
