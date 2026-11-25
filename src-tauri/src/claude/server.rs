@@ -305,11 +305,16 @@ fn handle(relay: &Relay, mut stream: TcpStream) {
     let (receiver, pending) = relay.pending.register(request_id.clone());
     (relay.on_hook)(event, &input, Some(request_id.clone()));
     let outcome = wait_for_decision(&receiver, &stream, relay.permission_timeout);
+    // Les choix d'une question sont lus AVANT de retirer la demande : le garde les efface avec elle (ils
+    // arrivaient perdus, Claude Code recevait « allow » sans réponse et attendait toujours le terminal).
+    let answers = match outcome {
+        Outcome::Answered(_) => relay.pending.take_answers(&request_id),
+        _ => None,
+    };
     // Retirer la demande de la liste avant de prévenir l'île (le garde le ferait aussi en cas de panic).
     drop(pending);
     match outcome {
         Outcome::Answered(decision) => {
-            let answers = relay.pending.take_answers(&request_id);
             respond(&mut stream, 200, &decision_body_with(Some(decision), answers));
         }
         Outcome::TimedOut => {
@@ -535,6 +540,30 @@ mod tests {
         assert!(!pending.answer("req", ClaudeDecision::Deny));
         // Réponse de l'île : pas d'annulation.
         assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn question_answers_reach_the_relay() {
+        let (port, pending, rx) = start(WAIT);
+        let island = std::thread::spawn(move || {
+            let (_, _, id) = rx.recv_timeout(WAIT).unwrap();
+            let answers = serde_json::json!({ "Quel fruit ?": "Pomme" });
+            assert!(pending.answer_with(&id.unwrap(), ClaudeDecision::Allow, Some(answers)));
+            pending
+        });
+        let (status, body) = post(
+            port,
+            "cafe",
+            r#"{"event":"PermissionRequest","input":{"session_id":"s","tool_name":"AskUserQuestion"}}"#,
+        );
+        let pending = island.join().unwrap();
+        assert_eq!(status, 200);
+        let body: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(body["behavior"], "allow");
+        assert_eq!(body["answers"]["Quel fruit ?"], "Pomme");
+        // Rien ne reste en mémoire après la réponse.
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(pending.take_answers("req").is_none());
     }
 
     #[test]
