@@ -162,7 +162,8 @@ export const ISLAND_SIZES: Record<IslandPlatform, Record<IslandSizeKey, IslandSh
 }
 
 /**
- * Lignes « aussi en cours » sous l'appel (meetOpen) et sous la musique (musicOpen), ajout absent du prototype :
+ * Lignes « aussi en cours » sous l'appel (meetOpen), la musique (musicOpen) et la progression (progressOpen), ajout
+ * absent du prototype :
  * une par activité ou session Claude. Chaque ligne ajoute `rowH`, plus `gap` une fois (filet au-dessus des lignes).
  * - `maxRows` : lignes de la liste repliée ; au-delà, la dernière devient « N autres activités ».
  * - `maxExpandedRows` : plafond de la liste dépliée (clic sur « N autres activités ») ; l'île grandit jusque-là,
@@ -239,7 +240,7 @@ export function backgroundVisibleRows(count: number): number {
 }
 
 /**
- * Dimensions d'une clé de taille ; meetOpen et musicOpen grandissent avec les lignes « aussi en cours » (jusqu'à
+ * Dimensions d'une clé de taille ; meetOpen, musicOpen et progressOpen grandissent avec les lignes « aussi en cours » (jusqu'à
  * MEET_BACKGROUND.maxExpandedRows), musicOpen perd la ligne de progression quand elle n'est pas connue
  * (`musicProgress` faux).
  */
@@ -254,10 +255,11 @@ export function islandSize(
   let h = size.h
   if (key === 'musicOpen' && !musicProgress) h -= MUSIC_OPEN.progressRow
   if (key === 'musicOpen' && !musicControls) h -= MUSIC_OPEN.controlsRow
-  // Lignes « aussi en cours » : sous l'appel (meetOpen) et sous la musique (musicOpen). Repliées, il y en a
+  // Lignes « aussi en cours » : sous l'appel (meetOpen), la musique (musicOpen) et la progression (progressOpen,
+  // pour garder les sessions Claude à portée pendant un déploiement). Repliées, il y en a
   // maxRows au plus (backgroundRows) ; dépliées, l'île grandit jusqu'à maxExpandedRows, la liste défile au-delà.
   const rows = backgroundVisibleRows(meetRows)
-  if ((key === 'meetOpen' || key === 'musicOpen') && rows > 0) {
+  if ((key === 'meetOpen' || key === 'musicOpen' || key === 'progressOpen') && rows > 0) {
     const { rowH, gap } = MEET_BACKGROUND[platform]
     h += gap + rows * rowH
   }

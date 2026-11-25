@@ -300,7 +300,7 @@ fn handle(relay: &Relay, mut stream: TcpStream) {
         return;
     }
 
-    // PermissionRequest : la connexion reste ouverte jusqu'à la réponse de l'île (60 s au plus).
+    // PermissionRequest : la connexion reste ouverte jusqu'à la réponse de l'île (10 min au plus).
     let request_id = (relay.new_request_id)();
     let (receiver, pending) = relay.pending.register(request_id.clone());
     (relay.on_hook)(event, &input, Some(request_id.clone()));

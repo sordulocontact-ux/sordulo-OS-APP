@@ -8,7 +8,7 @@
  *   Une session seule avec des sous-agents → `multi` aussi (le jardin les montre), et elle y reste
  *   SUBAGENT_GARDEN_LINGER_MS après le dernier, pour ne pas faire changer l'île de taille entre deux
  *   sous-agents lancés l'un après l'autre.
- * - Demande d'autorisation (PermissionRequest) : `requestAsk`, minuteur jusqu'à `expiresAt` (60 s) puis
+ * - Demande d'autorisation (PermissionRequest) : `requestAsk`, minuteur jusqu'à `expiresAt` (10 min) puis
  *   `resolveAsk`. Fermée aussi par PermissionCancelled ou un événement qui prouve qu'elle est passée
  *   (PostToolUse du même outil, Stop, nouveau prompt, fin de session).
  * - Geste « Autoriser / Refuser / Plus tard » : `claudeAnswer` puis `resolveAsk`. « Plus tard » rend la main

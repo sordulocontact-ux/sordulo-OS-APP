@@ -103,7 +103,13 @@ export function ActivityLayers({
         elapsedRef={refs.musicElapsedRef}
         fillRef={refs.musicFillRef}
       />
-      <ProgressLayer {...base} progress={progress} open={open && state === 'progress'} />
+      <ProgressLayer
+        {...base}
+        progress={progress}
+        rows={meetRows}
+        open={open && state === 'progress'}
+        onSelectRow={handlers.onSelectRow}
+      />
       <AgentLayer
         {...base}
         session={agentSession}

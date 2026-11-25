@@ -2,7 +2,7 @@
  * Textes calculés de l'île : annonce de l'état (prototype : label), résumé des sessions, minuteurs.
  */
 import { MEET_BACKGROUND } from '../geometry'
-import type { Activity, ClaudeSession, IslandMusic, IslandSnapshot } from '../types'
+import type { Activity, ClaudeSession, IslandMusic, IslandSnapshot, ProgressStage } from '../types'
 
 /** mm:ss d'une durée en ms (prototype : mmss). */
 export function formatElapsed(ms: number): string {
@@ -52,9 +52,19 @@ export type BackgroundTarget =
   | { type: 'player' }
   | { type: 'more'; hidden: number }
 
-/** Ligne « aussi en cours » sous l'appel (meetOpen) et sous la musique (musicOpen). */
+/**
+ * Logo d'une ligne « aussi en cours », pour reconnaître l'activité d'un coup d'œil : Claude (session), icône de
+ * l'étape d'une progression (Vercel pour un déploiement), pochette du morceau (musique). null : « N autres activités ».
+ */
+export type BackgroundRowIcon =
+  | { kind: 'claude' }
+  | { kind: 'progress'; stage: ProgressStage }
+  | { kind: 'music'; artworkUrl: string | null }
+
+/** Ligne « aussi en cours » sous l'appel (meetOpen), la musique (musicOpen) et la progression (progressOpen). */
 export interface BackgroundRow {
   id: string
+  icon: BackgroundRowIcon | null
   title: string
   detail: string
   status: string
@@ -119,6 +129,7 @@ export function backgroundRows(
     seen.add(session.id)
     rows.push({
       id: `claude:${session.id}`,
+      icon: { kind: 'claude' },
       title: session.projectName,
       detail: session.step ?? session.task ?? '',
       ...sessionStatus(session),
@@ -130,6 +141,7 @@ export function backgroundRows(
       case 'progress':
         rows.push({
           id: activity.id,
+          icon: { kind: 'progress', stage: activity.stage },
           title: activity.label,
           detail: activity.detail ?? '',
           status: activity.fraction === null ? 'En cours' : `${Math.round(activity.fraction * 100)} %`,
@@ -146,6 +158,7 @@ export function backgroundRows(
       case 'music':
         rows.push({
           id: activity.id,
+          icon: { kind: 'music', artworkUrl: music?.artworkUrl ?? null },
           title: 'Musique',
           detail: music ? musicTrackLine(music) : '',
           status: music && !music.playing ? 'En pause' : '',
@@ -164,6 +177,7 @@ export function backgroundRows(
     ...rows.slice(0, max - 1),
     {
       id: 'more',
+      icon: null,
       title: `${rest} autres activités`,
       detail: '',
       status: '',

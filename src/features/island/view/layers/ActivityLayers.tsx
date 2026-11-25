@@ -184,24 +184,35 @@ export function ProgressRing({
  */
 export function ProgressLayer({
   progress,
+  rows,
   open,
+  onSelectRow,
   ...base
 }: BaseLayerProps & {
   progress: ActivityOfKind<"progress"> | null;
+  /**
+   * Ce qui tourne aussi (sessions Claude, musique), une ligne cliquable chacun au survol : pendant un
+   * déploiement, les sessions restent à portée de clic. La hauteur de la couche suit.
+   */
+  rows: readonly BackgroundRow[];
+  onSelectRow: (row: BackgroundRow) => void;
   open: boolean;
 }) {
   const shown = useLastNonNull(progress);
   const label = shown?.label ?? "";
   const detail = shown?.detail || null;
   const meta = shown?.meta || null;
+  const height = islandSize(base.platform, "progressOpen", rows.length).h;
   return (
     <Layer
       {...base}
       state="progress"
       open={open}
       replayKey={shown ? `${shown.id}:${shown.stage}` : null}
+      style={{ height }}
     >
       <div className={cx(styles.detail, styles.progDetail)}>
+        <div className={styles.progHead}>
         <span className={styles.progText}>
           <strong>
             <Marquee text={label} active={open} />
@@ -217,6 +228,13 @@ export function ProgressLayer({
             </small>
           ) : null}
         </span>
+        </div>
+        <BackgroundList
+          rows={rows}
+          platform={base.platform}
+          label="Aussi en cours"
+          onSelectRow={onSelectRow}
+        />
       </div>
     </Layer>
   );

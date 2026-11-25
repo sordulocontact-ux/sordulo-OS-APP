@@ -418,8 +418,11 @@ export interface ClaudeConnection {
   lastEventAt: number | null
 }
 
-/** How long the relay waits for the island's answer to a PermissionRequest before handing back to the terminal. */
-export const CLAUDE_PERMISSION_TIMEOUT_MS = 60_000
+/**
+ * How long the relay waits for the island's answer to a PermissionRequest (10 min). Claude Code shows its own
+ * prompt in the terminal meanwhile and moves on as soon as it is answered there, so a long wait blocks nothing.
+ */
+export const CLAUDE_PERMISSION_TIMEOUT_MS = 600_000
 
 /** Answer to a PermissionRequest. `later` hands the decision back to the terminal right away. */
 export type ClaudeDecision = 'allow' | 'deny' | 'later'

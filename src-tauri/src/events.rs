@@ -44,8 +44,11 @@ pub const EVENT_SPOTIFY: &str = "desktop://spotify";
 pub const EVENT_MUSIC_LEVELS: &str = "desktop://music-levels";
 /// `DESKTOP_EVENTS.updateStatus` (payload `UpdateStatus`), fenêtre principale.
 pub const EVENT_UPDATE_STATUS: &str = "desktop://update-status";
-/// `CLAUDE_PERMISSION_TIMEOUT_MS` : attente maximale d'une réponse de l'île à un PermissionRequest.
-pub const CLAUDE_PERMISSION_TIMEOUT_MS: u64 = 60_000;
+/// `CLAUDE_PERMISSION_TIMEOUT_MS` : attente maximale d'une réponse de l'île à un PermissionRequest (10 min).
+/// Claude Code affiche sa propre demande dans le terminal pendant que le hook attend, et passe à la suite dès
+/// qu'on y répond : attendre longtemps ne bloque rien, et laisse le temps de lire une question avant de répondre
+/// dans l'île (à 60 s, une réponse un peu lente n'arrivait plus).
+pub const CLAUDE_PERMISSION_TIMEOUT_MS: u64 = 600_000;
 /// Schéma de `DESKTOP_AUTH_REDIRECT` (`sordulo://auth`).
 pub const URL_SCHEME: &str = "sordulo";
 

@@ -52,7 +52,7 @@ describe('BackgroundList', () => {
 
   it('dépliée : toutes les lignes cliquables, la session en attente propose de répondre', () => {
     const html = render(backgroundRows([deploy, multi], sessions, null, { expanded: true }), 'mac')
-    expect(count(html, '<li')).toBe(6)
+    expect(count(html, '<li ')).toBe(6)
     expect(count(html, '<button')).toBe(6)
     expect(html).toContain('aria-label="Répondre à la session Projet c (Attend ta réponse)"')
     expect(html).toContain('aria-label="Afficher sordulo-OS-APP dans l’île (En cours)"')
@@ -63,8 +63,17 @@ describe('BackgroundList', () => {
 
   it('pendant un appel, une progression reste une ligne d’information (pas de bouton)', () => {
     const html = render(backgroundRows([deploy], [], null, { duringCall: true }))
-    expect(count(html, '<li')).toBe(1)
+    expect(count(html, '<li ')).toBe(1)
     expect(count(html, '<button')).toBe(0)
+  })
+
+  it('chaque ligne porte le logo de son activité, « N autres activités » garde la place vide', () => {
+    const rows = backgroundRows([deploy, multi], sessions)
+    expect(rows.map((row) => row.icon?.kind ?? null)).toEqual(['progress', 'claude', null])
+    const html = render(rows)
+    // Vercel (triangle plein) pour le déploiement, l'icône pixel de Claude pour la session.
+    expect(html).toContain('d="M12 3.35L22 20.65H2z"')
+    expect(count(html, '<img')).toBe(1)
   })
 
   it('aucune ligne : rien', () => {

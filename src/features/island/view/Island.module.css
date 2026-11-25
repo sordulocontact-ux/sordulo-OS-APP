@@ -456,13 +456,20 @@
   color: var(--island-muted);
 }
 
+/* Haut : le texte, entre l'icône de l'étape (à gauche) et l'anneau (à droite), éléments partagés posés par
+   la géométrie ; dessous, les lignes « aussi en cours » sur toute la largeur. */
 .detail.progDetail {
   display: flex;
+  flex-direction: column;
+  padding: var(--island-space-16) var(--island-space-16) var(--island-space-14);
+}
+
+.progHead {
+  display: flex;
   align-items: center;
-  padding: var(--island-space-16)
-    calc(var(--island-space-16) + var(--island-size-18) + var(--island-space-12))
-    var(--island-space-14)
-    calc(var(--island-space-16) + var(--island-size-28) + var(--island-space-12));
+  flex: 1;
+  min-height: 0;
+  padding: 0 calc(var(--island-size-18) + var(--island-space-12)) 0 calc(var(--island-size-28) + var(--island-space-12));
 }
 
 .root[data-platform='mac'] .detail.progDetail {
@@ -932,6 +939,26 @@
 
 .meetBackgroundRow {
   padding-left: 0;
+}
+
+/* Logo de l'activité devant son nom (Claude, Vercel, pochette) : on reconnaît chaque ligne sans la lire. */
+.rowIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--island-size-16);
+  height: var(--island-size-16);
+}
+
+.rowIcon img,
+.rowIcon svg,
+.rowIcon .cover {
+  width: 100%;
+  height: 100%;
+}
+
+.rowIcon .cover {
+  border-radius: var(--island-radius-music-cover);
 }
 
 .rowBtn {

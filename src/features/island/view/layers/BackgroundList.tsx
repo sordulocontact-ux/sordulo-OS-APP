@@ -1,16 +1,32 @@
 /**
- * Lignes « aussi en cours » sous l'appel (meetOpen) et sous la musique (musicOpen) : un bouton par ligne, comme
+ * Lignes « aussi en cours » sous l'appel (meetOpen), la musique (musicOpen) et la progression (progressOpen), avec
+ * le logo de chaque activité devant son nom (Claude, Vercel, pochette du morceau) : un bouton par ligne, comme
  * les lignes de la vue « plusieurs sessions ». Session → sa fenêtre VS Code (ou sa demande si elle attend une
  * réponse) ; Musique, progression → affichée dans l'île ; « N autres activités » → la liste se déplie sur place.
  * Dépliée, l'île grandit jusqu'à MEET_BACKGROUND.maxExpandedRows lignes (islandSize), la liste défile au-delà.
  */
-import { useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { MEET_BACKGROUND } from '../../geometry'
 import type { IslandPlatform } from '../../types'
 import { cx } from '../cx'
 import styles from '../Island.module.css'
-import { backgroundRowLabel, type BackgroundRow } from '../labels'
+import { ClaudeIcon, IslandIcon, MusicCover } from '../icons'
+import { backgroundRowLabel, type BackgroundRow, type BackgroundRowIcon } from '../labels'
+import { PROGRESS_VISUALS } from '../tone'
 import { ROW_TONE_CLASS } from './rowTone'
+
+/** Logo de la ligne ; « N autres activités » garde la place vide, les noms restent alignés. */
+function RowIcon({ icon }: { icon: BackgroundRowIcon | null }) {
+  let content: ReactNode = null
+  if (icon?.kind === 'claude') content = <ClaudeIcon />
+  else if (icon?.kind === 'progress') content = <IslandIcon name={PROGRESS_VISUALS[icon.stage].icon} />
+  else if (icon?.kind === 'music') content = <MusicCover artworkUrl={icon.artworkUrl} />
+  return (
+    <span className={styles.rowIcon} aria-hidden="true">
+      {content}
+    </span>
+  )
+}
 
 export function BackgroundList({
   rows,
@@ -46,6 +62,7 @@ export function BackgroundList({
         {rows.map((row, index) => {
           const content = (
             <>
+              <RowIcon icon={row.icon} />
               <b>{row.title}</b>
               <span className={styles.task}>{row.detail}</span>
               {row.status && <span className={cx(styles.st, ROW_TONE_CLASS[row.tone])}>{row.status}</span>}

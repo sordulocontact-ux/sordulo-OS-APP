@@ -30,7 +30,7 @@ pub enum ClaudeHookEventName {
     SubagentStop,
     SessionEnd,
     /// Émis par l'app, pas par un hook : un PermissionRequest en attente s'est terminé sans réponse de
-    /// l'île (délai de 60 s écoulé, ou relais qui a raccroché). Porte le requestId de la demande.
+    /// l'île (délai de 10 min écoulé, ou relais qui a raccroché). Porte le requestId de la demande.
     PermissionCancelled,
 }
 

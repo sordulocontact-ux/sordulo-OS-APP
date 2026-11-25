@@ -8,13 +8,13 @@
 //!    `SORDULO_HOOK_RELAY_FILE` remplace ce chemin (tests).
 //! 2. POSTe `{ "event": <EventName>, "input": <JSON du hook allégé> }` sur `http://127.0.0.1:<port>/hook`
 //!    avec `Authorization: Bearer <token>`.
-//! 3. PermissionRequest : attend au plus 60 s la décision de l'île, puis imprime sur stdout l'objet
+//! 3. PermissionRequest : attend au plus 10 min la décision de l'île, puis imprime sur stdout l'objet
 //!    `hookSpecificOutput` (allow ; deny avec message). Tout autre cas : rien sur stdout.
 //!
 //! Règle absolue : ne jamais bloquer Claude Code. Toujours le code de sortie 0 (même après une erreur
 //! ou un panic), rien sur stdout hors décision, connexion courte (300 ms), échéance dure courte (1 s,
-//! compatible avec le budget de 1,5 s de SessionEnd) sauf PermissionRequest (63 s, sous les 75 s du
-//! `timeout` posé dans settings.json), et un watchdog qui sort 0 si une E/S traîne.
+//! compatible avec le budget de 1,5 s de SessionEnd) sauf PermissionRequest (603 s, sous les 615 s du
+//! `timeout` posé dans settings.json ; Claude Code n'attend pas le hook quand on répond dans le terminal), et un watchdog qui sort 0 si une E/S traîne.
 //!
 //! Conception inspirée d'un relais de hooks open source sous licence MIT
 //! (Copyright (c) 2026 Louis Raillé) ; aucun code n'y est repris mot pour mot.
@@ -40,10 +40,10 @@ const CONNECT_TIMEOUT: Duration = Duration::from_millis(300);
 const WRITE_TIMEOUT: Duration = Duration::from_millis(500);
 /// Échéance dure de tous les événements sauf PermissionRequest.
 const EVENT_DEADLINE: Duration = Duration::from_millis(1000);
-/// Attente de la décision : `CLAUDE_PERMISSION_TIMEOUT_MS` (60 s) + marge pour la réponse de l'app.
-const PERMISSION_READ_DEADLINE: Duration = Duration::from_millis(62_000);
-/// Watchdog de PermissionRequest (le `timeout` du hook dans settings.json est de 75 s).
-const PERMISSION_DEADLINE: Duration = Duration::from_millis(63_000);
+/// Attente de la décision : `CLAUDE_PERMISSION_TIMEOUT_MS` (10 min) + marge pour la réponse de l'app.
+const PERMISSION_READ_DEADLINE: Duration = Duration::from_millis(602_000);
+/// Watchdog de PermissionRequest (le `timeout` du hook dans settings.json est de 615 s).
+const PERMISSION_DEADLINE: Duration = Duration::from_millis(603_000);
 
 const MAX_STDIN_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_RESPONSE_BYTES: usize = 64 * 1024;

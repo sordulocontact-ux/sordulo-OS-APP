@@ -8,7 +8,7 @@
 //!    sortie de l'app. Il POSTe le hook au serveur local (`server.rs`, 127.0.0.1 seulement).
 //! 3. Le serveur construit un `ClaudeRelayEvent` (`event.rs`) et l'émet à l'île sur `desktop://claude`.
 //!    PermissionRequest : la connexion reste ouverte, l'île répond avec `claude_answer`
-//!    (allow / deny / later) ; 60 s sans réponse = pas de décision, Claude Code demande dans le terminal.
+//!    (allow / deny / later) ; 10 min sans réponse = pas de décision, Claude Code demande dans le terminal.
 //!    Une demande terminée sans réponse de l'île (délai écoulé, relais qui raccroche) émet
 //!    `PermissionCancelled` (même session, outil et requestId) ; rien après un `claude_answer`.
 //! 4. `desktop://claude-connection` (`ClaudeConnection`) part à l'île à chaque changement de connexion
@@ -266,14 +266,25 @@ pub fn start(app: &AppHandle) {
     }
 
     if connected {
-        // Garder la copie du relais à jour après une recompilation (sans lancer cargo).
+        // Garder la copie du relais à jour après une recompilation (sans lancer cargo), puis nos entrées
+        // de settings.json : une mise à jour qui change un `timeout` (celui de PermissionRequest) s'applique
+        // sans reconnecter Claude Code. Rien n'est écrit si les entrées sont déjà à jour.
         let app = app.clone();
         std::thread::spawn(move || {
             let state = app.state::<ClaudeState>();
             if let (Some(dir), Ok(exe)) = (state.relay_dir.as_deref(), std::env::current_exe()) {
                 if let Some(source) = exe.parent() {
-                    if let Err(e) = settings::install_relay(source, dir, now_ms()) {
-                        log::warn!("relais Claude : {e}");
+                    let refreshed = settings::install_relay(source, dir, now_ms()).and_then(|relay| {
+                        let quoted = settings::quoted_exe(&relay)?;
+                        match state.settings_path.as_deref() {
+                            Some(path) => settings::connect_file(path, &quoted, now_ms()),
+                            None => Ok(false),
+                        }
+                    });
+                    match refreshed {
+                        Ok(true) => log::info!("relais Claude : hooks de settings.json mis à jour"),
+                        Ok(false) => {}
+                        Err(e) => log::warn!("relais Claude : {e}"),
                     }
                 }
             }

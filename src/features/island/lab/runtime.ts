@@ -532,7 +532,7 @@ export class LabRuntime {
       systemClock.now(),
     );
     this.coordinator.requestAsk(ask);
-    // Le relais rend la main au terminal au bout de 60 s.
+    // Le relais rend la main au terminal au bout de CLAUDE_PERMISSION_TIMEOUT_MS (10 min).
     this.later(ask.expiresAt - ask.receivedAt, () => {
       this.coordinator.resolveAsk(ask.id);
     });

@@ -37,8 +37,8 @@ pub const RELAY_EXE: &str = if cfg!(windows) {
 };
 /// `timeout` (s) des événements d'information.
 const EVENT_TIMEOUT_SECS: u64 = 5;
-/// `timeout` (s) de PermissionRequest : au-delà des 60 s d'attente, pour que le relais rende la main lui-même.
-const PERMISSION_TIMEOUT_SECS: u64 = 75;
+/// `timeout` (s) de PermissionRequest : au-delà des 10 min d'attente, pour que le relais rende la main lui-même.
+const PERMISSION_TIMEOUT_SECS: u64 = 615;
 
 fn timeout_of(event: ClaudeHookEventName) -> u64 {
     match event {
@@ -462,10 +462,10 @@ mod tests {
             pre[2],
             json!({ "matcher": "*", "hooks": [ { "type": "command", "command": format!("{EXE} PreToolUse"), "timeout": 5 } ] })
         );
-        // Pas de matcher pour Stop et UserPromptSubmit ; 75 s pour PermissionRequest.
+        // Pas de matcher pour Stop et UserPromptSubmit ; 615 s pour PermissionRequest.
         assert!(hooks["Stop"][1].get("matcher").is_none());
         assert!(hooks["UserPromptSubmit"][0].get("matcher").is_none());
-        assert_eq!(hooks["PermissionRequest"][0]["hooks"][0]["timeout"], 75);
+        assert_eq!(hooks["PermissionRequest"][0]["hooks"][0]["timeout"], 615);
         // Le groupe vide d'un autre outil est gardé.
         assert_eq!(
             hooks["Notification"][0],
