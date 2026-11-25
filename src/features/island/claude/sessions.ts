@@ -19,9 +19,11 @@
  *   (« Inactive ») après SLEEP_AFTER_MS sans événement. `background` (« Patiente ») : Stop alors qu'un shell ou
  *   un sous-agent lancé en arrière-plan (`background` du relais) tourne encore ; pas de « Claude a terminé ». `error` : commande refusée (le relais ne dit pas
  *   quand un outil échoue : PostToolUse n'arrive qu'en cas de succès et le contrat ne porte pas l'erreur).
- * - Sous-agents : PreToolUse Task / Agent → +1, SubagentStop → -1, Stop → 0, sauf ceux lancés en arrière-plan
- *   qui tournent encore : gardés pendant que Claude patiente (demande de Maël, 25/11 : on voit toujours les
- *   sous-agents, même quand le Claude qui les a lancés ne fait que les attendre).
+ * - Sous-agents : PreToolUse Task / Agent → +1, SubagentStop → -1. Au Stop, ceux qui n'ont pas annoncé leur fin
+ *   tournent encore en arrière-plan (un sous-agent au premier plan finit toujours avant que son outil rende la
+ *   main ; Claude Code lance aujourd'hui les sous-agents en arrière-plan même sans `run_in_background`) :
+ *   gardés pendant que Claude patiente (demande de Maël, 25/11 : on voit toujours les sous-agents, même quand
+ *   le Claude qui les a lancés ne fait que les attendre).
  * - Arrière-plan (demande de Maël, 21/11) : PreToolUse en arrière-plan → shells ou sous-agents en attente +1 ;
  *   KillShell / TaskStop → -1 ; jamais plus de sous-agents en attente que de sous-agents en cours. Aucun hook
  *   ne dit quand un shell finit, mais Claude est réveillé à ce moment-là : le premier événement d'un nouveau
@@ -286,7 +288,14 @@ function backgroundAfterTool(record: ClaudeSessionRecord, event: ClaudeRelayEven
   }
   if (isBackgroundStopTool(event.toolName)) {
     if (record.backgroundShells > 0) return { ...record, backgroundShells: record.backgroundShells - 1 }
-    if (record.backgroundAgents > 0) return { ...record, backgroundAgents: record.backgroundAgents - 1 }
+    // Sous-agent arrêté (TaskStop) : retiré tout de suite, sans attendre un SubagentStop qui peut ne pas venir
+    // (sinon Claude patienterait pour lui à chaque Stop suivant).
+    if (record.backgroundAgents > 0 || record.session.subagents > 0) {
+      return {
+        ...withSession(record, { subagents: Math.max(0, record.session.subagents - 1) }),
+        backgroundAgents: Math.max(0, record.backgroundAgents - 1),
+      }
+    }
   }
   return record
 }
@@ -361,7 +370,7 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
             ? describeBackgroundStep(event.toolName, event.toolSummary)
             : (describeStep(event.toolName, event.toolSummary, record.session.cwd || null) ?? session.step),
           error: false,
-          subagents: session.subagents + (isSubagentTool(event.toolName) ? 1 : 0),
+          subagents: record.session.subagents + (isSubagentTool(event.toolName) ? 1 : 0),
           activity: toolActivity(event.toolName),
           // Outil en cours : son activité tient tant qu'il tourne (une longue commande garde son clavier).
           activityAt: null,
@@ -419,7 +428,16 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
     }
 
     case 'Notification':
-      if (isWaitingForInput(event.message) && !record.idleNotified) {
+      // Claude Code dit « attend ta réponse » après une minute sans activité, même quand le tour est fini mais que
+      // Claude attend ses sous-agents ou ses shells d'arrière-plan : pas de « Claude attend tes consignes » alors.
+      // Aussi tant que des sous-agents tournent (leurs outils peuvent arriver sous l'id de la session principale et
+      // la faire paraître au travail).
+      if (
+        isWaitingForInput(event.message) &&
+        !record.idleNotified &&
+        record.session.status !== 'background' &&
+        record.session.subagents === 0
+      ) {
         effects.push({
           type: 'notify',
           kind: 'claudeStop',
@@ -433,7 +451,9 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
 
     case 'Stop': {
       resolveAll(record, effects)
-      const { backgroundShells, backgroundAgents, lastBackgroundShell } = record
+      const { backgroundShells, lastBackgroundShell } = record
+      // Sous-agents encore comptés à la fin du tour : ils tournent en arrière-plan (voir l'en-tête).
+      const backgroundAgents = Math.max(record.backgroundAgents, session.subagents)
       if (backgroundShells + backgroundAgents > 0) {
         // Tour fini, mais Claude attend son shell ou son sous-agent : il patiente, sans « Claude a terminé ».
         record = {
@@ -448,6 +468,7 @@ function onEvent(state: ClaudeState, event: ClaudeRelayEvent, effects: ClaudeEff
           pending: [],
           inTurn: false,
           handedToTerminal: false,
+          backgroundAgents,
         }
         break
       }

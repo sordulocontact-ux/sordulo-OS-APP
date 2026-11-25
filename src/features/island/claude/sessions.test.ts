@@ -172,6 +172,72 @@ describe('sessions Claude Code', () => {
     expect(finished.sessions[0]?.status).toBe('done')
   })
 
+  it('sous-agents lancés sans run_in_background (Claude Code récent) : au Stop, Claude patiente sans « terminé »', () => {
+    const agent = (name: string) => ev('PreToolUse', { toolName: 'Agent', toolSummary: name })
+    const patient = run([
+      ev('UserPromptSubmit', { message: 'x' }),
+      agent('A'),
+      ev('PostToolUse', { toolName: 'Agent' }),
+      agent('B'),
+      ev('PostToolUse', { toolName: 'Agent' }),
+      ev('Stop'),
+    ])
+    expect(patient.sessions[0]).toMatchObject({ status: 'background', subagents: 2, step: 'Patiente : 2 sous-agents en cours' })
+    expect(notifs(patient.effects)).toEqual([])
+    expect(claudeActivityFor(patient.sessions)).toEqual({ kind: 'multi' })
+    // L'un finit : Claude est réveillé, lit le rapport et repatiente pour l'autre, toujours sans « terminé ».
+    const woken = run([ev('SubagentStop'), ev('PreToolUse', { toolName: 'Read', toolSummary: 'rapport.md' }), ev('Stop')], patient.state)
+    expect(woken.sessions[0]).toMatchObject({ status: 'background', subagents: 1 })
+    expect(notifs(woken.effects)).toEqual([])
+    // Le dernier finit : le Stop suivant est un vrai « Claude a terminé ».
+    const done = run([ev('SubagentStop'), ev('PreToolUse', { toolName: 'Read', toolSummary: 'x' }), ev('Stop')], woken.state)
+    expect(done.sessions[0]).toMatchObject({ status: 'done', subagents: 0 })
+    expect(notifs(done.effects).map((e) => e.type === 'notify' && e.kind)).toEqual(['claudeDone'])
+  })
+
+  it('sous-agent au premier plan fini avant le Stop : « Claude a terminé » comme avant', () => {
+    const { sessions, effects } = run([
+      ev('UserPromptSubmit', { message: 'x' }),
+      ev('PreToolUse', { toolName: 'Agent', toolSummary: 'Explorer' }),
+      ev('SubagentStop'),
+      ev('PostToolUse', { toolName: 'Agent' }),
+      ev('Stop'),
+    ])
+    expect(sessions[0]).toMatchObject({ status: 'done', subagents: 0 })
+    expect(notifs(effects).map((e) => e.type === 'notify' && e.kind)).toEqual(['claudeDone'])
+  })
+
+  it('« attend ta réponse » de Claude Code pendant qu’il attend ses sous-agents : pas de « Claude attend tes consignes »', () => {
+    const patient = run([
+      ev('UserPromptSubmit', { message: 'x' }),
+      ev('PreToolUse', { toolName: 'Agent', toolSummary: 'Explorer' }),
+      ev('Stop'),
+      ev('Notification', { message: 'Claude is waiting for your input' }),
+    ])
+    expect(patient.sessions[0]?.status).toBe('background')
+    expect(notifs(patient.effects)).toEqual([])
+    // Un outil du sous-agent arrive sous l'id de la session : elle paraît au travail, toujours pas de notification.
+    const busy = run([ev('PreToolUse', { toolName: 'Grep', toolSummary: 'x' }), ev('Notification', { message: 'Claude is waiting for your input' })], patient.state)
+    expect(busy.sessions[0]?.status).toBe('working')
+    expect(notifs(busy.effects)).toEqual([])
+    // Une fois vraiment fini, la demande de Claude Code redevient une notification.
+    const done = run(
+      [ev('SubagentStop'), ev('PreToolUse', { toolName: 'Read', toolSummary: 'x' }), ev('Stop'), ev('Notification', { message: 'Claude is waiting for your input' })],
+      patient.state,
+    )
+    expect(notifs(done.effects).filter((e) => e.type === 'notify' && e.kind === 'claudeStop')).toHaveLength(1)
+  })
+
+  it('sous-agent arrêté par TaskStop : retiré sans attendre de SubagentStop, le Stop suivant dit « terminé »', () => {
+    const { sessions } = run([
+      ev('UserPromptSubmit', { message: 'x' }),
+      ev('PreToolUse', { toolName: 'Agent', toolSummary: 'Explorer' }),
+      ev('PreToolUse', { toolName: 'TaskStop' }),
+      ev('Stop'),
+    ])
+    expect(sessions[0]).toMatchObject({ status: 'done', subagents: 0 })
+  })
+
   it('Claude qui attend ses sous-agents d’arrière-plan : on les voit toujours, même après un réveil', () => {
     const agent = (name: string) => ev('PreToolUse', { toolName: 'Agent', toolSummary: name, background: true })
     const patient = run([ev('UserPromptSubmit', { message: 'x' }), agent('A'), agent('B'), agent('C'), ev('Stop')])
