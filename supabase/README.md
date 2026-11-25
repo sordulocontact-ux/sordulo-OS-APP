@@ -26,7 +26,7 @@ Schéma : `migrations/*.sql`, appliquées dans l'ordre. Il doit correspondre à 
 | `0020_partners_notes.sql` | Réseau de partenaires (`partners`, `partner_projects`) et `notes` (perso ou équipe) |
 | `0018_import_document_from_file.sql` | RPC serveur `import_document_from_file` : devis / facture importé d'un fichier, numéro d'origine gardé |
 
-Ordre d'application : dans l'ordre des noms (`npm run db:migrate`). En production, appliquer chaque migration **avant** de pousser le code qui en dépend ; 0010 à 0020 ne sont pas encore appliquées (25/11/2026).
+Ordre d'application : dans l'ordre des noms (`npm run db:migrate`). En production, appliquer chaque migration **avant** de pousser le code qui en dépend ; 0001 à 0020 sont appliquées en production et notées dans `sordulo_meta.migrations` (25/11/2026).
 
 ## Appliquer
 
