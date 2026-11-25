@@ -990,7 +990,7 @@ describe('encoche du Mac', () => {
   }
 
   for (const dir of [1, -1]) {
-    it(`portails vers la ${dir > 0 ? 'droite' : 'gauche'} : l’entrée s’ouvre puis la sortie, l’entrée se ferme d’abord`, () => {
+    it(`portails vers la ${dir > 0 ? 'droite' : 'gauche'} : l’entrée s’ouvre puis la sortie, ouverts toute la traversée`, () => {
       const P = GARDEN.notch.portal
       const sim = new GardenSim(calm)
       sim.reset([session(0)], MAC_OPTS)
@@ -1005,12 +1005,15 @@ describe('encoche du Mac', () => {
       const closed: Partial<Record<'left' | 'right', number>> = {}
       const gone: Partial<Record<'left' | 'right', number>> = {}
       let frame = 0
+      let exitedAt = Infinity
       for (let t = 0; t < 10 && gone[exit] === undefined; t += DT) {
         sim.step(DT, MAC_FRAME)
         frame += 1
         const u = fold(w.x)
         const lo = u - w.size / 2
         const hi = u + w.size / 2
+        const out = dir > 0 ? lo >= plane.right : hi <= plane.left
+        if (out && exitedAt === Infinity && hi > plane.left - 1 && lo < plane.right + 1 + w.size) exitedAt = frame
         for (const side of ['left', 'right'] as const) {
           const p = portalOf_(sim, w, side)
           const q = plane[side]
@@ -1032,6 +1035,10 @@ describe('encoche du Mac', () => {
             expect(p?.phase).toBe('open')
             expect(p?.busy).toBe(true)
           }
+          // Les deux restent ouverts toute la traversée : tant qu'il est dans le tunnel ou sur un de ses plans.
+          if (hi > plane.left && lo < plane.right) expect(p?.phase).toBe('open')
+          // La sortie a fini de s'ouvrir quand il y arrive (pas de Claude qui sort d'un portail encore minuscule).
+          if (side === exit && lo < q && hi > q) expect(p?.age ?? 0).toBeGreaterThanOrEqual(P.open)
           if (p?.phase === 'close' && closed[side] === undefined) closed[side] = frame
           // Une seule ouverture et une seule fermeture par traversée : pas de clignement.
           if (closed[side] !== undefined) expect(p?.phase).not.toBe('open')
@@ -1048,6 +1055,8 @@ describe('encoche du Mac', () => {
       expect(at(gone, exit)).toBeGreaterThan(at(gone, entry))
       // La sortie s'ouvre pendant qu'il entre : avant que l'entrée se ferme.
       expect(at(opened, exit)).toBeLessThan(at(closed, entry))
+      // L'entrée ne se ferme qu'une fois le corps entièrement ressorti de la sortie.
+      expect(at(closed, entry)).toBeGreaterThanOrEqual(exitedAt)
       expect(sim.portals).toHaveLength(0)
     })
   }
@@ -1103,8 +1112,8 @@ describe('encoche du Mac', () => {
     if (!p) throw new Error('pas de portail')
     expect(p.busy).toBe(true)
     expect(p.size).toBe(w.size)
-    // Encore loin du plan de sortie : seul le portail d'entrée est ouvert.
-    expect(portalOf_(sim, w, 'right')).toBeUndefined()
+    // Son avant a passé l'entrée : la sortie s'ouvre aussi, pour être prête quand il ressortira.
+    expect(portalOf_(sim, w, 'right')?.phase).toBe('open')
     const v = portalVisual(p, MAC_CTX)
     const D = GARDEN.depth
     expect(v).toEqual({

@@ -48,10 +48,11 @@ export const GARDEN = {
    *
    * `portal` : devant chaque bord, un portail de la couleur du Claude (simulation.ts, NotchPortal ; dessin dans
    * renderer.ts), un par côté, ouverts l'un après l'autre. Le tunnel commence au plan du portail, à `inset` px
-   * du bord de l'encoche (le Claude est coupé à ce plan, le portail est centré dessus). Un portail s'ouvre `lead`
-   * s avant que le bord avant du corps touche son plan (à sa vitesse du moment, au moins 2 px avant ; celui de
-   * sortie pendant qu'il entre), reste ouvert tant que le corps chevauche son plan, puis `linger` s, et se
-   * ferme. `open` / `close` : durées (s) des
+   * du bord de l'encoche (le Claude est coupé à ce plan, le portail est centré dessus). L'entrée s'ouvre `lead`
+   * s avant que le bord avant du corps touche son plan (à sa vitesse du moment, au moins 2 px avant), la sortie
+   * au plus tard quand son avant touche l'entrée (elle a fini de s'ouvrir quand il y arrive). Les deux restent
+   * ouverts toute la traversée, jusqu'à ce qu'il soit entièrement ressorti (demande de Sacha : l'entrée
+   * disparaissait pendant qu'il sortait de l'autre côté) ; l'entrée se ferme alors, la sortie `linger` s après. `open` / `close` : durées (s) des
    * animations d'ouverture et de fermeture, égales aux tokens --island-garden-duration-portal-open / -close
    * (vérifié par tokens.test.ts).
    */

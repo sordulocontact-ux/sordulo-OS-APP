@@ -970,10 +970,17 @@ export class GardenSim {
 
   /**
    * Portails de l'encoche (GARDEN.notch.portal), un par côté, en coordonnée repliée (plan gauche `a`, droit
-   * `b = a + NOTCH_TUNNEL`). Celui du plan q est voulu si le corps chevauche q ; s'il avance vers q depuis
-   * l'extérieur du tunnel (entrée) ou depuis l'intérieur (sortie) et que son bord avant est à moins de `lead` s
-   * de q (au moins 2 px ; le double une fois ouvert) ; ou s'il a chevauché q il y a moins de `linger` s. Voulu : ouvert (reprise continue
-   * d'une fermeture en cours) ; plus voulu : fermé en `close` s puis retiré. Sans encoche : aucun portail.
+   * `b = a + NOTCH_TUNNEL`). Celui du plan q est voulu :
+   * - pendant toute la traversée : tant que le corps est dans le tunnel ou chevauche un de ses plans (les deux
+   *   portails restent ouverts jusqu'à ce qu'il soit entièrement ressorti, l'entrée ne disparaît plus pendant
+   *   qu'il sort de l'autre côté) ;
+   * - en approche : s'il avance vers q et que son bord avant est à moins de `lead` s de q (au moins 2 px ; le
+   *   double une fois ouvert) ; pour la sortie, au plus tard quand son avant touche l'entrée (à NOTCH_TUNNEL px
+   *   de la sortie) : elle s'ouvre après l'entrée et a fini de s'ouvrir quand il arrive ;
+   * - ou s'il a chevauché q il y a moins de `linger` s (la sortie, une fois qu'il en est sorti ; l'entrée, elle,
+   *   se ferme dès qu'il est ressorti : la première ouverte se ferme la première).
+   * Voulu : ouvert (reprise continue d'une fermeture en cours) ; plus voulu : fermé en `close` s puis retiré.
+   * Sans encoche : aucun portail.
    */
   private updatePortals(dt: number): void {
     const n = this.notch()
@@ -1005,12 +1012,14 @@ export class GardenSim {
         // Déjà ouvert : marge doublée, pour qu'une vitesse qui ondule avec les pas ne le referme pas.
         const reach = g?.phase === 'open' ? lead * 2 : lead
         const busy = lo < q && hi > q
-        const entering =
-          side === 'left' ? d > 0 && a - hi >= 0 && a - hi <= reach : d < 0 && lo - b >= 0 && lo - b <= reach
-        const leaving =
-          side === 'right' ? d > 0 && hi > a && hi < b && b - hi <= reach : d < 0 && lo > a && lo < b && lo - a <= reach
+        // Distance du bord avant au plan q, en avançant vers lui (négative : déjà passé, ou s'en éloigne).
+        const ahead = side === 'left' ? (d > 0 ? a - hi : d < 0 ? lo - a : -1) : d > 0 ? b - hi : d < 0 ? lo - b : -1
+        // Plan du fond (la sortie) : le tunnel est entre le corps et lui.
+        const far = side === 'left' ? d < 0 : d > 0
+        const approaching = ahead >= 0 && ahead <= (far ? Math.max(reach, NOTCH_TUNNEL) : reach)
+        const crossing = hi > a && lo < b
         const out = busy ? 0 : (g?.out ?? Infinity) + dt
-        const wanted = busy || entering || leaving || out < P.linger
+        const wanted = busy || crossing || approaching || out < P.linger
         if (!g) {
           if (wanted) {
             this.gates.set(key, { key, id: w.id, side, colorToken, size: w.size, depth, phase: 'open', age: 0, busy, out })
