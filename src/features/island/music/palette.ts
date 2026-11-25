@@ -10,9 +10,10 @@
  * - Première couleur : le secteur le plus lourd. Seconde : le plus lourd dont la teinte s'écarte d'au moins
  *   MIN_HUE_GAP de la première et qui pèse vraiment (MIN_SECOND_SHARE, pas un petit détail de la pochette) ;
  *   sinon une variante plus claire de la première.
- * - Couleurs de l'égaliseur (`colors`, jusqu'à MUSIC_COLORS) : les deux premières, puis les secteurs suivants
- *   qui pèsent au moins MIN_EXTRA_SHARE et s'écartent de MIN_HUE_GAP de toutes les couleurs déjà prises ; s'il
- *   en manque, des variantes de plus en plus claires de la dernière.
+ * - Couleurs de l'égaliseur (`colors`, de 1 à MUSIC_COLORS) : seulement les vraies couleurs de la pochette, la
+ *   première, la seconde s'il y en a une, puis les secteurs suivants qui pèsent au moins MIN_EXTRA_SHARE et
+ *   s'écartent de MIN_HUE_GAP de toutes celles déjà prises. Rien d'inventé pour arriver à quatre : une pochette
+ *   à deux couleurs en donne deux (demande de Sacha, 25/11).
  * - Fidèle à la pochette : la saturation n'est jamais relevée (un brun reste brun, pas orange vif). Seule la
  *   luminosité monte, au minimum, jusqu'au contraste MIN_CONTRAST avec le noir de l'île (3:1, le seuil WCAG
  *   des éléments graphiques ; une couleur déjà lisible ne bouge pas).
@@ -148,16 +149,6 @@ function binColor(bin: Bin): Hsl {
   return rgbToHsl({ r: bin.r / bin.weight, g: bin.g / bin.weight, b: bin.b / bin.weight })
 }
 
-/** Complète jusqu'à MUSIC_COLORS avec des variantes de plus en plus claires de la dernière couleur. */
-function fillColors(picked: Hsl[]): string[] {
-  const out = [...picked]
-  while (out.length > 0 && out.length < MUSIC_COLORS) {
-    const last = out[out.length - 1] as Hsl
-    out.push(readable({ ...last, l: Math.min(MAX_LIGHTNESS, last.l + LIGHTER_STEP / 2) }))
-  }
-  return out.map(toCss)
-}
-
 /** Pochette sans couleur : gris (ou gris teinté) de la pochette, lisible, et sa variante plus claire. */
 function neutralPalette(visible: { count: number; r: number; g: number; b: number }): MusicPalette {
   // Toute noire : gris moyen.
@@ -172,7 +163,8 @@ function neutralPalette(visible: { count: number; r: number; g: number; b: numbe
   const l = Math.min(Math.max(average.l, NEUTRAL_MIN_LIGHTNESS), MAX_LIGHTNESS - LIGHTER_STEP)
   const start = readable({ ...average, s, l })
   const end = readable({ ...start, l: Math.min(MAX_LIGHTNESS, start.l + LIGHTER_STEP) })
-  return { start: toCss(start), end: toCss(end), colors: fillColors([start, end]) }
+  // Une seule vraie couleur (le gris de la pochette) : la variante claire n'en est pas une.
+  return { start: toCss(start), end: toCss(end), colors: [toCss(start)] }
 }
 
 /**
@@ -239,8 +231,5 @@ export function paletteFromPixels(data: Uint8ClampedArray, width: number, height
       picked.push(color)
     }
   }
-  const colors = picked.map(readable)
-  // Sans seconde couleur : sa variante claire (`end`) reste la deuxième, comme pour le dégradé.
-  if (!runnerUp) colors.splice(1, 0, end)
-  return { start: toCss(start), end: toCss(end), colors: fillColors(colors) }
+  return { start: toCss(start), end: toCss(end), colors: picked.map((c) => toCss(readable(c))) }
 }

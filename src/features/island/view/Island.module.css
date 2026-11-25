@@ -243,14 +243,10 @@
   display: block;
 }
 
-/* Barres aux bouts arrondis, chacune d'une couleur unie : celle de la pochette qui revient à son groupe (--eq-c,
-   des basses aux aigus), éclaircie selon sa hauteur (--eq-t, écrit par la boucle) : la vague fait le dégradé */
+/* Barres aux bouts arrondis, chacune d'une couleur unie (--eq-c) : dégradé en marches d'une barre à l'autre, des
+   basses aux aigus, entre les vraies couleurs de la pochette (musicStyle) ; pas d'éclaircissement selon la hauteur */
 .eq rect {
-  fill: color-mix(
-    in oklab,
-    var(--island-music-eq-light) calc(var(--eq-t, 0) * var(--island-music-eq-lighten)),
-    var(--eq-c, var(--music-start, var(--island-music-cover-start)))
-  );
+  fill: var(--eq-c, var(--music-start, var(--island-music-cover-start)));
 }
 
 .detail.musicDetail {

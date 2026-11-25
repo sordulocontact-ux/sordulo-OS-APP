@@ -175,19 +175,17 @@ describe('paletteFromPixels : couleurs de l’égaliseur', () => {
     }
   })
 
-  it('une couleur marginale n’entre pas ; il en manque : variantes plus claires', () => {
+  it('seulement les vraies couleurs : une couleur marginale n’entre pas, rien n’est inventé', () => {
     const palette = paletteFromPixels(image([[30, 60, 220], 0.97], [[240, 210, 30], 0.03]), SIZE, SIZE)
-    const colors = palette?.colors ?? []
-    expect(colors).toHaveLength(MUSIC_COLORS)
-    for (const c of colors) expect(Math.abs(hue(c) - hue(colors[0] ?? ''))).toBeLessThan(5)
-    for (let i = 1; i < colors.length; i++) {
-      expect(lightness(colors[i] ?? '')).toBeGreaterThanOrEqual(lightness(colors[i - 1] ?? ''))
-    }
+    expect(palette?.colors).toHaveLength(1)
+    expect(palette?.colors?.[0]).toBe(palette?.start)
+    const two = paletteFromPixels(image([[30, 60, 220], 0.6], [[240, 210, 30], 0.4]), SIZE, SIZE)
+    expect(two?.colors).toEqual([two?.start, two?.end])
   })
 
-  it('pochette sans couleur : quatre gris lisibles', () => {
+  it('pochette sans couleur : une seule couleur, son gris', () => {
     const palette = paletteFromPixels(image([[128, 128, 128], 1]), SIZE, SIZE)
-    expect(palette?.colors).toHaveLength(MUSIC_COLORS)
+    expect(palette?.colors).toEqual([palette?.start])
   })
 })
 

@@ -42,7 +42,6 @@ describe('Island.module.css', () => {
       '--nd',
       '--music-start',
       '--music-end',
-      '--eq-t',
       '--eq-c',
       '--edge-along',
       '--edge-depth',

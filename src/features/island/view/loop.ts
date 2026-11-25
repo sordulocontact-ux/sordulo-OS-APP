@@ -12,7 +12,6 @@ import { formatElapsed } from './labels'
 import {
   createEqualizer,
   eqBarGeometry,
-  eqBarTone,
   musicBeatPhase,
   musicPosition,
   musicRatio,
@@ -236,7 +235,6 @@ export function startIslandLoop(
         const bar = eqBarGeometry(v)
         b.setAttribute('y', bar.y.toFixed(2))
         b.setAttribute('height', bar.height.toFixed(2))
-        b.style.setProperty('--eq-t', eqBarTone(v).toFixed(3))
       })
       if (d.music) {
         const position = musicPosition(d.music, epoch)

@@ -244,10 +244,6 @@
      la pochette ne donne pas de couleurs (--music-start / --music-end, posées par le rendu) */
   --island-music-cover-start: #ff7a3d;
   --island-music-cover-end: #e14a08;
-  /* Égaliseur : une barre pleine hauteur est éclaircie de --island-music-eq-lighten vers --island-music-eq-light
-     (chaque barre unie, de la couleur de son groupe ; la vague fait le dégradé) */
-  --island-music-eq-light: #ffffff;
-  --island-music-eq-lighten: 40%;
   --island-bar-track: rgb(255 255 255 / 0.12);
   --island-bar-fill: rgb(255 255 255 / 0.5);
   --island-zone-border: rgb(255 255 255 / 0.2);

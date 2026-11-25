@@ -155,9 +155,9 @@ export interface MusicPalette {
   start: string
   end: string
   /**
-   * Jusqu'à MUSIC_COLORS couleurs de la pochette, de la plus présente à la moins présente (la première est
-   * `start`), complétées par des variantes plus claires : une par groupe de barres de l'égaliseur, des basses
-   * aux aigus. Absent (données anciennes, labo) : `start` puis `end`.
+   * Les vraies couleurs de la pochette, de 1 à 4, de la plus présente à la moins présente (la première est
+   * `start`) : le dégradé en marches des barres de l'égaliseur passe par elles, des basses aux aigus. Absent
+   * (données anciennes, labo) : `start` puis `end`.
    */
   colors?: readonly string[]
 }

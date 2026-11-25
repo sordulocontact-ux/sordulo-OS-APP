@@ -47,18 +47,31 @@ export function musicRatio(music: IslandMusic, now: number): number {
  * Variables CSS des couleurs de la pochette (données dynamiques, pas des valeurs de style) : le CSS module
  * les lit avec un repli sur les tokens --island-music*. Sans palette : aucune variable, les tokens s'appliquent.
  */
-/** Nombre de couleurs de la pochette réparties sur les barres de l'égaliseur (--music-c0 à --music-c3). */
-export const EQ_COLORS = 4
-
 export function musicStyle(palette: MusicPalette | null | undefined): CSSProperties {
   if (!palette) return {}
   const style: Record<string, string> = { '--music-start': palette.start, '--music-end': palette.end }
-  // Couleurs de l'égaliseur : celles de la pochette, sinon start puis end répartis sur les groupes de barres.
+  // Couleur de chaque barre de l'égaliseur (--music-b0 à --music-b7) : un dégradé en marches, des basses aux
+  // aigus, qui passe par les vraies couleurs de la pochette (1 à 4) ; chaque barre est unie.
   const colors = palette.colors?.length ? palette.colors : [palette.start, palette.end]
-  for (let k = 0; k < EQ_COLORS; k++) {
-    style[`--music-c${k}`] = colors[Math.floor((k * colors.length) / EQ_COLORS)] ?? palette.start
-  }
+  for (let i = 0; i < EQ.bars; i++) style[`--music-b${i}`] = eqStepColor(colors, i)
   return style as CSSProperties
+}
+
+/**
+ * Couleur unie de la barre `index` : sa place (0 à gauche, 1 à droite) le long des couleurs, mélangée dans oklab
+ * entre les deux voisines (la première et la dernière barre ont exactement la première et la dernière couleur).
+ */
+export function eqStepColor(colors: readonly string[], index: number): string {
+  const first = colors[0] ?? ''
+  if (colors.length < 2 || EQ.bars < 2) return first
+  const x = (index / (EQ.bars - 1)) * (colors.length - 1)
+  const k = Math.min(colors.length - 2, Math.floor(x))
+  const f = Math.round((x - k) * 1000) / 10
+  const a = colors[k] ?? first
+  const b = colors[k + 1] ?? a
+  if (f <= 0) return a
+  if (f >= 100) return b
+  return `color-mix(in oklab, ${b} ${f}%, ${a})`
 }
 
 /** Dessin de l'égaliseur (unités SVG = px CSS) : barres de 2, espacées de 1, hautes de 14 (23 × 14 pour 8). */
@@ -75,27 +88,13 @@ export function eqBarGeometry(scale: number): { y: number; height: number } {
 }
 
 /**
- * Éclaircissement 0..1 d'une barre de l'égaliseur (variable CSS --eq-t) d'après sa hauteur : à plat, la couleur
- * de son groupe telle quelle ; pleine hauteur, éclaircie au maximum (--island-music-eq-lighten). Chaque barre est
- * d'une couleur unie, c'est la vague qui fait le dégradé (choix F de Sacha, 25/11).
- */
-export function eqBarTone(scale: number): number {
-  const t = (Math.min(1, Math.max(0, scale)) - EQ.flatScale) / (1 - EQ.flatScale)
-  return Math.round(Math.min(1, Math.max(0, t)) * 1000) / 1000
-}
-
-/**
- * Style d'une barre : sa couleur (--eq-c), celle de la pochette qui revient à son groupe (des basses à gauche aux
- * aigus à droite, EQ_COLORS groupes), repli sur les tokens de la pochette par défaut ; et sa teinte de départ
- * (à plat). La boucle écrit ensuite --eq-t avec sa hauteur : plus la barre monte, plus elle s'éclaircit.
+ * Couleur d'une barre de l'égaliseur (--eq-c) : celle que musicStyle lui donne (--music-b<i>), unie (demande de
+ * Sacha, 25/11 : le dégradé se fait d'une barre à l'autre, seulement entre les vraies couleurs de la pochette) ;
+ * sans palette, la même marche entre les deux couleurs des tokens.
  */
 export function eqBarStyle(index: number): CSSProperties {
-  const group = Math.min(EQ_COLORS - 1, Math.floor((index * EQ_COLORS) / EQ.bars))
-  const fallback = group < EQ_COLORS / 2 ? 'var(--island-music-cover-start)' : 'var(--island-music-cover-end)'
-  const style: Record<string, string> = {
-    '--eq-c': `var(--music-c${group}, ${fallback})`,
-    '--eq-t': eqBarTone(EQ.flatScale).toFixed(3),
-  }
+  const fallback = eqStepColor(['var(--island-music-cover-start)', 'var(--island-music-cover-end)'], index)
+  const style: Record<string, string> = { '--eq-c': `var(--music-b${index}, ${fallback})` }
   return style as CSSProperties
 }
 
