@@ -458,6 +458,37 @@ describe('0005 : import des documents historiques', () => {
     expect(imported!.buyer).toMatchObject({ name: 'Ibé' })
   })
 
+  it('0018 : import_document_from_file garde le numéro d’origine, réservé au serveur', async () => {
+    const project = await newProject('prospect')
+    const doc = (extra: Record<string, unknown>) =>
+      JSON.stringify({ client_id: CLIENT_A_FULL, project_id: project, issuer_id: SACHA, lines: JSON.parse(LINES), ...extra })
+    const [quote] = await q<{ id: string }>('service_role', `select public.import_document_from_file('quote', $1::jsonb) as id`, [
+      doc({ number: 'DEV-2026-77', title: 'Refonte', status: 'accepted', issue_date: '2026-03-02' }),
+    ])
+    const [savedQuote] = await q<Record<string, unknown>>(
+      'postgres',
+      `select number, status, accepted_at is not null as accepted, total_ht_cents from public.quotes where id = $1`,
+      [quote!.id],
+    )
+    expect(savedQuote).toEqual({ number: 'DEV-2026-77', status: 'accepted', accepted: true, total_ht_cents: 100000 })
+
+    const [invoice] = await q<{ id: string }>('service_role', `select public.import_document_from_file('invoice', $1::jsonb) as id`, [
+      doc({ number: '2026-031', status: 'paid', issue_date: '2026-03-10' }),
+    ])
+    const [savedInvoice] = await q<Record<string, unknown>>(
+      'postgres',
+      `select number, status, paid_at is not null as paid from public.invoices where id = $1`,
+      [invoice!.id],
+    )
+    expect(savedInvoice).toEqual({ number: '2026-031', status: 'paid', paid: true })
+
+    await expectCode(q(FIN_A, `select public.import_document_from_file('quote', $1::jsonb)`, [doc({ number: 'X-1' })]), '42501')
+    await expectCode(
+      q('service_role', `select public.import_document_from_file('quote', $1::jsonb)`, [doc({ number: '' })]),
+      '23514',
+    )
+  })
+
   it('sans import, service_role ne crée pas de facture émise (0004 inchangé)', async () => {
     await expectCode(
       q(

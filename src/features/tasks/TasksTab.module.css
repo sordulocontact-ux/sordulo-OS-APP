@@ -5,6 +5,13 @@
 }
 
 .filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.filter > * {
+  flex: 1 1 var(--size-menu-min);
   max-width: var(--size-narrow-max);
 }
 

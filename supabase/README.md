@@ -10,7 +10,23 @@ Schéma : `migrations/*.sql`, appliquées dans l'ordre. Il doit correspondre à 
 | `0004_finance_prospection.sql` | Rôle `finance`, lecture par rôle, paramètres de facturation de l'organisation, `quotes`, `invoices`, `document_counters`, `prospects`, statut automatique des projets, RPC `issue_invoice` / `create_credit_note` / `convert_prospect` / `member_sign_in_status` |
 | `0005_billing_issuers.sql` | Émetteurs de facturation (`billing_issuers`, une micro-entreprise chacun), `issuer_id` des devis et factures, numérotation `AAAA-NNN` (factures par émetteur) qui continue après les numéros importés, vendeur copié depuis l'émetteur, import des documents historiques (serveur seulement) |
 
-Ordre d'application : 0001, 0002, 0003, 0004, 0005 (`npm run db:migrate` les prend dans l'ordre des noms). En production, appliquer la 0004 puis la 0005 **avant** de pousser le front de la V0.3.
+| `0006_task_assigned_by.sql` | Auteur et date de l'attribution d'une tâche, Realtime des tâches |
+| `0007_project_ai_instructions.sql` | Mémoire de l'IA par projet (`ai_instructions`) |
+| `0008_vercel_connections.sql` | Jeton Vercel de chaque compte |
+| `0009_spotify_connections.sql` | Connexion Spotify de chaque compte, rotation du jeton |
+| `0010_files.sql` | Bucket `files` + policies Storage, `project_files` (dossiers, versions, corbeille, lien devis / facture), `file_intakes` (dépôts à ranger), `filing_rules` (« Toujours ») |
+| `0011_catalog_briefs.sql` | Catalogue `services`, `briefs`, projets (rounds de retours, diffusion, étude de cas, jeton du portail), `inputs.quote_id`, RPC `propose_tasks_from_quote` |
+| `0012_work.sql` | Échéance et priorité des tâches, `time_entries`, `member_absences`, compétences ouvertes et affinités, `commission_plans` |
+| `0013_notifications_ai.sql` | `notifications` (+ déclencheurs des passages de main, RPC `create_notification`), `ai_proposals` + `ai_autonomy_rules` (RPC apply / refuse / undo), `followups` |
+| `0014_prospection.sql` | Pré-audit, audit, offre, argumentaire, refus, ne plus contacter, étapes `to_audit` / `offer_ready`, apporteur limité à ses prospects, `commissions` calculées au paiement |
+| `0015_contracts_deliverables.sql` | `contracts`, `deliverables` / `deliverable_versions` / `deliverable_comments`, `api_tokens` (MCP) |
+| `0016_task_done_at.sql` | Date de fin des tâches posée par la base |
+| `0017_convert_prospect_project.sql` | `convert_prospect(uuid, text)` : membre autorisé, apporteur limité à ses prospects, projet créé |
+| `0019_security_hardening.sql` | Correctifs de la revue de sécurité : contrats et fichiers de devis / factures / contrats réservés à admin et finance, responsable d'un prospect réservé à l'admin et figé après conversion, `create_notification` limitée, chemins Storage imposés |
+| `0020_partners_notes.sql` | Réseau de partenaires (`partners`, `partner_projects`) et `notes` (perso ou équipe) |
+| `0018_import_document_from_file.sql` | RPC serveur `import_document_from_file` : devis / facture importé d'un fichier, numéro d'origine gardé |
+
+Ordre d'application : dans l'ordre des noms (`npm run db:migrate`). En production, appliquer chaque migration **avant** de pousser le code qui en dépend ; 0010 à 0020 ne sont pas encore appliquées (25/11/2026).
 
 ## Appliquer
 
@@ -43,7 +59,7 @@ Créer `migrations/000N_<sujet>.sql`, rejouable et sans `BEGIN`/`COMMIT`. Ne jam
 npm run test:rls
 ```
 
-`tests/harness.ts` monte un Postgres en mémoire (PGlite, aucune base ni réseau), simule ce que fournit Supabase (rôles `anon` / `authenticated` / `service_role`, `auth.users`, `auth.sessions`, `auth.uid()`, `auth.jwt()`, `storage.buckets`) et applique toutes les migrations (`0003`, `0004` et `0005` deux fois, pour vérifier qu'elles sont rejouables). `tests/rls.test.ts` vérifie les droits de 0001 à 0003, `tests/finance.test.ts` ceux de la 0004 (devis, factures, prospection), `tests/issuers.test.ts` ceux de la 0005 (émetteurs, numérotation, import). Chaque test tourne dans une transaction annulée. Pour se mettre dans la peau d'un utilisateur, le helper `q(personne, sql)` fait comme PostgREST : `request.jwt.claims` puis `set role authenticated`.
+`tests/harness.ts` monte un Postgres en mémoire (PGlite, aucune base ni réseau), simule ce que fournit Supabase (rôles `anon` / `authenticated` / `service_role`, `auth.users`, `auth.sessions`, `auth.uid()`, `auth.jwt()`, `storage.buckets`) et applique toutes les migrations (de `0003` à la dernière deux fois chacune, pour vérifier qu'elles sont rejouables). `tests/rls.test.ts` vérifie les droits de 0001 à 0003, `tests/finance.test.ts` ceux de la 0004 (devis, factures, prospection), `tests/issuers.test.ts` ceux de la 0005 (émetteurs, numérotation, import) et de la 0018, puis un fichier par migration de la roadmap : `files`, `catalog`, `work` (0012 et 0016), `notifications`, `commissions` (0014 et 0017 dans `finance`), `deliverables`. Chaque test tourne dans une transaction annulée. Pour se mettre dans la peau d'un utilisateur, le helper `q(personne, sql)` fait comme PostgREST : `request.jwt.claims` puis `set role authenticated`.
 
 Ajouter un test à chaque nouvelle politique, colonne protégée ou RPC.
 

@@ -7,6 +7,10 @@
 import { useState } from 'react'
 import { Link, Outlet, useParams } from 'react-router-dom'
 import { BackLink, Button, EmptyState, ErrorState, LoadingState, Tabs, type TabItem } from '../../components/ui'
+import type { MemberRole } from '../../shared/types'
+import { FINANCE_ROLES } from '../auth/roles'
+import { useCurrentMember } from '../auth/useCurrentMember'
+import { FeedbackRounds } from '../rounds'
 import { ProjectFormModal } from './ProjectFormModal'
 import { ProjectStatus } from './ProjectStatus'
 import { formatDay } from './projectLogic'
@@ -14,16 +18,25 @@ import { useProject } from './useProject'
 import type { ProjectOutletContext } from './useProjectContext'
 import styles from './ProjectPage.module.css'
 
-const TABS: TabItem[] = [
+/** Onglets du projet ; `roles` : seulement pour ces rôles (Contrats porte les prix : admin seulement ici, la finance n'ouvre pas la page projet). */
+const TABS: Array<TabItem & { roles?: readonly MemberRole[] }> = [
   { to: 'tickets', label: 'Tickets' },
   { to: 'tasks', label: 'Tâches' },
   { to: 'inputs', label: 'Entrées' },
+  { to: 'files', label: 'Fichiers' },
+  { to: 'notes', label: 'Notes' },
+  { to: 'deliverables', label: 'Livrables' },
+  { to: 'contracts', label: 'Contrats', roles: FINANCE_ROLES },
+  { to: 'time', label: 'Temps' },
+  { to: 'share', label: 'Partage' },
 ]
 
 export function ProjectPage() {
   const { projectId } = useParams()
   const { data: project, isLoading, isError, refetch } = useProject(projectId)
   const [editing, setEditing] = useState(false)
+  const { member } = useCurrentMember()
+  const tabs = TABS.filter((tab) => !tab.roles || (member !== null && tab.roles.includes(member.role))).map(({ to, label }) => ({ to, label }))
 
   if (isLoading) return <LoadingState label="Chargement du projet…" />
   if (isError) return <ErrorState message="Impossible de charger le projet." onRetry={() => void refetch()} />
@@ -48,7 +61,7 @@ export function ProjectPage() {
           <h1>{project.name}</h1>
           <Button onClick={() => setEditing(true)}>Modifier</Button>
         </div>
-        <p className={styles.meta}>
+        <div className={styles.meta}>
           <ProjectStatus status={project.status} />
           {project.client ? (
             <Link to={`/clients/${project.client.id}`} className={styles.clientLink}>
@@ -58,9 +71,10 @@ export function ProjectPage() {
             <span>Sans client</span>
           )}
           {due ? <span>Échéance : {due}</span> : null}
-        </p>
+          <FeedbackRounds projectId={project.id} included={project.feedback_rounds_included} />
+        </div>
       </header>
-      <Tabs items={TABS} label="Sections du projet" />
+      <Tabs items={tabs} label="Sections du projet" />
       <Outlet context={context} />
       <ProjectFormModal open={editing} onClose={() => setEditing(false)} project={project} />
     </div>

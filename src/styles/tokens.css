@@ -45,6 +45,8 @@
   --color-info-soft: #ebf8ff;
   --color-info-pill: rgb(32 89 202 / 0.18);
   --color-info-dot: #a2ccff;
+  /* Pastille « non lu » de la cloche (Figma 88:3236). */
+  --color-notification-dot: #1271ff;
 
   /* Color — statut « pas commencé » (colonnes et pastilles) */
   --color-idle: #828282;
@@ -106,6 +108,12 @@
   --size-avatar: 2.125rem;
   --size-icon-md: 1.25rem;
   --size-sidebar: 4.25rem;
+  /* Barre latérale dépliée (Figma 88:3236 « Sidebar », 218 px), ligne de navigation 40 px, logo 36 px, chevron 12 px. */
+  --size-sidebar-expanded: 13.625rem;
+  --size-nav-item: 2.5rem;
+  --size-brand-mark: 2.25rem;
+  --size-icon-sm: 0.75rem;
+  --size-notification-dot: 0.5rem;
   --size-status-dot: 0.5rem;
   --size-content-max: 90rem;
   --size-narrow-max: 28rem;

@@ -16,6 +16,7 @@ import {
 } from '../../components/ui'
 import { formatDate, quoteDisplayStatus, todayIso } from '../../shared/billing'
 import { LinesEditor } from '../billing'
+import { CatalogPickerModal, insertCatalogLines, useServices } from '../catalog'
 import { useCurrentMember } from '../auth/useCurrentMember'
 import { issuerChoices, issuerName, showIssuerSelect } from '../settings/issuerLogic'
 import { useIssuers } from '../settings/useIssuers'
@@ -35,7 +36,15 @@ import {
   type QuoteDraftFields,
   type QuoteWithLinks,
 } from './quoteLogic'
-import { useCreateInvoiceFromQuote, useDuplicateQuote, useQuote, useQuoteDeposits, useUpdateQuote } from './useQuotes'
+import { noProposalText, proposalToast, proposeErrorText, reviewPath, tasksProposal } from './quoteTasks'
+import {
+  useCreateInvoiceFromQuote,
+  useDuplicateQuote,
+  useProposeTasksFromQuote,
+  useQuote,
+  useQuoteDeposits,
+  useUpdateQuote,
+} from './useQuotes'
 import styles from './quotes.module.css'
 
 /** Prévient avant de quitter la page avec des modifications non enregistrées (rechargement, fermeture, liens internes). */
@@ -86,6 +95,8 @@ function QuoteEditor({ quote }: { quote: QuoteWithLinks }) {
   const update = useUpdateQuote(quote)
   const duplicate = useDuplicateQuote()
   const createInvoice = useCreateInvoiceFromQuote()
+  const propose = useProposeTasksFromQuote()
+  const services = useServices()
   const deposits = useQuoteDeposits(quote.id, quote.status === 'accepted')
   const deductedCount = deposits.data?.deducted.length ?? 0
   const hasDraftDeposit = (deposits.data?.drafts.length ?? 0) > 0
@@ -100,13 +111,18 @@ function QuoteEditor({ quote }: { quote: QuoteWithLinks }) {
   const [error, setError] = useState<string | null>(null)
   const [depositOpen, setDepositOpen] = useState(false)
   const [percentText, setPercentText] = useState('30')
+  const [catalogOpen, setCatalogOpen] = useState(false)
+  // Entrée créée depuis ce devis : lien persistant vers l'écran de validation.
+  const [proposed, setProposed] = useState<{ inputId: string; tickets: number } | null>(null)
+  const [proposeError, setProposeError] = useState<string | null>(null)
 
   const locked = isQuoteLocked(quote.status)
   const dirty = !locked && (hasUnsavedChanges(saved, draft) || issuerChanged)
   useUnsavedGuard(dirty)
   const shown = quoteDisplayStatus(quote, todayIso())
   const errors = showErrors ? validateQuoteFields(draft, quote.issue_date) : {}
-  const busy = update.isPending || duplicate.isPending || createInvoice.isPending
+  const busy = update.isPending || duplicate.isPending || createInvoice.isPending || propose.isPending
+  const proposal = tasksProposal(quote, services.data ?? [])
 
   function set<K extends keyof QuoteDraftFields>(key: K, value: QuoteDraftFields[K]) {
     setDraft((d) => ({ ...d, [key]: value }))
@@ -152,7 +168,28 @@ function QuoteEditor({ quote }: { quote: QuoteWithLinks }) {
       if (!patch) return
       await update.mutateAsync({ ...patch, ...transitionPatch(to, new Date().toISOString()) })
       toast.success(message)
+      if (to === 'accepted') await proposeAfterAcceptance(draft.lines)
     })
+  }
+
+  /** Acceptation : propose les tickets si une ligne vient d'une prestation avec des tâches types. Un échec n'annule pas l'acceptation. */
+  async function proposeAfterAcceptance(lines: QuoteDraftFields['lines']) {
+    if (!quote.project_id) return
+    const list = services.data ?? (await services.refetch()).data ?? []
+    const plan = tasksProposal({ status: 'accepted', project_id: quote.project_id, lines }, list)
+    if (plan.kind !== 'ready') return
+    await sendProposal(quote.project_id, plan.tickets, 'Devis accepté, mais les tâches n’ont pas pu être proposées. ')
+  }
+
+  async function sendProposal(projectId: string, tickets: number, errorPrefix = '') {
+    setProposeError(null)
+    try {
+      const inputId = await propose.mutateAsync({ quoteId: quote.id, projectId })
+      setProposed({ inputId, tickets })
+      toast.success(proposalToast(tickets))
+    } catch (e) {
+      setProposeError(`${errorPrefix}${proposeErrorText(e)}`)
+    }
   }
 
   function copy() {
@@ -197,6 +234,22 @@ function QuoteEditor({ quote }: { quote: QuoteWithLinks }) {
             </Button>
             {quote.status === 'accepted' ? (
               <>
+                {proposal.kind === 'ready' || proposal.kind === 'no-project' ? (
+                  <Button
+                    onClick={() => {
+                      if (proposal.kind !== 'ready' || !quote.project_id) {
+                        setProposeError(noProposalText(proposal))
+                        return
+                      }
+                      void sendProposal(quote.project_id, proposal.tickets)
+                    }}
+                    loading={propose.isPending}
+                    disabled={busy}
+                    title={noProposalText(proposal) ?? undefined}
+                  >
+                    Proposer les tâches
+                  </Button>
+                ) : null}
                 <Button onClick={() => setDepositOpen(true)} disabled={busy}>
                   Facture d’acompte
                 </Button>
@@ -238,6 +291,23 @@ function QuoteEditor({ quote }: { quote: QuoteWithLinks }) {
         {error ? (
           <p className={styles.error} role="alert">
             {error}
+          </p>
+        ) : null}
+        {proposeError ? (
+          <p className={styles.error} role="alert">
+            {proposeError}
+          </p>
+        ) : null}
+        {proposed && quote.project_id ? (
+          <p className={styles.notice} role="status">
+            {proposalToast(proposed.tickets)}.{' '}
+            {member && (member.role === 'admin' || member.role === 'membre') ? (
+              <Link to={reviewPath(quote.project_id, proposed.inputId)} className={styles.link}>
+                Ouvrir l’écran de validation
+              </Link>
+            ) : (
+              'Un admin ou un membre de l’équipe les validera.'
+            )}
           </p>
         ) : null}
         {quote.status === 'accepted' && hasDraftDeposit ? <p className={styles.notice}>{DRAFT_DEPOSIT_WARNING}</p> : null}
@@ -321,6 +391,13 @@ function QuoteEditor({ quote }: { quote: QuoteWithLinks }) {
             org={organization}
             readOnly={locked}
             showErrors={showErrors}
+            extraActions={
+              locked ? undefined : (
+                <Button size="sm" onClick={() => setCatalogOpen(true)}>
+                  Ajouter depuis le catalogue
+                </Button>
+              )
+            }
           />
         ) : null}
         {errors.lines ? (
@@ -338,6 +415,12 @@ function QuoteEditor({ quote }: { quote: QuoteWithLinks }) {
           <Textarea value={draft.notes} onChange={(e) => set('notes', e.target.value)} disabled={locked} rows={4} />
         </Field>
       </section>
+
+      <CatalogPickerModal
+        open={catalogOpen}
+        onClose={() => setCatalogOpen(false)}
+        onPick={(picked) => set('lines', insertCatalogLines(draft.lines, picked))}
+      />
 
       <Modal
         open={depositOpen}

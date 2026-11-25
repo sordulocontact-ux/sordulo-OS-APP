@@ -1,4 +1,4 @@
-import { PROJECT_STATUSES, type Client, type Project, type ProjectStatus } from '../../shared/types'
+import { PROJECT_STATUSES, type Client, type Project, type ProjectShowcase, type ProjectStatus } from '../../shared/types'
 import type { ProjectWithClient } from './types'
 
 /** Valeur du filtre Statut : '' = tous les statuts actifs (tout sauf archivé), sinon un statut. */
@@ -62,7 +62,7 @@ export const TONE_TEMPLATES = [
 
 export type ProjectInput = Pick<
   Project,
-  'client_id' | 'name' | 'status' | 'start_date' | 'due_date' | 'tone_of_voice' | 'ai_instructions'
+  'client_id' | 'name' | 'status' | 'start_date' | 'due_date' | 'tone_of_voice' | 'ai_instructions' | 'feedback_rounds_included' | 'showcase'
 >
 
 /** Jours calendaires (heure locale) de `now` à `day` (AAAA-MM-JJ) : positif = à venir, négatif = passé. */
@@ -124,4 +124,25 @@ export function projectStats(projects: readonly Pick<Project, 'status' | 'due_da
 /** Sous-texte de la carte « En cours ». */
 export function overdueHint(overdue: number): string {
   return overdue === 0 ? 'Aucun en retard' : `${overdue} en retard`
+}
+
+/** Rounds de retours prévus : entier de 0 à 20 (contrainte de la base) ; null si la saisie n'est pas valide. */
+export const MAX_FEEDBACK_ROUNDS = 20
+
+export function parseRounds(raw: string): number | null {
+  const text = raw.trim()
+  if (!/^\d+$/.test(text)) return null
+  const n = Number(text)
+  return n <= MAX_FEEDBACK_ROUNDS ? n : null
+}
+
+export function validateRounds(raw: string): string | null {
+  return parseRounds(raw) === null ? `Entier entre 0 et ${MAX_FEEDBACK_ROUNDS}.` : null
+}
+
+/** Libellés du champ « Diffusion » de la fiche projet. */
+export const SHOWCASE_LABELS: Record<ProjectShowcase, string> = {
+  unknown: 'À définir',
+  showable: 'Montrable',
+  nda: 'Sous NDA',
 }

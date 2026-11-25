@@ -8,10 +8,14 @@
  * finie = jamais attribué automatiquement. Un membre indisponible aujourd'hui (jour de la semaine, fuseau
  * Europe/Paris, dans `unavailable_weekdays`) passe après tous les membres disponibles ; si tous le sont,
  * le moins chargé est choisi quand même.
- * La compétence (design / dev) reste une étiquette de tâche : chacun fait un peu des deux.
+ * Niveau : à charge comparable (écart de score <= LOAD_TOLERANCE), celui qui a le meilleur niveau dans la
+ * compétence du ticket passe devant. Absences datées (member_absences) : absent aujourd'hui, ou à
+ * l'échéance de la tâche si elle en a une, = en dernier, comme un jour indisponible. Affinités : départage
+ * seulement, quand niveau et charge comparables ne tranchent pas (affinité contenue dans la partie ou le
+ * titre du ticket, sans accents ni casse).
  * Aucune dépendance Node.
  */
-import type { Member, Skill, Weekday } from './types.js'
+import type { Member, MemberAbsence, Skill, Weekday } from './types.js'
 
 export type AssignableMember = Pick<Member, 'id' | 'name' | 'skills'>
 
@@ -19,7 +23,41 @@ export type AssignableMember = Pick<Member, 'id' | 'name' | 'skills'>
 export type PickableMember = AssignableMember & {
   weekly_capacity_hours?: number | null
   unavailable_weekdays?: readonly Weekday[] | null
+  /** Sujets aimés (members.affinities) : départage seulement. */
+  affinities?: readonly string[] | null
+  /** Absences datées (member_absences), bornes comprises. */
+  absences?: readonly AbsencePeriod[] | null
 }
+
+/** Période d'absence, AAAA-MM-JJ bornes comprises. */
+export type AbsencePeriod = Pick<MemberAbsence, 'start_date' | 'end_date'>
+
+/** Date AAAA-MM-JJ à Paris pour cet instant. */
+export function parisDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
+}
+
+/** Le jour (AAAA-MM-JJ) tombe dans une des absences. Date invalide ou absente = faux. */
+export function isAbsentOn(absences: readonly AbsencePeriod[] | null | undefined, day: string | null | undefined): boolean {
+  if (!day || !absences) return false
+  const iso = day.slice(0, 10)
+  return absences.some((a) => a.start_date <= iso && iso <= a.end_date)
+}
+
+/** Première affinité contenue dans la partie ou le titre (sans accents ni casse), sinon null. */
+export function matchingAffinity(affinities: readonly string[] | null | undefined, ...texts: (string | null | undefined)[]): string | null {
+  if (!affinities) return null
+  const haystacks = texts.map((t) => areaKey(t)).filter((t): t is string => t !== null)
+  if (haystacks.length === 0) return null
+  for (const affinity of affinities) {
+    const key = areaKey(affinity)
+    if (key && haystacks.some((h) => h.includes(key))) return affinity.trim()
+  }
+  return null
+}
+
+/** Écart de charge relative en dessous duquel deux membres ont une « charge comparable ». */
+export const LOAD_TOLERANCE = 0.1
 
 /** Jour de la semaine ISO (1 = lundi … 7 = dimanche) à Paris pour cet instant. */
 export function parisWeekday(date: Date): Weekday {
@@ -62,7 +100,7 @@ export const FAMILIARITY_MAX_TICKETS = 3
 export const DEFAULT_TASK_HOURS = 1
 
 /** Level of a member in a skill. Missing or invalid level = 0. */
-export function skillLevel(member: Pick<Member, 'skills'>, skill: Skill): number {
+export function skillLevel(member: Pick<Member, 'skills'>, skill: Skill | string): number {
   const level = member.skills?.[skill]
   return typeof level === 'number' && Number.isFinite(level) ? level : 0
 }
@@ -152,12 +190,24 @@ const SCORE_EPSILON = 1e-9
  */
 export function pickTicketAssignee<T extends PickableMember>(
   members: readonly T[],
-  ticket: { area: string | null; hours?: number },
+  ticket: {
+    area: string | null
+    hours?: number
+    /** Titre du ticket : sert seulement aux affinités. */
+    title?: string | null
+    /** Compétence du ticket (« design », « dev », « motion »…) : le niveau départage à charge comparable. */
+    skill?: string | null
+    /** Échéance des tâches (AAAA-MM-JJ), si elle existe : un membre absent ce jour-là passe en dernier. */
+    dueDate?: string | null
+  },
   workload: TeamWorkload,
   options: { today?: Date; weekday?: Weekday } = {},
 ): TicketAssignment<T> | null {
   const key = areaKey(ticket.area)
-  const weekday = options.weekday ?? parisWeekday(options.today ?? new Date())
+  const now = options.today ?? new Date()
+  const weekday = options.weekday ?? parisWeekday(now)
+  const todayIso = parisDate(now)
+  const skillKey = ticket.skill ? ticket.skill.trim().toLowerCase() : null
   const ticketHoursValue = ticket.hours !== undefined && Number.isFinite(ticket.hours) ? ticket.hours : 0
 
   interface Scored {
@@ -167,6 +217,9 @@ export function pickTicketAssignee<T extends PickableMember>(
     capacity: number
     familiar: number
     away: boolean
+    absent: boolean
+    level: number
+    affinity: string | null
   }
   const scored: Scored[] = []
   for (const member of members) {
@@ -176,17 +229,28 @@ export function pickTicketAssignee<T extends PickableMember>(
     const familiar = key ? (workload.areaTickets.get(member.id)?.get(key) ?? 0) : 0
     const bonus = FAMILIARITY_HOURS_PER_TICKET * Math.min(familiar, FAMILIARITY_MAX_TICKETS)
     const score = (load - bonus + ticketHoursValue) / capacity
-    const away = member.unavailable_weekdays?.includes(weekday) ?? false
-    scored.push({ member, score, load, capacity, familiar, away })
+    const absent = isAbsentOn(member.absences, todayIso) || isAbsentOn(member.absences, ticket.dueDate)
+    const away = (member.unavailable_weekdays?.includes(weekday) ?? false) || absent
+    const level = skillKey ? skillLevel(member, skillKey) : 0
+    const affinity = matchingAffinity(member.affinities, ticket.area, ticket.title)
+    scored.push({ member, score, load, capacity, familiar, away, absent, level, affinity })
   }
+  if (scored.length === 0) return null
 
+  // Les disponibles d'abord ; si personne ne l'est, tout le monde reste en lice.
+  const available = scored.filter((s) => !s.away)
+  const pool = available.length > 0 ? available : scored
+  const minScore = Math.min(...pool.map((s) => s.score))
+  // Charge comparable : écart au moins chargé <= LOAD_TOLERANCE. Là, niveau puis affinité, puis charge, nom, id.
+  const comparable = pool.filter((s) => s.score <= minScore + LOAD_TOLERANCE + SCORE_EPSILON)
   const better = (a: Scored, b: Scored): boolean => {
-    if (a.away !== b.away) return !a.away
+    if (a.level !== b.level) return a.level > b.level
+    if ((a.affinity !== null) !== (b.affinity !== null)) return a.affinity !== null
     if (Math.abs(a.score - b.score) > SCORE_EPSILON) return a.score < b.score
     return before(a.member, b.member)
   }
   let best: Scored | null = null
-  for (const entry of scored) if (best === null || better(entry, best)) best = entry
+  for (const entry of comparable) if (best === null || better(entry, best)) best = entry
   if (!best) return null
 
   const chosen = best
@@ -195,10 +259,13 @@ export function pickTicketAssignee<T extends PickableMember>(
   if (chosen.familiar > 0 && ticket.area) {
     parts.push(`a déjà travaillé sur « ${ticket.area.trim()} » (${chosen.familiar} ticket${chosen.familiar > 1 ? 's' : ''})`)
   }
+  if (chosen.level > 0 && skillKey && comparable.length > 1) parts.push(`niveau ${chosen.level}/5 en ${skillKey}`)
+  if (chosen.affinity) parts.push(`aime « ${chosen.affinity} »`)
   if (leastLoaded) parts.push(`le moins de travail en cours (${formatHours(chosen.load)})`)
   else parts.push(`${formatHours(chosen.load)} en cours`)
   parts.push(`capacité ${formatHours(chosen.capacity)} par semaine`)
-  if (chosen.away) parts.push("indisponible aujourd'hui, mais tout le monde l'est")
+  if (chosen.absent) parts.push("absent à la date concernée, mais tout le monde est indisponible")
+  else if (chosen.away) parts.push("indisponible aujourd'hui, mais tout le monde l'est")
   return { member: chosen.member, note: `${chosen.member.name} : ${parts.join(', ')}` }
 }
 

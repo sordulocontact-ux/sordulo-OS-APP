@@ -1,0 +1,514 @@
+/* Espace Fichiers : onglet du projet, écran de rangement, boîte de dépôt, fenêtre de dépôt. Tokens seulement. */
+
+.page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.hint,
+.muted {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* Dossiers à gauche, liste à droite ; empilés sur écran étroit. */
+.layout {
+  display: grid;
+  grid-template-columns: var(--size-menu-min) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.folders {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.folder {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--size-control-md);
+  padding: var(--space-2) var(--space-3);
+  border: var(--size-border) solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+
+.folderName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.folder[aria-current='true'] {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font-weight: var(--font-weight-medium);
+}
+
+.folder:focus-visible,
+.nameButton:focus-visible,
+.dropZone:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .folder:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+}
+
+.list {
+  min-width: 0;
+}
+
+.colName {
+  width: 40%;
+}
+
+.colActions {
+  width: calc(var(--size-control-md) * 5);
+}
+
+.nameCell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.nameButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-weight: var(--font-weight-medium);
+  text-align: left;
+  cursor: pointer;
+}
+
+.nameButton:hover {
+  text-decoration: underline;
+}
+
+.docLink {
+  color: var(--color-info);
+  font-size: var(--font-size-sm);
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.errorText {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}
+
+.warningText {
+  margin: 0;
+  color: var(--color-warning);
+  font-size: var(--font-size-sm);
+}
+
+/* Zone visible pendant qu'on glisse des fichiers sur l'onglet. */
+.dropOverlay {
+  position: absolute;
+  inset: calc(-1 * var(--space-2));
+  z-index: var(--z-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--size-border-strong) dashed var(--color-primary);
+  border-radius: var(--radius-lg);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
+  pointer-events: none;
+}
+
+/* Formulaires des fenêtres. */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Aperçu. */
+.previewBox {
+  display: flex;
+  justify-content: center;
+  min-height: var(--size-kanban-column);
+}
+
+.previewImage {
+  max-width: 100%;
+  max-height: calc(var(--space-16) * 8);
+  object-fit: contain;
+}
+
+.previewFrame {
+  width: 100%;
+  height: calc(var(--space-16) * 9);
+  border: var(--size-border) solid var(--color-border);
+  background: var(--color-surface-muted);
+}
+
+.noPreview {
+  margin: 0;
+  padding: var(--space-8) var(--space-4);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* Historique des versions. */
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.historyItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-bottom: var(--space-3);
+  border-bottom: var(--size-border) solid var(--color-border-subtle);
+}
+
+.historyHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.historyMeta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.historyAction {
+  margin-left: auto;
+}
+
+.historyChange {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+/* Doublons et noms proches avant l'envoi. */
+.conflicts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conflict {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.conflictText {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Écran de rangement d'un dépôt. */
+.intakePage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.intakeHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.intakeTitle {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.intakeGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.previewCard {
+  position: sticky;
+  top: var(--space-4);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--size-border) solid var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.bannerText {
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+}
+
+.summary {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.callout {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: var(--size-border) solid var(--color-border);
+  background: var(--color-warning-soft);
+}
+
+.calloutText {
+  margin: 0;
+}
+
+.confidenceLine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.reasons {
+  margin: 0;
+  padding-left: var(--space-5);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.details {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.alwaysBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: var(--size-border) solid var(--color-border);
+  background: var(--color-surface-muted);
+}
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.check input {
+  margin-top: var(--space-1);
+  accent-color: var(--color-primary);
+}
+
+/* Fenêtre de dépôt. */
+.dropBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.dropZone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-8) var(--space-4);
+  border: var(--size-border-strong) dashed var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) ease, background var(--duration-fast) ease;
+}
+
+.dropZone[data-dragging] {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dropZone:hover {
+    border-color: var(--color-border-hover);
+  }
+}
+
+.dropZoneTitle {
+  font-weight: var(--font-weight-medium);
+}
+
+.dropList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dropItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border-bottom: var(--size-border) solid var(--color-border-subtle);
+}
+
+.dropItemMain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dropName {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: var(--font-weight-medium);
+}
+
+.dropLabel {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.dropActions,
+.dropFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+@media (max-width: 52rem) {
+  .layout,
+  .intakeGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .folders {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .previewCard {
+    position: static;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .folder,
+  .dropZone {
+    transition: none;
+  }
+}

@@ -13,6 +13,7 @@ import {
   AI_INSTRUCTIONS_MAX_LENGTH,
   type Input,
   type Member,
+  type MemberAbsence,
   type Skill,
   type Ticket,
   type TicketPriority,
@@ -279,7 +280,7 @@ function changedFrom(current: CurrentTicket, next: PlannedTicket): boolean {
 export function planRevision(
   output: Revision,
   current: readonly CurrentTicket[],
-  candidates: readonly Member[],
+  candidates: readonly (Member & { absences?: readonly Pick<MemberAbsence, 'start_date' | 'end_date'>[] })[],
   workload: TeamWorkload,
   today: Date,
 ): RevisionPlan {
@@ -345,7 +346,7 @@ export function planRevision(
     const designated = designation(ticket)
     const picked = designated
       ? { member: designated.member, note: designatedNote(designated.reason) }
-      : pickTicketAssignee(candidates, { area, hours }, workload, { today })
+      : pickTicketAssignee(candidates, { area, title: ticket.title, skill: ticket.skill, hours }, workload, { today })
     if (picked) addToWorkload(workload, picked.member.id, hours, area)
     const quote = ticket.source_quote.trim()
     return {

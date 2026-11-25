@@ -1,0 +1,192 @@
+/* Styles propres au Catalogue. La liste réutilise dataTable.module.css. */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-menu-min), 1fr));
+  gap: var(--space-3);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.groupTitle {
+  padding: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.hint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.check input {
+  accent-color: var(--color-primary);
+}
+
+.error {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.fieldError {
+  margin-top: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--color-danger);
+}
+
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.nameCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.nameButton {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  cursor: pointer;
+}
+
+.nameButton:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Tâches types */
+.tasks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.taskList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.taskRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--size-border) solid var(--color-border-subtle);
+}
+
+.taskRow > * {
+  flex: 1 1 var(--size-menu-min);
+}
+
+.taskRow > .taskNumber,
+.taskRow > button {
+  flex: 0 0 auto;
+}
+
+.taskNumber {
+  padding-top: var(--space-3);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.taskTitle,
+.taskEstimate,
+.taskDepends {
+  min-width: 0;
+}
+
+/* Choix dans un devis */
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pickList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--size-border) solid var(--color-border);
+}
+
+.pickItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-bottom: var(--size-border) solid var(--color-border-subtle);
+}
+
+.pickItem:last-child {
+  border-bottom: 0;
+}
+
+.pickItem input {
+  margin-top: var(--space-1);
+  accent-color: var(--color-primary);
+}
+
+.pickBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  cursor: pointer;
+}
+
+.pickName {
+  font-weight: var(--font-weight-semibold);
+}
+
+.pickMeta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.pickPrice {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

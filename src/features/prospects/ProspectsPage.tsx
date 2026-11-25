@@ -22,9 +22,13 @@ import { useOrgMembers } from '../auth/useOrgMembers'
 import { LABELS, PROSPECT_STAGES, type Prospect, type ProspectStage } from '../../shared/types'
 import { ProspectFormModal } from './ProspectFormModal'
 import {
+  allowedStages,
+  canConvertProspect,
   CLOSED_FILTER,
   filterProspects,
+  isAgencyRole,
   parseStageParam,
+  AUDIT_TONES,
   prospectStats,
   relativeAction,
   sortProspects,
@@ -37,7 +41,9 @@ import styles from './prospects.module.css'
 export function ProspectsPage() {
   const navigate = useNavigate()
   const toast = useToast()
-  const { organization } = useCurrentMember()
+  const { member, organization } = useCurrentMember()
+  const role = member?.role ?? null
+  const agency = isAgencyRole(role)
   const { data, isLoading, isError, refetch } = useProspects()
   const { data: members } = useOrgMembers(organization?.id)
   const [params, setParams] = useSearchParams()
@@ -64,16 +70,16 @@ export function ProspectsPage() {
   }
 
   const now = new Date()
-  const visible = useMemo(
-    () => sortProspects(filterProspects(data ?? [], { query, stage, owner })),
-    [data, query, stage, owner],
-  )
+  const visible = useMemo(() => sortProspects(filterProspects(data ?? [], { query, stage, owner })), [data, query, stage, owner])
   const stats = useMemo(() => prospectStats(data ?? [], new Date()), [data])
   const memberName = (id: string | null) => (members ?? []).find((m) => m.id === id)?.name ?? null
 
   async function changeStage(prospect: Prospect, next: ProspectStage) {
     try {
-      await update.mutateAsync({ prospectId: prospect.id, fields: { stage: next } })
+      await update.mutateAsync({
+        prospectId: prospect.id,
+        fields: { stage: next },
+      })
       toast.success(`Étape : ${LABELS.prospectStage[next]}`)
     } catch (e) {
       toast.error(prospectErrorText(e))
@@ -83,52 +89,65 @@ export function ProspectsPage() {
   async function convertToClient(prospect: Prospect) {
     try {
       await convert.mutateAsync(prospect.id)
-      toast.success('Client créé')
+      toast.success('Client et projet créés')
     } catch (e) {
       toast.error(prospectErrorText(e))
     }
   }
 
   const actions = (prospect: Prospect): ActionsMenuItem[] => [
-    ...PROSPECT_STAGES.filter((s) => s !== prospect.stage).map((s) => ({
-      label: `Passer à « ${LABELS.prospectStage[s]} »`,
-      onSelect: () => void changeStage(prospect, s),
-      disabled: update.isPending,
-    })),
+    ...allowedStages(role, prospect.stage)
+      .filter((s) => s !== prospect.stage)
+      .map((s) => ({
+        label: `Passer à « ${LABELS.prospectStage[s]} »`,
+        onSelect: () => void changeStage(prospect, s),
+        disabled: update.isPending,
+      })),
     { label: 'Modifier', onSelect: () => setEditing(prospect) },
-    {
-      label: 'Convertir en client',
-      onSelect: () => void convertToClient(prospect),
-      disabled: prospect.client_id !== null || convert.isPending,
-      hint: prospect.client_id !== null ? 'Déjà converti' : undefined,
-    },
+    ...(canConvertProspect(role)
+      ? [
+          {
+            label: 'Convertir en client',
+            onSelect: () => void convertToClient(prospect),
+            disabled: prospect.client_id !== null || convert.isPending,
+            hint: prospect.client_id !== null ? 'Déjà converti' : undefined,
+          },
+        ]
+      : []),
   ]
 
+  const addLabel = agency ? 'Nouveau prospect' : 'Ajouter un site'
   const newButton = (
     <Button variant="primary" onClick={() => setCreating(true)}>
       <Icon src={plusIcon} />
-      Nouveau prospect
+      {addLabel}
     </Button>
   )
 
   return (
     <section className={table.page} aria-labelledby="prospects-title">
-      <h1 id="prospects-title">Prospection</h1>
+      <h1 id="prospects-title">{agency ? 'Prospection' : 'Mes sites'}</h1>
       {data && data.length > 0 ? (
         <div className={table.stats}>
+          {agency ? <StatCard value={stats.toAudit} label="À auditer" /> : null}
           <StatCard value={stats.toFollowUp} label="À relancer" hint="Aujourd’hui ou en retard" />
           <StatCard value={stats.ongoing} label="En cours" />
           <StatCard value={stats.wonThisMonth} label="Gagnés ce mois" />
         </div>
       ) : null}
       <ListToolbar
-        search={{ value: query, onChange: setQuery, label: 'Rechercher un prospect', placeholder: 'Entreprise, contact, site' }}
-        activeFilterCount={(stage !== '' ? 1 : 0) + (owner !== '' ? 1 : 0)}
+        search={{
+          value: query,
+          onChange: setQuery,
+          label: agency ? 'Rechercher un prospect' : 'Rechercher un site',
+          placeholder: 'Entreprise, contact, site',
+        }}
+        activeFilterCount={(stage !== '' ? 1 : 0) + (agency && owner !== '' ? 1 : 0)}
         onResetFilters={() => {
           setParams(new URLSearchParams(), { replace: true })
         }}
         onAdd={() => setCreating(true)}
-        addLabel="Nouveau prospect"
+        addLabel={addLabel}
         filters={
           <>
             <Field label="Étape">
@@ -142,18 +161,20 @@ export function ProspectsPage() {
                 <option value={CLOSED_FILTER}>Gagnés et perdus</option>
               </Select>
             </Field>
-            <Field label="Responsable">
-              <Select value={owner} onChange={(e) => setParam('responsable', e.target.value)}>
-                <option value="">Tous</option>
-                {(members ?? [])
-                  .filter((m) => m.removed_at === null || m.id === owner)
-                  .map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-              </Select>
-            </Field>
+            {agency ? (
+              <Field label="Responsable">
+                <Select value={owner} onChange={(e) => setParam('responsable', e.target.value)}>
+                  <option value="">Tous</option>
+                  {(members ?? [])
+                    .filter((m) => m.removed_at === null || m.id === owner)
+                    .map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                </Select>
+              </Field>
+            ) : null}
           </>
         }
       />
@@ -162,7 +183,15 @@ export function ProspectsPage() {
       ) : isError ? (
         <ErrorState message="Impossible de charger les prospects." onRetry={() => void refetch()} />
       ) : !data || data.length === 0 ? (
-        <EmptyState title="Aucun prospect" text="Ajoute ton premier prospect pour suivre tes relances." action={newButton} />
+        <EmptyState
+          title={agency ? 'Aucun prospect' : 'Aucun site pour le moment'}
+          text={
+            agency
+              ? 'Ajoute ton premier prospect pour suivre tes relances.'
+              : 'Ajoute le site d’une entreprise : l’agence l’audite et te prépare une offre.'
+          }
+          action={newButton}
+        />
       ) : visible.length === 0 ? (
         <EmptyState
           title="Aucun prospect ne correspond à la recherche ni aux filtres."
@@ -182,8 +211,9 @@ export function ProspectsPage() {
                 <th scope="col">Entreprise</th>
                 <th scope="col">Contact</th>
                 <th scope="col">Étape</th>
+                {agency ? <th scope="col">Pré-audit</th> : null}
                 <th scope="col">Prochaine action</th>
-                <th scope="col">Responsable</th>
+                {agency ? <th scope="col">Responsable</th> : null}
                 <th scope="col" className={table.actionsCell}>
                   Actions
                 </th>
@@ -213,7 +243,18 @@ export function ProspectsPage() {
                     </td>
                     <td>
                       <Badge tone={STAGE_TONES[prospect.stage]}>{LABELS.prospectStage[prospect.stage]}</Badge>
+                      {prospect.do_not_contact ? (
+                        <>
+                          {' '}
+                          <Badge tone="danger">Ne plus contacter</Badge>
+                        </>
+                      ) : null}
                     </td>
+                    {agency ? (
+                      <td>
+                        <Badge tone={AUDIT_TONES[prospect.audit_status]}>{LABELS.prospectAuditStatus[prospect.audit_status]}</Badge>
+                      </td>
+                    ) : null}
                     <td>
                       {next ? (
                         <span className={next.overdue ? styles.overdue : undefined}>{next.text}</span>
@@ -221,16 +262,18 @@ export function ProspectsPage() {
                         <span className={table.muted}>Aucune</span>
                       )}
                     </td>
-                    <td>
-                      {ownerName ? (
-                        <span className={styles.nameCell}>
-                          <Avatar name={ownerName} size="sm" />
-                          {ownerName}
-                        </span>
-                      ) : (
-                        <span className={table.muted}>Non attribué</span>
-                      )}
-                    </td>
+                    {agency ? (
+                      <td>
+                        {ownerName ? (
+                          <span className={styles.nameCell}>
+                            <Avatar name={ownerName} size="sm" />
+                            {ownerName}
+                          </span>
+                        ) : (
+                          <span className={table.muted}>Non attribué</span>
+                        )}
+                      </td>
+                    ) : null}
                     <td className={table.actionsCell}>
                       <ActionsMenu label={`Actions pour ${prospect.company}`} items={actions(prospect)} />
                     </td>

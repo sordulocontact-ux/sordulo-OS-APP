@@ -215,7 +215,8 @@ export interface StructuredClaudeRequest<S extends z.ZodType> {
   schema: S
   /** System prompt stable (mis en cache). */
   system: string
-  content: string
+  /** Texte, ou blocs (texte + image / PDF) pour les fichiers déposés. */
+  content: string | Anthropic.ContentBlockParam[]
   /** Préfixe des journaux : « [analysis] », « [revise] ». */
   logTag: string
   /** Début du message de refus, sans point : « Claude a refusé d’analyser cette entrée ». */

@@ -142,3 +142,125 @@
   color: var(--color-danger);
   font-size: var(--font-size-sm);
 }
+
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.muted {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+}
+
+.scores {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(var(--size-stat-card-min), 1fr)
+  );
+  gap: var(--space-3);
+}
+
+.score {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: var(--size-border) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.scoreValue {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.score[data-tone="success"] .scoreValue {
+  color: var(--color-success);
+}
+
+.score[data-tone="warning"] .scoreValue {
+  color: var(--color-warning);
+}
+
+.score[data-tone="danger"] .scoreValue {
+  color: var(--color-danger);
+}
+
+.scoreLabel {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.points {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.point {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.pointLabel {
+  font-weight: var(--font-weight-medium);
+}
+
+.hint {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-info-soft);
+  color: var(--color-info);
+}
+
+.notice {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+  font-weight: var(--font-weight-medium);
+}
+
+.warning {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-weight: var(--font-weight-medium);
+}
+
+.checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  cursor: pointer;
+}
+
+.checkbox input {
+  margin-top: var(--space-1);
+  accent-color: var(--color-primary);
+}
+
+.reminder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}

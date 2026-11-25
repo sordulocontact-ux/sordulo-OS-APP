@@ -17,7 +17,7 @@ let db: FakeSupabase
 const fetchMock = vi.fn()
 
 function send(
-  options: { projectId?: string; token?: string | null; type?: string | null; body?: BodyInit; headers?: Record<string, string> } = {},
+  options: { projectId?: string | null; token?: string | null; type?: string | null; body?: BodyInit; headers?: Record<string, string> } = {},
 ): Promise<Response> {
   const headers = new Headers(options.headers)
   const token = options.token === undefined ? 'member-token' : options.token
@@ -26,7 +26,7 @@ function send(
   if (type) headers.set('content-type', type)
   const query = options.projectId === undefined ? PROJECT : options.projectId
   return POST(
-    new Request(`${APP}/api/voice/transcribe?projectId=${query}`, {
+    new Request(`${APP}/api/voice/transcribe${query === null ? '' : `?projectId=${query}`}`, {
       method: 'POST',
       headers,
       body: options.body === undefined ? new Uint8Array([1, 2, 3, 4]) : options.body,
@@ -135,6 +135,26 @@ describe('POST /api/voice/transcribe', () => {
     expect(params.get('diarize')).toBeNull()
     expect((init.headers as Record<string, string>).authorization).toBe('Token dg-key')
     expect((init.headers as Record<string, string>)['content-type']).toBe('audio/webm')
+  })
+
+  it('sans projet (commande vocale) : 200 pour un membre actif', async () => {
+    fetchMock.mockResolvedValue(deepgram('Combien on a encaissé ce mois ?'))
+    const response = await send({ projectId: null })
+    expect(response.status).toBe(200)
+    expect((await response.json()) as TranscribeVoiceResponse).toEqual({ text: 'Combien on a encaissé ce mois ?' })
+  })
+
+  it('sans projet : 403 pour un compte sans organisation ou retiré', async () => {
+    db.addUser('seul@example.com', { token: 'lonely-token' })
+    expect((await send({ projectId: null, token: 'lonely-token' })).status).toBe(403)
+    const member = db.rows('members').find((m) => m.email === 'sacha@sordulo.fr')
+    if (member) member.removed_at = '2026-11-01T00:00:00Z'
+    expect((await send({ projectId: null })).status).toBe(403)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('sans projet : 401 sans session', async () => {
+    expect((await send({ projectId: null, token: null })).status).toBe(401)
   })
 
   it('accepte video/webm', async () => {

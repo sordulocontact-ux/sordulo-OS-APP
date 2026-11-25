@@ -4,6 +4,7 @@
  */
 import type { Invoice, Member, Prospect, Quote, Task } from '../../shared/types'
 import { isOverdue, quoteDisplayStatus } from '../../shared/billing'
+import { ratioPercent, type ThresholdStatus } from '../../shared/thresholds'
 import { teamStats } from '../team/teamLogic'
 
 export interface Segment {
@@ -305,4 +306,68 @@ export function teamSentence(members: readonly HomeMember[]): Sentence {
 export function teamActivitySentence(inProgress: number): Sentence {
   if (inProgress === 0) return [s('Aucune tâche en cours dans l’équipe.')]
   return [b(plural(inProgress, 'tâche')), s(' en cours dans l’équipe')]
+}
+
+/* ---------- Mes tâches du jour ---------- */
+
+export type HomeDueTask = Pick<Task, 'id' | 'title' | 'due_date' | 'status'>
+
+export interface DueSummary {
+  /** Échéance aujourd'hui. */
+  today: number
+  /** Échéance dépassée. */
+  overdue: number
+}
+
+/** Tâches non terminées dont l'échéance est aujourd'hui ou dépassée (`today` : AAAA-MM-JJ). */
+export function dueSummary(tasks: readonly HomeDueTask[], today: string): DueSummary {
+  const open = tasks.filter((t) => t.status !== 'done' && t.due_date !== null)
+  return {
+    today: open.filter((t) => t.due_date === today).length,
+    overdue: open.filter((t) => (t.due_date ?? today) < today).length,
+  }
+}
+
+export function dueSentence(summary: DueSummary): Sentence {
+  if (summary.today === 0 && summary.overdue === 0) return [s('Rien d’échu aujourd’hui.')]
+  const parts: Sentence = []
+  if (summary.today > 0) parts.push(b(plural(summary.today, 'tâche')), s(' à rendre aujourd’hui'))
+  if (summary.overdue > 0) {
+    if (parts.length > 0) parts.push(s(', '))
+    parts.push(b(`${summary.overdue} en retard`))
+  }
+  return parts
+}
+
+/* ---------- CA du mois ---------- */
+
+const longMonth = new Intl.DateTimeFormat('fr-FR', { month: 'long' })
+
+/** « 2026-11 » → « novembre ». */
+export function monthName(key: string): string {
+  const [year, month] = key.split('-').map(Number)
+  return longMonth.format(new Date(year ?? 1970, (month ?? 1) - 1, 1))
+}
+
+export function monthRevenueSentence(bar: Pick<MonthBar, 'key' | 'collectedCents'> | undefined, key: string): Sentence {
+  const collected = bar?.collectedCents ?? 0
+  if (collected === 0) return [s(`Rien d’encaissé en ${monthName(key)} pour l’instant.`)]
+  return [s(`Encaissé en ${monthName(key)} : `), b(formatEuros(collected))]
+}
+
+/* ---------- Relances et seuils ---------- */
+
+export function followupsSentence(count: number): Sentence {
+  if (count === 0) return [s('Aucune relance à faire.')]
+  return [b(plural(count, 'document')), s(count > 1 ? ' à relancer (devis sans réponse, factures échues)' : ' à relancer (devis sans réponse ou facture échue)')]
+}
+
+/** « Maël : 85 % du plafond micro-entreprise » ou « … plafond dépassé » ; lien vers Finance. */
+export function thresholdAlertSentence(issuerName: string, status: ThresholdStatus): Sentence {
+  const percent = ratioPercent(status.ratio)
+  const name = firstName(issuerName)
+  if (status.level === 'exceeded') {
+    return [b(name), s(' a dépassé : '), b(status.label), s(` (${percent} % de ${formatEuros(status.limitCents)})`)]
+  }
+  return [b(name), s(` est à ${percent} % de : `), b(status.label), s(` (reste ${formatEuros(status.remainingCents)})`)]
 }

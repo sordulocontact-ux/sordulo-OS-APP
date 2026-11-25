@@ -52,6 +52,8 @@ function task(id: string, over: Partial<Task> = {}): Task {
     status: 'todo',
     depends_on_task_id: null,
     position: 0,
+    due_date: null,
+    priority: 'medium',
     created_at: '2026-11-18T10:00:00Z',
     ...over,
   }

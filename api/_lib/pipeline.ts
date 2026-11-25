@@ -12,7 +12,7 @@ import {
   ticketHours,
   type TeamWorkload,
 } from '../../src/shared/assignment.js'
-import type { Client, Input, InputStatus, Member, Project, Transcript } from '../../src/shared/types.js'
+import type { Client, Input, InputStatus, Member, MemberAbsence, Project, Transcript } from '../../src/shared/types.js'
 import { analyzeInput, type OpenTicketSummary } from './analysis.js'
 import type { ProcessedTicket } from './analysis-postprocess.js'
 import { createSignedReadUrl } from './storage.js'
@@ -69,8 +69,11 @@ export interface ProjectContext {
   project: Project
   client: Client | null
   /** Personnes qui peuvent recevoir un ticket (voir assignmentCandidates). */
-  candidates: Member[]
+  candidates: CandidateWithAbsences[]
 }
+
+/** Candidat à l'attribution, avec ses absences datées (member_absences) pour placer les tâches les bons jours. */
+export type CandidateWithAbsences = Member & { absences: Pick<MemberAbsence, 'start_date' | 'end_date'>[] }
 
 interface LoadedContext extends ProjectContext {
   input: Input
@@ -91,17 +94,27 @@ export async function loadProjectContext(admin: SupabaseClient, input: Pick<Inpu
   if (!projectRes.data) throw new Error('projet introuvable.')
   const project = projectRes.data as Project
 
-  const [clientRes, membersRes, projectMembersRes] = await Promise.all([
+  const [clientRes, membersRes, projectMembersRes, absencesRes] = await Promise.all([
     project.client_id
       ? admin.from('clients').select('*').eq('id', project.client_id).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     admin.from('members').select('*').eq('organization_id', project.organization_id).order('name'),
     admin.from('project_members').select('member_id').eq('project_id', project.id),
+    admin
+      .from('member_absences')
+      .select('member_id, start_date, end_date')
+      .eq('organization_id', project.organization_id),
   ])
   if (clientRes.error) throw new Error(`lecture du client : ${clientRes.error.message}`)
   if (membersRes.error) throw new Error(`lecture des membres : ${membersRes.error.message}`)
   if (projectMembersRes.error) throw new Error(`lecture des membres du projet : ${projectMembersRes.error.message}`)
-  const members = (membersRes.data as Member[] | null) ?? []
+  // Les absences ne sont qu'un critère de départage : si leur lecture échoue, on attribue sans elles.
+  if (absencesRes.error) console.error(`[assign] lecture des absences : ${absencesRes.error.message}`)
+  const absenceRows = absencesRes.error ? [] : ((absencesRes.data as { member_id: string; start_date: string; end_date: string }[] | null) ?? [])
+  const members: CandidateWithAbsences[] = ((membersRes.data as Member[] | null) ?? []).map((m) => ({
+    ...m,
+    absences: absenceRows.filter((a) => a.member_id === m.id),
+  }))
   const projectMemberIds = ((projectMembersRes.data as { member_id: string }[] | null) ?? []).map((row) => row.member_id)
   return {
     project,
@@ -207,6 +220,15 @@ export async function nextTaskPosition(admin: SupabaseClient, projectId: string)
 }
 
 /** Inserts the tickets (status "proposed") and their assigned tasks. Cleans up on failure. */
+/** Compétence qui pèse le plus d'heures dans les tâches du ticket (égalité : la première rencontrée). */
+function dominantSkill(tasks: readonly { skill: string; estimate_hours: number | null }[]): string | null {
+  const hours = new Map<string, number>()
+  for (const t of tasks) hours.set(t.skill, (hours.get(t.skill) ?? 0) + ticketHours([t]))
+  let best: string | null = null
+  for (const [skill, h] of hours) if (best === null || h > (hours.get(best) ?? 0)) best = skill
+  return best
+}
+
 async function saveTickets(
   admin: SupabaseClient,
   ctx: LoadedContext,
@@ -226,7 +248,7 @@ async function saveTickets(
     const designated = t.assignee_member_id ? candidateById.get(t.assignee_member_id) : undefined
     const picked = designated
       ? { member: designated, note: `Consigne du projet : ${t.assignment_reason ?? 'attribution demandée'}` }
-      : pickTicketAssignee(candidates, { area: t.area, hours }, workload, { today: new Date() })
+      : pickTicketAssignee(candidates, { area: t.area, title: t.title, skill: dominantSkill(t.tasks), hours }, workload, { today: new Date() })
     if (picked) addToWorkload(workload, picked.member.id, hours, t.area)
     return picked
   })

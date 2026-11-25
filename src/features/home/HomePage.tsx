@@ -5,9 +5,12 @@ import fileTextIcon from '../../assets/icons/file-text.svg'
 import receiptIcon from '../../assets/icons/receipt.svg'
 import targetIcon from '../../assets/icons/target.svg'
 import usersIcon from '../../assets/icons/users.svg'
+import { thresholdAlertSentence, dueSentence, dueSummary, followupsSentence, monthKey, monthRevenueSentence } from './homeLogic'
 import { todayIso } from '../../shared/billing'
 import { ADMIN_ROLES, FINANCE_ROLES, PROJECT_ROLES, PROSPECT_ROLES, useHasRole } from '../auth/roles'
 import { useCurrentMember } from '../auth/useCurrentMember'
+import { useThresholdAlert } from '../finance'
+import { useFollowupCount } from '../followups'
 import { HomeCard, SentenceText } from './HomeCard'
 import { RevenueChart } from './RevenueChart'
 import {
@@ -31,7 +34,7 @@ import {
   workSentence,
   workSummary,
 } from './homeLogic'
-import { useHomeInvoices, useHomeProspects, useHomeQuotes, useHomeTeam, useHomeWork, useWeekStart } from './useHome'
+import { useHomeDueTasks, useHomeInvoices, useHomeProspects, useHomeQuotes, useHomeTeam, useHomeWork, useWeekStart } from './useHome'
 import styles from './home.module.css'
 
 interface CardProps {
@@ -98,6 +101,46 @@ function WorkCard({ organizationId, memberId }: CardProps & { memberId: string }
   )
 }
 
+function DueTasksCard({ organizationId, memberId }: CardProps & { memberId: string }) {
+  const query = useHomeDueTasks(organizationId, memberId, true)
+  return (
+    <HomeCard icon={briefcaseIcon} label="Mes tâches du jour" to="/my-tasks" linkLabel="Voir mes tâches" isLoading={query.isLoading} isError={query.isError} onRetry={() => void query.refetch()}>
+      <SentenceText sentence={dueSentence(dueSummary(query.data ?? [], todayIso()))} />
+    </HomeCard>
+  )
+}
+
+function MonthRevenueCard({ organizationId }: CardProps) {
+  const query = useHomeInvoices(organizationId, true)
+  const key = monthKey(new Date())
+  const bar = useMemo(() => monthlyRevenue(query.data ?? [], [key])[0], [query.data, key])
+  return (
+    <HomeCard icon={briefcaseIcon} label="CA du mois" to="/finance" linkLabel="Voir la finance" isLoading={query.isLoading} isError={query.isError} onRetry={() => void query.refetch()}>
+      <SentenceText sentence={monthRevenueSentence(bar, key)} />
+    </HomeCard>
+  )
+}
+
+function FollowupsCard({ organizationId }: CardProps) {
+  const query = useFollowupCount(organizationId, true)
+  return (
+    <HomeCard icon={receiptIcon} label="Relances à faire" to="/finance" linkLabel="Préparer les relances" isLoading={query.isLoading} isError={query.isError} onRetry={() => void query.refetch()}>
+      <SentenceText sentence={followupsSentence(query.count)} />
+    </HomeCard>
+  )
+}
+
+/** Seuil de CA proche ou dépassé : la carte n'apparaît que s'il y a une alerte. */
+function ThresholdCard({ organizationId }: CardProps) {
+  const { alert } = useThresholdAlert(organizationId, true)
+  if (!alert) return null
+  return (
+    <HomeCard icon={briefcaseIcon} label="Seuil de chiffre d’affaires" to="/finance" linkLabel="Voir les seuils" isLoading={false} isError={false} onRetry={() => undefined}>
+      <SentenceText sentence={thresholdAlertSentence(alert.issuerName, alert.status)} />
+    </HomeCard>
+  )
+}
+
 function TeamCard({ organizationId }: CardProps) {
   const query = useHomeTeam(organizationId, true)
   return (
@@ -130,7 +173,11 @@ export function HomePage() {
         {showFinance ? <QuotesCard organizationId={organizationId} /> : null}
         {showFinance ? <InvoicesCard organizationId={organizationId} /> : null}
         {showFinance ? <FinanceCard organizationId={organizationId} /> : null}
+        {showFinance ? <MonthRevenueCard organizationId={organizationId} /> : null}
+        {showFinance ? <ThresholdCard organizationId={organizationId} /> : null}
+        {showFinance ? <FollowupsCard organizationId={organizationId} /> : null}
         {showProspects ? <ProspectsCard organizationId={organizationId} /> : null}
+        {showWork ? <DueTasksCard organizationId={organizationId} memberId={member.id} /> : null}
         {showWork ? <WorkCard organizationId={organizationId} memberId={member.id} /> : null}
         {showTeam ? <TeamCard organizationId={organizationId} /> : null}
       </div>

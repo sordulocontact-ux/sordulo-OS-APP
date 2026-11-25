@@ -1,0 +1,189 @@
+/* Styles propres au Réseau (fiche, formulaire). La liste réutilise dataTable.module.css. */
+
+/* Fiche */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.subtitle {
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-lg);
+}
+
+/* Infos : libellé à gauche, valeur à droite. */
+.infos {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-3) var(--space-6);
+  margin: 0;
+}
+
+.infos dt {
+  color: var(--color-text-muted);
+}
+
+.infos dd {
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.multiline {
+  white-space: pre-line;
+  font-weight: var(--font-weight-regular);
+}
+
+.empty {
+  color: var(--color-text-subtle);
+  font-weight: var(--font-weight-regular);
+}
+
+.link {
+  color: var(--color-link);
+}
+
+/* Étiquettes de compétences (liste, fiche, aperçu du formulaire). */
+.skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.skillsPreview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: calc(var(--space-2) * -1);
+}
+
+.suggestion {
+  padding: var(--space-1) var(--space-2);
+  border: var(--size-border) dashed var(--color-border);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--easing-standard), color var(--duration-fast) var(--easing-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .suggestion:hover {
+    border-color: var(--color-border-hover);
+    color: var(--color-text);
+  }
+}
+
+.suggestion:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.suggestion:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+/* Cellules du tableau */
+.nameCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.total {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Formulaires */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-menu-min), 1fr));
+  gap: var(--space-3);
+}
+
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.error {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.check input {
+  accent-color: var(--color-primary);
+}

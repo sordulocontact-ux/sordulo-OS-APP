@@ -1,0 +1,125 @@
+/* Page /proposals. Tableaux : dataTable.module.css ; cartes : Card. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.titleText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: var(--size-modal-max);
+}
+
+.lead,
+.muted {
+  color: var(--color-text-muted);
+}
+
+.replan {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.replan select {
+  width: auto;
+  min-width: var(--size-menu-min);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-lg);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--size-narrow-max)), 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: 100%;
+}
+
+.cardHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.cardTitle {
+  font-size: var(--font-size-md);
+  overflow-wrap: anywhere;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.explanation {
+  color: var(--color-text-muted);
+  white-space: pre-line;
+}
+
+.operations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--color-surface-muted);
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+
+.cardFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: auto;
+}
+
+.meta {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+}
+
+.statusCol {
+  width: var(--size-menu-min);
+}
+
+.dateCol {
+  width: var(--size-menu-min);
+}
+
+.actionCol {
+  width: var(--size-menu-min);
+  text-align: right;
+}

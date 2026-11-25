@@ -4,89 +4,266 @@
   background: var(--color-bg);
 }
 
-/* Figma « Sidebar » : 68 px, icônes 20 px, élément actif sur fond gris arrondi. */
+/* Figma « Sidebar » (88:3236) : 218 px dépliée, sections repliables ; repliée : 68 px, icônes seules. */
 .sidebar {
   position: sticky;
   top: 0;
   z-index: var(--z-header);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   flex-shrink: 0;
-  width: var(--size-sidebar);
+  width: var(--size-sidebar-expanded);
   height: 100vh;
   padding: var(--space-2);
   border-right: var(--size-border) solid var(--color-border-subtle);
   background: var(--color-surface);
 }
 
+.sidebar[data-collapsed] {
+  width: var(--size-sidebar);
+}
+
 .top {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: var(--space-6);
+  min-height: 0;
+}
+
+.brandRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) 0;
 }
 
 .brand {
   display: flex;
   align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.brandMark {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
   justify-content: center;
-  padding-top: var(--space-4);
+  width: var(--size-brand-mark);
+  height: var(--size-brand-mark);
+  border-radius: var(--radius-nav);
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  line-height: 1;
+}
+
+.brandName {
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.iconButton {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-nav);
+  background: transparent;
+  cursor: pointer;
+}
+
+.iconButton:focus-visible,
+.navItem:focus-visible,
+.groupTitle:focus-visible,
+.accountButton:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
 }
 
 .nav {
   display: flex;
   flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  padding-bottom: var(--space-16);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-1);
+}
+
+.groupTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-radius: var(--radius-nav);
+  background: transparent;
+  color: var(--color-text-subtle);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.chevron {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+}
+
+.groupTitle[aria-expanded='false'] .chevron {
+  transform: rotate(-90deg);
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .navItem {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
-  justify-content: center;
-  height: var(--size-control-md);
+  gap: var(--space-2);
+  width: 100%;
+  height: var(--size-nav-item);
+  padding: var(--space-2) var(--space-4);
+  border: 0;
   border-radius: var(--radius-nav);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
   transition: background var(--duration-fast) var(--easing-standard);
 }
 
-.navItem:hover {
-  background: var(--color-surface-hover);
+.navItem img {
+  flex-shrink: 0;
 }
 
-.navItem:focus-visible {
-  outline: none;
-  box-shadow: var(--shadow-focus);
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shortcut {
+  color: var(--color-text-subtle);
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .navItem:hover,
+  .iconButton:hover,
+  .groupTitle:hover {
+    background: var(--color-surface-hover);
+  }
 }
 
 .navActive {
   background: var(--color-surface-active);
 }
 
-.account {
+/* Repliée : icônes centrées, ni libellés ni titres de section (toutes les pages restent visibles). */
+.sidebar[data-collapsed] .brandRow {
+  flex-direction: column;
+  padding: var(--space-4) 0 0;
+}
+
+.sidebar[data-collapsed] .brand,
+.sidebar[data-collapsed] .brandName,
+.sidebar[data-collapsed] .label,
+.sidebar[data-collapsed] .shortcut,
+.sidebar[data-collapsed] .groupTitle,
+.sidebar[data-collapsed] .accountName {
+  display: none;
+}
+
+.sidebar[data-collapsed] .navItem {
+  justify-content: center;
+  padding: 0;
+}
+
+/* Pied : fondu au-dessus (le contenu de la navigation défile dessous), compte et cloche. */
+.footer {
   position: relative;
   display: flex;
-  justify-content: center;
-  padding: var(--space-3) 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
   border-top: var(--size-border) solid var(--color-border-subtle);
+  background: var(--color-surface);
+}
+
+.footer::before {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  left: 0;
+  height: var(--space-16);
+  background: linear-gradient(to bottom, transparent, var(--color-surface));
+  content: '';
+  pointer-events: none;
+}
+
+.sidebar[data-collapsed] .footer {
+  flex-direction: column;
+  padding: var(--space-3) 0;
 }
 
 .accountButton {
   display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
   padding: 0;
   border: 0;
   border-radius: var(--radius-pill);
   background: transparent;
+  color: var(--color-text);
+  font: inherit;
   cursor: pointer;
 }
 
-.accountButton:focus-visible {
-  outline: none;
-  box-shadow: var(--shadow-focus);
+.accountName {
+  overflow: hidden;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .menu {
   position: absolute;
   bottom: var(--space-2);
-  left: calc(100% + var(--space-2));
+  left: calc(100% + var(--space-4));
   z-index: var(--z-overlay);
   display: flex;
   flex-direction: column;
@@ -112,4 +289,12 @@
   min-width: 0;
   max-width: var(--size-content-max);
   padding: var(--space-9);
+}
+
+/* Minuteur en cours (suivi du temps) : pastille flottante en bas à droite, hors de la barre latérale trop étroite. */
+.floating {
+  position: fixed;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  z-index: var(--z-header);
 }

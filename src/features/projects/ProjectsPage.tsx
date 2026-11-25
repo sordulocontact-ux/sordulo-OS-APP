@@ -29,6 +29,16 @@ export function ProjectsPage() {
   const [editing, setEditing] = useState<ProjectWithClient | null>(null)
   // Finance lit la liste sans rien écrire ni ouvrir de projet (RLS et routes).
   const canWrite = useHasRole(PROJECT_ROLES)
+  // « Nouveau projet » de la palette Cmd+K : /projects?nouveau=1 ouvre la création.
+  const creatingFromUrl = params.get('nouveau') === '1'
+  function closeCreate() {
+    setCreating(false)
+    if (creatingFromUrl) {
+      const next = new URLSearchParams(params)
+      next.delete('nouveau')
+      setParams(next, { replace: true })
+    }
+  }
 
   const status = parseStatusParam(params.get('statut'))
   const client = params.get('client') ?? ''
@@ -202,8 +212,8 @@ export function ProjectsPage() {
       {canWrite ? (
         <>
           <ProjectFormModal
-            open={creating}
-            onClose={() => setCreating(false)}
+            open={creating || creatingFromUrl}
+            onClose={closeCreate}
             defaultClientId={client && client !== NO_CLIENT ? client : null}
             onSaved={(project) => void navigate(`/projects/${project.id}`)}
           />

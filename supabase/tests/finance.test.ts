@@ -125,6 +125,9 @@ describe('0004 : schéma', () => {
         'id', 'organization_id', 'company', 'website', 'contact_name', 'contact_email', 'contact_phone', 'source',
         'stage', 'next_action_date', 'notes', 'owner_member_id', 'client_id', 'won_at', 'created_by', 'created_at',
         'updated_at',
+        // 0014
+        'registered_at', 'audit', 'audit_status', 'audit_notes', 'audited_at', 'audited_by', 'recommended_service_id',
+        'offer_notes', 'pitch', 'lost_reason', 'do_not_contact',
       ],
       document_counters: ['organization_id', 'series', 'year', 'last_value'],
     }
@@ -597,13 +600,15 @@ describe('0004 : prospection', () => {
 
   it('prospection crée, lit et modifie ses prospects, sans les supprimer', async () => {
     const prospect = await newProspect(PROSP_A, { website: 'https://acme.test', contact_phone: '0102030405' })
-    expect(prospect).toMatchObject({ stage: 'to_contact', created_by: PROSP_A.member, owner_member_id: PROSP_A.member })
+    // 0014 : un prospect de l'apporteur commence « À auditer ».
+    expect(prospect).toMatchObject({ stage: 'to_audit', created_by: PROSP_A.member, owner_member_id: PROSP_A.member })
+    await q(ADMIN_A1, `update public.prospects set stage = 'offer_ready' where id = $1`, [prospect.id])
 
     const [updated] = await q<{ stage: string; next_action_date: string }>(
       PROSP_A,
-      `update public.prospects set stage = 'contacted', next_action_date = '2026-12-01', owner_member_id = $2
+      `update public.prospects set stage = 'contacted', next_action_date = '2026-12-01'
        where id = $1 returning stage, next_action_date::text`,
-      [prospect.id, ADMIN_A1.member],
+      [prospect.id],
     )
     expect(updated).toEqual({ stage: 'contacted', next_action_date: '2026-12-01' })
     expect(await count(ADMIN_A1, 'public.prospects')).toBe(1)
@@ -611,56 +616,64 @@ describe('0004 : prospection', () => {
     await expectCode(q(PROSP_A, `delete from public.prospects where id = $1`, [prospect.id]), '42501')
     await expectCode(q(PROSP_A, `update public.prospects set client_id = $2 where id = $1`, [prospect.id, CLIENT_A_FULL]), '42501')
     await expectCode(q(PROSP_A, `update public.prospects set stage = 'gagné' where id = $1`, [prospect.id]), '23514')
+    // 0014 : l'apporteur ne change pas le responsable (la commission en dépend).
     await expectCode(
-      q(PROSP_A, `update public.prospects set owner_member_id = $2 where id = $1`, [prospect.id, ADMIN_B.member]),
+      q(PROSP_A, `update public.prospects set owner_member_id = $2 where id = $1`, [prospect.id, ADMIN_A1.member]),
+      '42501',
+    )
+    await expectCode(
+      q(ADMIN_A1, `update public.prospects set owner_member_id = $2 where id = $1`, [prospect.id, ADMIN_B.member]),
       '23514',
     )
   })
 
   it('won_at suit le passage en « gagné » et ne peut pas être forcé', async () => {
-    const prospect = await newProspect()
+    // Admin : l'apporteur ne démarche pas avant l'audit (0014).
+    const prospect = await newProspect(ADMIN_A1)
     expect(prospect.won_at).toBeNull()
     await expectCode(q(PROSP_A, `update public.prospects set won_at = now() where id = $1`, [prospect.id]), '42501')
+    await expectCode(q(ADMIN_A1, `update public.prospects set won_at = now() where id = $1`, [prospect.id]), '42501')
 
     const [won] = await q<{ won_at: string | null }>(
-      PROSP_A,
+      ADMIN_A1,
       `update public.prospects set stage = 'won' where id = $1 returning won_at`,
       [prospect.id],
     )
     expect(won?.won_at).not.toBeNull()
     // Autre modification sans changer d'étape : la date reste.
     const [kept] = await q<{ won_at: string | null }>(
-      PROSP_A,
+      ADMIN_A1,
       `update public.prospects set notes = 'Signé' where id = $1 returning won_at`,
       [prospect.id],
     )
     expect(kept?.won_at).toEqual(won?.won_at)
     const [lost] = await q<{ won_at: string | null }>(
-      PROSP_A,
+      ADMIN_A1,
       `update public.prospects set stage = 'lost' where id = $1 returning won_at`,
       [prospect.id],
     )
     expect(lost?.won_at).toBeNull()
 
     const [direct] = await q<{ won_at: string | null }>(
-      PROSP_A,
+      ADMIN_A1,
       `insert into public.prospects (organization_id, company, stage) values ($1, 'Déjà gagné', 'won') returning won_at`,
       [ORG_A],
     )
     expect(direct?.won_at).not.toBeNull()
   })
 
-  it('membre, finance et une autre organisation ne voient pas les prospects', async () => {
+  it('finance et une autre organisation ne voient pas les prospects ; le membre si (audit, 0014)', async () => {
     await newProspect()
-    for (const who of [MEMBRE_A, FIN_A, ADMIN_B]) {
+    for (const who of [FIN_A, ADMIN_B]) {
       expect(await count(who, 'public.prospects')).toBe(0)
     }
-    await expectCode(newProspect(MEMBRE_A), '42501')
+    expect(await count(MEMBRE_A, 'public.prospects')).toBe(1)
     await expectCode(newProspect(FIN_A), '42501')
   })
 
   it('conversion idempotente : client + contact principal, prospect gagné', async () => {
     const prospect = await newProspect(PROSP_A, { website: 'https://acme.test', notes: 'Salon', contact_phone: '0102' })
+    await q(ADMIN_A1, `update public.prospects set stage = 'offer_ready' where id = $1`, [prospect.id]) // audit fait (0014)
     const clientsBefore = await count('postgres', 'public.clients')
 
     const [{ client_id: clientId }] = (await q<{ client_id: string }>(
@@ -708,9 +721,28 @@ describe('0004 : prospection', () => {
     expect(await count(ADMIN_A1, `public.client_contacts where client_id = '${clientId}'`)).toBe(0)
 
     const other = await newProspect()
-    await expectCode(q(MEMBRE_A, `select public.convert_prospect($1)`, [other.id]), '42501', /prospection/)
     await expectCode(q(FIN_A, `select public.convert_prospect($1)`, [other.id]), '42501')
     await expectCode(q(ADMIN_B, `select public.convert_prospect($1)`, [other.id]), '42501')
+  })
+
+  it('0017 : conversion par un membre, projet créé une fois ; l\'apporteur limité à ses prospects', async () => {
+    const mine = await newProspect(PROSP_A)
+    const notMine = await newProspect(ADMIN_A1) // ni créé par l'apporteur ni à lui
+    await expectCode(q(PROSP_A, `select public.convert_prospect($1)`, [notMine.id]), '42501', /apporteur/)
+
+    const [{ client_id: clientId }] = (await q<{ client_id: string }>(
+      MEMBRE_A,
+      `select public.convert_prospect($1, $2) as client_id`,
+      [mine.id, 'Site vitrine Acme'],
+    )) as [{ client_id: string }]
+    const projects = await q<{ name: string; status: string }>(
+      'postgres',
+      `select name, status from public.projects where client_id = $1`,
+      [clientId],
+    )
+    expect(projects).toEqual([{ name: 'Site vitrine Acme', status: 'prospect' }])
+    await q(MEMBRE_A, `select public.convert_prospect($1)`, [mine.id])
+    expect(await count('postgres', `public.projects where client_id = '${clientId}'`)).toBe(1)
   })
 })
 

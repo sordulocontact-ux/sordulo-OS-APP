@@ -1,0 +1,1 @@
+export { FilesAllPage } from './FilesAllPage'

@@ -265,3 +265,20 @@ export function useCreateInvoiceFromQuote() {
     onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.invoices() }),
   })
 }
+
+/** Propose les tickets et tâches d'un devis accepté (idempotent : renvoie l'entrée déjà créée). Renvoie l'id de l'entrée. */
+export function useProposeTasksFromQuote() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { quoteId: string; projectId: string }): Promise<string> => {
+      const { data, error } = await supabase.rpc('propose_tasks_from_quote', { p_quote_id: input.quoteId })
+      if (error) throw error
+      if (typeof data !== 'string') throw new Error('Réponse inattendue du serveur.')
+      return data
+    },
+    onSuccess: (_inputId, { projectId }) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.inputs(projectId) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tickets(projectId) })
+    },
+  })
+}

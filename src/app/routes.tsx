@@ -4,8 +4,25 @@ import { LoginPage } from '../features/auth/LoginPage'
 import { MemberGate } from '../features/auth/MemberGate'
 import { RequireAuth } from '../features/auth/RequireAuth'
 import { RequireRole } from '../features/auth/RequireRole'
-import { ADMIN_ROLES, CLIENT_READ_ROLES, FINANCE_ROLES, PROJECT_ROLES, PROSPECT_ROLES } from '../features/auth/roles'
+import { ADMIN_ROLES, ALL_ROLES, CLIENT_READ_ROLES, COMMISSION_ROLES, FINANCE_ROLES, PROJECT_ROLES, PROSPECT_ROLES } from '../features/auth/roles'
 import { ConnectorsPage } from '../features/connectors/ConnectorsPage'
+import { CatalogPage } from '../features/catalog'
+import { CommissionsPage } from '../features/commissions'
+import { ContractPage, ContractPrintPage, ContractsPage, ProjectContractsTab } from '../features/contracts'
+import { ProjectDeliverablesTab } from '../features/deliverables'
+import { EmailPage } from '../features/email'
+import { FileInboxPage, FileIntakePage, ProjectFilesTab } from '../features/files'
+import { FilesAllPage } from '../features/files-all'
+import { FinancePage } from '../features/finance'
+import { MyTasksPage } from '../features/my-tasks'
+import { NotesPage, ProjectNotesTab } from '../features/notes'
+import { NotificationsPage } from '../features/notifications'
+import { PartnerPage, PartnersPage } from '../features/partners'
+import { PortalPage } from '../features/portal'
+import { ProjectShareTab } from '../features/projects/ProjectShareTab'
+import { ProposalsPage } from '../features/proposals'
+import { RecapPage } from '../features/recap'
+import { ProjectTimeTab } from '../features/time'
 import { HomePage } from '../features/home/HomePage'
 import { InvoicePage } from '../features/invoices/InvoicePage'
 import { InvoicePrintPage } from '../features/invoices/InvoicePrintPage'
@@ -60,6 +77,8 @@ function RoutesTree() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/desktop/prompt" element={<DesktopPromptRoute />} />
+      {/* Portail client : lien public par projet, sans connexion ni barre latérale. */}
+      <Route path="/p/:token" element={<PortalPage />} />
       {/* Aperçus A4 imprimables : hors de la barre latérale. */}
       <Route
         element={
@@ -72,6 +91,17 @@ function RoutesTree() {
       >
         <Route path="/quotes/:quoteId/print" element={<QuotePrintPage />} />
         <Route path="/invoices/:invoiceId/print" element={<InvoicePrintPage />} />
+      </Route>
+      <Route
+        element={
+          <RequireAuth>
+            <MemberGate>
+              <Guard roles={FINANCE_ROLES} />
+            </MemberGate>
+          </RequireAuth>
+        }
+      >
+        <Route path="/contracts/:contractId/print" element={<ContractPrintPage />} />
       </Route>
       {IslandLab && (
         <Route
@@ -94,10 +124,26 @@ function RoutesTree() {
       >
         <Route path="/" element={<HomePage />} />
         <Route path="/download" element={<DownloadPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
+        <Route path="/notes" element={<NotesPage />} />
+        <Route element={<Guard roles={ALL_ROLES} />}>
+          <Route path="/connectors" element={<ConnectorsPage />} />
+        </Route>
         <Route element={<Guard roles={CLIENT_READ_ROLES} />}>
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/clients/:clientId" element={<ClientPage />} />
+          <Route path="/catalog" element={<CatalogPage />} />
+          <Route path="/recap" element={<RecapPage />} />
+          <Route path="/files/intake/:intakeId" element={<FileIntakePage />} />
+          <Route path="/files/inbox" element={<FileInboxPage />} />
+          <Route path="/files" element={<FilesAllPage />} />
+          <Route path="/email" element={<EmailPage />} />
+          <Route path="/partners" element={<PartnersPage />} />
+          <Route path="/partners/:partnerId" element={<PartnerPage />} />
+        </Route>
+        <Route element={<Guard roles={COMMISSION_ROLES} />}>
+          <Route path="/commissions" element={<CommissionsPage />} />
         </Route>
         <Route element={<Guard roles={PROJECT_ROLES} />}>
           <Route path="/projects/:projectId" element={<ProjectPage />}>
@@ -105,16 +151,28 @@ function RoutesTree() {
             <Route path="tickets" element={<TicketsTab />} />
             <Route path="tasks" element={<TasksTab />} />
             <Route path="inputs" element={<InputsTab />} />
+            <Route path="files" element={<ProjectFilesTab />} />
+            <Route path="notes" element={<ProjectNotesTab />} />
+            <Route path="deliverables" element={<ProjectDeliverablesTab />} />
+            <Route path="contracts" element={<ProjectContractsTab />} />
+            <Route path="time" element={<ProjectTimeTab />} />
+            <Route path="share" element={<ProjectShareTab />} />
           </Route>
           <Route path="/projects/:projectId/inputs/:inputId" element={<InputDetailPage />} />
           <Route path="/projects/:projectId/inputs/:inputId/review" element={<ReviewPage />} />
           <Route path="/calls" element={<CallsPage />} />
+          <Route path="/my-tasks" element={<MyTasksPage />} />
+          <Route path="/proposals" element={<ProposalsPage />} />
         </Route>
         <Route element={<Guard roles={FINANCE_ROLES} />}>
           <Route path="/quotes" element={<QuotesPage />} />
           <Route path="/quotes/:quoteId" element={<QuotePage />} />
           <Route path="/invoices" element={<InvoicesPage />} />
           <Route path="/invoices/:invoiceId" element={<InvoicePage />} />
+          <Route path="/finance" element={<FinancePage />} />
+          {/* Contrats : ils portent les prix du devis, donc admin et finance seulement (comme les devis). */}
+          <Route path="/contracts" element={<ContractsPage />} />
+          <Route path="/contracts/:contractId" element={<ContractPage />} />
         </Route>
         <Route element={<Guard roles={PROSPECT_ROLES} />}>
           <Route path="/prospects" element={<ProspectsPage />} />
@@ -123,7 +181,6 @@ function RoutesTree() {
         <Route element={<Guard roles={ADMIN_ROLES} />}>
           <Route path="/team" element={<TeamPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/connectors" element={<ConnectorsPage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>

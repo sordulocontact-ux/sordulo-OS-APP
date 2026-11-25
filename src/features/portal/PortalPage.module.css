@@ -1,0 +1,438 @@
+/* Portail client public : une colonne lisible sur téléphone, mêmes tokens que l'app. */
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  width: 100%;
+  max-width: var(--size-content-max);
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4) var(--space-12);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+@media (min-width: 40rem) {
+  .shell {
+    padding-inline: var(--space-8);
+  }
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.agency {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.projectName {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--font-size-2xl);
+  line-height: var(--line-height-tight);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.pending {
+  align-self: flex-start;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-warning-soft);
+  color: var(--color-text-heading);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--font-size-xl);
+}
+
+.sectionHint,
+.text {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-wrap: pretty;
+}
+
+.nameCard {
+  max-width: var(--size-search-max);
+}
+
+/* Avancement */
+.progressBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.progressLabel {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.progressTrack {
+  height: var(--space-2);
+  overflow: hidden;
+  background: var(--color-surface-active);
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--color-primary);
+  transform-origin: left center;
+  transition: transform var(--duration-normal) var(--easing-standard);
+}
+
+.areas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--size-menu-min), 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.area {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: var(--size-border) solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.areaName {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-heading);
+  overflow-wrap: anywhere;
+}
+
+.areaCounts {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cartes */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  overflow-wrap: anywhere;
+}
+
+.versions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.versionButton {
+  min-width: var(--size-control-md);
+  height: var(--size-control-md);
+  padding: 0 var(--space-3);
+  border: var(--size-border) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.versionButton:focus-visible,
+.linkButton:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.versionButtonActive {
+  border-color: var(--color-text-heading);
+  background: var(--color-text-heading);
+  color: var(--color-text-inverse);
+}
+
+.versionInfo {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.note {
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--color-surface-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.decision {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-4);
+  background: var(--color-primary-soft);
+}
+
+.decisionText {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-heading);
+}
+
+.decisionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.linkButton {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-link);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.form,
+.agreement {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.agreement {
+  padding-top: var(--space-4);
+  border-top: var(--size-border) solid var(--color-border);
+  max-width: var(--size-search-max);
+}
+
+.checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.checkbox input {
+  flex: none;
+  width: var(--size-icon-md);
+  height: var(--size-icon-md);
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+/* Devis */
+.tableScroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--size-border) solid var(--color-border-subtle);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+.num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.table th.num,
+.table td.num {
+  text-align: right;
+}
+
+.lineLabel {
+  display: block;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-heading);
+  overflow-wrap: anywhere;
+}
+
+.lineDescription {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.totals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-self: flex-end;
+  width: 100%;
+  max-width: var(--size-totals-max);
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.totals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.totals dt {
+  color: var(--color-text-muted);
+}
+
+.totals dd {
+  margin: 0;
+}
+
+.totalStrong dt,
+.totalStrong dd {
+  color: var(--color-text-heading);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Contrats */
+.details summary {
+  cursor: pointer;
+  color: var(--color-link);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.contractBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-4);
+  border: var(--size-border) solid var(--color-border-subtle);
+  background: var(--color-surface-muted);
+  line-height: var(--line-height-relaxed);
+  overflow-wrap: anywhere;
+}
+
+.contractBody p,
+.contractBody ul {
+  margin: 0;
+}
+
+.contractH1 {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-lg);
+}
+
+.contractH2 {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-md);
+}
+
+/* Factures */
+.invoiceList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.invoice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) 0;
+  border-bottom: var(--size-border) solid var(--color-border-subtle);
+}
+
+.invoice:last-child {
+  border-bottom: none;
+}
+
+.invoiceMain {
+  display: flex;
+  flex: 1 1 var(--size-menu-min);
+  flex-direction: column;
+  min-width: 0;
+}
+
+.invoiceAmount {
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.footer {
+  padding-top: var(--space-4);
+  border-top: var(--size-border) solid var(--color-border);
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+}
+
+.footer p {
+  margin: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .versionButton:not(.versionButtonActive):hover {
+    background: var(--color-surface-hover);
+  }
+}

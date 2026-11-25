@@ -1,0 +1,226 @@
+/* Cloche des notifications : bouton du modèle de la barre latérale (navItem), panneau du modèle du menu du compte. */
+.root {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  padding: 0;
+  border: var(--size-border) solid var(--color-border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--easing-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .button:hover {
+    background: var(--color-surface-hover);
+  }
+}
+
+.button[aria-expanded='true'] {
+  background: var(--color-surface-hover);
+}
+
+.button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* Figma 88:3236 : pastille bleue en haut à droite de la cloche quand des notifications ne sont pas lues
+   (le nombre est dans le nom accessible du bouton). */
+.dot {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  width: var(--size-notification-dot);
+  height: var(--size-notification-dot);
+  border-radius: var(--radius-pill);
+  background: var(--color-notification-dot);
+  pointer-events: none;
+}
+
+.panel {
+  position: absolute;
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  width: min(var(--size-narrow-max), calc(100vw - var(--size-sidebar) - var(--space-4)));
+  max-height: calc(100vh - var(--space-8));
+  border: var(--size-border) solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+  text-align: left;
+}
+
+.panel:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* Bas de la barre latérale : à droite, aligné en bas (comme le menu du compte). */
+.right-end {
+  bottom: 0;
+  left: calc(100% + var(--space-2));
+}
+
+/* Haut de la barre latérale : à droite, aligné en haut. */
+.right-start {
+  top: 0;
+  left: calc(100% + var(--space-2));
+}
+
+/* En-tête : sous le bouton, aligné à droite. */
+.bottom-end {
+  top: calc(100% + var(--space-1));
+  right: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border-bottom: var(--size-border) solid var(--color-border-subtle);
+}
+
+.title {
+  font-size: var(--font-size-md);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+}
+
+.emptyTitle {
+  font-weight: var(--font-weight-medium);
+}
+
+.muted {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.list {
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: start;
+  width: 100%;
+  padding: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.item:hover,
+.item:focus-visible {
+  background: var(--color-surface-muted);
+}
+
+.item:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.icon {
+  display: inline-flex;
+  padding-top: var(--space-1);
+  color: var(--color-text-muted);
+}
+
+.unread .icon {
+  color: var(--color-text);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.itemTitle {
+  overflow-wrap: anywhere;
+}
+
+.unreadTitle {
+  font-weight: var(--font-weight-medium);
+}
+
+.itemBody {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.meta {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+}
+
+.dot {
+  width: var(--size-status-dot);
+  height: var(--size-status-dot);
+  margin-top: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-danger);
+}
+
+.footer {
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--size-border) solid var(--color-border-subtle);
+  text-align: center;
+}
+
+.seeAll {
+  color: var(--color-link);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+}
+
+.seeAll:hover {
+  text-decoration: underline;
+}
+
+.seeAll:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}

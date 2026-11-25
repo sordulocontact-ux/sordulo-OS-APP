@@ -51,6 +51,8 @@ describe('migration 0003 : schéma et reprise des données', () => {
       members: [
         'id', 'organization_id', 'user_id', 'name', 'email', 'role', 'skills', 'weekly_capacity_hours',
         'unavailable_weekdays', 'invited_at', 'removed_at', 'created_at', 'updated_at',
+        // 0012
+        'affinities',
       ],
       clients: [
         'id', 'organization_id', 'name', 'siret', 'billing_street', 'billing_postal_code', 'billing_city',
@@ -64,6 +66,8 @@ describe('migration 0003 : schéma et reprise des données', () => {
       projects: [
         'id', 'organization_id', 'client_id', 'name', 'status', 'start_date', 'due_date', 'tone_of_voice',
         'ai_instructions',
+        // 0011
+        'feedback_rounds_included', 'showcase', 'case_study', 'portal_token',
         'created_at', 'updated_at',
       ],
       project_members: ['project_id', 'member_id', 'organization_id', 'created_at'],

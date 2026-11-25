@@ -1,0 +1,113 @@
+/* Maintenir pour parler : pas de menu contextuel ni de sélection sur un appui long (tactile). */
+.mic {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Écoute en cours : bouton en rouge, comme le point d'enregistrement de la fenêtre. */
+.live,
+.live:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.body p {
+  margin: 0;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-control-sm);
+  color: var(--color-text);
+}
+
+.dot {
+  flex: none;
+  width: var(--size-status-dot);
+  height: var(--size-status-dot);
+  border-radius: var(--radius-pill);
+  background: var(--color-danger);
+}
+
+.timer {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.hint,
+.muted {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.transcript {
+  padding-left: var(--space-3);
+  border-left: var(--size-border-strong) solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.answer {
+  color: var(--color-text);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+  overflow-wrap: anywhere;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.question {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  border-top: var(--size-border) solid var(--color-border);
+}
+
+.detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+  border-bottom: var(--size-border) solid var(--color-border);
+  font-size: var(--font-size-sm);
+}
+
+.detail dt {
+  color: var(--color-text-muted);
+}
+
+.detail dd {
+  min-width: 0;
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.error {
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}

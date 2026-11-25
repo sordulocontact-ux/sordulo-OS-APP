@@ -1,0 +1,259 @@
+/* Visionneuse : aperçu à gauche, commentaires à droite ; empilés sur petit écran. */
+.viewer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+@media (min-width: 64rem) {
+  .viewer {
+    grid-template-columns: minmax(0, 1fr) var(--size-kanban-column);
+    align-items: start;
+  }
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.hint,
+.muted {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--size-stat-card-min);
+  border: var(--size-border) dashed var(--color-border);
+  background: var(--color-surface-muted);
+}
+
+/* L'image garde sa taille naturelle (bornée à la largeur) : les épingles restent alignées. */
+.stageScroll {
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: var(--size-border) solid var(--color-border);
+  background: var(--color-surface-muted);
+}
+
+.stage {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.stageCommentable {
+  cursor: crosshair;
+}
+
+.image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  user-select: none;
+}
+
+.pin {
+  position: absolute;
+  left: calc(var(--pin-x) * 100%);
+  top: calc(var(--pin-y) * 100%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  padding: 0 var(--space-1);
+  border: var(--size-border-strong) solid var(--color-surface);
+  border-radius: var(--radius-pill);
+  background: var(--color-text-heading);
+  color: var(--color-text-inverse);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  box-shadow: var(--shadow-md);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  transition:
+    transform var(--duration-fast) var(--easing-standard),
+    background-color var(--duration-fast) var(--easing-standard);
+}
+
+.pinClient {
+  background: var(--color-primary);
+}
+
+.pinResolved {
+  opacity: var(--opacity-disabled);
+}
+
+.pinActive {
+  outline: var(--size-border-strong) solid var(--color-focus-ring);
+  outline-offset: var(--size-border);
+  transform: translate(-50%, -50%) scale(1.15);
+}
+
+.pin:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.pinDraft {
+  background: var(--color-surface);
+  color: var(--color-text-heading);
+  border-color: var(--color-primary);
+  border-style: dashed;
+  cursor: default;
+  pointer-events: none;
+}
+
+.pdf {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1.414;
+  border: var(--size-border) solid var(--color-border);
+  background: var(--color-surface-muted);
+}
+
+.openLink {
+  color: var(--color-link);
+  font-size: var(--font-size-sm);
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.sideHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.sideTitle {
+  margin: 0;
+  font-size: var(--font-size-md);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: var(--size-border) solid var(--color-border);
+  background: var(--color-surface);
+  scroll-margin: var(--space-4);
+}
+
+.itemActive {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.itemResolved .body {
+  color: var(--color-text-muted);
+}
+
+.itemHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.pinRef {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  padding: 0 var(--space-1);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-text-heading);
+  color: var(--color-text-inverse);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.pinRef.pinClient {
+  background: var(--color-primary);
+}
+
+.pinRef:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.author {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-heading);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.body {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.itemFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.date {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+}
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: var(--size-border) solid var(--color-border);
+}
+
+.composerLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.composerActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pin:hover {
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+}

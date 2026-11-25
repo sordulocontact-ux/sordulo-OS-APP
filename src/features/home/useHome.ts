@@ -4,7 +4,8 @@ import { signInMap, withSignIn } from '../team/teamLogic'
 import { supabase } from '../../lib/supabase'
 import { queryKeys } from '../../lib/queryKeys'
 import type { Member } from '../../shared/types'
-import { windowStartIso, weekStartIso, type HomeInvoice, type HomeProspect, type HomeQuote, type HomeTask } from './homeLogic'
+import { todayIso } from '../../shared/billing'
+import { windowStartIso, weekStartIso, type HomeDueTask, type HomeInvoice, type HomeProspect, type HomeQuote, type HomeTask } from './homeLogic'
 
 /** Une requête par carte, clés dérivées de `queryKeys.home(orgId)`. `enabled` : le rôle du membre. */
 
@@ -83,6 +84,26 @@ export function useHomeWork(organizationId: string, memberId: string, enabled: b
         .eq('assignee_member_id', memberId)
         .neq('status', 'done')
         .overrideTypes<HomeTask[], { merge: false }>()
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+/** Tâches du membre dont l'échéance est aujourd'hui ou dépassée (carte « Mes tâches du jour »). */
+export function useHomeDueTasks(organizationId: string, memberId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...queryKeys.home(organizationId), 'due-tasks', memberId] as const,
+    enabled,
+    queryFn: async (): Promise<HomeDueTask[]> => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('id, title, due_date, status')
+        .eq('assignee_member_id', memberId)
+        .neq('status', 'done')
+        .not('due_date', 'is', null)
+        .lte('due_date', todayIso())
+        .overrideTypes<HomeDueTask[], { merge: false }>()
       if (error) throw error
       return data
     },

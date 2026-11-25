@@ -1,0 +1,51 @@
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.overdue {
+  color: var(--color-danger);
+}
+
+.count {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+}
+
+.projectLink {
+  color: var(--color-link);
+}
+
+.dueOverdue {
+  color: var(--color-danger);
+  font-weight: var(--font-weight-medium);
+}
+
+.dueToday {
+  color: var(--color-warning);
+  font-weight: var(--font-weight-medium);
+}
+
+.done {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.summary {
+  margin-bottom: var(--space-3);
+  color: var(--color-link);
+  cursor: pointer;
+}
+
+.summary:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}

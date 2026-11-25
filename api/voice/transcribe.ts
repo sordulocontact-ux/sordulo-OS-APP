@@ -1,7 +1,8 @@
 /**
- * POST /api/voice/transcribe?projectId=<uuid>
+ * POST /api/voice/transcribe[?projectId=<uuid>]
  * Body = raw audio (audio/webm, audio/ogg, audio/mp4...). Transcribes a short voice note with Deepgram
- * and answers { text }. The audio is never stored. Reserved for active members of the project's organization.
+ * and answers { text }. The audio is never stored. Reserved for active members of the project's organization;
+ * without projectId (voice commands of the Cmd+K palette), for active members of any organization.
  */
 import { z } from 'zod'
 import { VOICE_NOTE_MAX_BYTES, type TranscribeVoiceResponse } from '../../src/shared/api-contract.js'
@@ -20,15 +21,30 @@ function isSupportedAudio(contentType: string): boolean {
 }
 
 export const POST = route(async (request) => {
-  const projectId = z.guid().safeParse(new URL(request.url).searchParams.get('projectId'))
-  if (!projectId.success) throw new HttpError(400, 'Projet invalide.')
+  const rawProjectId = new URL(request.url).searchParams.get('projectId')
+  const projectId = rawProjectId === null ? null : z.guid().safeParse(rawProjectId)
+  if (projectId && !projectId.success) throw new HttpError(400, 'Projet invalide.')
 
   const user = await requireUser(request)
   const admin = getSupabaseAdmin()
-  const { data, error } = await admin.from('projects').select('id, organization_id').eq('id', projectId.data).maybeSingle()
-  if (error) throw new Error(`Lecture du projet impossible : ${error.message}`)
-  if (!data) throw new HttpError(404, 'Projet introuvable.')
-  await requireOrgMember(user, (data as { organization_id: string }).organization_id)
+  if (projectId) {
+    const { data, error } = await admin.from('projects').select('id, organization_id').eq('id', projectId.data).maybeSingle()
+    if (error) throw new Error(`Lecture du projet impossible : ${error.message}`)
+    if (!data) throw new HttpError(404, 'Projet introuvable.')
+    await requireOrgMember(user, (data as { organization_id: string }).organization_id)
+  } else {
+    // Commande vocale : pas de projet, il suffit d'être membre actif d'une organisation.
+    const { data, error } = await admin
+      .from('members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .is('removed_at', null)
+      .limit(1)
+      .maybeSingle()
+    if (error) throw new Error(`Lecture des membres impossible : ${error.message}`)
+    if (!data) throw new HttpError(403, "Accès refusé : tu n'es membre d'aucune organisation.")
+    await requireOrgMember(user, (data as { organization_id: string }).organization_id)
+  }
 
   const contentType = request.headers.get('content-type') ?? ''
   if (!isSupportedAudio(contentType)) throw new HttpError(415, 'Format audio non pris en charge.')
@@ -49,6 +65,6 @@ export const POST = route(async (request) => {
     throw new HttpError(502, 'La transcription a échoué. Réessaie dans un instant.')
   }
 
-  console.log(`[voice] note transcrite (projet ${projectId.data}, ${audio.byteLength} octets)`)
+  console.log(`[voice] note transcrite (${projectId ? `projet ${projectId.data}` : 'commande vocale'}, ${audio.byteLength} octets)`)
   return json(200, { text } satisfies TranscribeVoiceResponse)
 })

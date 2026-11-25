@@ -43,6 +43,7 @@ function member(id: string, name: string): Member {
     removed_at: null,
     created_at: '',
     updated_at: '',
+    affinities: [],
   }
 }
 const candidates = [member(MAEL, 'Maël'), member(SACHA, 'Sacha')]

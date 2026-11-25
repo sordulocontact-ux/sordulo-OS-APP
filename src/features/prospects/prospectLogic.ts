@@ -1,7 +1,7 @@
-import { LABELS, type Prospect, type ProspectStage } from '../../shared/types'
+import { LABELS, PROSPECT_OUTREACH_STAGES, PROSPECT_STAGES, type MemberRole, type Prospect, type ProspectStage } from '../../shared/types'
 
 /** Étapes encore ouvertes (ni gagné ni perdu). */
-export const ACTIVE_STAGES: readonly ProspectStage[] = ['to_contact', 'contacted', 'followed_up', 'meeting']
+export const ACTIVE_STAGES: readonly ProspectStage[] = ['to_audit', 'offer_ready', 'to_contact', 'contacted', 'followed_up', 'meeting']
 
 export function isActiveStage(stage: ProspectStage): boolean {
   return stage !== 'won' && stage !== 'lost'
@@ -93,6 +93,8 @@ export function relativeAction(prospect: Pick<Prospect, 'stage' | 'next_action_d
 }
 
 export interface ProspectStats {
+  /** Sites en attente d'audit (étape « À auditer »). */
+  toAudit: number
   /** Prochaine action aujourd'hui ou en retard, hors gagnés et perdus. */
   toFollowUp: number
   ongoing: number
@@ -101,10 +103,16 @@ export interface ProspectStats {
 }
 
 export function prospectStats(prospects: readonly Prospect[], now: Date): ProspectStats {
-  const stats: ProspectStats = { toFollowUp: 0, ongoing: 0, wonThisMonth: 0 }
+  const stats: ProspectStats = {
+    toAudit: 0,
+    toFollowUp: 0,
+    ongoing: 0,
+    wonThisMonth: 0,
+  }
   for (const p of prospects) {
     if (isActiveStage(p.stage)) {
       stats.ongoing += 1
+      if (p.stage === 'to_audit') stats.toAudit += 1
       const days = daysUntil(p.next_action_date, now)
       if (days !== null && days <= 0) stats.toFollowUp += 1
     } else if (p.stage === 'won') {
@@ -132,6 +140,8 @@ export const SOURCE_SUGGESTIONS = ['Recommandation', 'Salon', 'Réseaux sociaux'
 
 /** Ton de pastille par étape. */
 export const STAGE_TONES = {
+  to_audit: 'neutral',
+  offer_ready: 'info',
   to_contact: 'neutral',
   contacted: 'info',
   followed_up: 'info',
@@ -139,3 +149,111 @@ export const STAGE_TONES = {
   won: 'success',
   lost: 'danger',
 } as const satisfies Record<ProspectStage, string>
+
+/* ---------- Droits : ce que la base accepte (migration 0014), pour ne proposer que des actions qui réussissent ---------- */
+
+/** Admin et membre : l'agence (audit, offre). Prospection : l'apporteur. */
+export function isAgencyRole(role: MemberRole | null | undefined): boolean {
+  return role === 'admin' || role === 'membre'
+}
+
+/**
+ * Étapes que ce rôle peut poser depuis l'étape actuelle (l'étape actuelle est toujours incluse, pour l'affichage).
+ * Agence : toutes. Apporteur : les étapes de démarche, et seulement « Perdu » tant que le prospect est « À auditer ».
+ */
+export function allowedStages(role: MemberRole | null | undefined, current: ProspectStage): ProspectStage[] {
+  if (isAgencyRole(role)) return [...PROSPECT_STAGES]
+  const reachable: readonly ProspectStage[] = current === 'to_audit' ? ['lost'] : PROSPECT_OUTREACH_STAGES
+  return PROSPECT_STAGES.filter((s) => s === current || reachable.includes(s))
+}
+
+/** « Convertir en client » : admin, membre, ou l'apporteur pour ses prospects (convert_prospect, migration 0017). */
+export function canConvertProspect(role: MemberRole | null | undefined): boolean {
+  return role === 'admin' || role === 'membre' || role === 'prospection'
+}
+
+/** « Offre prête » : l'agence, depuis « À auditer », une offre du catalogue choisie. */
+export function canMarkOfferReady(role: MemberRole | null | undefined, prospect: Pick<Prospect, 'stage'>, serviceId: string): boolean {
+  return isAgencyRole(role) && prospect.stage === 'to_audit' && serviceId !== ''
+}
+
+/** Raison de refus saisie : obligatoire, 1000 caractères au plus. Renvoie un message ou null. */
+export const LOST_REASON_MAX = 1000
+export function lostReasonError(text: string): string | null {
+  const value = text.trim()
+  if (value === '') return 'Indique la raison du refus.'
+  if (value.length > LOST_REASON_MAX) return `La raison est trop longue (${LOST_REASON_MAX} caractères au plus).`
+  return null
+}
+
+/** Pourquoi l'argumentaire ne peut pas être généré (même règle que l'action pitch), null sinon. */
+export function pitchBlockerText(
+  prospect: Pick<Prospect, 'audit' | 'audit_notes' | 'recommended_service_id' | 'do_not_contact'>,
+): string | null {
+  if (prospect.do_not_contact) return 'Ce prospect s’oppose à tout nouveau contact.'
+  if (!prospect.audit && !prospect.audit_notes?.trim()) return 'L’audit n’est pas encore fait.'
+  if (!prospect.recommended_service_id) return 'L’offre n’est pas encore choisie.'
+  return null
+}
+
+/** Suivre le pré-audit : en cours, ou tout juste lancé à la création (la base n'a pas encore noté « en cours »). */
+export function shouldPollAudit(prospect: Pick<Prospect, 'audit_status' | 'website' | 'created_at'>, now: Date): boolean {
+  if (prospect.audit_status === 'running') return true
+  if (prospect.audit_status !== 'none' || !prospect.website) return false
+  const age = now.getTime() - new Date(prospect.created_at).getTime()
+  return age >= 0 && age < 60_000
+}
+
+export type ScoreTone = 'success' | 'warning' | 'danger' | 'neutral'
+
+export function scoreTone(score: number | null | undefined): ScoreTone {
+  if (typeof score !== 'number') return 'neutral'
+  return score >= 75 ? 'success' : score >= 50 ? 'warning' : 'danger'
+}
+
+/** Ton de pastille par état du pré-audit. */
+export const AUDIT_TONES = {
+  none: 'neutral',
+  running: 'info',
+  done: 'success',
+  error: 'danger',
+} as const satisfies Record<Prospect['audit_status'], string>
+
+export const SEVERITY_TONES = {
+  high: 'danger',
+  medium: 'warning',
+  low: 'neutral',
+} as const
+export const SEVERITY_LABELS = {
+  high: 'Important',
+  medium: 'Moyen',
+  low: 'Mineur',
+} as const
+
+function isoDay(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/** Raccourcis de rappel : demain, dans 3 jours, dans une semaine (dates AAAA-MM-JJ locales). */
+export function reminderPresets(now: Date): { label: string; date: string }[] {
+  const at = (days: number) => isoDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() + days))
+  return [
+    { label: 'Demain', date: at(1) },
+    { label: 'Dans 3 jours', date: at(3) },
+    { label: 'Dans 1 semaine', date: at(7) },
+  ]
+}
+
+/** Date d'enregistrement affichable (« 25 novembre 2026 »), vide si invalide. */
+export function formatRegistered(date: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(date)
+  if (!match) return ''
+  return new Intl.DateTimeFormat('fr-FR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])))
+}

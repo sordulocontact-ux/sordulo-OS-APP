@@ -6,6 +6,9 @@ import { useSpotify } from './useSpotify'
 import { useVercel } from './useVercel'
 import { SpotifyConnectModal } from './SpotifyConnectModal'
 import { VercelConnectModal } from './VercelConnectModal'
+import { McpTokensModal } from './McpTokensModal'
+import { describeMcp } from './mcpTokens'
+import { useMcpTokens } from './useMcpTokens'
 import type { BadgeTone } from '../../components/ui/Badge'
 import styles from './connectors.module.css'
 
@@ -25,7 +28,7 @@ function Logo({ connector }: { connector: Connector }) {
   )
 }
 
-/** Carte à état vivant (Claude Code, Spotify, Vercel) : tout ce que la page affiche, quelle que soit la source. */
+/** Carte à état vivant (Claude Code, serveur MCP, Spotify, Vercel) : tout ce que la page affiche, quelle que soit la source. */
 interface LiveCard {
   badge: { tone: BadgeTone; label: string }
   state: string
@@ -64,10 +67,13 @@ export function ConnectorsPage() {
   const [selected, setSelected] = useState<Connector | null>(null)
 
   const [vercelOpen, setVercelOpen] = useState(false)
+  const [mcpOpen, setMcpOpen] = useState(false)
 
   const claudeCode = useClaudeCode()
   const spotify = useSpotify()
   const vercel = useVercel()
+  const mcp = useMcpTokens()
+  const mcpView = describeMcp({ loading: mcp.loading, loadFailed: mcp.loadFailed, activeCount: mcp.tokens.length })
 
   const live: Record<string, LiveCard> = {
     claude: {
@@ -99,6 +105,27 @@ export function ConnectorsPage() {
               spotify.run(kind)
             }
           : undefined,
+      },
+    },
+    mcp: {
+      badge: mcpView.badge,
+      state: mcpView.state,
+      error: null,
+      connected: mcpView.connected,
+      action: {
+        label: mcp.loadFailed ? 'Réessayer' : 'Gérer les jetons',
+        variant: mcpView.connected || mcp.loadFailed ? 'secondary' : 'primary',
+        loading: false,
+        disabled: mcp.loading,
+        run: () => {
+          if (mcp.loadFailed) {
+            mcp.retry()
+            return
+          }
+          // La fenêtre des jetons remplace la fenêtre Détails, comme pour Vercel.
+          setSelected(null)
+          setMcpOpen(true)
+        },
       },
     },
     vercel: {
@@ -185,7 +212,7 @@ export function ConnectorsPage() {
               <p className={styles.description}>{c.description}</p>
               {c.status === 'live' && live[c.id] ? (
                 <>
-                  {live[c.id]!.connected || c.id === 'vercel' ? (
+                  {live[c.id]!.connected || c.id === 'vercel' || c.id === 'mcp' ? (
                     <p className={styles.cardState}>{live[c.id]!.state}</p>
                   ) : live[c.id]!.notice ? (
                     <p className={styles.cardState}>{live[c.id]!.notice}</p>
@@ -253,6 +280,7 @@ export function ConnectorsPage() {
       </Modal>
 
       <VercelConnectModal open={vercelOpen} onClose={() => setVercelOpen(false)} vercel={vercel} />
+      <McpTokensModal open={mcpOpen} onClose={() => setMcpOpen(false)} mcp={mcp} />
       <SpotifyConnectModal spotify={spotify} />
     </section>
   )

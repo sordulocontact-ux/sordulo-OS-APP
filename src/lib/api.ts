@@ -56,7 +56,8 @@ async function send<TRes>(path: string, contentType: string, body: BodyInit): Pr
   return payload as TRes
 }
 
-function post<TReq, TRes>(path: string, body: TReq): Promise<TRes> {
+/** POST JSON authentifié (jeton Supabase), réutilisé par src/lib/ai.ts. */
+export function post<TReq, TRes>(path: string, body: TReq): Promise<TRes> {
   return send<TRes>(path, 'application/json', JSON.stringify(body))
 }
 

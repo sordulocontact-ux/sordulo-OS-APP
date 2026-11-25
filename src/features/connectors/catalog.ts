@@ -16,6 +16,8 @@ import figmaLogo from '../../assets/connectors/figma.svg'
 import qontoLogo from '../../assets/connectors/qonto.png'
 import pennylaneLogo from '../../assets/connectors/pennylane.svg'
 import meetZoomLogo from '../../assets/connectors/google-meet.svg'
+// Marque GitHub (Invertocat, tracé de simple-icons), 25/11/2026.
+import githubLogo from '../../assets/connectors/github.svg'
 
 export type ConnectorCategory = 'Communication' | 'Agenda' | 'Documents' | 'Design' | 'Paiement' | 'Comptabilité' | 'IA' | 'Infrastructure' | 'Musique'
 
@@ -46,7 +48,16 @@ export const CONNECTORS: Connector[] = [
     category: 'IA',
     description: 'Claude Code de cet ordinateur dans l’île (sessions, demandes d’autorisation).',
     details:
-      'Le relais Claude Code de cet ordinateur : les sessions Claude Code en cours et leurs demandes d’autorisation apparaissent dans l’île de l’app de bureau, où l’on peut les accepter ou les refuser. C’est le compte Claude Code de l’ordinateur, pas une clé API : la connexion est propre à cet ordinateur. Le branchement MCP viendra plus tard.',
+      'Le relais Claude Code de cet ordinateur : les sessions Claude Code en cours et leurs demandes d’autorisation apparaissent dans l’île de l’app de bureau, où l’on peut les accepter ou les refuser. C’est le compte Claude Code de l’ordinateur, pas une clé API : la connexion est propre à cet ordinateur. Pour que Claude lise vos projets, tâches et devis, voir la carte « Serveur MCP Sordulo OS ».',
+    status: 'live',
+  },
+  {
+    id: 'mcp',
+    name: 'Serveur MCP Sordulo OS',
+    category: 'IA',
+    description: 'Claude Code lit vos projets, tâches et devis, et crée ou modifie des tâches, avec vos droits.',
+    details:
+      'Le serveur MCP de Sordulo OS donne à Claude Code (ou à tout client MCP) l’accès à vos données, dans les deux sens : rechercher, lister les projets, voir un projet avec ses tickets et ses tâches, vos tâches, créer et modifier une tâche, les chiffres du mois (admin et finance), les prospects. Claude a exactement vos droits. L’accès passe par un jeton personnel, lié à votre compte Sordulo OS : il n’est montré qu’une fois et se révoque à tout moment.',
     status: 'live',
   },
   {
@@ -82,7 +93,7 @@ export const CONNECTORS: Connector[] = [
     logo: gmailLogo,
     name: 'Gmail',
     category: 'Communication',
-    description: 'Transformer un email client en entrée, sans copier-coller.',
+    description: 'Trier les emails clients en entrées, envoyer devis et factures, et envoyer les relances préparées.',
     status: 'soon',
   },
   {
@@ -90,7 +101,7 @@ export const CONNECTORS: Connector[] = [
     logo: googleAgendaLogo,
     name: 'Google Agenda',
     category: 'Agenda',
-    description: 'Proposer la transcription des réunions client prévues.',
+    description: 'Relier les calls prévus aux projets et proposer leur transcription.',
     status: 'soon',
   },
   {
@@ -130,7 +141,33 @@ export const CONNECTORS: Connector[] = [
     logo: stripeLogo,
     name: 'Stripe',
     category: 'Paiement',
-    description: 'Ajouter un lien de paiement sur les factures.',
+    description: 'Encaisser acomptes et factures en ligne, avec le paiement noté tout seul.',
+    status: 'soon',
+  },
+  {
+    id: 'yousign',
+    name: 'Yousign',
+    category: 'Documents',
+    description: 'Faire signer les contrats en ligne, avec la signature enregistrée sur le contrat.',
+    details:
+      'En attendant, un contrat se signe à la main (signature notée dans l’app) ou par le client sur le portail (nom tapé et case cochée).',
+    status: 'soon',
+  },
+  {
+    id: 'github',
+    logo: githubLogo,
+    name: 'GitHub',
+    category: 'Infrastructure',
+    description: 'Suivre les builds et les mises en ligne des projets clients depuis leur page.',
+    status: 'soon',
+  },
+  {
+    id: 'e-invoicing',
+    name: 'Facture électronique',
+    category: 'Comptabilité',
+    description: 'Émettre et recevoir les factures par une plateforme agréée, obligatoire au 1er septembre 2027.',
+    details:
+      'Depuis le 1er septembre 2026, toute entreprise doit pouvoir recevoir des factures électroniques ; à partir du 1er septembre 2027, les micro-entreprises et les PME devront aussi les émettre par une plateforme agréée. Ce connecteur enverra les factures émises dans Sordulo OS à la plateforme choisie et récupérera les factures reçues.',
     status: 'soon',
   },
   {

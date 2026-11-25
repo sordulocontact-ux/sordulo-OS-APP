@@ -1,0 +1,146 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.muted {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-sm);
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Jeton tout juste créé : mis en avant, c'est la seule fois où il est visible. */
+.created {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--size-border) solid var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.created .sectionTitle {
+  margin: 0;
+}
+
+.warning {
+  margin: 0;
+  color: var(--color-text);
+  font-weight: var(--font-weight-medium);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-5);
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-sm);
+}
+
+.codeRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.code {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: var(--size-border) solid var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.copy {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.copyStatus {
+  color: var(--color-danger);
+  font-size: var(--font-size-xs);
+}
+
+.copyStatus:empty {
+  display: none;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: var(--size-border) solid var(--color-border);
+}
+
+.row:last-child {
+  border-bottom: var(--size-border) solid var(--color-border);
+}
+
+.rowText {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.rowName {
+  overflow: hidden;
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowMeta {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-sm);
+}
+
+.rowMeta code {
+  font-family: var(--font-mono);
+}
+
+.rowActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}

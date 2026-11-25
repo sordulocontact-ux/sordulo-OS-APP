@@ -8,6 +8,7 @@ import { formatTimestamp, speakerLabel } from '../../shared/transcript'
 import type { Input } from '../../shared/types'
 import { DeleteInputButton } from './DeleteInputButton'
 import { DownloadInputButtons } from './DownloadInputButtons'
+import { BriefPanel } from '../briefs'
 import { ProposedTicketsPreview } from './ProposedTicketsPreview'
 import { useInputTickets } from '../review/useReviewData'
 import { InputStatusBadge } from './InputStatusBadge'
@@ -203,6 +204,8 @@ function InputDetail({ input, projectId }: { input: Input; projectId: string }) 
       ) : null}
 
       {ready ? <ProposedTicketsPreview input={input} /> : null}
+
+      {ready ? <BriefPanel inputId={input.id} /> : null}
 
       {input.kind === 'written' ? (
         <Card>

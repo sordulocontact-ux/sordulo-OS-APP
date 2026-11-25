@@ -1,9 +1,10 @@
 /**
  * Harnais commun des tests RLS (PGlite, Postgres en mémoire, ni base ni réseau).
  * Simule ce que Supabase fournit : rôles anon / authenticated / service_role, auth.users,
- * auth.sessions, auth.uid() et auth.jwt() (lus dans le réglage request.jwt.claims), storage.buckets.
- * Applique 0001, 0002, les données de départ, puis 0003, 0004, 0005, 0007, 0008 et 0009 deux fois chacune (elles
- * doivent être rejouables).
+ * auth.sessions, auth.uid() et auth.jwt() (lus dans le réglage request.jwt.claims), storage.buckets,
+ * storage.objects (RLS activée, droits de Supabase) et storage.foldername().
+ * Applique 0001, 0002, les données de départ, puis 0003 à 0020 deux fois chacune (elles doivent être
+ * rejouables).
  *
  * Chaque test tourne dans une transaction annulée à la fin : les données de départ restent intactes.
  * Chaque fichier de test a sa propre base (vitest isole les modules par fichier).
@@ -46,6 +47,29 @@ const SUPABASE_STUBS = `
     public          boolean,
     file_size_limit bigint
   );
+  -- Comme Supabase : RLS activée, tous les droits de table aux rôles de l'API (les politiques décident).
+  create table storage.objects (
+    id         uuid primary key default gen_random_uuid(),
+    bucket_id  text references storage.buckets (id),
+    name       text,
+    owner      uuid,
+    created_at timestamptz default now(),
+    updated_at timestamptz default now(),
+    unique (bucket_id, name)
+  );
+  alter table storage.objects enable row level security;
+  -- Dossiers d'un chemin (tous les segments sauf le dernier), comme storage.foldername de Supabase.
+  create function storage.foldername(name text) returns text[] language plpgsql immutable as $$
+  declare
+    _parts text[];
+  begin
+    select string_to_array(name, '/') into _parts;
+    return _parts[1 : array_length(_parts, 1) - 1];
+  end
+  $$;
+  grant usage on schema storage to anon, authenticated, service_role;
+  grant all on storage.objects, storage.buckets to anon, authenticated, service_role;
+  grant execute on all functions in schema storage to anon, authenticated, service_role;
 `
 
 // Identifiants fixes des données de départ.
@@ -144,12 +168,36 @@ export function setupDatabase(extraSql = '') {
     await db.exec(migration('0004_finance_prospection.sql')) // rejouable
     await db.exec(migration('0005_billing_issuers.sql'))
     await db.exec(migration('0005_billing_issuers.sql')) // rejouable
+    await db.exec(migration('0006_task_assigned_by.sql'))
+    await db.exec(migration('0006_task_assigned_by.sql')) // rejouable
     await db.exec(migration('0007_project_ai_instructions.sql'))
     await db.exec(migration('0007_project_ai_instructions.sql')) // rejouable
     await db.exec(migration('0008_vercel_connections.sql'))
     await db.exec(migration('0008_vercel_connections.sql')) // rejouable
     await db.exec(migration('0009_spotify_connections.sql'))
     await db.exec(migration('0009_spotify_connections.sql')) // rejouable
+    await db.exec(migration('0010_files.sql'))
+    await db.exec(migration('0010_files.sql')) // rejouable
+    await db.exec(migration('0011_catalog_briefs.sql'))
+    await db.exec(migration('0011_catalog_briefs.sql')) // rejouable
+    await db.exec(migration('0012_work.sql'))
+    await db.exec(migration('0012_work.sql')) // rejouable
+    await db.exec(migration('0013_notifications_ai.sql'))
+    await db.exec(migration('0013_notifications_ai.sql')) // rejouable
+    await db.exec(migration('0014_prospection.sql'))
+    await db.exec(migration('0014_prospection.sql')) // rejouable
+    await db.exec(migration('0015_contracts_deliverables.sql'))
+    await db.exec(migration('0015_contracts_deliverables.sql')) // rejouable
+    await db.exec(migration('0016_task_done_at.sql'))
+    await db.exec(migration('0016_task_done_at.sql')) // rejouable
+    await db.exec(migration('0017_convert_prospect_project.sql'))
+    await db.exec(migration('0017_convert_prospect_project.sql')) // rejouable
+    await db.exec(migration('0018_import_document_from_file.sql'))
+    await db.exec(migration('0018_import_document_from_file.sql')) // rejouable
+    await db.exec(migration('0019_security_hardening.sql'))
+    await db.exec(migration('0019_security_hardening.sql')) // rejouable
+    await db.exec(migration('0020_partners_notes.sql'))
+    await db.exec(migration('0020_partners_notes.sql')) // rejouable
     if (extraSql) await db.exec(extraSql)
   })
 

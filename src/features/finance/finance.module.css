@@ -1,0 +1,227 @@
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.header h1 {
+  margin: 0;
+}
+
+.yearSelect {
+  width: auto;
+  min-width: var(--size-menu-min);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.section h2 {
+  margin: 0;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.dangerStat > div {
+  color: var(--color-danger);
+}
+
+/* Graphique : mêmes teintes que l'Accueil (noir = encaissé, gris = facturé), en plus haut. */
+.chartCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: var(--size-border) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.chart {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.month {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+  height: calc(var(--size-chart-height) * 3);
+}
+
+.bar {
+  width: var(--size-chart-bar);
+}
+
+.collected {
+  background: var(--color-text);
+}
+
+.invoiced {
+  background: var(--color-border);
+}
+
+.monthLabel {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.swatch {
+  width: var(--size-status-dot);
+  height: var(--size-status-dot);
+}
+
+/* Seuils : une carte par émetteur, une jauge par seuil. */
+.issuers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-menu-min), 1fr));
+  gap: var(--space-4);
+}
+
+.issuer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: var(--size-border) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  min-width: 0;
+}
+
+.issuerHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.issuerName {
+  font-weight: var(--font-weight-medium);
+}
+
+.gauges {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gauge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.gaugeLabel {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.gaugeValue {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.track {
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-muted);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  background: var(--color-text);
+}
+
+.fillWarning {
+  background: var(--color-warning);
+}
+
+.fillExceeded {
+  background: var(--color-danger);
+}
+
+/* Répartition. */
+.balance {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-heading);
+}
+
+.amount {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.amount.amount {
+  text-align: right;
+}
+
+.late {
+  display: inline-flex;
+  margin-left: var(--space-2);
+}
+
+.alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft);
+  color: var(--color-text);
+}
+
+.alertDanger {
+  background: var(--color-danger-soft);
+}

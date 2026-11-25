@@ -27,6 +27,8 @@ function task(id: string, over: Partial<BoardTask> = {}): BoardTask {
     status: 'todo',
     depends_on_task_id: null,
     position: 1,
+    due_date: null,
+    priority: 'medium',
     created_at: '2026-11-18T10:00:00Z',
     ticket: { id: 't', title: 'T', type: 'bug', priority: 'low', status: 'validated' },
     ...over,

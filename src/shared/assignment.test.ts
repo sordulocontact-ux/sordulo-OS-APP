@@ -5,6 +5,8 @@ import {
   assignmentCandidates,
   canBeAutoAssigned,
   emptyWorkload,
+  isAbsentOn,
+  parisDate,
   pickAssignee,
   parisWeekday,
   pickTicketAssignee,
@@ -217,5 +219,82 @@ describe('parisWeekday', () => {
     expect(parisWeekday(new Date('2026-11-22T23:00:00Z'))).toBe(1) // 00:00 lundi à Paris
     expect(parisWeekday(new Date('2026-07-12T21:59:59Z'))).toBe(7) // été (UTC+2) : 23:59:59
     expect(parisWeekday(new Date('2026-07-12T22:00:00Z'))).toBe(1)
+  })
+})
+
+describe('pickTicketAssignee : niveau, absences datées et affinités', () => {
+  const TODAY = new Date('2026-11-25T10:00:00Z') // mercredi
+  const base = { weekly_capacity_hours: 35, unavailable_weekdays: [] as Weekday[] }
+  const ana = { ...base, id: 'a', name: 'Ana', skills: { motion: 2 } }
+  const bob = { ...base, id: 'b', name: 'Bob', skills: { motion: 5 } }
+  const opts = { today: TODAY }
+
+  it('à charge comparable, le meilleur niveau passe devant', () => {
+    const load = emptyWorkload()
+    addToWorkload(load, 'b', 2, null) // 0,06 d'écart : comparable
+    expect(pickTicketAssignee([ana, bob], { area: null, skill: 'motion' }, load, opts)?.member.id).toBe('b')
+    expect(pickTicketAssignee([ana, bob], { area: null }, load, opts)?.member.id).toBe('a')
+  })
+
+  it('un niveau supérieur ne compense pas une charge nettement plus lourde', () => {
+    const load = emptyWorkload()
+    addToWorkload(load, 'b', 10, null) // 0,29 d'écart
+    expect(pickTicketAssignee([ana, bob], { area: null, skill: 'motion' }, load, opts)?.member.id).toBe('a')
+  })
+
+  it('relègue un membre absent aujourd’hui', () => {
+    const absent = { ...bob, absences: [{ start_date: '2026-11-24', end_date: '2026-11-26' }] }
+    expect(pickTicketAssignee([ana, absent], { area: null, skill: 'motion' }, emptyWorkload(), opts)?.member.id).toBe('a')
+  })
+
+  it('relègue un membre absent à l’échéance', () => {
+    const absent = { ...bob, absences: [{ start_date: '2026-12-01', end_date: '2026-12-05' }] }
+    const ticket = { area: null, skill: 'motion', dueDate: '2026-12-03' }
+    expect(pickTicketAssignee([ana, absent], ticket, emptyWorkload(), opts)?.member.id).toBe('a')
+    expect(pickTicketAssignee([ana, absent], { ...ticket, dueDate: '2026-12-10' }, emptyWorkload(), opts)?.member.id).toBe('b')
+  })
+
+  it('garde le moins chargé quand tout le monde est absent', () => {
+    const away = [{ start_date: '2026-11-25', end_date: '2026-11-25' }]
+    const load = emptyWorkload()
+    addToWorkload(load, 'b', 8, null)
+    const picked = pickTicketAssignee([{ ...ana, absences: away }, { ...bob, absences: away }], { area: null }, load, opts)
+    expect(picked?.member.id).toBe('a')
+    expect(picked?.note).toContain('tout le monde')
+  })
+
+  it('les affinités départagent seulement, sans accents ni casse', () => {
+    const fan = { ...ana, id: 'f', name: 'Zed', skills: {}, affinities: ['Identité Visuelle'] }
+    const other = { ...ana, id: 'o', name: 'Abel', skills: {}, affinities: ['web'] }
+    const ticket = { area: 'identite visuelle', title: 'Refaire le logo' }
+    const picked = pickTicketAssignee([other, fan], ticket, emptyWorkload(), opts)
+    expect(picked?.member.id).toBe('f')
+    expect(picked?.note).toContain('aime « Identité Visuelle »')
+    // Une charge nettement plus lourde l'emporte sur l'affinité.
+    const load = emptyWorkload()
+    addToWorkload(load, 'f', 10, null)
+    expect(pickTicketAssignee([other, fan], ticket, load, opts)?.member.id).toBe('o')
+  })
+
+  it('le niveau l’emporte sur l’affinité', () => {
+    const fan = { ...ana, id: 'f', affinities: ['motion'] }
+    expect(pickTicketAssignee([fan, bob], { area: null, title: 'Motion du logo', skill: 'motion' }, emptyWorkload(), opts)?.member.id).toBe('b')
+  })
+
+  it('garde la capacité 0 exclue même avec le meilleur niveau', () => {
+    expect(pickTicketAssignee([{ ...bob, weekly_capacity_hours: 0 }, ana], { area: null, skill: 'motion' }, emptyWorkload(), opts)?.member.id).toBe('a')
+  })
+})
+
+describe('isAbsentOn et parisDate', () => {
+  it('bornes comprises', () => {
+    const a = [{ start_date: '2026-12-01', end_date: '2026-12-03' }]
+    expect(isAbsentOn(a, '2026-12-01')).toBe(true)
+    expect(isAbsentOn(a, '2026-12-03')).toBe(true)
+    expect(isAbsentOn(a, '2026-12-04')).toBe(false)
+    expect(isAbsentOn(a, null)).toBe(false)
+  })
+  it('date à Paris', () => {
+    expect(parisDate(new Date('2026-11-22T23:30:00Z'))).toBe('2026-11-23')
   })
 })

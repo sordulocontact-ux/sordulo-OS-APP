@@ -1,5 +1,5 @@
-import { useId, useState } from 'react'
-import { Button, Select, TextInput } from '../../components/ui'
+import { useId, useState, type ReactNode } from 'react'
+import { Badge, Button, Select, TextInput } from '../../components/ui'
 import {
   computeTotals,
   defaultLine,
@@ -16,6 +16,7 @@ import {
   type ParseResult,
 } from '../../shared/billing'
 import { LABELS, LINE_UNITS, type DocumentLine, type LineUnit, type Organization } from '../../shared/types'
+import { REBILLED_HELP } from './lineHelp'
 import styles from './LinesEditor.module.css'
 
 export interface LinesEditorProps {
@@ -28,6 +29,8 @@ export interface LinesEditorProps {
   allowNegative?: boolean
   /** Montre aussi les erreurs de champs vides ou hors règle (à activer après une tentative d'enregistrement). */
   showErrors?: boolean
+  /** Boutons ajoutés à côté de « Ajouter une ligne » (ex. « Ajouter depuis le catalogue »). */
+  extraActions?: ReactNode
 }
 
 interface NumberFieldProps {
@@ -80,7 +83,7 @@ function NumberField({ label, value, format, parse, onValue, error, disabled, in
 }
 
 /** Édition des lignes d'un devis ou d'une facture, avec totaux HT, TVA par taux et TTC. */
-export function LinesEditor({ lines, onChange, org, readOnly = false, allowNegative = false, showErrors = true }: LinesEditorProps) {
+export function LinesEditor({ lines, onChange, org, readOnly = false, allowNegative = false, showErrors = true, extraActions }: LinesEditorProps) {
   const labelErrorBase = useId()
   const errors = validateLines(lines, { allowNegative })
   const totals = computeTotals(lines)
@@ -123,6 +126,11 @@ export function LinesEditor({ lines, onChange, org, readOnly = false, allowNegat
               <th scope="col" className={[styles.colVat, readOnly ? styles.right : ''].join(' ')}>
                 TVA
               </th>
+              {readOnly ? null : (
+                <th scope="col" className={styles.colRebilled} title={REBILLED_HELP}>
+                  Refacturé
+                </th>
+              )}
               <th scope="col" className={styles.colTotal}>
                 Total HT
               </th>
@@ -136,7 +144,7 @@ export function LinesEditor({ lines, onChange, org, readOnly = false, allowNegat
           <tbody>
             {lines.length === 0 ? (
               <tr>
-                <td colSpan={readOnly ? 6 : 7} className={styles.empty}>
+                <td colSpan={readOnly ? 6 : 8} className={styles.empty}>
                   Aucune ligne.
                 </td>
               </tr>
@@ -152,6 +160,11 @@ export function LinesEditor({ lines, onChange, org, readOnly = false, allowNegat
                     <td>
                       <span className={styles.readLabel}>{line.label}</span>
                       {line.description ? <span className={styles.readDescription}>{line.description}</span> : null}
+                      {line.rebilled ? (
+                        <span className={styles.readTag} title={REBILLED_HELP}>
+                          <Badge tone="info">Frais refacturés</Badge>
+                        </span>
+                      ) : null}
                     </td>
                     <td className={styles.readNumber}>{formatQuantity(line.quantity)}</td>
                     <td>{LABELS.lineUnit[line.unit]}</td>
@@ -234,6 +247,16 @@ export function LinesEditor({ lines, onChange, org, readOnly = false, allowNegat
                       disabled={readOnly}
                     />
                   </td>
+                  <td className={styles.rebilledCell}>
+                    <input
+                      type="checkbox"
+                      className={styles.rebilled}
+                      checked={line.rebilled === true}
+                      title={REBILLED_HELP}
+                      aria-label={`Frais refacturés, ligne ${n} : exclus de la commission de l’apporteur`}
+                      onChange={(event) => update(index, { rebilled: event.target.checked ? true : null })}
+                    />
+                  </td>
                   <td className={styles.total}>{formatMoney(lineHtCents(line))}</td>
                   {readOnly ? null : (
                     <td>
@@ -279,8 +302,10 @@ export function LinesEditor({ lines, onChange, org, readOnly = false, allowNegat
           <Button size="sm" onClick={() => onChange([...lines, defaultLine(org, 'day')])}>
             Ajouter une ligne
           </Button>
+          {extraActions}
         </div>
       )}
+      {readOnly || lines.length === 0 ? null : <p className={styles.help}>{REBILLED_HELP}</p>}
 
       <dl className={styles.totals} aria-label="Totaux">
         <div className={styles.totalRow}>

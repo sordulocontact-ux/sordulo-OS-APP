@@ -4,8 +4,11 @@ import { Button, Field, Modal, Select, Textarea, TextInput, useToast } from '../
 import { useCurrentMember, useOrgMembers } from '../auth'
 import { supabase } from '../../lib/supabase'
 import { queryKeys } from '../../lib/queryKeys'
-import { AI_INSTRUCTIONS_MAX_LENGTH, LABELS, PROJECT_STATUSES, type Project, type ProjectStatus } from '../../shared/types'
-import { diffMembers, TONE_TEMPLATES, validateDates } from './projectLogic'
+import {
+  AI_INSTRUCTIONS_MAX_LENGTH, DEFAULT_FEEDBACK_ROUNDS, LABELS, PROJECT_SHOWCASES, PROJECT_STATUSES, type Project, type ProjectShowcase,
+  type ProjectStatus,
+} from '../../shared/types'
+import { diffMembers, MAX_FEEDBACK_ROUNDS, parseRounds, SHOWCASE_LABELS, TONE_TEMPLATES, validateDates, validateRounds } from './projectLogic'
 import { useClientOptions } from './useClientOptions'
 import { useProjectMembers } from './useProjectMembers'
 import styles from './ProjectFormModal.module.css'
@@ -42,6 +45,8 @@ function ProjectForm({ open, onClose, project, defaultClientId, onSaved }: Proje
   const [status, setStatus] = useState<ProjectStatus>(project?.status ?? 'in_progress')
   const [startDate, setStartDate] = useState(project?.start_date ?? '')
   const [dueDate, setDueDate] = useState(project?.due_date ?? '')
+  const [rounds, setRounds] = useState(String(project?.feedback_rounds_included ?? DEFAULT_FEEDBACK_ROUNDS))
+  const [showcase, setShowcase] = useState<ProjectShowcase>(project?.showcase ?? 'unknown')
   const [tone, setTone] = useState(project?.tone_of_voice ?? '')
   const [aiInstructions, setAiInstructions] = useState(project?.ai_instructions ?? '')
   const [picked, setPicked] = useState<Set<string> | null>(null)
@@ -56,6 +61,7 @@ function ProjectForm({ open, onClose, project, defaultClientId, onSaved }: Proje
   const selected = picked ?? new Set((currentMembers ?? []).map((m) => m.member_id))
   const activeMembers = (orgMembers ?? []).filter((m) => m.removed_at === null)
   const dateError = validateDates(startDate, dueDate)
+  const roundsError = validateRounds(rounds)
 
   function toggleMember(id: string) {
     const next = new Set(selected)
@@ -109,6 +115,8 @@ function ProjectForm({ open, onClose, project, defaultClientId, onSaved }: Proje
       due_date: dueDate || null,
       tone_of_voice: tone.trim() || null,
       ai_instructions: aiInstructions.trim() || null,
+      feedback_rounds_included: parseRounds(rounds) ?? DEFAULT_FEEDBACK_ROUNDS,
+      showcase,
     }
     let saved: Project
     if (target) {
@@ -143,7 +151,7 @@ function ProjectForm({ open, onClose, project, defaultClientId, onSaved }: Proje
       return
     }
     setNameError(null)
-    if (dateError) return
+    if (dateError || roundsError) return
     if (!organizationId) {
       setError('Ton profil n\'est pas chargé. Réessaie dans un instant.')
       return
@@ -223,6 +231,34 @@ function ProjectForm({ open, onClose, project, defaultClientId, onSaved }: Proje
           </Field>
           <Field label="Date d'échéance" error={dateError}>
             <TextInput type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} disabled={busy} />
+          </Field>
+        </div>
+
+        <div className={styles.dates}>
+          <Field
+            label="Rounds de retours prévus"
+            hint="Nombre d'allers-retours compris dans le devis."
+            error={roundsError}
+          >
+            <TextInput
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={MAX_FEEDBACK_ROUNDS}
+              step={1}
+              value={rounds}
+              onChange={(e) => setRounds(e.target.value)}
+              disabled={busy}
+            />
+          </Field>
+          <Field label="Diffusion" hint="Peut-on montrer ce projet (portfolio) ?">
+            <Select value={showcase} onChange={(e) => setShowcase(e.target.value as ProjectShowcase)} disabled={busy}>
+              {PROJECT_SHOWCASES.map((s) => (
+                <option key={s} value={s}>
+                  {SHOWCASE_LABELS[s]}
+                </option>
+              ))}
+            </Select>
           </Field>
         </div>
 

@@ -1,0 +1,61 @@
+/* Page /notifications. La liste réutilise dataTable.module.css. */
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.check input {
+  accent-color: var(--color-primary);
+}
+
+.kindCol {
+  width: var(--size-home-card-min);
+}
+
+.dateCol {
+  width: var(--size-menu-min);
+}
+
+.nameCell {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.icon {
+  display: inline-flex;
+  padding-top: var(--space-1);
+  color: var(--color-text-muted);
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.unreadTitle {
+  font-weight: var(--font-weight-semibold);
+}
+
+.dot {
+  flex-shrink: 0;
+  width: var(--size-status-dot);
+  height: var(--size-status-dot);
+  margin-top: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-danger);
+}

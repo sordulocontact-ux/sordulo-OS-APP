@@ -3,11 +3,16 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Button, Field, Modal, Select, TextInput, useToast } from '../../components/ui'
 import { supabase } from '../../lib/supabase'
 import { queryKeys } from '../../lib/queryKeys'
-import { LABELS, MEMBER_ROLES, SKILL_LEVEL_MAX, SKILL_LEVEL_MIN, SKILLS, WEEKDAYS, type Member, type MemberRole, type Skill, type Weekday } from '../../shared/types'
-import { buildSkills, levelToSelect, parseCapacity, ROLE_HELP, translateMemberError } from './teamLogic'
+import { LABELS, MEMBER_ROLES, WEEKDAYS, type Member, type MemberRole, type Weekday } from '../../shared/types'
+import { useHasRole } from '../auth'
+import { AbsencesEditor } from './AbsencesEditor'
+import { AffinitiesEditor } from './AffinitiesEditor'
+import { CommissionPlanEditor } from './CommissionPlanEditor'
+import { rowsToSkills, skillsToRows, type SkillRow } from './profileLogic'
+import { SkillsEditor } from './SkillsEditor'
+import { parseCapacity, ROLE_HELP, translateMemberError } from './teamLogic'
 import styles from './TeamPage.module.css'
-
-const LEVELS = Array.from({ length: SKILL_LEVEL_MAX - SKILL_LEVEL_MIN + 1 }, (_, i) => SKILL_LEVEL_MIN + i)
+import profile from './ProfileEditors.module.css'
 
 export interface EditMemberModalProps {
   member: Member
@@ -21,16 +26,15 @@ export function EditMemberModal({ member, currentMemberId, currentUserId, onClos
   const queryClient = useQueryClient()
   const toast = useToast()
   const [role, setRole] = useState<MemberRole>(member.role)
-  const [levels, setLevels] = useState<Record<Skill, string>>({
-    design: levelToSelect(member.skills.design),
-    dev: levelToSelect(member.skills.dev),
-  })
+  const [skillRows, setSkillRows] = useState<SkillRow[]>(() => skillsToRows(member.skills))
+  const [affinities, setAffinities] = useState<string[]>(member.affinities ?? [])
   const [capacity, setCapacity] = useState(String(member.weekly_capacity_hours))
   const [days, setDays] = useState<Weekday[]>(member.unavailable_weekdays)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [capacityError, setCapacityError] = useState<string | null>(null)
 
+  const isAdmin = useHasRole(['admin'])
   const isSelf = member.id === currentMemberId
   const losesAdmin = isSelf && member.role === 'admin' && role !== 'admin'
 
@@ -54,7 +58,8 @@ export function EditMemberModal({ member, currentMemberId, currentUserId, onClos
         .from('members')
         .update({
           role,
-          skills: buildSkills(levels),
+          skills: rowsToSkills(skillRows),
+          affinities,
           weekly_capacity_hours: parsed.value,
           unavailable_weekdays: WEEKDAYS.filter((d) => days.includes(d)),
         })
@@ -108,20 +113,9 @@ export function EditMemberModal({ member, currentMemberId, currentUserId, onClos
 
         {role !== 'admin' && role !== 'membre' ? <p className={styles.help}>Pas d’attribution automatique pour ce rôle.</p> : null}
 
-        <div className={styles.levels}>
-          {SKILLS.map((skill) => (
-            <Field key={skill} label={`Niveau ${LABELS.skill[skill].toLowerCase()}`}>
-              <Select value={levels[skill]} onChange={(e) => setLevels((c) => ({ ...c, [skill]: e.target.value }))} disabled={busy}>
-                <option value="0">Ne pratique pas</option>
-                {LEVELS.map((level) => (
-                  <option key={level} value={level}>
-                    {level} sur {SKILL_LEVEL_MAX}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          ))}
-        </div>
+        <SkillsEditor rows={skillRows} onChange={setSkillRows} disabled={busy} />
+
+        <AffinitiesEditor value={affinities} onChange={setAffinities} disabled={busy} />
 
         <Field label="Capacité (heures par semaine)" error={capacityError}>
           <TextInput type="number" min={0} max={80} step={0.5} inputMode="decimal" value={capacity} onChange={(e) => setCapacity(e.target.value)} disabled={busy} />
@@ -146,6 +140,16 @@ export function EditMemberModal({ member, currentMemberId, currentUserId, onClos
           </p>
         ) : null}
       </form>
+
+      <hr className={profile.divider} />
+      <AbsencesEditor memberId={member.id} />
+
+      {isAdmin && role === 'prospection' ? (
+        <>
+          <hr className={profile.divider} />
+          <CommissionPlanEditor memberId={member.id} />
+        </>
+      ) : null}
     </Modal>
   )
 }

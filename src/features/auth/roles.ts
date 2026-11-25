@@ -10,7 +10,9 @@ export const CLIENT_READ_ROLES: readonly MemberRole[] = ['admin', 'membre', 'fin
 /** Devis, factures et chiffres. */
 export const FINANCE_ROLES: readonly MemberRole[] = ['admin', 'finance']
 /** Prospection. */
-export const PROSPECT_ROLES: readonly MemberRole[] = ['admin', 'prospection']
+export const PROSPECT_ROLES: readonly MemberRole[] = ['admin', 'membre', 'prospection']
+/** Commissions de l'apporteur : l'agence (admin, finance) et l'apporteur lui-même (ses lignes, RLS). */
+export const COMMISSION_ROLES: readonly MemberRole[] = ['admin', 'finance', 'prospection']
 /** Équipe et Paramètres. */
 export const ADMIN_ROLES: readonly MemberRole[] = ['admin']
 

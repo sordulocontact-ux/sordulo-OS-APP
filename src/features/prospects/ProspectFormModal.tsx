@@ -3,9 +3,16 @@ import { Button, Field, Modal, Select, Textarea, TextInput, useToast } from '../
 import { useCurrentMember } from '../auth/useCurrentMember'
 import { useOrgMembers } from '../auth/useOrgMembers'
 import { emailError, websiteError } from '../clients/clientUtils'
-import { LABELS, PROSPECT_STAGES, type Prospect } from '../../shared/types'
-import { normalizeSite, SOURCE_SUGGESTIONS, trimOrNull } from './prospectLogic'
-import { prospectErrorText, useCreateProspect, useUpdateProspect, type ProspectFields } from './useProspects'
+import { LABELS, type Prospect } from '../../shared/types'
+import { allowedStages, isAgencyRole, normalizeSite, SOURCE_SUGGESTIONS, trimOrNull } from './prospectLogic'
+import {
+  prospectErrorText,
+  useCreateProspect,
+  useRunProspectAudit,
+  useUpdateProspect,
+  type ProspectChanges,
+  type ProspectFields,
+} from './useProspects'
 import styles from './prospects.module.css'
 
 export interface ProspectFormModalProps {
@@ -27,6 +34,7 @@ interface Draft {
   nextActionDate: string
   ownerId: string
   notes: string
+  registeredAt: string
 }
 
 function initialDraft(prospect: Prospect | null | undefined, myId: string): Draft {
@@ -37,10 +45,11 @@ function initialDraft(prospect: Prospect | null | undefined, myId: string): Draf
     contactEmail: prospect?.contact_email ?? '',
     contactPhone: prospect?.contact_phone ?? '',
     source: prospect?.source ?? '',
-    stage: prospect?.stage ?? 'to_contact',
+    stage: prospect?.stage ?? 'to_audit',
     nextActionDate: prospect?.next_action_date ?? '',
     ownerId: prospect ? (prospect.owner_member_id ?? '') : myId,
     notes: prospect?.notes ?? '',
+    registeredAt: prospect?.registered_at ?? '',
   }
 }
 
@@ -50,6 +59,11 @@ export function ProspectFormModal({ open, onClose, prospect, onSaved }: Prospect
   const { data: members } = useOrgMembers(organization?.id)
   const create = useCreateProspect()
   const update = useUpdateProspect()
+  const audit = useRunProspectAudit()
+  const role = member?.role ?? null
+  // L'apporteur ne choisit ni l'étape ni le responsable : la base les pose (« À auditer », lui-même).
+  const agency = isAgencyRole(role)
+  const isAdmin = role === 'admin'
   const isEdit = Boolean(prospect)
   const myId = member?.id ?? ''
 
@@ -94,7 +108,7 @@ export function ProspectFormModal({ open, onClose, prospect, onSaved }: Prospect
     setError(null)
     setShowErrors(true)
     if (invalid) return
-    const fields: ProspectFields = {
+    const fields: ProspectFields & ProspectChanges = {
       company: draft.company.trim(),
       website: normalizeSite(draft.website),
       contact_name: trimOrNull(draft.contactName),
@@ -106,6 +120,13 @@ export function ProspectFormModal({ open, onClose, prospect, onSaved }: Prospect
       notes: trimOrNull(draft.notes),
       owner_member_id: trimOrNull(draft.ownerId),
     }
+    if (isAdmin && !prospect?.client_id && trimOrNull(draft.registeredAt)) fields.registered_at = draft.registeredAt
+    if (!agency) {
+      // Hors de leurs droits : la base refuserait même une valeur inchangée envoyée par erreur.
+      delete (fields as Partial<ProspectFields>).stage
+    }
+    // Responsable : admin seulement, et figé une fois le prospect converti (commission, migration 0019).
+    if (!isAdmin || prospect?.client_id) delete (fields as Partial<ProspectFields>).owner_member_id
     try {
       if (prospect) {
         await update.mutateAsync({ prospectId: prospect.id, fields })
@@ -118,8 +139,17 @@ export function ProspectFormModal({ open, onClose, prospect, onSaved }: Prospect
         setError('Ton organisation est introuvable. Recharge la page.')
         return
       }
-      const saved = await create.mutateAsync({ organizationId: organization.id, fields })
+      const saved = await create.mutateAsync({
+        organizationId: organization.id,
+        fields: { ...fields, stage: fields.stage ?? 'to_audit' },
+      })
       toast.success('Prospect créé')
+      // Pré-audit lancé tout de suite : le résultat arrive sur la fiche, sans bloquer la création.
+      if (saved.website) {
+        audit.mutate(saved.id, {
+          onError: (e) => toast.error(`Pré-audit impossible : ${prospectErrorText(e)}`),
+        })
+      }
       onSaved?.(saved)
       onClose()
     } catch (e) {
@@ -132,7 +162,7 @@ export function ProspectFormModal({ open, onClose, prospect, onSaved }: Prospect
       open={open}
       onClose={handleClose}
       dismissible={!busy}
-      title={isEdit ? 'Modifier le prospect' : 'Nouveau prospect'}
+      title={isEdit ? 'Modifier le prospect' : agency ? 'Nouveau prospect' : 'Ajouter un site'}
       actions={
         <>
           <Button variant="ghost" onClick={handleClose} disabled={busy}>
@@ -186,45 +216,58 @@ export function ProspectFormModal({ open, onClose, prospect, onSaved }: Prospect
           </div>
         </fieldset>
 
-        <div className={styles.row}>
-          <Field label="Source">
-            <TextInput
-              value={draft.source}
-              onChange={(e) => set('source', e.target.value)}
-              disabled={busy}
-              list="prospect-sources"
-              autoComplete="off"
-            />
-            <datalist id="prospect-sources">
-              {SOURCE_SUGGESTIONS.map((s) => (
-                <option key={s} value={s} />
-              ))}
-            </datalist>
-          </Field>
-          <Field label="Étape">
-            <Select value={draft.stage} onChange={(e) => set('stage', e.target.value as Draft['stage'])} disabled={busy}>
-              {PROSPECT_STAGES.map((s) => (
-                <option key={s} value={s}>
-                  {LABELS.prospectStage[s]}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
+        <Field label="Source">
+          <TextInput
+            value={draft.source}
+            onChange={(e) => set('source', e.target.value)}
+            disabled={busy}
+            list="prospect-sources"
+            autoComplete="off"
+          />
+          <datalist id="prospect-sources">
+            {SOURCE_SUGGESTIONS.map((s) => (
+              <option key={s} value={s} />
+            ))}
+          </datalist>
+        </Field>
+        {agency ? (
+          <div className={styles.row}>
+            <Field label="Étape">
+              <Select value={draft.stage} onChange={(e) => set('stage', e.target.value as Draft['stage'])} disabled={busy}>
+                {allowedStages(role, prospect?.stage ?? 'to_audit').map((s) => (
+                  <option key={s} value={s}>
+                    {LABELS.prospectStage[s]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            {isAdmin ? (
+              <Field label="Responsable">
+                <Select
+                  value={draft.ownerId}
+                  onChange={(e) => set('ownerId', e.target.value)}
+                  disabled={busy || Boolean(prospect?.client_id)}
+                >
+                  <option value="">Non attribué</option>
+                  {owners.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
+          </div>
+        ) : null}
         <div className={styles.row}>
           <Field label="Prochaine action">
             <TextInput type="date" value={draft.nextActionDate} onChange={(e) => set('nextActionDate', e.target.value)} disabled={busy} />
           </Field>
-          <Field label="Responsable">
-            <Select value={draft.ownerId} onChange={(e) => set('ownerId', e.target.value)} disabled={busy}>
-              <option value="">Non attribué</option>
-              {owners.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          {isAdmin ? (
+            <Field label="Date d’enregistrement" hint="Fait foi pour la commission de l’apporteur.">
+              <TextInput type="date" value={draft.registeredAt} onChange={(e) => set('registeredAt', e.target.value)} disabled={busy} />
+            </Field>
+          ) : null}
         </div>
         <Field label="Notes">
           <Textarea rows={4} value={draft.notes} onChange={(e) => set('notes', e.target.value)} disabled={busy} />

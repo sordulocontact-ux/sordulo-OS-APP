@@ -36,8 +36,29 @@ describe('catalogue des connecteurs', () => {
     expect(filterConnectors(CONNECTORS, '', true)).toEqual([])
     expect(filterConnectors(CONNECTORS, '', true, new Set(['spotify', 'claude'])).map((c) => c.id)).toEqual(['claude', 'spotify'])
     expect(filterConnectors(CONNECTORS, 'musique', false).map((c) => c.id)).toEqual(['spotify'])
-    expect(filterConnectors(CONNECTORS, 'COMPTABILITE', false).map((c) => c.id)).toEqual(['qonto', 'pennylane'])
+    expect(filterConnectors(CONNECTORS, 'COMPTABILITE', false).map((c) => c.id)).toEqual(['e-invoicing', 'qonto', 'pennylane'])
     expect(filterConnectors(CONNECTORS, 'zzz', false)).toEqual([])
+  })
+
+  it('a un serveur MCP Sordulo OS à état vivant, en IA, et plus de « MCP viendra plus tard »', () => {
+    const mcp = CONNECTORS.find((c) => c.id === 'mcp')
+    expect(mcp?.status).toBe('live')
+    expect(mcp?.category).toBe('IA')
+    expect(CONNECTORS.find((c) => c.id === 'claude')?.details).not.toContain('viendra plus tard')
+    expect(filterConnectors(CONNECTORS, '', true, new Set(['mcp'])).map((c) => c.id)).toEqual(['mcp'])
+  })
+
+  it('a les services externes de la roadmap en « bientôt »', () => {
+    for (const id of ['stripe', 'gmail', 'google-agenda', 'yousign', 'github', 'e-invoicing']) {
+      expect(CONNECTORS.find((c) => c.id === id)?.status, id).toBe('soon')
+    }
+    expect(CONNECTORS.find((c) => c.id === 'stripe')?.description).toMatch(/acomptes/i)
+    expect(CONNECTORS.find((c) => c.id === 'gmail')?.description).toMatch(/relances/)
+    expect(CONNECTORS.find((c) => c.id === 'google-agenda')?.description).toMatch(/calls/)
+    expect(CONNECTORS.find((c) => c.id === 'yousign')?.description).toMatch(/contrats/)
+    expect(CONNECTORS.find((c) => c.id === 'github')?.description).toMatch(/builds/)
+    expect(CONNECTORS.find((c) => c.id === 'e-invoicing')?.description).toContain('1er septembre 2027')
+    expect(filterConnectors(CONNECTORS, 'signature', false).map((c) => c.id)).toContain('yousign')
   })
 
   it('calcule les initiales du logo', () => {

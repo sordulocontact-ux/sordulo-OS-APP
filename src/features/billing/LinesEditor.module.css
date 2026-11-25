@@ -52,6 +52,19 @@
   width: var(--size-col-vat);
 }
 
+.colRebilled {
+  width: var(--size-col-vat);
+}
+
+.rebilledCell {
+  text-align: center;
+  padding-top: var(--space-4);
+}
+
+.rebilled {
+  accent-color: var(--color-primary);
+}
+
 .colTotal {
   width: var(--size-col-total);
   text-align: right;
@@ -98,6 +111,18 @@
 
 .add {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.help {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.readTag {
+  display: block;
+  margin-top: var(--space-1);
 }
 
 .totals {

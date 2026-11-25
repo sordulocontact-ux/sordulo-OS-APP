@@ -1,0 +1,260 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-6);
+  margin: 0;
+}
+
+.meta dt {
+  color: var(--color-text-muted);
+}
+
+.meta dd {
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.link {
+  color: var(--color-link);
+}
+
+.editor {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-kanban-column), 1fr));
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.bodyField textarea {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  min-height: var(--size-kanban-column);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-lg);
+}
+
+.error {
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}
+
+.hint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.notice {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: var(--size-border) solid var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.titleCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.fileInput {
+  max-width: 100%;
+}
+
+/* Aperçu Markdown (écran) et feuille A4 (impression). */
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--size-border) solid var(--color-border);
+  background: var(--color-surface);
+  line-height: var(--line-height-relaxed);
+  overflow-wrap: anywhere;
+}
+
+.preview h1,
+.preview h2,
+.preview h3 {
+  margin: 0;
+}
+
+.preview h1 {
+  font-size: var(--font-size-xl);
+}
+
+.preview h2 {
+  font-size: var(--font-size-lg);
+}
+
+.preview h3 {
+  font-size: var(--font-size-md);
+}
+
+.preview p,
+.preview ul {
+  margin: 0;
+}
+
+.preview ul {
+  padding-left: var(--space-6);
+}
+
+.previewEmpty {
+  color: var(--color-text-muted);
+}
+
+.wrapper {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--color-surface-muted);
+  overflow-x: auto;
+}
+
+.sheet {
+  flex: none;
+  box-sizing: border-box;
+  width: var(--size-print-page-width);
+  min-height: var(--size-print-page-min-height);
+  padding: var(--space-print-margin);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  background: var(--color-bg);
+  border: var(--size-border) solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.sheet .preview {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.signatures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+  margin-top: auto;
+  break-inside: avoid;
+}
+
+.signatureBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.signatureSpace {
+  height: var(--size-signature-height);
+  border: var(--size-border) solid var(--color-border);
+}
+
+.signedNote {
+  font-weight: var(--font-weight-medium);
+}
+
+.rate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+@page {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+  :global(body) * {
+    visibility: hidden;
+  }
+
+  .wrapper,
+  .wrapper * {
+    visibility: visible;
+  }
+
+  .wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 0;
+    background: var(--color-bg);
+    overflow: visible;
+  }
+
+  .sheet {
+    border: 0;
+    box-shadow: none;
+  }
+}

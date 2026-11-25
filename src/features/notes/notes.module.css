@@ -1,0 +1,244 @@
+/* Notes : liste et éditeur côte à côte, empilés quand la place manque (flex-wrap, sans media query). */
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.workspace {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-5);
+}
+
+.listColumn {
+  display: flex;
+  flex: 1 1 var(--size-menu-min);
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  max-width: var(--size-search-max);
+}
+
+.editorColumn {
+  display: flex;
+  flex: 3 1 var(--size-narrow-max);
+  flex-direction: column;
+  min-width: 0;
+}
+
+.placeholder {
+  border: var(--size-border) dashed var(--color-border);
+}
+
+/* Liste */
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: var(--size-border) solid var(--color-border);
+  background: var(--color-surface);
+  list-style: none;
+}
+
+.list li + li {
+  border-top: var(--size-border) solid var(--color-border-subtle);
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--easing-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .item:hover {
+    background: var(--color-surface-hover);
+  }
+}
+
+.item:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.itemActive,
+.itemActive:hover {
+  background: var(--color-surface-active);
+}
+
+.itemTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.itemTitle {
+  overflow: hidden;
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemDate {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.itemExcerpt {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.itemMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.itemMeta:empty {
+  display: none;
+}
+
+.itemLinks {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Éditeur */
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: var(--size-border) solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.editorHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.editorMeta,
+.editorActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.saveState {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.saveError {
+  color: var(--color-danger);
+}
+
+.muted {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--size-menu-min), 1fr));
+  gap: var(--space-3);
+}
+
+.body {
+  font-family: var(--font-mono);
+  line-height: var(--line-height-relaxed);
+}
+
+.error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}
+
+/* Lecture (aperçu, ou note d'équipe que l'on ne peut pas modifier) */
+.read {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.readTitle {
+  font-size: var(--font-size-xl);
+  overflow-wrap: anywhere;
+}
+
+.markdown {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  line-height: var(--line-height-relaxed);
+  overflow-wrap: anywhere;
+}
+
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown p,
+.markdown ul {
+  margin: 0;
+}
+
+.markdown h2 {
+  font-size: var(--font-size-lg);
+}
+
+.markdown h3,
+.markdown h4 {
+  font-size: var(--font-size-md);
+}
+
+.markdown ul {
+  padding-left: var(--space-6);
+}

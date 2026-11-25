@@ -29,7 +29,7 @@ export function useProjectTasks(projectId: string | undefined) {
   return { ...query, tasks, allTasks }
 }
 
-export type TaskPatch = Partial<Pick<Task, 'status' | 'position' | 'assignee_member_id'>>
+export type TaskPatch = Partial<Pick<Task, 'status' | 'position' | 'assignee_member_id' | 'due_date' | 'priority'>>
 
 /** Optimistic task update: patch the cache, roll back on error, refetch at the end. */
 export function useUpdateTask(projectId: string, onError: (message: string) => void) {

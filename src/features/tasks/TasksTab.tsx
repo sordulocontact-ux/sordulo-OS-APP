@@ -3,7 +3,9 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { EmptyState, ErrorState, Field, LoadingState, Select, useToast } from '../../components/ui'
 import { useOrgMembers } from '../auth'
 import { useProjectContext } from '../projects'
-import { LABELS, TASK_STATUSES, type TaskStatus } from '../../shared/types'
+import { useNow, useProjectTimeEntries } from '../time/useTimeEntries'
+import { minutesByTask } from '../time/timeLogic'
+import { LABELS, TASK_PRIORITIES, TASK_STATUSES, type TaskPriority, type TaskStatus } from '../../shared/types'
 import {
   PERSON_NONE,
   computeDropPosition,
@@ -13,9 +15,19 @@ import {
   totalHours,
   type BoardTask,
 } from './board'
+import {
+  DUE_FILTERS, filterByDue, filterByPriority, parseDueParam, parsePriorityParam, parisDay, type DueFilter,
+} from './schedule'
 import { TaskCard } from './TaskCard'
 import { useProjectTasks, useUpdateTask, type TaskPatch } from './useProjectTasks'
 import styles from './TasksTab.module.css'
+
+const DUE_FILTER_LABELS: Record<Exclude<DueFilter, ''>, string> = {
+  overdue: 'En retard',
+  today: "Aujourd'hui",
+  week: "D'ici dimanche",
+  none: 'Sans échéance',
+}
 
 interface DropTarget {
   status: TaskStatus
@@ -28,9 +40,16 @@ export function TasksTab() {
   const toast = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const person = searchParams.get('person')
+  const priority = parsePriorityParam(searchParams.get('priority'))
+  const dueFilter = parseDueParam(searchParams.get('due'))
   const { tasks, allTasks, isLoading, isError, refetch } = useProjectTasks(projectId)
   const { data: members = [] } = useOrgMembers(project.organization_id)
   const update = useUpdateTask(projectId, toast.error)
+  const { data: timeEntries } = useProjectTimeEntries(projectId)
+  const hasRunning = timeEntries?.some((e) => e.ended_at === null) ?? false
+  const now = useNow(hasRunning, 30_000)
+  const spentByTask = minutesByTask(timeEntries ?? [], now)
+  const today = parisDay(now)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null)
   const [announcement, setAnnouncement] = useState('')
@@ -49,7 +68,7 @@ export function TasksTab() {
     )
   }
 
-  const filtered = filterByPerson(tasks, person)
+  const filtered = filterByDue(filterByPriority(filterByPerson(tasks, person), priority), dueFilter, today)
   const columns = groupByStatus(filtered)
   // Positions are compared inside the full visible column, so a filtered view never inverts the order.
   const fullColumns = groupByStatus(tasks)
@@ -57,10 +76,10 @@ export function TasksTab() {
   // Un membre retiré n'apparaît dans le filtre que s'il garde des tâches (faites) dans ce projet.
   const assigneeIds = new Set(tasks.map((t) => t.assignee_member_id).filter((id): id is string => id !== null))
 
-  const setPerson = (value: string) => {
+  const setParam = (key: 'person' | 'priority' | 'due', value: string) => {
     const next = new URLSearchParams(searchParams)
-    if (value) next.set('person', value)
-    else next.delete('person')
+    if (value) next.set(key, value)
+    else next.delete(key)
     setSearchParams(next, { replace: true })
   }
 
@@ -75,6 +94,16 @@ export function TasksTab() {
     update.mutate({ id: task.id, patch: { assignee_member_id: memberId } satisfies TaskPatch })
     const name = memberId ? (memberById.get(memberId)?.name ?? 'un membre') : null
     setAnnouncement(name ? `« ${task.title} » attribuée à ${name}.` : `« ${task.title} » n'est plus attribuée.`)
+  }
+
+  const changePriority = (task: BoardTask, next: TaskPriority) => {
+    update.mutate({ id: task.id, patch: { priority: next } satisfies TaskPatch })
+    setAnnouncement(`Priorité de « ${task.title} » : ${LABELS.taskPriority[next].toLowerCase()}.`)
+  }
+
+  const changeDueDate = (task: BoardTask, dueDate: string | null) => {
+    update.mutate({ id: task.id, patch: { due_date: dueDate } satisfies TaskPatch })
+    setAnnouncement(dueDate ? `Échéance de « ${task.title} » : ${dueDate}.` : `« ${task.title} » n'a plus d'échéance.`)
   }
 
   const clearDrag = () => {
@@ -100,7 +129,7 @@ export function TasksTab() {
     <section className={styles.root} aria-label="Tâches du projet">
       <div className={styles.filter}>
         <Field label="Personne">
-          <Select value={person ?? ''} onChange={(e) => setPerson(e.target.value)}>
+          <Select value={person ?? ''} onChange={(e) => setParam('person', e.target.value)}>
             <option value="">Tout le monde</option>
             {members
               .filter((member) => member.removed_at === null || assigneeIds.has(member.id))
@@ -112,13 +141,33 @@ export function TasksTab() {
             <option value={PERSON_NONE}>Non attribuées</option>
           </Select>
         </Field>
+        <Field label="Priorité">
+          <Select value={priority} onChange={(e) => setParam('priority', e.target.value)}>
+            <option value="">Toutes</option>
+            {[...TASK_PRIORITIES].reverse().map((p) => (
+              <option key={p} value={p}>
+                {LABELS.taskPriority[p]}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Échéance">
+          <Select value={dueFilter} onChange={(e) => setParam('due', e.target.value)}>
+            <option value="">Toutes</option>
+            {DUE_FILTERS.map((d) => (
+              <option key={d} value={d}>
+                {DUE_FILTER_LABELS[d]}
+              </option>
+            ))}
+          </Select>
+        </Field>
       </div>
 
       <p className={styles.live} role="status" aria-live="polite">
         {announcement}
       </p>
 
-      {filtered.length === 0 ? <p className={styles.noMatch}>Aucune tâche pour cette personne.</p> : null}
+      {filtered.length === 0 ? <p className={styles.noMatch}>Aucune tâche pour ces filtres.</p> : null}
 
       <div className={styles.board}>
         {TASK_STATUSES.map((status) => {
@@ -153,6 +202,8 @@ export function TasksTab() {
                     members={members}
                     assignee={task.assignee_member_id ? (memberById.get(task.assignee_member_id) ?? null) : null}
                     dragging={draggingId === task.id}
+                    today={today}
+                    spentMinutes={spentByTask.get(task.id) ?? 0}
                     dropBefore={isTarget && dropTarget.beforeId === task.id && draggingId !== task.id}
                     onDragStart={setDraggingId}
                     onDragEnd={clearDrag}
@@ -164,6 +215,8 @@ export function TasksTab() {
                     }}
                     onChangeStatus={(t, next) => move(t, next, null)}
                     onChangeAssignee={reassign}
+                    onChangePriority={changePriority}
+                    onChangeDueDate={changeDueDate}
                   />
                 ))}
               </ul>

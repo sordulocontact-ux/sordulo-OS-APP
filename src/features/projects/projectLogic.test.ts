@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { ProjectWithClient } from './types'
 import {
-  daysUntil, diffMembers, filterProjects, formatDay, NO_CLIENT, overdueHint, parseStatusParam, projectStats, relativeDue, validateDates,
+  daysUntil, diffMembers, filterProjects, formatDay, NO_CLIENT, overdueHint, parseRounds, parseStatusParam, projectStats, relativeDue, validateDates, validateRounds,
 } from './projectLogic'
 
 function p(over: Partial<ProjectWithClient>): ProjectWithClient {
   return {
     id: 'p', organization_id: 'o', client_id: null, name: 'Projet', status: 'in_progress', start_date: null,
-    due_date: null, tone_of_voice: null, ai_instructions: null, created_at: '', updated_at: '', client: null, ...over,
+    due_date: null, tone_of_voice: null, ai_instructions: null, feedback_rounds_included: 2, showcase: 'unknown', case_study: null,
+    portal_token: null, created_at: '', updated_at: '', client: null, ...over,
   }
 }
 const client = { id: 'c1', name: 'Ibé' } as ProjectWithClient['client']
@@ -122,5 +123,21 @@ describe('projectStats', () => {
   it('formule le sous-texte des retards', () => {
     expect(overdueHint(0)).toBe('Aucun en retard')
     expect(overdueHint(2)).toBe('2 en retard')
+  })
+})
+
+describe('rounds de retours prévus', () => {
+  it('lit un entier de 0 à 20', () => {
+    expect(parseRounds('2')).toBe(2)
+    expect(parseRounds(' 0 ')).toBe(0)
+    expect(parseRounds('20')).toBe(20)
+  })
+  it('refuse le reste', () => {
+    expect(parseRounds('')).toBeNull()
+    expect(parseRounds('21')).toBeNull()
+    expect(parseRounds('-1')).toBeNull()
+    expect(parseRounds('1,5')).toBeNull()
+    expect(validateRounds('2')).toBeNull()
+    expect(validateRounds('x')).toMatch(/0 et 20/)
   })
 })
