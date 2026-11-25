@@ -39,14 +39,29 @@ export const GARDEN = {
   size: { main: 22, sub: 13 },
   /**
    * Encoche de la caméra du Mac (px), centrée sur le bord haut : mêmes valeurs que les tokens
-   * --island-garden-notch-width / -height (vérifié par tokens.test.ts). Île au repos, ses deux bords sont une
-   * paire de portails, comme les bords de l'île : un Claude la traverse en continu, la partie qui franchit un
-   * bord apparaît aussitôt à l'autre, et rien de lui n'est dessiné dessous (simulation.ts, throughNotch et
-   * walkerVisual). `gap` : aucun Claude ne s'arrête à cheval sur le portail ni à moins de 4 px d'un bord (il
-   * s'arrête avant, ou continue et s'arrête après ; une interaction se place à côté) ; `exitSpeed` : allure
-   * (px/s) de celui qui s'y trouvait arrêté et s'en écarte à pied.
+   * --island-garden-notch-width / -height (vérifié par tokens.test.ts). Île au repos, c'est un tunnel court
+   * (NOTCH_TUNNEL, la largeur d'un Claude) : un Claude y entre jusqu'à disparaître en entier, puis ressort
+   * aussitôt de l'autre côté, petit à petit, sans marcher dessous ; jamais visible des deux côtés à la fois, et
+   * rien de lui n'est dessiné sous l'encoche (simulation.ts, throughNotch et portalOf). `gap` : aucun Claude ne
+   * s'arrête dans l'encoche ni à moins de 4 px d'un bord (il s'arrête avant, ou continue et s'arrête après ; une
+   * interaction se place à côté) ; `exitSpeed` : allure (px/s) de celui qui s'y trouvait arrêté et s'en écarte.
+   *
+   * `portal` : devant chaque bord, un portail de la couleur du Claude (simulation.ts, NotchPortal ; dessin dans
+   * renderer.ts), un par côté, ouverts l'un après l'autre. Le tunnel commence au plan du portail, à `inset` px
+   * du bord de l'encoche (le Claude est coupé à ce plan, le portail est centré dessus). Un portail s'ouvre `lead`
+   * s avant que le bord avant du corps touche son plan (à sa vitesse du moment, au moins 2 px avant ; celui de
+   * sortie pendant qu'il entre), reste ouvert tant que le corps chevauche son plan, puis `linger` s, et se
+   * ferme. `open` / `close` : durées (s) des
+   * animations d'ouverture et de fermeture, égales aux tokens --island-garden-duration-portal-open / -close
+   * (vérifié par tokens.test.ts).
    */
-  notch: { width: 186, height: 32, gap: 4, exitSpeed: 24 },
+  notch: {
+    width: 186,
+    height: 32,
+    gap: 4,
+    exitSpeed: 24,
+    portal: { inset: 8, lead: 0.45, linger: 0.15, open: 0.28, close: 0.2 },
+  },
   /** Hauteur du sol au-dessus du bas de la forme (prototype : gOff). */
   groundOffset: { win: 1, mac: 1 } satisfies Record<IslandPlatform, number>,
   /** Bas des pieds dans le sprite (transform-origin 50% 81%) et haut de la tête (on se pose à 62 %). */

@@ -11,7 +11,7 @@
  *   conflit → les deux se disputent, sous-agents qui naissent ou rentrent).
  * - `step` avance la simulation (marche, sauts, interactions, effets) ; `walkerVisual` dit comment dessiner
  *   un personnage. Le dessin lui-même est dans ./renderer.ts, la boucle dans ./Garden.tsx.
- * - Bords en portail : les bords de l'île, et sur le Mac au repos les deux bords de l'encoche de la caméra
+ * - Bords en portail : les bords de l'île ; sur le Mac au repos, l'encoche de la caméra est un tunnel court
  *   (coordonnée repliée, voir throughNotch) ; les écarts entre deux Claude se mesurent à travers l'encoche.
  * - Le hasard est injecté (`rng`) pour les tests.
  */
@@ -294,19 +294,68 @@ export function notchSpan(platform: IslandPlatform, width: number, height: numbe
 }
 
 /**
- * Coordonnée repliée : l'encoche n'a plus de largeur, ses deux bords sont collés (un portail, comme les bords
- * de l'île). Une position sous l'encoche (impossible en marche) compte comme posée sur le portail.
+ * Tunnel de l'encoche à l'écran : l'encoche élargie de GARDEN.notch.portal.inset de chaque côté. Ses bords sont
+ * les plans des deux portails : un Claude y est coupé, et le replié (foldX) commence là. null sans encoche.
+ */
+export function tunnelSpan(platform: IslandPlatform, width: number, height: number): NotchSpan | null {
+  const n = notchSpan(platform, width, height)
+  if (!n) return null
+  const inset = GARDEN.notch.portal.inset
+  return { left: n.left - inset, right: n.right + inset }
+}
+
+/**
+ * Portail d'un Claude devant un bord de l'encoche : un par côté et par Claude (sous-agents compris), ouverts
+ * l'un après l'autre (entrée à l'approche, sortie pendant qu'il entre).
+ */
+export interface NotchPortal {
+  /** Clé unique : id du Claude * 2 + (side === 'right' ? 1 : 0). */
+  key: number
+  /** Id du Claude. */
+  id: number
+  side: 'left' | 'right'
+  /** Couleur du Claude (même valeur que WalkerVisual.colorToken). */
+  colorToken: string
+  /** Taille du Claude (px). */
+  size: number
+  /** Profondeur du Claude (comme walkerVisual). */
+  depth: number
+  phase: 'open' | 'close'
+  /** Secondes depuis le début de la phase. */
+  age: number
+  /** Le corps du Claude chevauche le plan de CE portail à cette image (le portail pulse). */
+  busy: boolean
+}
+
+/** Portail suivi par la simulation : `out` = secondes depuis que le corps a quitté son plan. */
+interface PortalState extends NotchPortal {
+  out: number
+}
+
+/**
+ * Longueur repliée du tunnel de l'encoche : la largeur d'un Claude. Il s'y enfonce jusqu'à disparaître en
+ * entier, puis ressort de l'autre côté petit à petit : jamais dessiné des deux côtés à la fois, et jamais caché
+ * plus d'un instant (il ne marche pas les 186 px de l'encoche).
+ */
+export const NOTCH_TUNNEL = GARDEN.size.main
+
+/**
+ * Coordonnée repliée : l'encoche ne mesure plus que NOTCH_TUNNEL, de `notch.left` à `notch.left + NOTCH_TUNNEL`.
+ * Une position à l'écran sous l'encoche est une position dans le tunnel (étirée sur la largeur de l'encoche).
  */
 export function foldX(x: number, notch: NotchSpan | null): number {
   if (!notch || x <= notch.left) return x
-  if (x >= notch.right) return x - (notch.right - notch.left)
-  return notch.left
+  const cut = notch.right - notch.left
+  if (x >= notch.right) return x - cut + NOTCH_TUNNEL
+  return notch.left + ((x - notch.left) * NOTCH_TUNNEL) / cut
 }
 
-/** Position à l'écran d'une coordonnée repliée : jamais sous l'encoche. */
+/** Position à l'écran d'une coordonnée repliée (sous l'encoche : dans le tunnel, donc caché). */
 export function unfoldX(u: number, notch: NotchSpan | null): number {
   if (!notch || u <= notch.left) return u
-  return u + (notch.right - notch.left)
+  const cut = notch.right - notch.left
+  if (u >= notch.left + NOTCH_TUNNEL) return u + cut - NOTCH_TUNNEL
+  return notch.left + ((u - notch.left) * cut) / NOTCH_TUNNEL
 }
 
 /** Sessions représentées : les 5 premières (comme les lignes de multiOpen). */
@@ -335,6 +384,8 @@ export class GardenSim {
   private platform: IslandPlatform = 'win'
   private mood: GardenMood = CALM_MOOD
   private ambient: number
+  /** Portails de l'encoche, par clé (Claude et côté). */
+  private gates = new Map<number, PortalState>()
 
   constructor(private readonly rng: Rng = Math.random) {
     this.ambient = this.rnd(GARDEN.ambientEvery)
@@ -350,6 +401,11 @@ export class GardenSim {
 
   get interactions(): readonly Interaction[] {
     return this.ias
+  }
+
+  /** Portails de l'encoche ouverts ou en train de se fermer (Mac au repos). */
+  get portals(): readonly NotchPortal[] {
+    return [...this.gates.values()]
   }
 
   /** Activité de la session d'un personnage (outil en cours) ; null si inconnue. */
@@ -486,6 +542,7 @@ export class GardenSim {
     this.list = []
     this.ias = []
     this.effects = []
+    this.gates.clear()
     this.sessions.clear()
     this.width = opts.width
     this.height = opts.height
@@ -733,7 +790,7 @@ export class GardenSim {
     this.prune()
     for (const parent of this.mains()) {
       // Immobiles : personne ne reste à cheval sur le portail de l'encoche.
-      parent.x = this.unfold(this.clearOfNotch(this.fold(parent.x), parent.size / 2))
+      this.place(parent, this.clearOfNotch(this.fold(parent.x), parent.size / 2))
       const shown = subsVisible(this.statusOf(parent))
       this.subsOf(parent).forEach((sub, k) => {
         this.placeReducedSub(sub, parent, k)
@@ -762,18 +819,21 @@ export class GardenSim {
     else if (w.x < 0) w.x += width
   }
 
-  // --- Encoche du Mac : portail -------------------------------------------------------------------------------
+  // --- Encoche du Mac : tunnel --------------------------------------------------------------------------------
   //
-  // Mac, île au repos : l'encoche de la caméra cache le milieu du bord haut. Ses deux bords sont une paire de
-  // portails, comme les bords de l'île : la partie d'un Claude qui franchit le bord gauche de l'encoche
-  // apparaît aussitôt au bord droit (et inversement), il traverse à sa vitesse de marche, sans saut ni
-  // disparition. On raisonne en coordonnée repliée (foldX : l'encoche n'a plus de largeur, son portail est à
-  // `notch.left`) ; `w.x` reste la position à l'écran, jamais sous l'encoche. Le dessin coupe le personnage au
-  // bord de l'encoche des deux côtés (walkerVisual : clip, jumeau). Île ouverte ou Windows : aucun effet.
+  // Mac, île au repos : l'encoche de la caméra cache le milieu du bord haut. C'est un tunnel court : un Claude
+  // qui y entre s'enfonce jusqu'à disparaître en entier, puis ressort aussitôt de l'autre côté, petit à petit,
+  // à sa vitesse de marche, comme si l'encoche n'avait que sa largeur à lui (NOTCH_TUNNEL). On raisonne en
+  // coordonnée repliée (foldX) ; `w.x` est la position à l'écran, sous l'encoche quand il est dans le tunnel.
+  // Le dessin le coupe au bord de l'encoche (walkerVisual : clip), d'un seul côté à la fois. Île ouverte ou
+  // Windows : aucun effet.
+
+  /** Déplacés en coordonnée repliée depuis la dernière image (place, téléportation) : throughNotch les laisse. */
+  private placed = new Set<Walker>()
 
   /** Encoche active à cette image (Mac, île au repos), sinon null. */
   private notch(): NotchSpan | null {
-    return notchSpan(this.platform, this.width, this.height)
+    return tunnelSpan(this.platform, this.width, this.height)
   }
 
   private fold(x: number): number {
@@ -792,7 +852,18 @@ export class GardenSim {
 
   /** Pose un personnage à la position repliée `u`. */
   private place(w: Walker, u: number): void {
-    w.x = this.unfold(u)
+    this.teleport(w, this.unfold(u))
+  }
+
+  /** Pose un personnage à la position `x` de l'écran (sans passer par la marche). */
+  private teleport(w: Walker, x: number): void {
+    w.x = x
+    this.placed.add(w)
+  }
+
+  /** Milieu replié du tunnel de l'encoche. */
+  private tunnelMid(n: NotchSpan): number {
+    return n.left + NOTCH_TUNNEL / 2
   }
 
   /** Écart de w à o (positif : o est à droite), à travers le portail de l'encoche. */
@@ -800,54 +871,57 @@ export class GardenSim {
     return this.fold(o.x) - this.fold(w.x)
   }
 
-  /** Position au hasard sur la largeur, à `margin` px des bords de l'île (jamais sous l'encoche). */
+  /** Position au hasard sur la largeur, à `margin` px des bords de l'île (jamais dans l'encoche). */
   private randomX(margin: number): number {
-    return this.unfold(this.rnd([margin, Math.max(margin, this.foldedWidth() - margin)]))
+    const u = this.rnd([margin, Math.max(margin, this.foldedWidth() - margin)])
+    return this.unfold(this.clearOfNotch(u, GARDEN.size.main / 2))
   }
 
   /**
-   * Position repliée `u` d'un corps de demi-largeur `half` écartée du portail de l'encoche : à au moins
-   * GARDEN.notch.gap px de chaque bord, du côté où est la plus grande partie du corps.
+   * Position repliée `u` d'un corps de demi-largeur `half` écartée de l'encoche : à au moins GARDEN.notch.gap px
+   * de chaque bord, du côté le plus proche.
    */
   private clearOfNotch(u: number, half: number): number {
     const n = this.notch()
     if (!n) return u
-    const reach = half + GARDEN.notch.gap
-    if (Math.abs(u - n.left) >= reach) return u
-    return u < n.left ? n.left - reach : n.left + reach
+    const mid = this.tunnelMid(n)
+    const reach = half + NOTCH_TUNNEL / 2 + GARDEN.notch.gap
+    if (Math.abs(u - mid) >= reach) return u
+    return u < mid ? mid - reach : mid + reach
   }
 
-  /** À cheval sur le portail de l'encoche, ou à moins de GARDEN.notch.gap px d'un de ses bords. */
+  /** En partie ou en entier dans l'encoche, ou à moins de GARDEN.notch.gap px d'un de ses bords. */
   private nearNotch(w: Walker): boolean {
     const n = this.notch()
-    return !!n && Math.abs(this.fold(w.x) - n.left) < w.size / 2 + GARDEN.notch.gap
+    return !!n && Math.abs(this.fold(w.x) - this.tunnelMid(n)) < w.size / 2 + NOTCH_TUNNEL / 2 + GARDEN.notch.gap
   }
 
   /**
-   * Après les déplacements de l'image : celui dont le centre vient d'entrer sous l'encoche continue de l'autre
-   * côté, du même pas (sa coordonnée repliée ne saute pas). Un personnage principal arrêté à cheval sur le
-   * portail (session qui ne travaille plus, fête, fin de rendez-vous) s'en écarte à pied, du côté où est la plus
-   * grande partie de son corps, jusqu'à GARDEN.notch.gap px du bord.
+   * Après les déplacements de l'image : la marche avance en coordonnée repliée. Celui qui part de l'encoche ou y
+   * arrive (centre sous l'encoche à l'écran) voit son pas reporté dans le tunnel : il s'y enfonce et en ressort
+   * du même pas, sans traverser les 186 px cachés. Un personnage principal arrêté dans l'encoche ou à cheval
+   * sur un bord (session qui ne travaille plus, fête, fin de rendez-vous) s'en écarte à pied, du côté le plus
+   * proche, jusqu'à GARDEN.notch.gap px du bord.
    */
   private throughNotch(dt: number): void {
     const n = this.notch()
+    const placed = this.placed
+    this.placed = new Set()
     if (!n) return
-    const cut = n.right - n.left
+    const inside = (x: number) => x > n.left && x < n.right
     for (const w of this.list) {
       if (w.dead) continue
-      if (w.x > n.left && w.x < n.right) {
-        let dx = Number.isNaN(w.px) ? 0 : w.x - w.px
+      if (!placed.has(w) && !Number.isNaN(w.px) && (inside(w.x) || inside(w.px))) {
+        let dx = w.x - w.px
         if (Math.abs(dx) > this.width / 2) dx -= Math.sign(dx) * this.width
-        if (dx > 0 && w.px <= n.left) w.x += cut
-        else if (dx < 0 && w.px >= n.right) w.x -= cut
-        // Posé dessous sans y être entré (la forme vient de changer de largeur) : sur le portail.
-        else w.x = w.x - n.left < n.right - w.x ? n.left : n.right
+        w.x = this.unfold(this.fold(w.px) + dx)
         this.wrap(w, this.width)
       }
       if (!w.sub && w.mode !== 'interact' && w.vel === 0 && w.y === 0 && this.nearNotch(w)) {
         const u = this.fold(w.x)
-        const out = u < n.left ? -1 : u > n.left ? 1 : w.dir >= 0 ? 1 : -1
-        const edge = n.left + out * (w.size / 2 + GARDEN.notch.gap)
+        const mid = this.tunnelMid(n)
+        const out = u < mid ? -1 : u > mid ? 1 : w.dir >= 0 ? 1 : -1
+        const edge = mid + out * (w.size / 2 + NOTCH_TUNNEL / 2 + GARDEN.notch.gap)
         const step = GARDEN.notch.exitSpeed * dt
         w.dir = out
         this.place(w, out < 0 ? Math.max(edge, u - step) : Math.min(edge, u + step))
@@ -856,18 +930,93 @@ export class GardenSim {
   }
 
   /**
-   * Point de rencontre (replié) d'une interaction : décalé au plus près pour qu'aucun des deux ne reste à cheval
-   * sur le portail de l'encoche (à moins de GARDEN.notch.gap px), avec l'écart du début comme avec celui de la
-   * fin (bagarre, énervement). Les deux le rejoignent en traversant le portail si besoin.
+   * Portails de l'encoche (GARDEN.notch.portal), un par côté, en coordonnée repliée (plan gauche `a`, droit
+   * `b = a + NOTCH_TUNNEL`). Celui du plan q est voulu si le corps chevauche q ; s'il avance vers q depuis
+   * l'extérieur du tunnel (entrée) ou depuis l'intérieur (sortie) et que son bord avant est à moins de `lead` s
+   * de q (au moins 2 px ; le double une fois ouvert) ; ou s'il a chevauché q il y a moins de `linger` s. Voulu : ouvert (reprise continue
+   * d'une fermeture en cours) ; plus voulu : fermé en `close` s puis retiré. Sans encoche : aucun portail.
+   */
+  private updatePortals(dt: number): void {
+    const n = this.notch()
+    if (!n) {
+      this.gates.clear()
+      return
+    }
+    const P = GARDEN.notch.portal
+    const span = this.foldedWidth()
+    const a = n.left
+    const b = n.left + NOTCH_TUNNEL
+    const seen = new Set<number>()
+    for (const w of this.list) {
+      if (w.dead || w.hidden || w.op <= 0 || w.delay > 0) continue
+      const u = this.fold(w.x)
+      const lo = u - w.size / 2
+      const hi = u + w.size / 2
+      let du = Number.isNaN(w.px) ? 0 : u - this.fold(w.px)
+      if (span > 0 && Math.abs(du) > span / 2) du -= Math.sign(du) * span
+      const d = Math.sign(du)
+      const lead = dt > 0 ? Math.max((Math.abs(du) / dt) * P.lead, 2) : 2
+      const colorToken = walkerColor(w)
+      const depth = Math.max(0, Math.min(GARDEN.depth.planes - 1, w.depth))
+      for (const side of ['left', 'right'] as const) {
+        const q = side === 'left' ? a : b
+        const key = w.id * 2 + (side === 'right' ? 1 : 0)
+        seen.add(key)
+        const g = this.gates.get(key)
+        // Déjà ouvert : marge doublée, pour qu'une vitesse qui ondule avec les pas ne le referme pas.
+        const reach = g?.phase === 'open' ? lead * 2 : lead
+        const busy = lo < q && hi > q
+        const entering =
+          side === 'left' ? d > 0 && a - hi >= 0 && a - hi <= reach : d < 0 && lo - b >= 0 && lo - b <= reach
+        const leaving =
+          side === 'right' ? d > 0 && hi > a && hi < b && b - hi <= reach : d < 0 && lo > a && lo < b && lo - a <= reach
+        const out = busy ? 0 : (g?.out ?? Infinity) + dt
+        const wanted = busy || entering || leaving || out < P.linger
+        if (!g) {
+          if (wanted) {
+            this.gates.set(key, { key, id: w.id, side, colorToken, size: w.size, depth, phase: 'open', age: 0, busy, out })
+          }
+          continue
+        }
+        Object.assign(g, { colorToken, size: w.size, depth, busy, out })
+        this.advanceGate(g, wanted, dt)
+      }
+    }
+    for (const [key, g] of this.gates) {
+      if (!seen.has(key)) {
+        g.busy = false
+        this.advanceGate(g, false, dt)
+      }
+      if (g.phase === 'close' && g.age >= P.close) this.gates.delete(key)
+    }
+  }
+
+  /** Un portail voulu s'ouvre (reprend une fermeture où elle en était), sinon se ferme. */
+  private advanceGate(g: PortalState, wanted: boolean, dt: number): void {
+    const P = GARDEN.notch.portal
+    if (wanted && g.phase === 'close') {
+      g.phase = 'open'
+      g.age = P.open * Math.max(0, 1 - g.age / P.close)
+    } else if (!wanted && g.phase === 'open') {
+      g.phase = 'close'
+      g.age = 0
+    } else g.age += dt
+  }
+
+  /**
+   * Point de rencontre (replié) d'une interaction : décalé au plus près pour qu'aucun des deux ne soit dans
+   * l'encoche ni à cheval sur un bord (à moins de GARDEN.notch.gap px), avec l'écart du début comme avec celui de
+   * la fin (bagarre, énervement). Les deux le rejoignent en traversant l'encoche si besoin.
    */
   private meetingPoint(mid: number, type: InteractionType, a: Walker, b: Walker): number {
     const n = this.notch()
     if (!n || type === 'race') return mid
-    const reach = Math.max(a.size, b.size) / 2 + GARDEN.notch.gap
+    const reach = Math.max(a.size, b.size) / 2 + NOTCH_TUNNEL / 2 + GARDEN.notch.gap
+    const c = this.tunnelMid(n)
     const later: Partial<Record<InteractionType, number>> = GARDEN.gapLater
     const gaps = [GARDEN.gap[type], later[type] ?? GARDEN.gap[type]]
-    // Points de rencontre interdits : ceux où l'un des deux corps chevauche le portail.
-    const banned = gaps.flatMap((g) => [-1, 1].map((s) => [n.left - (s * g) / 2 - reach, n.left - (s * g) / 2 + reach] as const))
+    // Points de rencontre interdits : ceux où l'un des deux corps touche l'encoche.
+    const banned = gaps.flatMap((g) => [-1, 1].map((s) => [c - (s * g) / 2 - reach, c - (s * g) / 2 + reach] as const))
     const allowed = (m: number) => banned.every(([lo, hi]) => m <= lo || m >= hi)
     let best = mid
     let bestD = allowed(mid) ? 0 : Infinity
@@ -1137,7 +1286,7 @@ export class GardenSim {
         }
         if (w.gone) {
           w.gone = false
-          w.x = this.randomX(GARDEN.sub.blinkMargin)
+          this.teleport(w, this.randomX(GARDEN.sub.blinkMargin))
           w.sc = GARDEN.appearScale
           w.mode = 'walk'
         }
@@ -1186,6 +1335,7 @@ export class GardenSim {
     }
     this.updateInteractions(dt, width)
     this.throughNotch(dt)
+    this.updatePortals(dt)
     this.prune()
     this.updateDepths(dt)
     for (const w of this.list) this.updateGait(w, dt)
@@ -1495,7 +1645,7 @@ export class GardenSim {
       w.t -= dt
       w.op = Math.max(0, w.op - dt * S.blinkFade)
       if (w.t <= 0) {
-        w.x = this.randomX(S.blinkMargin)
+        this.teleport(w, this.randomX(S.blinkMargin))
         w.mode = 'walk'
       }
       return
@@ -1830,6 +1980,29 @@ const LEGS_DOWN: WalkerVisual['legs'] = [
   { lift: 0, shift: 0 },
 ]
 
+/** Couleur d'un personnage : fâché, rougissant, sinon celle de sa session. */
+function walkerColor(w: Walker): string {
+  if (w.angry) return GARDEN_ANGRY_TOKEN
+  if (w.blush) return GARDEN_BLUSH_TOKEN
+  return GARDEN_COLOR_TOKENS[w.colorSlot] ?? GARDEN_COLOR_TOKENS[0]
+}
+
+/**
+ * Où dessiner un portail : x à l'écran de son plan (bord du tunnel de son côté), ligne du sol de son Claude (là
+ * où sont ses pieds, comme walkerVisual) et son échelle de profondeur. null sans encoche.
+ */
+export function portalVisual(p: NotchPortal, ctx: VisualContext): { x: number; feetY: number; scale: number } | null {
+  const span = tunnelSpan(ctx.platform, ctx.width, ctx.height)
+  if (!span) return null
+  const D = GARDEN.depth
+  const depth = Math.max(0, Math.min(D.planes - 1, p.depth))
+  return {
+    x: p.side === 'left' ? span.left : span.right,
+    feetY: ctx.height - groundOffset(ctx.platform) - depth * D.rise,
+    scale: 1 - depth * D.shrink,
+  }
+}
+
 /** Comment dessiner un personnage (prototype : renderGarden). */
 export function walkerVisual(
   w: Walker,
@@ -1895,11 +2068,7 @@ export function walkerVisual(
   }
 
   const low = w.sad || w.sit
-  const colorToken = w.angry
-    ? GARDEN_ANGRY_TOKEN
-    : w.blush
-      ? GARDEN_BLUSH_TOKEN
-      : (GARDEN_COLOR_TOKENS[w.colorSlot] ?? GARDEN_COLOR_TOKENS[0])
+  const colorToken = walkerColor(w)
   let opacity = w.op
   if (w.delay > 0 || w.hidden) opacity = 0
   else if (!w.sub && status === 'idle') opacity = Math.min(w.op, GARDEN.idleOpacity)
@@ -1939,7 +2108,6 @@ export function walkerVisual(
   const portal = portalOf(w.x, left, w.size, ctx)
 
   return {
-    left,
     ...portal,
     top,
     rot: w.rot,
@@ -1963,30 +2131,38 @@ export function walkerVisual(
 }
 
 /**
- * Portails d'un sprite (centre `x`, bord gauche `left`) : jumeau de l'autre bord de l'île (twinLeftOf), ou, sur
- * le Mac au repos, jumeau de l'autre bord de l'encoche quand il la chevauche, chaque morceau coupé au bord de
- * l'encoche (la partie qui entre d'un côté est celle qui sort de l'autre). La marge d'une taille couvre
- * l'écrasement et la rotation : couper un sprite qui ne touche pas le bord ne change rien.
+ * Portails d'un sprite (centre `x` à l'écran, bord gauche `left`) : jumeau de l'autre bord de l'île
+ * (twinLeftOf), ou, sur le Mac au repos, découpe au bord de l'encoche. Le sprite est placé en coordonnée
+ * repliée (le tunnel NOTCH_TUNNEL) : la partie avant le tunnel est dessinée à gauche de l'encoche, celle après à
+ * droite, celle dedans est cachée. Le tunnel a la largeur d'un Claude : il est d'un seul côté à la fois (jumeau
+ * seulement si l'écrasement l'élargit). La marge d'une demi-taille couvre l'écrasement et la rotation : couper un
+ * sprite qui ne touche pas le bord ne change rien.
  */
 export function portalOf(
   x: number,
   left: number,
   size: number,
   ctx: Pick<VisualContext, 'platform' | 'width' | 'height'>,
-): Pick<WalkerVisual, 'twinLeft' | 'clip' | 'twinClip'> {
-  const notch = notchSpan(ctx.platform, ctx.width, ctx.height)
+): Pick<WalkerVisual, 'left' | 'twinLeft' | 'clip' | 'twinClip'> {
+  const notch = tunnelSpan(ctx.platform, ctx.width, ctx.height)
   if (notch) {
-    const cut = notch.right - notch.left
+    const u = foldX(x, notch)
+    const lo = u + (left - x)
+    const hi = lo + size
+    const end = notch.left + NOTCH_TUNNEL
+    const shift = notch.right - notch.left - NOTCH_TUNNEL
+    const margin = size / 2
     const before: ClipRange = { min: -Infinity, max: notch.left }
     const after: ClipRange = { min: notch.right, max: Infinity }
-    if (x <= notch.left && x > notch.left - size) return { twinLeft: left + cut, clip: before, twinClip: after }
-    if (x >= notch.right && x < notch.right + size) return { twinLeft: left - cut, clip: after, twinClip: before }
-    // Centre sous l'encoche (ne devrait pas arriver) : coupé, jamais dessiné dessous.
-    if (x > notch.left && x < notch.right) {
-      return { twinLeft: null, clip: x - notch.left < notch.right - x ? before : after, twinClip: null }
+    const onLeft = u <= notch.left + NOTCH_TUNNEL / 2
+    if (onLeft && hi + margin > notch.left) {
+      return { left: lo, clip: before, twinLeft: hi > end ? lo + shift : null, twinClip: hi > end ? after : null }
+    }
+    if (!onLeft && lo - margin < end) {
+      return { left: lo + shift, clip: after, twinLeft: lo < notch.left ? lo : null, twinClip: lo < notch.left ? before : null }
     }
   }
-  return { twinLeft: twinLeftOf(left, size, ctx.width), clip: null, twinClip: null }
+  return { left, twinLeft: twinLeftOf(left, size, ctx.width), clip: null, twinClip: null }
 }
 
 /** Jumeau du portail : le sprite [left, left + size] chevauche un bord → la même image de l'autre côté. */

@@ -243,12 +243,13 @@
   display: block;
 }
 
-/* Barres aux bouts arrondis : la boucle écrit leur hauteur (y, height) ; dégradé d'une barre à l'autre (--eq-t) */
+/* Barres aux bouts arrondis, chacune d'une couleur unie : celle de la pochette qui revient à son groupe (--eq-c,
+   des basses aux aigus), éclaircie selon sa hauteur (--eq-t, écrit par la boucle) : la vague fait le dégradé */
 .eq rect {
   fill: color-mix(
     in oklab,
-    var(--music-end, var(--island-music)) calc(var(--eq-t, 0) * 100%),
-    var(--music-start, var(--island-music-cover-start))
+    var(--island-music-eq-light) calc(var(--eq-t, 0) * var(--island-music-eq-lighten)),
+    var(--eq-c, var(--music-start, var(--island-music-cover-start)))
   );
 }
 

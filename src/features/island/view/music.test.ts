@@ -6,6 +6,7 @@ import {
   eqBarGeometry,
   createEqualizer,
   eqBarStyle,
+  eqBarTone,
   eqKick,
   eqKickAt,
   musicBeatPhase,
@@ -85,13 +86,32 @@ describe('musicPosition', () => {
 
 describe('musicStyle', () => {
   it('pose les couleurs de la pochette, rien sans palette', () => {
+    // Sans couleurs de l'égaliseur : start pour les basses, end pour les aigus.
     expect(musicStyle({ start: 'rgb(1 2 3)', end: 'rgb(4 5 6)' })).toEqual({
       '--music-start': 'rgb(1 2 3)',
       '--music-end': 'rgb(4 5 6)',
+      '--music-c0': 'rgb(1 2 3)',
+      '--music-c1': 'rgb(1 2 3)',
+      '--music-c2': 'rgb(4 5 6)',
+      '--music-c3': 'rgb(4 5 6)',
+    })
+    // Quatre couleurs de la pochette : une par groupe de barres.
+    expect(musicStyle({ start: 'a', end: 'b', colors: ['a', 'b', 'c', 'd'] })).toMatchObject({
+      '--music-c0': 'a',
+      '--music-c1': 'b',
+      '--music-c2': 'c',
+      '--music-c3': 'd',
     })
     expect(musicStyle(null)).toEqual({})
-    expect(eqBarStyle(0)).toEqual({ '--eq-t': '0.000' })
-    expect(eqBarStyle(EQ.bars - 1)).toEqual({ '--eq-t': '1.000' })
+    // Couleur de chaque barre : son groupe, des basses (à gauche) aux aigus, avec repli sur les tokens.
+    expect(eqBarStyle(0)).toEqual({ '--eq-c': 'var(--music-c0, var(--island-music-cover-start))', '--eq-t': '0.000' })
+    expect(eqBarStyle(2)['--eq-c' as keyof ReturnType<typeof eqBarStyle>]).toBe('var(--music-c1, var(--island-music-cover-start))')
+    expect(eqBarStyle(EQ.bars - 1)).toEqual({ '--eq-c': 'var(--music-c3, var(--island-music-cover-end))', '--eq-t': '0.000' })
+    // Éclaircissement d'après la hauteur : nul à plat, maximal en haut, croissant entre.
+    expect(eqBarTone(EQ.flatScale)).toBe(0)
+    expect(eqBarTone(0)).toBe(0)
+    expect(eqBarTone(1)).toBe(1)
+    expect(eqBarTone(0.5)).toBeGreaterThan(eqBarTone(0.3))
   })
 })
 

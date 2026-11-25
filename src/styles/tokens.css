@@ -244,6 +244,10 @@
      la pochette ne donne pas de couleurs (--music-start / --music-end, posées par le rendu) */
   --island-music-cover-start: #ff7a3d;
   --island-music-cover-end: #e14a08;
+  /* Égaliseur : une barre pleine hauteur est éclaircie de --island-music-eq-lighten vers --island-music-eq-light
+     (chaque barre unie, de la couleur de son groupe ; la vague fait le dégradé) */
+  --island-music-eq-light: #ffffff;
+  --island-music-eq-lighten: 40%;
   --island-bar-track: rgb(255 255 255 / 0.12);
   --island-bar-fill: rgb(255 255 255 / 0.5);
   --island-zone-border: rgb(255 255 255 / 0.2);
@@ -427,6 +431,26 @@
   --island-garden-duration-note: 1000ms;
   --island-garden-duration-ask: 1200ms;
   --island-garden-duration-spark: 600ms;
+
+  /*
+   * Portails de l'encoche du Mac (garden/Garden.module.css .portal*, dessin garden/portalArt.ts) : ouverture et
+   * fermeture = GARDEN.notch.portal.open / close (vérifié par tokens.test.ts) ; reflets, éclats ; parts de couleur du cœur, des reflets et de la lueur ; renfort quand un Claude le traverse.
+   */
+  --island-garden-duration-portal-open: 280ms;
+  --island-garden-duration-portal-close: 200ms;
+  --island-garden-duration-portal-flow: 420ms;
+  --island-garden-duration-portal-spark: 900ms;
+  --island-garden-easing-portal: cubic-bezier(0.23, 1, 0.32, 1);
+  --island-garden-portal-core: 55%;
+  --island-garden-portal-light: 55%;
+  --island-garden-portal-glow: 75%;
+  --island-garden-portal-glow-blur: 2px;
+  --island-garden-portal-glow-blur-busy: 3.5px;
+  --island-garden-portal-busy-brightness: 1.35;
+  --island-garden-portal-busy-widen: 1.2;
+  --island-garden-portal-drift-x: 6px;
+  --island-garden-portal-drift-y: -3px;
+  --island-garden-portal-burst: 5px;
 
   /*
    * Claude de l'île : accessoires de ses activités (src/features/island/view/ClaudeMascot) — feuille et carnet,

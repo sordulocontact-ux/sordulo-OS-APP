@@ -47,9 +47,17 @@ export function musicRatio(music: IslandMusic, now: number): number {
  * Variables CSS des couleurs de la pochette (données dynamiques, pas des valeurs de style) : le CSS module
  * les lit avec un repli sur les tokens --island-music*. Sans palette : aucune variable, les tokens s'appliquent.
  */
+/** Nombre de couleurs de la pochette réparties sur les barres de l'égaliseur (--music-c0 à --music-c3). */
+export const EQ_COLORS = 4
+
 export function musicStyle(palette: MusicPalette | null | undefined): CSSProperties {
   if (!palette) return {}
   const style: Record<string, string> = { '--music-start': palette.start, '--music-end': palette.end }
+  // Couleurs de l'égaliseur : celles de la pochette, sinon start puis end répartis sur les groupes de barres.
+  const colors = palette.colors?.length ? palette.colors : [palette.start, palette.end]
+  for (let k = 0; k < EQ_COLORS; k++) {
+    style[`--music-c${k}`] = colors[Math.floor((k * colors.length) / EQ_COLORS)] ?? palette.start
+  }
   return style as CSSProperties
 }
 
@@ -66,9 +74,28 @@ export function eqBarGeometry(scale: number): { y: number; height: number } {
   return { y: (EQ_BAR.height - height) / 2, height }
 }
 
-/** Position 0..1 d'une barre dans le dégradé horizontal de l'égaliseur (variable CSS --eq-t). */
+/**
+ * Éclaircissement 0..1 d'une barre de l'égaliseur (variable CSS --eq-t) d'après sa hauteur : à plat, la couleur
+ * de son groupe telle quelle ; pleine hauteur, éclaircie au maximum (--island-music-eq-lighten). Chaque barre est
+ * d'une couleur unie, c'est la vague qui fait le dégradé (choix F de Sacha, 25/11).
+ */
+export function eqBarTone(scale: number): number {
+  const t = (Math.min(1, Math.max(0, scale)) - EQ.flatScale) / (1 - EQ.flatScale)
+  return Math.round(Math.min(1, Math.max(0, t)) * 1000) / 1000
+}
+
+/**
+ * Style d'une barre : sa couleur (--eq-c), celle de la pochette qui revient à son groupe (des basses à gauche aux
+ * aigus à droite, EQ_COLORS groupes), repli sur les tokens de la pochette par défaut ; et sa teinte de départ
+ * (à plat). La boucle écrit ensuite --eq-t avec sa hauteur : plus la barre monte, plus elle s'éclaircit.
+ */
 export function eqBarStyle(index: number): CSSProperties {
-  const style: Record<string, string> = { '--eq-t': (EQ.bars > 1 ? index / (EQ.bars - 1) : 0).toFixed(3) }
+  const group = Math.min(EQ_COLORS - 1, Math.floor((index * EQ_COLORS) / EQ.bars))
+  const fallback = group < EQ_COLORS / 2 ? 'var(--island-music-cover-start)' : 'var(--island-music-cover-end)'
+  const style: Record<string, string> = {
+    '--eq-c': `var(--music-c${group}, ${fallback})`,
+    '--eq-t': eqBarTone(EQ.flatScale).toFixed(3),
+  }
   return style as CSSProperties
 }
 

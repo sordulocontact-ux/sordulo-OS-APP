@@ -380,7 +380,11 @@ export const LAB_TRACKS: readonly LabTrack[] = [
     album: "Horizons",
     appName: "Spotify",
     durationMs: 204_000,
-    palette: { start: "rgb(255, 122, 61)", end: "rgb(214, 46, 120)" },
+    palette: {
+      start: "rgb(255, 122, 61)",
+      end: "rgb(214, 46, 120)",
+      colors: ["rgb(255, 122, 61)", "rgb(214, 46, 120)", "rgb(250, 200, 70)", "rgb(120, 90, 230)"],
+    },
     motif: "sun",
   },
   {
@@ -390,7 +394,11 @@ export const LAB_TRACKS: readonly LabTrack[] = [
     album: "Live",
     appName: "Spotify sur iPhone de Maël",
     durationMs: 251_000,
-    palette: { start: "rgb(250, 200, 70)", end: "rgb(230, 90, 60)" },
+    palette: {
+      start: "rgb(250, 200, 70)",
+      end: "rgb(230, 90, 60)",
+      colors: ["rgb(250, 200, 70)", "rgb(230, 90, 60)", "rgb(90, 200, 160)", "rgb(255, 225, 140)"],
+    },
     motif: "sun",
   },
   {
@@ -399,7 +407,11 @@ export const LAB_TRACKS: readonly LabTrack[] = [
     album: "Littoral",
     appName: "Musique",
     durationMs: 167_000,
-    palette: { start: "rgb(64, 200, 224)", end: "rgb(72, 92, 230)" },
+    palette: {
+      start: "rgb(64, 200, 224)",
+      end: "rgb(72, 92, 230)",
+      colors: ["rgb(64, 200, 224)", "rgb(72, 92, 230)", "rgb(240, 120, 170)", "rgb(150, 230, 240)"],
+    },
     motif: "waves",
   },
   {

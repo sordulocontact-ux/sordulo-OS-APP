@@ -150,10 +150,16 @@ export interface MusicActivity {
   kind: 'music'
 }
 
-/** Couleurs tirées de la pochette (couleurs CSS `rgb(…)`) : dégradé des barres et de la pochette de repli. */
+/** Couleurs tirées de la pochette (couleurs CSS `rgb(…)`) : barres de l'égaliseur et pochette de repli. */
 export interface MusicPalette {
   start: string
   end: string
+  /**
+   * Jusqu'à MUSIC_COLORS couleurs de la pochette, de la plus présente à la moins présente (la première est
+   * `start`), complétées par des variantes plus claires : une par groupe de barres de l'égaliseur, des basses
+   * aux aigus. Absent (données anciennes, labo) : `start` puis `end`.
+   */
+  colors?: readonly string[]
 }
 
 /** Lecture en cours affichée par l'île (source « musique » du contrôleur, d'après MusicState). */

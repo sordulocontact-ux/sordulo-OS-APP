@@ -13,7 +13,21 @@ const defined = new Set(Array.from(tokens.matchAll(/(--[a-z0-9-]+)\s*:/g), (m: R
 
 describe('Garden.module.css', () => {
   it('only uses defined tokens (besides the variables set by the renderer or computed in the module)', () => {
-    const local = new Set(['--garden-color', '--garden-depth', '--garden-dx', '--garden-dy', '--garden-tint', '--garden-rim'])
+    const local = new Set([
+      '--garden-color',
+      '--garden-depth',
+      '--garden-dx',
+      '--garden-dy',
+      '--garden-tint',
+      '--garden-rim',
+      // Portails de l'encoche : teintes calculées dans .portal, côté des éclats écrit par le moteur, gerbe.
+      '--portal-core',
+      '--portal-light',
+      '--portal-glow',
+      '--portal-out',
+      '--portal-bx',
+      '--portal-by',
+    ])
     const used = Array.from(css.matchAll(/var\((--[a-z0-9-]+)/g), (m: RegExpExecArray) => m[1] ?? '')
     expect(used.filter((v) => !local.has(v) && !defined.has(v))).toEqual([])
   })
@@ -44,6 +58,12 @@ describe('garden tokens', () => {
     const px = (name: string) => Number(new RegExp(`${name}:\\s*(\\d+)px`).exec(tokens)?.[1])
     expect(px('--island-garden-notch-width')).toBe(GARDEN.notch.width)
     expect(px('--island-garden-notch-height')).toBe(GARDEN.notch.height)
+  })
+
+  it('keeps the portal durations of the simulation equal to the portal tokens', () => {
+    const ms = (name: string) => Number(new RegExp(`${name}:\\s*(\\d+)ms`).exec(tokens)?.[1]) / 1000
+    expect(ms('--island-garden-duration-portal-open')).toBe(GARDEN.notch.portal.open)
+    expect(ms('--island-garden-duration-portal-close')).toBe(GARDEN.notch.portal.close)
   })
 
   it('gives every session color, angry and blush a token', () => {

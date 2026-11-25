@@ -9,16 +9,24 @@
  * Sprite et ombre sont chacun dans une boîte de découpe (`clip`, toute la surface du jardin) : sur le Mac au
  * repos, le personnage qui traverse l'encoche est coupé à son bord, sans transformation (rotation, échelle)
  * à défaire.
+ *
+ * Portails de l'encoche (Mac au repos) : un devant chaque bord pour le Claude qui la traverse, de sa couleur, qui
+ * s'ouvrent l'un après l'autre (dessin portalArt.ts, animations Garden.module.css) ; la phase (ouverture,
+ * présence, fermeture) vient de la simulation (sim.portals), le moteur de rendu ne fait que les poser sous les
+ * Claude et relancer l'animation quand elle change.
  */
 import { ART, createArtSvg, type ArtClassNames } from '../art/pixelArt'
 import type { GardenProp } from '../art/props'
+import { PORTAL_CORE, PORTAL_FLOW, PORTAL_GRID, PORTAL_RIM, PORTAL_SPARKS, type PortalCell } from './portalArt'
 import {
   BUBBLE_TEXT,
+  portalVisual,
   walkerVisual,
   type BubbleKind,
   type ClipRange,
   type Fx,
   type GardenSim,
+  type NotchPortal,
   type VisualContext,
   type Walker,
   type WalkerVisual,
@@ -74,6 +82,18 @@ export interface GardenClassNames {
   propPrompt: string
   propLens: string
   propGears: string
+  /** Portails de l'encoche : boîte posée, corps animé, dessin, phases. */
+  portal: string
+  portalBody: string
+  portalArt: string
+  portalHalo: string
+  portalRim: string
+  portalCore: string
+  portalFlow: string
+  portalSpark: string
+  portalOpen: string
+  portalClose: string
+  portalBusy: string
   /** Tons et animations en images des dessins (../art/pixelArt.module.css). */
   art: ArtClassNames
 }
@@ -90,6 +110,22 @@ const fixed = (v: number, digits = 1) => v.toFixed(digits)
  * bulles et sauts compris).
  */
 const CLIP_FAR = 10000
+
+const SVG_NS = 'http://www.w3.org/2000/svg'
+
+/** Le portail repose un peu sous la ligne des pieds (en cases) : il paraît posé au sol, pas suspendu. */
+const PORTAL_SINK = 0.45
+
+/** Un portail (un côté de l'encoche, pour un Claude) et ce qui en est déjà écrit. */
+interface PortalNode {
+  side: HTMLDivElement
+  body: HTMLDivElement
+  phase: NotchPortal['phase'] | null
+  busy: boolean
+  color: string
+  depth: string
+  geometry: string
+}
 
 function clipPath(clip: ClipRange | null): string {
   if (!clip) return 'none'
@@ -139,6 +175,7 @@ interface WalkerNode {
 export class GardenRenderer {
   private readonly walkers = new Map<number, WalkerNode>()
   private readonly effects = new Map<number, HTMLElement>()
+  private readonly portals = new Map<number, PortalNode>()
   /** Calque des personnages et de leurs ombres : leur ordre (z-index) reste sous l'encoche et les effets. */
   private readonly crowd: HTMLDivElement
   /** Calque des sous-agents, dans `front` (devant la pochette) ; null : avec les autres dans `crowd`. */
@@ -300,6 +337,103 @@ export class GardenRenderer {
     sprite.propsBuilt = true
   }
 
+  /** Un portail : boîte posée par le moteur, corps animé (dessin 8 × 14 et éclats). `out` : côté des éclats. */
+  private createPortal(out: -1 | 1): PortalNode {
+    const { cls } = this
+    const side = document.createElement('div')
+    side.className = cls.portal
+    side.style.setProperty('--portal-out', String(out))
+    const body = document.createElement('div')
+    body.className = cls.portalBody
+    const svg = document.createElementNS(SVG_NS, 'svg')
+    svg.setAttribute('class', cls.portalArt)
+    svg.setAttribute('viewBox', `0 0 ${PORTAL_GRID.w} ${PORTAL_GRID.h}`)
+    svg.setAttribute('shape-rendering', 'crispEdges')
+    svg.setAttribute('preserveAspectRatio', 'none')
+    const halo = document.createElementNS(SVG_NS, 'g')
+    halo.setAttribute('class', cls.portalHalo)
+    const rects = (parent: SVGElement, cells: readonly PortalCell[], className: string) => {
+      for (const [x, y, w, h] of cells) {
+        const rect = document.createElementNS(SVG_NS, 'rect')
+        rect.setAttribute('x', String(x))
+        rect.setAttribute('y', String(y))
+        rect.setAttribute('width', String(w))
+        rect.setAttribute('height', String(h))
+        if (className) rect.setAttribute('class', className)
+        parent.appendChild(rect)
+      }
+    }
+    rects(halo, PORTAL_CORE, cls.portalCore)
+    PORTAL_FLOW.forEach((cells, k) => {
+      const frame = document.createElementNS(SVG_NS, 'g')
+      frame.setAttribute('class', cls.portalFlow)
+      // Image k : visible au k-ième quart du cycle.
+      frame.style.animationDelay = `calc(var(--island-garden-duration-portal-flow) * ${-k} / ${PORTAL_FLOW.length})`
+      rects(frame, cells, '')
+      halo.appendChild(frame)
+    })
+    rects(halo, PORTAL_RIM, cls.portalRim)
+    svg.appendChild(halo)
+    body.appendChild(svg)
+    for (let i = 0; i < PORTAL_SPARKS; i += 1) {
+      const spark = document.createElement('i')
+      spark.className = cls.portalSpark
+      body.appendChild(spark)
+    }
+    side.appendChild(body)
+    this.layer.appendChild(side)
+    return { side, body, phase: null, busy: false, color: '', depth: '', geometry: '' }
+  }
+
+  /** Pose un portail et relance son animation quand la phase change. */
+  private paintPortal(node: PortalNode, p: NotchPortal, ctx: VisualContext): void {
+    const v = portalVisual(p, ctx)
+    const { cls } = this
+    const cell = (p.size / 16) * (v?.scale ?? 1)
+    const w = PORTAL_GRID.w * cell
+    const h = PORTAL_GRID.h * cell
+    const top = (v?.feetY ?? 0) + PORTAL_SINK * cell - h
+    const geometry = v ? `${fixed(v.x)} ${fixed(top)} ${fixed(w, 2)} ${fixed(h, 2)}` : 'none'
+    const { side, body } = node
+    if (geometry !== node.geometry) {
+      node.geometry = geometry
+      side.style.display = v ? '' : 'none'
+      if (v) {
+        side.style.width = `${fixed(w, 2)}px`
+        side.style.height = `${fixed(h, 2)}px`
+        side.style.transform = `translate(${fixed(v.x - w / 2, 2)}px,${fixed(top, 2)}px)`
+      }
+    }
+    const color = `var(${p.colorToken})`
+    if (color !== node.color) {
+      node.color = color
+      side.style.setProperty(BODY_COLOR_VAR, color)
+    }
+    const depth = fixed(p.depth, 2)
+    if (depth !== node.depth) {
+      node.depth = depth
+      side.style.setProperty(DEPTH_VAR, depth)
+    }
+    if (p.phase !== node.phase) {
+      node.phase = p.phase
+      side.classList.remove(cls.portalOpen, cls.portalClose)
+      // Relance l'animation (la même classe peut revenir), décalée de l'âge de la phase : une ouverture reprise
+      // pendant la fermeture repart d'où elle en était.
+      void body.offsetWidth
+      body.style.animationDelay = `${fixed(-p.age, 3)}s`
+      side.classList.add(p.phase === 'open' ? cls.portalOpen : cls.portalClose)
+    }
+    const busy = p.phase === 'open' && p.busy
+    if (busy !== node.busy) {
+      node.busy = busy
+      side.classList.toggle(cls.portalBusy, busy)
+    }
+  }
+
+  private removePortal(node: PortalNode): void {
+    node.side.remove()
+  }
+
   private removeSprite(sprite: Sprite): void {
     sprite.box.remove()
     sprite.shadowBox.remove()
@@ -442,6 +576,23 @@ export class GardenRenderer {
       }
     }
 
+    const open = new Set<number>()
+    for (const p of sim.portals) {
+      open.add(p.key)
+      let node = this.portals.get(p.key)
+      if (!node) {
+        node = this.createPortal(p.side === 'left' ? -1 : 1)
+        this.portals.set(p.key, node)
+      }
+      this.paintPortal(node, p, ctx)
+    }
+    for (const [id, node] of this.portals) {
+      if (!open.has(id)) {
+        this.removePortal(node)
+        this.portals.delete(id)
+      }
+    }
+
     const live = new Set<number>()
     for (const e of sim.fx) {
       live.add(e.id)
@@ -473,6 +624,8 @@ export class GardenRenderer {
       this.removeSprite(node.twin)
     }
     for (const el of this.effects.values()) el.remove()
+    for (const node of this.portals.values()) this.removePortal(node)
+    this.portals.clear()
     this.crowd.remove()
     this.frontCrowd?.remove()
     this.backCrowd?.remove()

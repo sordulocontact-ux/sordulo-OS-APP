@@ -13,7 +13,10 @@ import {
   type Rng,
   type Walker,
   foldX,
+  NOTCH_TUNNEL,
   notchSpan,
+  portalVisual,
+  tunnelSpan,
   portalOf,
   twinLeftOf,
   unfoldX,
@@ -742,11 +745,19 @@ describe('encoche du Mac', () => {
   const MAC_OPTS: GardenSyncOptions = { width: MAC.w, height: MAC.h, platform: 'mac', reduced: false, live: true }
   const MAC_FRAME: GardenFrame = { width: MAC.w, height: MAC.h, platform: 'mac', mood: CALM_MOOD }
   const MAC_CTX = { ...visualCtx, width: MAC.w, height: MAC.h, platform: 'mac' as const }
-  const left = (MAC.w - GARDEN.notch.width) / 2
-  const right = (MAC.w + GARDEN.notch.width) / 2
+  /** Plans des portails (bords du tunnel) : l'encoche élargie de `inset` de chaque côté. */
+  const INSET = GARDEN.notch.portal.inset
+  const left = (MAC.w - GARDEN.notch.width) / 2 - INSET
+  const right = (MAC.w + GARDEN.notch.width) / 2 + INSET
   const notch = { left, right }
-  /** Coordonnée repliée : l'encoche n'a plus de largeur. */
+  /** Coordonnée repliée : l'encoche ne mesure plus que la largeur d'un Claude (le tunnel). */
   const fold = (x: number) => foldX(x, notch)
+  const T = NOTCH_TUNNEL
+  /** Milieu replié du tunnel, et distance d'un Claude à ce milieu. */
+  const mid = left + T / 2
+  const fromMid = (w: Walker) => Math.abs(fold(w.x) - mid)
+  /** Distance au milieu du tunnel en dessous de laquelle un corps touche l'encoche (ou est à moins de gap px). */
+  const clearance = (w: Walker) => w.size / 2 + T / 2 + GARDEN.notch.gap
   /** Hasard neutre : ni pause, ni petit saut, ni changement de sens, vitesse du milieu. */
   const calm: Rng = () => 0.5
   const under = (lo: number, hi: number, n: { left: number; right: number }) => hi > n.left + 1e-6 && lo < n.right - 1e-6
@@ -779,41 +790,57 @@ describe('encoche du Mac', () => {
     return w
   }
 
-  it('portail : la partie qui chevauche un bord de l’encoche est dessinée à l’autre bord, coupée', () => {
-    expect(notchSpan('mac', MAC.w, MAC.h)).toEqual(notch)
+  it('tunnel : l’encoche ne mesure plus que la largeur d’un Claude, découpé d’un seul côté à la fois', () => {
+    expect(tunnelSpan('mac', MAC.w, MAC.h)).toEqual(notch)
+    expect(notchSpan('mac', MAC.w, MAC.h)).toEqual({ left: left + INSET, right: right - INSET })
+    expect(tunnelSpan('mac', MAC.w, ISLAND_SIZES.mac.multiOpen.h)).toBeNull()
     // Île ouverte (sol bien plus bas) ou Windows : pas d'encoche.
     expect(notchSpan('mac', MAC.w, ISLAND_SIZES.mac.multiOpen.h)).toBeNull()
     expect(notchSpan('win', MAC.w, MAC.h)).toBeNull()
+    expect(T).toBe(GARDEN.size.main)
     expect(foldX(left - 3, notch)).toBe(left - 3)
-    expect(foldX(right + 3, notch)).toBe(left + 3)
-    expect(unfoldX(left + 3, notch)).toBe(right + 3)
+    expect(foldX(right + 3, notch)).toBe(left + T + 3)
+    expect(unfoldX(left + T + 3, notch)).toBe(right + 3)
+    // Dans le tunnel : étiré sur la largeur de l'encoche, aller-retour exact.
+    expect(unfoldX(mid, notch)).toBeCloseTo((left + right) / 2, 9)
+    expect(foldX(unfoldX(left + 5, notch), notch)).toBeCloseTo(left + 5, 9)
     const size = GARDEN.size.main
-    // Centre 3 px avant le bord gauche : coupé au bord gauche, le reste dépasse déjà du bord droit.
-    const a = portalOf(left - 3, left - 3 - size / 2, size, MAC_CTX)
+    const at = (u: number) => {
+      const x = unfoldX(u, notch)
+      return portalOf(x, x - size / 2, size, MAC_CTX)
+    }
+    // Centre 3 px avant le bord gauche : coupé au bord gauche, rien ne dépasse à droite.
+    const a = at(left - 3)
+    expect(a.left).toBe(left - 3 - size / 2)
     expect(a.clip).toEqual({ min: -Infinity, max: left })
-    expect(a.twinLeft).toBe(left - 3 - size / 2 + GARDEN.notch.width)
-    expect(a.twinClip).toEqual({ min: right, max: Infinity })
-    const b = portalOf(right + 3, right + 3 - size / 2, size, MAC_CTX)
+    expect(a.twinLeft).toBeNull()
+    // Au milieu du tunnel : entièrement caché (coupé au bord gauche, sprite tout entier après).
+    const m = at(mid)
+    expect(m.left).toBe(left)
+    expect(m.clip).toEqual({ min: -Infinity, max: left })
+    expect(m.twinLeft).toBeNull()
+    // Il ressort à droite petit à petit : 3 px après le milieu, seuls 3 px dépassent du bord droit.
+    const b = at(mid + 3)
+    expect(b.left).toBeCloseTo(right + 3 - size, 9)
     expect(b.clip).toEqual({ min: right, max: Infinity })
-    expect(b.twinLeft).toBe(right + 3 - size / 2 - GARDEN.notch.width)
-    expect(b.twinClip).toEqual({ min: -Infinity, max: left })
+    expect(b.twinLeft).toBeNull()
     // Loin de l'encoche : rien à couper, jumeau des bords de l'île seulement.
-    expect(portalOf(40, 29, size, MAC_CTX)).toEqual({ twinLeft: null, clip: null, twinClip: null })
+    expect(portalOf(40, 29, size, MAC_CTX)).toEqual({ left: 29, twinLeft: null, clip: null, twinClip: null })
     expect(portalOf(5, -6, size, MAC_CTX).twinLeft).toBe(-6 + MAC.w)
   })
 
   for (const dir of [1, -1]) {
-    it(`traverse l’encoche en continu vers la ${dir > 0 ? 'droite' : 'gauche'}, sans saut ni disparition`, () => {
+    it(`traverse l’encoche vers la ${dir > 0 ? 'droite' : 'gauche'} : il y entre en entier puis ressort, sans marcher dessous`, () => {
       const sim = new GardenSim(calm)
       sim.reset([session(0)], MAC_OPTS)
       run(sim, 1, MAC_FRAME)
       const w = walking(sim, dir > 0 ? left - 20 : right + 20, dir)
       let u = fold(w.x)
-      let straddled = 0
+      let hidden = 0
+      let hiddenFrames = 0
       for (let t = 0; t < 3; t += DT) {
         sim.step(DT, MAC_FRAME)
-        // Jamais sous l'encoche ; en coordonnée repliée, il avance d'un pas de marche à chaque image.
-        expect(under(w.x, w.x, notch)).toBe(false)
+        // En coordonnée repliée, il avance d'un pas de marche à chaque image, tunnel compris.
         const du = (fold(w.x) - u) * dir
         expect(du).toBeGreaterThan(0)
         expect(du).toBeLessThan(w.speed * DT * 1.5)
@@ -821,16 +848,17 @@ describe('encoche du Mac', () => {
         // La démarche ne voit pas de téléportation : il marche sans interruption.
         expect(w.stepAmp).toBeGreaterThan(0.99)
         const v = walkerVisual(w, 'working', MAC_CTX)
-        if (Math.abs(u - left) < w.size / 2) {
-          straddled += 1
-          expect(v.twinLeft).not.toBeNull()
-          expect(v.clip).not.toBeNull()
-          expect(v.twinClip).not.toBeNull()
-        }
-        for (const [lo, hi] of drawn(w, MAC_CTX)) expect(under(lo, hi, notch)).toBe(false)
+        // Jamais des deux côtés à la fois.
+        expect(v.twinLeft).toBeNull()
+        const pieces = drawn(w, MAC_CTX)
+        for (const [lo, hi] of pieces) expect(under(lo, hi, notch)).toBe(false)
+        // Caché en entier : seulement l'instant où il passe le milieu du tunnel.
+        if (Math.abs(u - mid) < 1) hidden += 1
+        if (pieces.every(([lo, hi]) => hi - lo <= w.size * 0.1 + 1e-6)) hiddenFrames += 1
       }
-      expect(straddled).toBeGreaterThan(0)
-      // Il est passé de l'autre côté.
+      expect(hidden).toBeGreaterThan(0)
+      expect(hiddenFrames).toBeLessThan(0.15 / DT)
+      // Il est passé de l'autre côté, sans avoir marché les 186 px de l'encoche (moins de 3 s pour 40 px de plus que le tunnel).
       expect(dir > 0 ? w.x > right : w.x < left).toBe(true)
     })
   }
@@ -840,9 +868,10 @@ describe('encoche du Mac', () => {
       const opts: GardenSyncOptions = { ...MAC_OPTS, width: shape.w, height: shape.h }
       const frame: GardenFrame = { ...MAC_FRAME, width: shape.w, height: shape.h, mood: { call: false, music: true } }
       const ctx = { ...MAC_CTX, width: shape.w, height: shape.h }
-      const n = notchSpan('mac', shape.w, shape.h)
+      const n = tunnelSpan('mac', shape.w, shape.h)
       if (!n) throw new Error('pas d’encoche')
-      const span = shape.w - GARDEN.notch.width
+      const span = shape.w - (n.right - n.left) + T
+      const c = n.left + T / 2
       const sim = new GardenSim(seeded(21))
       sim.reset([session(0, { subagents: 3 }), session(1, { subagents: 1 }), session(2)], opts)
       const before = new Map<number, { u: number; mode: string }>()
@@ -851,9 +880,8 @@ describe('encoche du Mac', () => {
         sim.step(DT, frame)
         for (const w of sim.walkers) {
           if (w.dead) continue
-          expect(under(w.x, w.x, n)).toBe(false)
           if (w.delay <= 0) for (const [lo, hi] of drawn(w, ctx)) expect(under(lo, hi, n)).toBe(false)
-          // Personnage principal qui marche : sa position repliée avance sans saut, même à travers l'encoche.
+          // Personnage principal qui marche : sa position repliée avance sans saut, même dans le tunnel.
           const u = foldX(w.x, n)
           const prev = before.get(w.id)
           if (!w.sub && prev && prev.mode === 'walk' && w.mode === 'walk') {
@@ -861,7 +889,7 @@ describe('encoche du Mac', () => {
             if (Math.abs(du) > span / 2) du -= Math.sign(du) * span
             expect(Math.abs(du)).toBeLessThan(2)
           }
-          if (prev && Math.abs(prev.u - n.left) < w.size / 2 && Math.sign(prev.u - n.left) !== Math.sign(u - n.left)) {
+          if (prev && Math.abs(prev.u - c) < w.size && Math.sign(prev.u - c) !== Math.sign(u - c)) {
             crossings += 1
           }
           before.set(w.id, { u, mode: w.mode })
@@ -871,7 +899,7 @@ describe('encoche du Mac', () => {
     }
   })
 
-  it('deux Claude de part et d’autre de l’encoche se rencontrent à travers le portail, à côté de lui', () => {
+  it('deux Claude de part et d’autre de l’encoche se rencontrent à travers elle, à côté d’elle', () => {
     const sim = new GardenSim(calm)
     sim.reset([session(0), session(1)], MAC_OPTS)
     run(sim, 1, MAC_FRAME)
@@ -879,22 +907,21 @@ describe('encoche du Mac', () => {
     const b = main(sim, 's1')
     Object.assign(b, { x: right + 20, px: right + 20, dir: -1, mode: 'walk', vel: b.speed, cool: 0 })
     a.cool = 0
-    // 40 px repliés entre eux : ils se croisent et interagissent, alors qu'à l'écran l'encoche les sépare.
+    // 40 px repliés (plus le tunnel) entre eux : ils se croisent et interagissent, alors qu'à l'écran l'encoche les sépare.
     run(sim, 2, MAC_FRAME, () => sim.interactions.length > 0)
     expect(sim.interactions).toHaveLength(1)
     run(sim, 0.8, MAC_FRAME)
     expect(sim.interactions).toHaveLength(1)
-    // Le point de rencontre est à côté du portail : personne ne reste arrêté à cheval dessus.
-    const reach = GARDEN.size.main / 2 + GARDEN.notch.gap
+    // Le point de rencontre est à côté de l'encoche : personne ne reste arrêté dedans ni à cheval sur un bord.
     for (const w of [a, b]) {
       expect(under(w.x, w.x, notch)).toBe(false)
-      expect(Math.abs(fold(w.x) - left)).toBeGreaterThan(reach - 0.5)
+      expect(fromMid(w)).toBeGreaterThan(clearance(w) - 0.5)
     }
-    // Les deux du même côté : l'un a traversé le portail pour rejoindre l'autre.
-    expect(Math.sign(fold(a.x) - left)).toBe(Math.sign(fold(b.x) - left))
+    // Les deux du même côté : l'un a traversé l'encoche pour rejoindre l'autre.
+    expect(Math.sign(fold(a.x) - mid)).toBe(Math.sign(fold(b.x) - mid))
   })
 
-  it('arrêté à cheval sur le portail, il s’en écarte à pied du côté où est la plus grande partie de son corps', () => {
+  it('arrêté à cheval sur un bord de l’encoche, il s’en écarte à pied du côté le plus proche', () => {
     for (const [x, side] of [
       [left - 3, -1],
       [right + 2, 1],
@@ -911,7 +938,7 @@ describe('encoche du Mac', () => {
         if (w.stepAmp > 0.5) walked = true
       }
       expect(walked).toBe(true)
-      expect(fold(w.x)).toBeCloseTo(left + side * (w.size / 2 + GARDEN.notch.gap), 5)
+      expect(fold(w.x)).toBeCloseTo(mid + side * clearance(w), 5)
     }
   })
 
@@ -922,7 +949,7 @@ describe('encoche du Mac', () => {
       [session(0), session(1, { status: 'waiting' }), session(2, { status: 'done' }), session(3)],
       MAC_OPTS,
     )
-    const tooClose = (w: Walker) => Math.abs(fold(w.x) - left) < GARDEN.notch.gap + w.size / 2 - 0.01
+    const tooClose = (w: Walker) => fromMid(w) < clearance(w) - 0.01
     const idle = main(sim, 's1')
     run(sim, 1, MAC_FRAME)
     idle.x = right + 1
@@ -948,8 +975,147 @@ describe('encoche du Mac', () => {
     sim.reset([session(0, { subagents: 2 })], { ...MAC_OPTS, reduced: true })
     for (const w of sim.walkers) {
       expect(under(w.x, w.x, notch)).toBe(false)
-      expect(Math.abs(fold(w.x) - left)).toBeGreaterThanOrEqual(w.size / 2 + GARDEN.notch.gap - 1e-9)
+      expect(fromMid(w)).toBeGreaterThanOrEqual(clearance(w) - 1e-9)
     }
+  })
+
+  /** Portail du Claude `w` (d'un côté, ou le premier) à cette image, ou undefined. */
+  const portalOf_ = (sim: GardenSim, w: Walker, side?: 'left' | 'right') =>
+    sim.portals.find((p) => p.id === w.id && (!side || p.side === side))
+  /** Laisse se fermer un portail resté de la première seconde (il marchait près de l'encoche), puis attend le sien. */
+  function freshPortal(sim: GardenSim, w: Walker): void {
+    run(sim, 1, MAC_FRAME, () => portalOf_(sim, w) === undefined)
+    expect(portalOf_(sim, w)).toBeUndefined()
+    run(sim, 5, MAC_FRAME, () => portalOf_(sim, w) !== undefined)
+  }
+
+  for (const dir of [1, -1]) {
+    it(`portails vers la ${dir > 0 ? 'droite' : 'gauche'} : l’entrée s’ouvre puis la sortie, l’entrée se ferme d’abord`, () => {
+      const P = GARDEN.notch.portal
+      const sim = new GardenSim(calm)
+      sim.reset([session(0)], MAC_OPTS)
+      run(sim, 1, MAC_FRAME)
+      const w = walking(sim, dir > 0 ? left - 30 : right + 30, dir)
+      run(sim, 1, MAC_FRAME, () => portalOf_(sim, w) === undefined)
+      expect(portalOf_(sim, w)).toBeUndefined()
+      const entry = dir > 0 ? 'left' : 'right'
+      const exit = dir > 0 ? 'right' : 'left'
+      const plane = { left, right: left + T }
+      const opened: Partial<Record<'left' | 'right', number>> = {}
+      const closed: Partial<Record<'left' | 'right', number>> = {}
+      const gone: Partial<Record<'left' | 'right', number>> = {}
+      let frame = 0
+      for (let t = 0; t < 10 && gone[exit] === undefined; t += DT) {
+        sim.step(DT, MAC_FRAME)
+        frame += 1
+        const u = fold(w.x)
+        const lo = u - w.size / 2
+        const hi = u + w.size / 2
+        for (const side of ['left', 'right'] as const) {
+          const p = portalOf_(sim, w, side)
+          const q = plane[side]
+          if (p) {
+            expect(p.key).toBe(w.id * 2 + (side === 'right' ? 1 : 0))
+            expect(p.colorToken).toBe(walkerVisual(w, 'working', MAC_CTX).colorToken)
+          }
+          if (p && opened[side] === undefined) {
+            opened[side] = frame
+            if (side === entry) {
+              // Ouvert avant que le corps touche le plan, à moins de `lead` s de lui.
+              const gap = dir > 0 ? q - hi : lo - q
+              expect(gap).toBeGreaterThanOrEqual(0)
+              expect(gap).toBeLessThan(Math.max(w.speed * P.lead * 1.2, 2))
+            }
+          }
+          // Ouvert tant que le corps chevauche son plan.
+          if (lo < q && hi > q) {
+            expect(p?.phase).toBe('open')
+            expect(p?.busy).toBe(true)
+          }
+          if (p?.phase === 'close' && closed[side] === undefined) closed[side] = frame
+          // Une seule ouverture et une seule fermeture par traversée : pas de clignement.
+          if (closed[side] !== undefined) expect(p?.phase).not.toBe('open')
+          if (!p && opened[side] !== undefined && gone[side] === undefined) gone[side] = frame
+        }
+      }
+      const at = (r: Partial<Record<'left' | 'right', number>>, side: 'left' | 'right') => {
+        const v = r[side]
+        if (v === undefined) throw new Error(`pas d'étape pour ${side}`)
+        return v
+      }
+      expect(at(opened, exit)).toBeGreaterThan(at(opened, entry))
+      expect(at(closed, exit)).toBeGreaterThan(at(closed, entry))
+      expect(at(gone, exit)).toBeGreaterThan(at(gone, entry))
+      // La sortie s'ouvre pendant qu'il entre : avant que l'entrée se ferme.
+      expect(at(opened, exit)).toBeLessThan(at(closed, entry))
+      expect(sim.portals).toHaveLength(0)
+    })
+  }
+
+  it('portail : un demi-tour avant d’entrer le referme, puis il disparaît', () => {
+    const P = GARDEN.notch.portal
+    const sim = new GardenSim(calm)
+    sim.reset([session(0)], MAC_OPTS)
+    run(sim, 1, MAC_FRAME)
+    const w = walking(sim, left - 30, 1)
+    freshPortal(sim, w)
+    expect(portalOf_(sim, w)?.phase).toBe('open')
+    expect(fold(w.x) + w.size / 2).toBeLessThanOrEqual(left)
+    w.dir = -1
+    sim.step(DT, MAC_FRAME)
+    sim.step(DT, MAC_FRAME)
+    expect(portalOf_(sim, w)?.phase).toBe('close')
+    run(sim, P.close + 2 * DT, MAC_FRAME)
+    expect(portalOf_(sim, w)).toBeUndefined()
+  })
+
+  it('portail : rouvert pendant sa fermeture, il reprend où il en était', () => {
+    const P = GARDEN.notch.portal
+    const sim = new GardenSim(calm)
+    sim.reset([session(0)], MAC_OPTS)
+    run(sim, 1, MAC_FRAME)
+    const w = walking(sim, left - 30, 1)
+    freshPortal(sim, w)
+    // Plus près du plan (sans le toucher), demi-tour, puis de nouveau vers l'encoche pendant la fermeture.
+    run(sim, 0.25, MAC_FRAME)
+    expect(fold(w.x) + w.size / 2).toBeLessThan(left)
+    w.dir = -1
+    run(sim, P.close / 2, MAC_FRAME)
+    const closing = portalOf_(sim, w, 'left')
+    expect(closing?.phase).toBe('close')
+    const closedFor = closing?.age ?? 0
+    w.dir = 1
+    sim.step(DT, MAC_FRAME)
+    sim.step(DT, MAC_FRAME)
+    const p = portalOf_(sim, w, 'left')
+    expect(p?.phase).toBe('open')
+    expect(p?.age ?? 0).toBeGreaterThan(P.open * (1 - closedFor / P.close) - 3 * DT)
+    expect(p?.age ?? 0).toBeLessThan(P.open)
+  })
+
+  it('portail : île ouverte (plus d’encoche), ils disparaissent aussitôt ; dessinés au sol du Claude', () => {
+    const sim = new GardenSim(calm)
+    sim.reset([session(0)], MAC_OPTS)
+    run(sim, 1, MAC_FRAME)
+    const w = walking(sim, left - 4, 1)
+    sim.step(DT, MAC_FRAME)
+    const p = portalOf_(sim, w, 'left')
+    if (!p) throw new Error('pas de portail')
+    expect(p.busy).toBe(true)
+    expect(p.size).toBe(w.size)
+    // Encore loin du plan de sortie : seul le portail d'entrée est ouvert.
+    expect(portalOf_(sim, w, 'right')).toBeUndefined()
+    const v = portalVisual(p, MAC_CTX)
+    const D = GARDEN.depth
+    expect(v).toEqual({
+      x: left,
+      feetY: MAC.h - GARDEN.groundOffset.mac - p.depth * D.rise,
+      scale: 1 - p.depth * D.shrink,
+    })
+    expect(portalVisual(p, { ...MAC_CTX, height: ISLAND_SIZES.mac.multiOpen.h })).toBeNull()
+    expect(portalVisual(p, visualCtx)).toBeNull()
+    sim.step(DT, { ...MAC_FRAME, height: ISLAND_SIZES.mac.multiOpen.h })
+    expect(sim.portals).toHaveLength(0)
   })
 
   it('île ouverte (sol sous l’encoche) ou Windows : rien ne change', () => {

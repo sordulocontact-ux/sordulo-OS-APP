@@ -86,6 +86,17 @@ function classNames(): GardenClassNames {
     propPrompt: c('propPrompt'),
     propLens: c('propLens'),
     propGears: c('propGears'),
+    portal: c('portal'),
+    portalBody: c('portalBody'),
+    portalArt: c('portalArt'),
+    portalHalo: c('portalHalo'),
+    portalRim: c('portalRim'),
+    portalCore: c('portalCore'),
+    portalFlow: c('portalFlow'),
+    portalSpark: c('portalSpark'),
+    portalOpen: c('portalOpen'),
+    portalClose: c('portalClose'),
+    portalBusy: c('portalBusy'),
     art: artClassNames(),
   }
 }

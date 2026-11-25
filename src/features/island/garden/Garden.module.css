@@ -595,3 +595,261 @@
     animation: none;
   }
 }
+
+/*
+ * Portails de l'encoche du Mac (dessin : portalArt.ts, grille 8 × 14 ; place, taille et phase : renderer.ts).
+ * `.portal` est posé par le moteur de rendu (translate, taille) ; `.portalBody` porte les animations : ouverture
+ * (un trait qui s'étire en hauteur, dépasse un peu puis se pose), présence (reflets en quatre images, éclats qui
+ * s'échappent du côté ouvert), traversée (`.portalBusy` : plus large et plus lumineux), fermeture (écrasé en
+ * trait horizontal, puis gerbe de quatre pixels). Le décalage de l'ouverture ou de la fermeture
+ * (animation-delay négatif) est écrit par le moteur : une phase reprise continue où elle en était.
+ * SOUS les Claude (demande de Sacha) : le Claude passe devant le bord du portail, puis il est coupé au milieu
+ * (le plan du portail) et la surface du portail reste visible au-delà : il entre dedans, il ne passe pas derrière.
+ */
+.portal {
+  --garden-tint: color-mix(
+    in srgb,
+    var(--garden-color),
+    var(--island-garden-shade) calc(var(--garden-depth, 0) * var(--island-garden-depth-shade))
+  );
+  --portal-core: color-mix(in srgb, var(--garden-tint) var(--island-garden-portal-core), var(--island-garden-shade));
+  --portal-light: color-mix(in srgb, var(--garden-tint), var(--island-garden-light) var(--island-garden-portal-light));
+  --portal-glow: color-mix(in srgb, var(--garden-tint) var(--island-garden-portal-glow), transparent);
+
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.portalBody {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform-origin: 50% 55%;
+}
+
+.portalArt {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 0 var(--island-garden-portal-glow-blur) var(--portal-glow));
+  transition: filter var(--island-garden-duration-portal-close) ease;
+}
+
+.portalRim {
+  fill: var(--garden-tint);
+}
+
+.portalCore {
+  fill: var(--portal-core);
+}
+
+.portalFlow {
+  fill: var(--portal-light);
+  opacity: 0;
+}
+
+.portalHalo {
+  transform-origin: 50% 50%;
+  transition: transform var(--island-garden-duration-portal-close) var(--island-garden-easing-portal);
+}
+
+.portalSpark {
+  position: absolute;
+  left: calc(50% - 100% / 16);
+  top: 50%;
+  width: calc(100% / 8);
+  height: calc(100% / 14);
+  background: var(--portal-light);
+  opacity: 0;
+}
+
+.portalOpen .portalBody {
+  opacity: 1;
+  animation: portal-open var(--island-garden-duration-portal-open) var(--island-garden-easing-portal) both;
+}
+
+/* Reflets : chaque image visible un quart du cycle, l'une après l'autre (décalages écrits par le moteur) */
+.portalOpen .portalFlow {
+  animation: portal-frame var(--island-garden-duration-portal-flow) steps(1, end) infinite;
+}
+
+.portalOpen .portalSpark {
+  animation: portal-drift var(--island-garden-duration-portal-spark) var(--island-garden-easing-portal) infinite;
+}
+
+.portalOpen .portalSpark:nth-of-type(2) {
+  top: 30%;
+  animation-delay: calc(var(--island-garden-duration-portal-spark) * -0.5);
+}
+
+.portalOpen .portalSpark:nth-of-type(3) {
+  top: 72%;
+  animation-delay: calc(var(--island-garden-duration-portal-spark) * -0.25);
+}
+
+.portalOpen .portalSpark:nth-of-type(4) {
+  top: 18%;
+  animation-delay: calc(var(--island-garden-duration-portal-spark) * -0.75);
+}
+
+.portalBusy .portalArt {
+  filter: drop-shadow(0 0 var(--island-garden-portal-glow-blur-busy) var(--portal-glow))
+    brightness(var(--island-garden-portal-busy-brightness));
+}
+
+.portalBusy .portalHalo {
+  transform: scaleX(var(--island-garden-portal-busy-widen));
+}
+
+.portalClose .portalBody {
+  animation: portal-close var(--island-garden-duration-portal-close) var(--island-garden-easing-portal) both;
+}
+
+.portalClose .portalSpark {
+  animation: portal-burst var(--island-garden-duration-portal-close) var(--island-garden-easing-portal) both;
+}
+
+.portalClose .portalSpark:nth-of-type(1) {
+  --portal-bx: -1;
+  --portal-by: -1;
+}
+
+.portalClose .portalSpark:nth-of-type(2) {
+  --portal-bx: 1;
+  --portal-by: -1;
+}
+
+.portalClose .portalSpark:nth-of-type(3) {
+  --portal-bx: -1;
+  --portal-by: 1;
+}
+
+.portalClose .portalSpark:nth-of-type(4) {
+  --portal-bx: 1;
+  --portal-by: 1;
+}
+
+@keyframes portal-open {
+  0% {
+    opacity: 0;
+    transform: scale(0.35, 0.06);
+    filter: brightness(2.4);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(0.55, 0.7);
+  }
+  70% {
+    transform: scale(1.12, 1.08);
+    filter: brightness(1.4);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1, 1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes portal-close {
+  0% {
+    opacity: 1;
+    transform: scale(1, 1);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(1.3, 0.14);
+    filter: brightness(1.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.1, 0.06);
+    filter: brightness(2.4);
+  }
+}
+
+@keyframes portal-frame {
+  0% {
+    opacity: 1;
+  }
+  25%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* --portal-out : -1 portail de gauche (éclats vers la gauche), 1 portail de droite (écrit par le moteur) */
+@keyframes portal-drift {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(
+      calc(var(--portal-out, 1) * var(--island-garden-portal-drift-x)),
+      var(--island-garden-portal-drift-y)
+    );
+  }
+}
+
+@keyframes portal-burst {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(
+      calc(var(--portal-bx, 0) * var(--island-garden-portal-burst)),
+      calc(var(--portal-by, 0) * var(--island-garden-portal-burst))
+    );
+  }
+}
+
+/* Animations réduites : fondu simple, sans reflets qui défilent ni éclats */
+.garden[data-reduced='true'] .portalOpen .portalBody {
+  animation: portal-fade var(--island-garden-duration-portal-close) linear both;
+}
+
+.garden[data-reduced='true'] .portalClose .portalBody {
+  animation: portal-fade var(--island-garden-duration-portal-close) linear reverse both;
+}
+
+.garden[data-reduced='true'] .portalFlow,
+.garden[data-reduced='true'] .portalHalo,
+.garden[data-reduced='true'] .portalSpark {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portalOpen .portalBody {
+    animation: portal-fade var(--island-garden-duration-portal-close) linear both;
+  }
+
+  .portalClose .portalBody {
+    animation: portal-fade var(--island-garden-duration-portal-close) linear reverse both;
+  }
+
+  .portalFlow,
+  .portalHalo,
+  .portalSpark {
+    animation: none;
+  }
+}
+
+@keyframes portal-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

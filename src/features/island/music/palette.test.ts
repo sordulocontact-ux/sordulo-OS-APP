@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { imageMimeType } from './artwork'
-import { contrastOnBlack, MIN_CONTRAST, MIN_HUE_GAP, paletteFromPixels } from './palette'
+import { contrastOnBlack, MIN_CONTRAST, MIN_HUE_GAP, MUSIC_COLORS, paletteFromPixels } from './palette'
 
 type Rgba = [number, number, number, number?]
 
@@ -152,6 +152,42 @@ describe('paletteFromPixels', () => {
   it('couleur déjà lisible et vive : gardée telle quelle', () => {
     const palette = paletteFromPixels(image([[255, 200, 0], 1]), SIZE, SIZE)
     expect(palette?.start).toBe('rgb(255, 200, 0)')
+  })
+})
+
+describe('paletteFromPixels : couleurs de l’égaliseur', () => {
+  it('quatre couleurs bien distinctes : les quatre, de la plus présente à la moins présente', () => {
+    const palette = paletteFromPixels(
+      image([[30, 60, 220], 0.4], [[240, 210, 30], 0.3], [[220, 40, 40], 0.2], [[40, 200, 90], 0.1]),
+      SIZE,
+      SIZE,
+    )
+    expect(palette?.colors).toHaveLength(MUSIC_COLORS)
+    const colors = palette?.colors ?? []
+    expect(colors[0]).toBe(palette?.start)
+    expect(colors[1]).toBe(palette?.end)
+    const hues = colors.map(hue)
+    for (let i = 0; i < hues.length; i++) {
+      for (let j = i + 1; j < hues.length; j++) {
+        const gap = Math.abs((hues[i] ?? 0) - (hues[j] ?? 0))
+        expect(Math.min(gap, 360 - gap)).toBeGreaterThanOrEqual(MIN_HUE_GAP)
+      }
+    }
+  })
+
+  it('une couleur marginale n’entre pas ; il en manque : variantes plus claires', () => {
+    const palette = paletteFromPixels(image([[30, 60, 220], 0.97], [[240, 210, 30], 0.03]), SIZE, SIZE)
+    const colors = palette?.colors ?? []
+    expect(colors).toHaveLength(MUSIC_COLORS)
+    for (const c of colors) expect(Math.abs(hue(c) - hue(colors[0] ?? ''))).toBeLessThan(5)
+    for (let i = 1; i < colors.length; i++) {
+      expect(lightness(colors[i] ?? '')).toBeGreaterThanOrEqual(lightness(colors[i - 1] ?? ''))
+    }
+  })
+
+  it('pochette sans couleur : quatre gris lisibles', () => {
+    const palette = paletteFromPixels(image([[128, 128, 128], 1]), SIZE, SIZE)
+    expect(palette?.colors).toHaveLength(MUSIC_COLORS)
   })
 })
 
