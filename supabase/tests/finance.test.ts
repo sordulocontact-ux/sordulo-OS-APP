@@ -511,6 +511,56 @@ describe('0004 : factures', () => {
   })
 })
 
+describe('0021 : date d’encaissement', () => {
+  it('se choisit au passage en payée, se corrige ensuite, jamais dans le futur ni avant l’émission', async () => {
+    const invoice = await issue((await newInvoice()).id)
+    const [issued] = await q<{ issue_date: string }>(FIN_A, `select issue_date::text from public.invoices where id = $1`, [invoice.id])
+    const day = (offset: number) => `(now() + interval '${offset} day')`
+
+    // Sans date : maintenant, puis gardée quand rien ne la change.
+    const [now] = await q<{ recent: boolean }>(
+      FIN_A,
+      `update public.invoices set status = 'paid' where id = $1 returning paid_at > now() - interval '1 minute' as recent`,
+      [invoice.id],
+    )
+    expect(now?.recent).toBe(true)
+
+    // Corrigée après coup (le jour d'émission, à midi heure de Paris).
+    const chosen = `(('${issued!.issue_date}'::date + time '12:00') at time zone 'Europe/Paris')`
+    const [fixed] = await q<{ ok: boolean }>(
+      FIN_A,
+      `update public.invoices set paid_at = ${chosen} where id = $1 returning paid_at = ${chosen} as ok`,
+      [invoice.id],
+    )
+    expect(fixed?.ok).toBe(true)
+
+    await expectCode(q(FIN_A, `update public.invoices set paid_at = ${day(2)} where id = $1`, [invoice.id]), '23514', /futur/)
+    await expectCode(
+      q(FIN_A, `update public.invoices set paid_at = ('${issued!.issue_date}'::date - 3)::timestamptz where id = $1`, [invoice.id]),
+      '23514',
+      /émission/,
+    )
+    // Les autres champs restent figés, et une facture non payée n'a pas de date.
+    await expectCode(q(FIN_A, `update public.invoices set paid_at = now(), title = 'X' where id = $1`, [invoice.id]), 'P0001', /avoir/)
+    const [back] = await q<{ paid_at: string | null }>(
+      FIN_A,
+      `update public.invoices set status = 'issued', paid_at = now() where id = $1 returning paid_at`,
+      [invoice.id],
+    )
+    expect(back?.paid_at).toBeNull()
+
+    // Date donnée en même temps que le passage en payée.
+    const [direct] = await q<{ ok: boolean }>(
+      FIN_A,
+      `update public.invoices set status = 'paid', paid_at = ${chosen} where id = $1 returning paid_at = ${chosen} as ok`,
+      [invoice.id],
+    )
+    expect(direct?.ok).toBe(true)
+    // Le membre ne touche pas aux factures.
+    expect(await q(MEMBRE_A, `update public.invoices set paid_at = now() where id = $1 returning id`, [invoice.id])).toEqual([])
+  })
+})
+
 describe('0004 : statut automatique du projet', () => {
   it('devis envoyé → devis envoyé, devis accepté → en cours', async () => {
     const project = await newProject('prospect')

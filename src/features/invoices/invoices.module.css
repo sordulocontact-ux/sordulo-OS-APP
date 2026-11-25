@@ -64,6 +64,14 @@
   color: var(--color-link);
 }
 
+/* Date d'encaissement et son bouton « Modifier », sur la même ligne */
+.paidDate {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .form {
   display: flex;
   flex-direction: column;

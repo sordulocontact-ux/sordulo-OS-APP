@@ -200,14 +200,25 @@ export function useCreateCreditNote() {
   })
 }
 
-/** Marque payée ou non payée (la base pose `paid_at`). */
+/**
+ * Marque payée ou non payée. `paidAt` : date d'encaissement choisie (au passage en payée, ou pour la corriger
+ * ensuite) ; sans elle, la base pose maintenant (migration 0021, qui refuse le futur et l'avant-émission).
+ */
 export function useSetInvoicePaid() {
   const invalidate = useInvalidateInvoices()
   return useMutation({
-    mutationFn: async ({ invoice, paid }: { invoice: Pick<Invoice, 'id' | 'project_id'>; paid: boolean }) => {
+    mutationFn: async ({
+      invoice,
+      paid,
+      paidAt,
+    }: {
+      invoice: Pick<Invoice, 'id' | 'project_id'>
+      paid: boolean
+      paidAt?: string
+    }) => {
       const { data, error } = await supabase
         .from('invoices')
-        .update({ status: paid ? 'paid' : 'issued' })
+        .update(paid && paidAt ? { status: 'paid', paid_at: paidAt } : { status: paid ? 'paid' : 'issued' })
         .eq('id', invoice.id)
         .select()
         .overrideTypes<Invoice[], { merge: false }>()

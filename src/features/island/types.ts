@@ -397,7 +397,7 @@ export interface PermissionAsk {
   title: string
   /** epoch ms */
   receivedAt: number
-  /** epoch ms : au-delà, le relais a rendu la main au terminal (60 s). */
+  /** epoch ms : au-delà, le relais a rendu la main au terminal (CLAUDE_PERMISSION_TIMEOUT_MS, 10 min). */
   expiresAt: number
   /** Questions à choix de Claude (outil AskUserQuestion) : on choisit dans l'île au lieu d'autoriser. */
   questions: readonly ClaudeQuestion[] | null

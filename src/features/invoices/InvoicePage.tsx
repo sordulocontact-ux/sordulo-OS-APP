@@ -36,6 +36,9 @@ import {
   invoiceErrorText,
   invoiceNumberLabel,
   issueCheck,
+  paidAtFor,
+  paidDateError,
+  parisDay,
   statusBadgeLabel,
 } from './invoiceLogic'
 import {
@@ -111,7 +114,10 @@ function InvoiceView({ invoice, client, organization }: InvoiceViewProps) {
   const issuer = issuerList.find((i) => i.id === issuerId)
   const [attempted, setAttempted] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [confirm, setConfirm] = useState<'issue' | 'delete' | 'credit' | null>(null)
+  const [confirm, setConfirm] = useState<'issue' | 'delete' | 'credit' | 'paid' | null>(null)
+  /** Date d'encaissement saisie dans la fenêtre « Marquer comme payée » / « Modifier la date ». */
+  const [paidDay, setPaidDay] = useState('')
+  const [paidDayAttempted, setPaidDayAttempted] = useState(false)
   const [modalError, setModalError] = useState<string | null>(null)
 
   const today = todayIso()
@@ -196,13 +202,42 @@ function InvoiceView({ invoice, client, organization }: InvoiceViewProps) {
     }
   }
 
-  async function togglePaid(paid: boolean) {
+  async function cancelPayment() {
     setError(null)
     try {
-      await setPaid.mutateAsync({ invoice, paid })
-      toast.success(paid ? 'Facture marquée comme payée' : 'Paiement annulé')
+      await setPaid.mutateAsync({ invoice, paid: false })
+      toast.success('Paiement annulé')
     } catch (e) {
       setError(invoiceErrorText(e))
+    }
+  }
+
+  /** Fenêtre de la date d'encaissement : aujourd'hui par défaut, ou la date déjà notée. */
+  function askPaidDate() {
+    setModalError(null)
+    setPaidDayAttempted(false)
+    setPaidDay(invoice.paid_at ? parisDay(invoice.paid_at) : today)
+    setConfirm('paid')
+  }
+
+  const wasPaid = invoice.status === 'paid'
+  const paidDayError = paidDateError(paidDay, invoice.issue_date, today)
+
+  async function confirmPaid() {
+    setPaidDayAttempted(true)
+    if (paidDayError) return
+    setModalError(null)
+    // Même jour que celui déjà noté : rien à changer.
+    if (wasPaid && invoice.paid_at && parisDay(invoice.paid_at) === paidDay) {
+      setConfirm(null)
+      return
+    }
+    try {
+      await setPaid.mutateAsync({ invoice, paid: true, paidAt: paidAtFor(paidDay, today) })
+      toast.success(wasPaid ? 'Date d’encaissement modifiée' : 'Facture marquée comme payée')
+      setConfirm(null)
+    } catch (e) {
+      setModalError(invoiceErrorText(e))
     }
   }
 
@@ -245,11 +280,11 @@ function InvoiceView({ invoice, client, organization }: InvoiceViewProps) {
               <>
                 {canTogglePaid ? (
                   <Button
-                    variant={invoice.status === 'paid' ? 'secondary' : 'primary'}
-                    onClick={() => void togglePaid(invoice.status !== 'paid')}
-                    loading={setPaid.isPending}
+                    variant={wasPaid ? 'secondary' : 'primary'}
+                    onClick={() => (wasPaid ? void cancelPayment() : askPaidDate())}
+                    loading={setPaid.isPending && confirm === null}
                   >
-                    {invoice.status === 'paid' ? 'Annuler le paiement' : 'Marquer comme payée'}
+                    {wasPaid ? 'Annuler le paiement' : 'Marquer comme payée'}
                   </Button>
                 ) : null}
                 {canCredit ? (
@@ -362,7 +397,14 @@ function InvoiceView({ invoice, client, organization }: InvoiceViewProps) {
           {invoice.paid_at ? (
             <>
               <dt>Payée le</dt>
-              <dd>{formatDate(invoice.paid_at.slice(0, 10))}</dd>
+              <dd className={styles.paidDate}>
+                {formatDate(parisDay(invoice.paid_at))}
+                {canTogglePaid && wasPaid ? (
+                  <Button size="sm" variant="ghost" onClick={askPaidDate} aria-label="Modifier la date d’encaissement">
+                    Modifier
+                  </Button>
+                ) : null}
+              </dd>
             </>
           ) : null}
           <dt>Total TTC</dt>
@@ -470,6 +512,50 @@ function InvoiceView({ invoice, client, organization }: InvoiceViewProps) {
         <p>
           La facture recevra un numéro définitif et ne sera plus modifiable. Pour la corriger ensuite, il faudra créer un avoir.
         </p>
+        {modalError ? (
+          <p className={styles.error} role="alert">
+            {modalError}
+          </p>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={confirm === 'paid'}
+        onClose={closeConfirm}
+        title={wasPaid ? 'Modifier la date d’encaissement' : 'Marquer comme payée'}
+        dismissible={!setPaid.isPending}
+        actions={
+          <>
+            <Button onClick={closeConfirm} disabled={setPaid.isPending}>
+              Annuler
+            </Button>
+            <Button variant="primary" onClick={() => void confirmPaid()} loading={setPaid.isPending}>
+              {wasPaid ? 'Enregistrer la date' : 'Marquer comme payée'}
+            </Button>
+          </>
+        }
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            void confirmPaid()
+          }}
+        >
+          <Field
+            label="Date d’encaissement"
+            hint="Le jour où l’argent est arrivé sur le compte : elle compte pour le CA encaissé et les seuils."
+            error={paidDayAttempted ? (paidDayError ?? undefined) : undefined}
+          >
+            <TextInput
+              type="date"
+              value={paidDay}
+              min={invoice.issue_date ?? undefined}
+              max={today}
+              onChange={(e) => setPaidDay(e.target.value)}
+              disabled={setPaid.isPending}
+            />
+          </Field>
+        </form>
         {modalError ? (
           <p className={styles.error} role="alert">
             {modalError}

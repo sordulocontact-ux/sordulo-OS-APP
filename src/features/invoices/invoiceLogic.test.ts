@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Invoice } from '../../shared/types'
 import {
+  paidAtFor,
+  paidDateError,
   activeFilterCount,
   csvFileName,
   EMPTY_FILTERS,
@@ -176,5 +178,25 @@ describe('seconde ligne', () => {
     expect(invoiceSecondLine({ kind: 'invoice', title: 'Site vitrine' })).toBe('Facture : Site vitrine')
     expect(invoiceSecondLine({ kind: 'credit_note', title: 'Avoir sur F-2026-0002' })).toBe('Avoir sur F-2026-0002')
     expect(invoiceSecondLine({ kind: 'deposit', title: 'acompte 30 %' })).toBe('acompte 30 %')
+  })
+})
+
+describe('date d’encaissement', () => {
+  it('refuse une date absente, future ou avant l’émission', () => {
+    expect(paidDateError('', '2026-11-10', '2026-11-25')).toMatch(/Indique/)
+    expect(paidDateError('2026-11-26', '2026-11-10', '2026-11-25')).toMatch(/futur/)
+    expect(paidDateError('2026-11-09', '2026-11-10', '2026-11-25')).toMatch(/émission/)
+    expect(paidDateError('2026-11-10', '2026-11-10', '2026-11-25')).toBeNull()
+    expect(paidDateError('2026-11-25', null, '2026-11-25')).toBeNull()
+  })
+
+  it('aujourd’hui : maintenant ; un autre jour : midi à Paris, le même jour en heure d’été comme d’hiver', () => {
+    const now = new Date('2026-11-25T08:30:00Z')
+    expect(paidAtFor('2026-11-25', '2026-11-25', now)).toBe(now.toISOString())
+    for (const day of ['2026-01-15', '2026-07-15']) {
+      const iso = paidAtFor(day, '2026-11-25', now)
+      const paris = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(new Date(iso))
+      expect(paris).toBe(day)
+    }
   })
 })

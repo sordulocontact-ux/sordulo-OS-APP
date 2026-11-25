@@ -145,7 +145,7 @@ export interface InvoiceStats {
 }
 
 /** Date AAAA-MM-JJ d'un horodatage ISO, en jour de Paris (comme `todayIso`). */
-function parisDay(iso: string): string {
+export function parisDay(iso: string): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso.slice(0, 10)
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
@@ -243,8 +243,29 @@ export function invoiceErrorText(error: unknown): string {
   if (/seule une facture en brouillon/i.test(message)) return 'Seul un brouillon peut être supprimé : pour annuler une facture émise, crée un avoir.'
   if (/annulée ne peut plus/i.test(message)) return 'Une facture annulée ne peut plus changer de statut.'
   if (/total d.une facture ne peut pas être négatif/i.test(message)) return NEGATIVE_INVOICE_TOTAL_ERROR
+  if (/date d.encaissement ne peut pas être dans le futur/i.test(message)) return 'La date d’encaissement ne peut pas être dans le futur.'
+  if (/date d.encaissement ne peut pas précéder/i.test(message)) return 'La date d’encaissement ne peut pas précéder l’émission de la facture.'
   if (/adresse de facturation/i.test(message)) return 'Le client n’a pas d’adresse de facturation : complète sa fiche.'
   return message ? `Une erreur est survenue : ${message}` : 'Une erreur est survenue. Réessaie.'
+}
+
+/**
+ * Date d'encaissement choisie (AAAA-MM-JJ, jour de Paris) : `null` si elle manque ; sinon le message qui
+ * l'empêche (dans le futur, avant l'émission), comme la base (migration 0021). `null` = valide.
+ */
+export function paidDateError(day: string, issueDate: string | null, today: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return 'Indique la date d’encaissement.'
+  if (day > today) return 'La date d’encaissement ne peut pas être dans le futur.'
+  if (issueDate && day < issueDate) return 'La date d’encaissement ne peut pas précéder l’émission de la facture.'
+  return null
+}
+
+/**
+ * Horodatage envoyé pour un encaissement au jour `day` (Paris) : maintenant si c'est aujourd'hui (la base
+ * refuse le futur), sinon 11 h UTC, midi ou 13 h à Paris, toujours ce jour-là quelle que soit l'heure d'été.
+ */
+export function paidAtFor(day: string, today: string, now: Date = new Date()): string {
+  return day === today ? now.toISOString() : `${day}T11:00:00.000Z`
 }
 
 export function csvFileName(today: string): string {

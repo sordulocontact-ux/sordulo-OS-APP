@@ -198,6 +198,8 @@ export function setupDatabase(extraSql = '') {
     await db.exec(migration('0019_security_hardening.sql')) // rejouable
     await db.exec(migration('0020_partners_notes.sql'))
     await db.exec(migration('0020_partners_notes.sql')) // rejouable
+    await db.exec(migration('0021_invoice_paid_date.sql'))
+    await db.exec(migration('0021_invoice_paid_date.sql')) // rejouable
     if (extraSql) await db.exec(extraSql)
   })
 

@@ -48,7 +48,7 @@ npm test           # inclut les tests RLS (supabase/tests, Postgres PGlite en m�
 npm run build
 ```
 
-Migrations 0010 à 0020 (roadmap V0 à V2, sécurité, partenaires et notes) : **appliquées en production le 25/11/2026** (par le MCP Supabase ; `sordulo_meta.migrations` note 0001 à 0020, schéma vérifié identique à une base locale qui a exécuté les fichiers).
+Migrations 0010 à 0021 (roadmap V0 à V2, sécurité, partenaires et notes, date d'encaissement modifiable) : **appliquées en production le 25/11/2026** (par le MCP Supabase ; `sordulo_meta.migrations` note 0001 à 0021, schéma vérifié identique à une base locale qui a exécuté les fichiers).
 
 Migrations : une nouvelle migration `supabase/migrations/000N_*.sql` est appliquée en production **avant** de pousser le code qui en dépend, par `npm run db:migrate` (`SUPABASE_DB_URL` = URI « Session pooler » dans `.env.local`, les migrations déjà passées sont sautées) ou par l'éditeur SQL Supabase. Production sans `sordulo_meta` (migrations collées à la main) : `node scripts/db-apply-files.mjs <nouvelles.sql> --mark <déjà appliquées.sql>` applique chaque fichier dans sa transaction et note les migrations. Pour tester sur une base jetable : un Supabase local (`supabase start`, ports libres) et un fichier `.env.<mode>.local` lu par `npx vite --mode <mode>` (jamais le `.env.local` de production).
 
