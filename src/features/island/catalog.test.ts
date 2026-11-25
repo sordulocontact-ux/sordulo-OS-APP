@@ -85,6 +85,22 @@ const samples: NotificationParams = {
     projectName: "PDS OS",
     detail: "La session 2 attend que la 1 ait fini",
   },
+  filing: {
+    icon: "check",
+    tone: "success",
+    title: "Rangé dans App Ibé › Devis",
+    subtitle: "devis-ibe.pdf",
+    button: "Annuler",
+    action: { type: "undoFiling", intakeIds: ["i-1"], ruleIds: [] },
+  },
+  appNotification: {
+    icon: "bell",
+    tone: "info",
+    title: "Gabi a ajouté un site : Boulangerie",
+    subtitle: "boulangerie.fr",
+    button: "Voir",
+    action: { type: "openNotification", notificationId: "n-1", route: "/prospects/p-1" },
+  },
 };
 
 const kinds = Object.keys(notificationCatalog) as NotificationKind[];
@@ -95,7 +111,7 @@ function build(kind: NotificationKind) {
 
 describe("catalogue des notifications", () => {
   it("construit chaque sorte avec sa sorte, un titre et un ton", () => {
-    expect(kinds).toHaveLength(26);
+    expect(kinds).toHaveLength(28);
     for (const kind of kinds) {
       const notification = build(kind);
       expect(notification.kind).toBe(kind);

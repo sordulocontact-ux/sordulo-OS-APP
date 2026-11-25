@@ -7,6 +7,8 @@ import type { CallService, IslandDragStart, IslandMotion, IslandRect } from '../
 import type {
   Activity,
   ActivityKind,
+  ChoiceDecision,
+  IslandChoice,
   ClaudeSession,
   IslandEdge,
   IslandNotification,
@@ -49,11 +51,11 @@ export type IslandDropZone = 'transcribe' | 'analyse' | 'files' | 'claude'
 export interface IslandDropInfo {
   /** Nom du fichier glissé (ou « Fichier audio », « Document » tant qu'il n'est pas connu). */
   fileName: string
-  /** Projet de destination, affiché sous la zone « Fichiers ». */
+  /** Projet de destination, affiché sous les zones « Transcrire » et « Analyser » (le dernier utilisé). */
   projectName: string | null
   /**
    * Zones affichées : transcribe seulement pour l'audio, analyse seulement pour un document, claude seulement si une session est active,
-   * files masquée tant que les fichiers de projet n'existent pas. Chaque zone porte `data-zone`.
+   * files (« Ranger », l'IA trouve le projet) pour tout fichier quand la connexion n'est pas absente. Chaque zone porte `data-zone`.
    */
   zones: Readonly<Record<IslandDropZone, boolean>>
 }
@@ -131,6 +133,11 @@ export interface IslandProps {
   onCallAccept: (projectId: string | null) => void
   /** « Ignorer » (ou Échap) sur l'appel détecté. */
   onCallIgnore: () => void
+  /**
+   * Décision dans l'île (état `choice`, snapshot.choice) : bouton principal, secondaire, ou Échap (`dismiss`).
+   * `always` : case « Toujours » cochée (faux sans case).
+   */
+  onChoiceDecision: (decision: ChoiceDecision, choice: IslandChoice, always: boolean) => void
   /** Changement de projet dans la liste de l'appel détecté. */
   onProjectChange: (projectId: string) => void
   /** « Arrêter » au survol de l'enregistrement. */

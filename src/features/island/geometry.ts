@@ -105,6 +105,8 @@ export const PROGRESS_NAMED_MAC_WIDTH = MAC_NOTCH_WIDTH + 2 * PROGRESS_NAMED_MAC
  * l'île élargie du déploiement (PROGRESS_NAMED_MAC_WIDTH), pour que le survol ne la rétrécisse pas.
  * `progressNamed` : progression fermée avec un nom (déploiement), voir PROGRESS_NAMED_MAC.
  * Mac : largeurs calculées depuis l'encoche (186 px dans le prototype).
+ * `choice` (décision dans l'île : rangement d'un fichier, proposition de l'IA) reprend `appel` : même
+ * composition (petite ligne, titre, ligne de boutons) ; sur Mac, le contenu commence sous l'encoche (44 px).
  */
 export const ISLAND_SIZES: Record<IslandPlatform, Record<IslandSizeKey, IslandShapeSize>> = {
   win: {
@@ -130,6 +132,7 @@ export const ISLAND_SIZES: Record<IslandPlatform, Record<IslandSizeKey, IslandSh
     dragOver: { w: 440, h: 150, r: 26 },
     notif: { w: 340, h: 64, r: 22 },
     notifCall: { w: 340, h: 100, r: 24 },
+    choice: { w: 384, h: 116, r: 24 },
   },
   mac: {
     repos: { w: 186, h: 32, r: 9 },
@@ -154,6 +157,7 @@ export const ISLAND_SIZES: Record<IslandPlatform, Record<IslandSizeKey, IslandSh
     dragOver: { w: 460, h: 178, r: 26 },
     notif: { w: 360, h: 96, r: 24 },
     notifCall: { w: 370, h: 96, r: 24 },
+    choice: { w: 400, h: 148, r: 26 },
   },
 }
 

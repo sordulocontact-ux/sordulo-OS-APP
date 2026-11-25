@@ -2,7 +2,10 @@
  * Données simulées du labo : projets, sessions Claude Code, demandes d'autorisation, une notification d'exemple
  * par sorte du catalogue. Textes repris du prototype (design/prototypes/ile-sordulo-os.html).
  */
+import { islandViewOf } from "../appNotifications/logic";
 import { createNotification } from "../catalog";
+import { SAMPLE_APP_NOTIFICATIONS, SAMPLE_NAMES, sampleBatchItems } from "../drop/filingFixtures";
+import { autoFiledNotification, filingItemsOf } from "../drop/filing";
 import type { IslandDropInfo, IslandProjectOption } from "../view";
 import type {
   ClaudeSession,
@@ -166,6 +169,8 @@ export const NOTIFICATION_LABELS: Record<NotificationKind, string> = {
   relecture: "À relire",
   fileAdded: "Fichier ajouté",
   conflictOk: "Conflit résolu",
+  filing: "Rangement : rangé automatiquement",
+  appNotification: "Notification de la base",
 };
 
 export const NOTIFICATION_KINDS = Object.keys(
@@ -308,13 +313,29 @@ export function sampleNotification(kind: NotificationKind): IslandNotification {
         projectName: "PDS OS",
         detail: "La session 2 attend que la 1 ait fini",
       });
+    case "filing":
+      return autoFiledNotification(
+        filingItemsOf(sampleBatchItems("auto")),
+        SAMPLE_NAMES,
+      );
+    case "appNotification": {
+      const view = islandViewOf(SAMPLE_APP_NOTIFICATIONS["prospect.created"]!, {
+        memberId: "m-1",
+        ownBatchIds: new Set(),
+        trackedInputIds: new Set(),
+      });
+      return view.type === "notify"
+        ? view.notification
+        : createNotification("digest", { title: "Notification", subtitle: "" });
+    }
   }
 }
 
-export type DropFile = "audio" | "document";
+/** several : 3 documents glissés ensemble (« 3 fichiers », seule la zone Ranger les prend tous). */
+export type DropFile = "audio" | "document" | "several";
 
 export interface DropOptions {
-  /** Zone « Fichiers » (masquée dans l'app tant que les fichiers de projet n'existent pas). */
+  /** Zone « Ranger » (dans l'app : proposée pour tout fichier quand la connexion n'est pas absente). */
   files: boolean;
   /** Zone « Claude Code » (seulement si une session est active). */
   claude: boolean;
@@ -322,11 +343,16 @@ export interface DropOptions {
 
 export function makeDrop(file: DropFile, options: DropOptions): IslandDropInfo {
   return {
-    fileName: file === "audio" ? "Appel Ibé.m4a" : "Cahier des charges.pdf",
+    fileName:
+      file === "audio"
+        ? "Appel Ibé.m4a"
+        : file === "several"
+          ? "3 fichiers"
+          : "Cahier des charges.pdf",
     projectName: "PDS OS",
     zones: {
       transcribe: file === "audio",
-      analyse: file === "document",
+      analyse: file !== "audio",
       files: options.files,
       claude: options.claude,
     },

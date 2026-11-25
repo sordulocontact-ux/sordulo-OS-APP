@@ -250,6 +250,7 @@ function IslandSurface({ runtime }: { runtime: IslandRuntime }) {
         onStopRecording={runtime.gestures.onStopRecording}
         onAnswerSession={runtime.gestures.onAnswerSession}
         onOpenSession={runtime.gestures.onOpenSession}
+        onChoiceDecision={runtime.gestures.onChoiceDecision}
         onMusicCommand={runtime.gestures.onMusicCommand}
         onDragStart={onDragStart}
         onHitRectsChange={onHitRectsChange}

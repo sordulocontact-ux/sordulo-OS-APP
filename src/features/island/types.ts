@@ -45,9 +45,11 @@ export type IslandState =
   | 'multi'
   | 'dragWake'
   | 'dragOver'
+  /** Décision à prendre dans l'île (rangement d'un fichier, proposition de l'IA) : voir IslandChoice. */
+  | 'choice'
 
 /** États qui passent par-dessus l'activité principale (prototype : `isOverlay`). */
-export type IslandOverlay = 'appel' | 'notif' | 'agentAsk' | 'dragWake' | 'dragOver'
+export type IslandOverlay = 'appel' | 'notif' | 'agentAsk' | 'dragWake' | 'dragOver' | 'choice'
 
 /**
  * Clé de taille (prototype : objet `S`) : l'état, plus le survol et les variantes pendant un appel.
@@ -83,6 +85,8 @@ export type IslandSizeKey =
   | 'dragOver'
   | 'notif'
   | 'notifCall'
+  /** Décision (IslandChoice) : mêmes dimensions que `appel` (« Transcrire cet appel ? »). */
+  | 'choice'
 
 // ---------------------------------------------------------------------------
 // Activités : une principale dans l'île, la suivante dans la bulle à droite
@@ -225,6 +229,10 @@ export type NotificationKind =
   | 'relecture'
   | 'fileAdded'
   | 'conflictOk'
+  /** Rangement des fichiers déposés sur la zone « Ranger » : rangé, à vérifier, échec, annulé (drop/filing.ts). */
+  | 'filing'
+  /** Notification de la base (table notifications) : passage de main d'un collègue ou de l'IA (appNotifications/logic.ts). */
+  | 'appNotification'
 
 /** Icônes de l'île (prototype : objet I, tracés 24 × 24 en trait). */
 export type IslandIconName =
@@ -267,6 +275,19 @@ export type NotificationAction =
   | { type: 'openSession'; sessionId: string }
   /** Prévu (rappel de call) : rejoindre l'appel. */
   | { type: 'openUrl'; url: string }
+  /**
+   * Annule des rangements (fichiers déposés sur « Ranger ») : chaque dépôt redevient « à ranger ». `ruleIds` :
+   * règles « Toujours » créées par ce rangement, révoquées avec lui.
+   */
+  | { type: 'undoFiling'; intakeIds: readonly string[]; ruleIds: readonly string[] }
+  /** Relance l'envoi ou le classement des fichiers en échec d'un lot déposé sur « Ranger ». */
+  | { type: 'retryFiling'; batchId: string }
+  /** Remontre une décision mise de côté (IslandChoice), comme « Répondre » pour une demande d'autorisation. */
+  | { type: 'showChoice'; choiceId: string }
+  /** Notification de la base : la marque lue et ouvre la fenêtre principale sur son lien (s'il y en a un). */
+  | { type: 'openNotification'; notificationId: string; route: string | null }
+  /** Annule une proposition de l'IA appliquée (rpc undo_ai_proposal). */
+  | { type: 'undoProposal'; proposalId: string; notificationId: string | null }
 
 export interface IslandNotification {
   /** Unique par notification émise. */
@@ -284,6 +305,36 @@ export interface IslandNotification {
   /** Passe devant tout le reste (prototype : INTERRUPT). Vrai pour `rappel`. */
   interrupt: boolean
 }
+
+// ---------------------------------------------------------------------------
+// Décisions dans l'île
+// ---------------------------------------------------------------------------
+
+/**
+ * Décision à prendre dans l'île (état `choice`), sur le modèle de « Transcrire cet appel ? » : petite ligne,
+ * titre, case « Toujours » facultative, bouton secondaire facultatif et bouton principal. En file avec les
+ * demandes d'autorisation (passe avant les notifications), mise de côté sans le curseur sur l'île
+ * (CHOICE_IDLE_MS de la coordination). La source qui l'a demandée la reconnaît à son `id`.
+ */
+export interface IslandChoice {
+  /** Unique ; préfixé par la source (« filing:… », « proposal:… »). */
+  id: string
+  icon: IslandIconName
+  tone: IslandTone
+  /** Petite ligne au-dessus du titre (« Classé par l'IA · devis-ibe.pdf »). */
+  eyebrow: string
+  /** Titre (« Devis D-2026-012 · Ibé › App Ibé »). */
+  title: string
+  /** Case « Toujours » ; null : pas de case. `hint` : ce qu'elle fait (nom accessible et infobulle). */
+  always: { label: string; hint: string } | null
+  /** Bouton secondaire (Modifier, Vérifier, Refuser) ; null : aucun. */
+  secondary: string | null
+  /** Bouton principal (Ranger, Tout ranger, Valider). */
+  primary: string
+}
+
+/** primary / secondary : boutons ; dismiss : Échap (plus tard). */
+export type ChoiceDecision = 'primary' | 'secondary' | 'dismiss'
 
 // ---------------------------------------------------------------------------
 // Claude Code
@@ -379,4 +430,6 @@ export interface IslandSnapshot {
   askPosition: { index: number; total: number } | null
   /** Mode concentration : les notifications attendent la fin de l'appel. */
   focusMode: boolean
+  /** Décision affichée (state === 'choice'). */
+  choice: IslandChoice | null
 }

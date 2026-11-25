@@ -76,6 +76,7 @@ export function Island(props: IslandProps) {
     onStopRecording,
     onAnswerSession,
     onOpenSession,
+    onChoiceDecision,
     onMusicCommand,
     onHitRectsChange,
   } = props
@@ -447,6 +448,7 @@ export function Island(props: IslandProps) {
     if (e.key !== 'Escape') return
     if (state === 'notif' && snapshot.notification) onNotificationDismiss(snapshot.notification)
     else if (state === 'appel') onCallIgnore()
+    else if (state === 'choice' && snapshot.choice) onChoiceDecision('dismiss', snapshot.choice, false)
   }
 
   const base = { current: state, platform, edge, withCall }
@@ -512,6 +514,7 @@ export function Island(props: IslandProps) {
               onAnswerSession,
               onOpenSession,
               onNotificationAction,
+              onChoiceDecision,
               onMusicCommand,
               onSelectRow: selectRow,
             }}

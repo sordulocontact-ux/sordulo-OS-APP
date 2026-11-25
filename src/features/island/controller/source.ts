@@ -36,6 +36,7 @@ export type IslandGestures = Pick<
   | 'onAskDecision'
   | 'onAnswerSession'
   | 'onOpenSession'
+  | 'onChoiceDecision'
 > & {
   /** Facultatif pour <Island> (labo, tests), toujours fourni par le contrôleur. */
   onMusicCommand: NonNullable<IslandProps['onMusicCommand']>

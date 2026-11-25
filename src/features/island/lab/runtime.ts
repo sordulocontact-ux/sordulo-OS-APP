@@ -36,7 +36,49 @@ import {
   type DropFile,
   type DropOptions,
 } from "./fixtures";
-import type { NotificationKind } from "../types";
+import type { ChoiceDecision, IslandChoice, NotificationKind } from "../types";
+import {
+  islandViewOf,
+  proposalAppliedNotification,
+  proposalUndoneNotification,
+} from "../appNotifications/logic";
+import {
+  FILING_PROGRESS_ID,
+  FILING_PROGRESS_STAGE,
+  autoFiledNotification,
+  batchRoute,
+  estimateFilingMs,
+  filedManyNotification,
+  filedNotification,
+  filingErrorNotification,
+  filingItemsOf,
+  filingProgressLabel,
+  intakeRoute,
+  planBatch,
+  readyChoice,
+  readyManyChoice,
+  reviewNotification,
+  setAsideNotification,
+  undoneNotification,
+  type FilingItem,
+} from "../drop/filing";
+import {
+  SAMPLE_APP_NOTIFICATIONS,
+  SAMPLE_BATCH_ID,
+  SAMPLE_NAMES,
+  sampleBatchItems,
+  sampleFiledFile,
+  type SampleFilingCase,
+} from "../drop/filingFixtures";
+
+/** Classement simulé d'un fichier dans le labo (ms). */
+const LAB_FILING_MS_PER_FILE = 1100;
+
+/** Décision simulée : ce que le labo fait des boutons. */
+type LabChoice =
+  | { kind: "filingOne"; item: FilingItem }
+  | { kind: "filingMany"; items: readonly FilingItem[] }
+  | { kind: "proposal"; proposalId: string; title: string };
 
 export interface LabView {
   snapshot: IslandSnapshot;
@@ -95,7 +137,7 @@ export class LabRuntime {
   private call: IslandCallPrompt | null = null;
   private drop: IslandDropInfo | null = null;
   private dropFile: DropFile | null = null;
-  private dropOptions: DropOptions = { files: false, claude: true };
+  private dropOptions: DropOptions = { files: true, claude: true };
   private hotZone: IslandDropZone | null = null;
   private focusMode = false;
   /** Service d'appel simulé (logo et couleur) ; null : inconnu. */
@@ -112,6 +154,8 @@ export class LabRuntime {
   private realHover = false;
   private log: string[] = [];
   private view: LabView;
+  /** Décisions du labo affichées ou mises de côté, par id. */
+  private readonly choices = new Map<string, LabChoice>();
 
   constructor() {
     this.coordinator = new IslandCoordinator({
@@ -240,6 +284,7 @@ export class LabRuntime {
     this.clearTrackEnd();
     this.music = null;
     this.musicRemote = false;
+    this.choices.clear();
     this.emit();
   }
 
@@ -792,6 +837,24 @@ export class LabRuntime {
     this.remember(
       `Bouton « ${notification.button ?? "Fermer"} » : ${notification.title}`,
     );
+    const action = notification.action;
+    if (action.type === "undoFiling")
+      this.coordinator.notify(
+        undoneNotification({
+          count: action.intakeIds.length,
+          ruleRevoked: action.ruleIds.length > 0,
+          route: action.intakeIds.length === 1 ? intakeRoute(action.intakeIds[0] ?? "") : batchRoute(SAMPLE_BATCH_ID),
+        }),
+      );
+    else if (action.type === "retryFiling") this.simulateFiling("sure");
+    else if (action.type === "showChoice") {
+      const lab = this.choices.get(action.choiceId);
+      if (lab?.kind === "filingOne")
+        this.offerChoice(readyChoice(lab.item, SAMPLE_NAMES), lab);
+      else if (lab?.kind === "filingMany")
+        this.offerChoice(readyManyChoice(lab.items, SAMPLE_BATCH_ID, SAMPLE_NAMES), lab);
+    } else if (action.type === "undoProposal")
+      this.coordinator.notify(proposalUndoneNotification());
     if (notification.action.type === "stopRecording") this.stopRecording();
     else if (
       notification.action.type === "showSessions" &&
@@ -834,6 +897,139 @@ export class LabRuntime {
 
   changeCallProject = (projectId: string): void => {
     if (this.call) this.call = { ...this.call, selectedProjectId: projectId };
+    this.emit();
+  };
+
+  // --- Rangement des fichiers et notifications de la base (ce que font les sources « rangement » et
+  // « notifications » du contrôleur, avec les mêmes textes : drop/filing.ts, appNotifications/logic.ts) ------
+
+  /** Fichiers déposés sur « Ranger » : progression du classement, puis ce que l'île annonce pour ce cas. */
+  simulateFiling(kind: SampleFilingCase): void {
+    const items = filingItemsOf(sampleBatchItems(kind));
+    const total = items.length;
+    const id = `${FILING_PROGRESS_ID}:lab`;
+    this.coordinator.addActivity({
+      id,
+      kind: "progress",
+      stage: FILING_PROGRESS_STAGE,
+      label: filingProgressLabel(0, total),
+      fraction: null,
+      startedAt: systemClock.now(),
+      estimatedMs: estimateFilingMs(total),
+    });
+    for (let done = 1; done <= total; done++) {
+      this.later(done * LAB_FILING_MS_PER_FILE, () =>
+        this.coordinator.updateActivity(id, {
+          label: filingProgressLabel(done, total),
+          fraction: done / total,
+        }),
+      );
+    }
+    this.later(total * LAB_FILING_MS_PER_FILE + PROGRESS_END_DELAY_MS, () => {
+      this.coordinator.removeActivity(id);
+      this.announceFiling(items);
+    });
+    this.remember(`Dépôt sur Ranger : ${total} fichier${total > 1 ? "s" : ""}`);
+    this.emit();
+  }
+
+  private announceFiling(items: readonly FilingItem[]): void {
+    const { errors, main } = planBatch(items);
+    if (main.type === "auto")
+      this.coordinator.notify(autoFiledNotification(main.items, SAMPLE_NAMES));
+    else if (main.type === "review")
+      this.coordinator.notify(reviewNotification(main, SAMPLE_BATCH_ID));
+    else if (main.type === "readyOne")
+      this.offerChoice(readyChoice(main.item, SAMPLE_NAMES, main.auto), {
+        kind: "filingOne",
+        item: main.item,
+      });
+    else if (main.type === "readyMany")
+      this.offerChoice(
+        readyManyChoice(main.items, SAMPLE_BATCH_ID, SAMPLE_NAMES, main.auto),
+        { kind: "filingMany", items: main.items },
+      );
+    if (errors.length > 0)
+      this.coordinator.notify(filingErrorNotification(errors, SAMPLE_BATCH_ID));
+  }
+
+  private offerChoice(choice: IslandChoice, lab: LabChoice): void {
+    this.choices.set(choice.id, lab);
+    this.coordinator.requestChoice(choice, {
+      onSetAside: () => {
+        if (lab.kind === "proposal") return;
+        this.remember(`Décision mise de côté : ${choice.title}`);
+        this.coordinator.notify(
+          setAsideNotification(choice, lab.kind === "filingMany" ? lab.items.length : 1),
+        );
+        this.emit();
+      },
+    });
+  }
+
+  /** Notification de la base (table notifications) d'un type donné, filtrée et traduite comme dans l'app. */
+  simulateAppNotification(key: string): void {
+    const row = SAMPLE_APP_NOTIFICATIONS[key];
+    if (!row) return;
+    // Id neuf à chaque envoi : la coordination ignore une notification déjà connue.
+    const fresh = { ...row, id: `${row.id}-${systemClock.now()}` };
+    const view = islandViewOf(fresh, {
+      memberId: fresh.member_id,
+      ownBatchIds: new Set(),
+      trackedInputIds: new Set(),
+    });
+    if (view.type === "notify") this.coordinator.notify(view.notification);
+    else if (view.type === "choice")
+      this.offerChoice(
+        { ...view.choice, id: `${view.choice.id}-${systemClock.now()}` },
+        { kind: "proposal", proposalId: view.proposalId, title: view.choice.title },
+      );
+    this.remember(`Notification de la base : ${row.kind}`);
+    this.emit();
+  }
+
+  /** Boutons et Échap d'une décision. */
+  decideChoice = (decision: ChoiceDecision, choice: IslandChoice, always: boolean): void => {
+    this.coordinator.resolveChoice(choice.id);
+    const lab = this.choices.get(choice.id);
+    this.choices.delete(choice.id);
+    const label =
+      decision === "primary" ? choice.primary : decision === "secondary" ? (choice.secondary ?? "") : "Échap";
+    this.remember(`${label}${always ? " + Toujours" : ""} : ${choice.title}`);
+    if (lab && decision === "secondary" && lab.kind !== "proposal") {
+      const route =
+        lab.kind === "filingOne" && lab.item.intake ? intakeRoute(lab.item.intake.id) : batchRoute(SAMPLE_BATCH_ID);
+      this.remember(`Ouvre l’app sur ${route}`);
+    }
+    if (lab && decision === "primary") {
+      if (lab.kind === "filingOne" && lab.item.intake) {
+        this.coordinator.notify(
+          filedNotification({
+            intake: lab.item.intake,
+            file: sampleFiledFile({
+              kind: lab.item.intake.proposal?.kind ?? "other",
+              folder: lab.item.intake.proposal?.folder ?? "Divers",
+            }),
+            rule: always ? { id: "r-lab" } : null,
+            ruleError: null,
+            names: SAMPLE_NAMES,
+          }),
+        );
+      } else if (lab.kind === "filingMany") {
+        this.coordinator.notify(
+          filedManyNotification({
+            filed: lab.items.flatMap((item) =>
+              item.intake ? [{ intake: item.intake, file: sampleFiledFile() }] : [],
+            ),
+            failed: 0,
+            batchId: SAMPLE_BATCH_ID,
+            names: SAMPLE_NAMES,
+          }),
+        );
+      } else if (lab.kind === "proposal") {
+        this.coordinator.notify(proposalAppliedNotification(lab.title, lab.proposalId, always));
+      }
+    }
     this.emit();
   };
 

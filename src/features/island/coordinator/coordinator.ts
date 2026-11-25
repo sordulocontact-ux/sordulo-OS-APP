@@ -51,6 +51,11 @@
  *   « Répondre » la remontre. Le décompte repart de zéro à chaque sortie du curseur.
  * - `resolveAsk(id)` : décision prise ou délai expiré. Ferme la demande affichée (retour à la principale,
  *   file suivante 450 ms après) ou la retire de la file. Le contrôleur renvoie la décision lui-même.
+ * - `requestChoice(choice, { onSetAside })` : décision à prendre dans l'île (IslandChoice : rangement d'un
+ *   fichier, proposition de l'IA), en file comme une demande d'autorisation (passe avant les notifications,
+ *   jamais regroupée), affichée en `choice`. Sans le curseur (ni le clavier) sur l'île pendant CHOICE_IDLE_MS,
+ *   elle est mise de côté (retour à la principale) et `onSetAside` est appelé : la source peut la remontrer.
+ * - `resolveChoice(id)` : décision prise (bouton, Échap). Ferme la décision affichée ou la retire de la file.
  * - `showOverlay('appel' | 'dragWake' | 'dragOver')` / `hideOverlay(overlay?)` : états montrés par le
  *   contrôleur. La file attend tant qu'ils sont affichés ; la file repart 450 ms après hideOverlay.
  *   Un overlay qui arrive pendant une notification ou une demande la remet en tête de file.
@@ -62,6 +67,7 @@ import type {
   Activity,
   ActivityKind,
   ActivityPayload,
+  IslandChoice,
   IslandNotification,
   IslandSnapshot,
   IslandState,
@@ -77,6 +83,8 @@ export const NEXT_IN_QUEUE_DELAY_MS = 450
 export const HOVER_RESUME_MIN_MS = 300
 /** Demande affichée sans curseur sur l'île : mise de côté après ce délai (demande de Maël, 23/11). */
 export const ASK_IDLE_MS = 10_000
+/** Décision affichée sans curseur sur l'île : mise de côté après ce délai (plus long : il y a un titre à lire). */
+export const CHOICE_IDLE_MS = 20_000
 /** Au-delà de ce nombre de notifications en attente, on les regroupe. */
 export const DIGEST_THRESHOLD = 2
 
@@ -109,15 +117,22 @@ interface AskEntry {
   ask: PermissionAsk
 }
 
-type QueueEntry = NotificationEntry | AskEntry
+interface ChoiceEntry {
+  type: 'choice'
+  choice: IslandChoice
+  onSetAside?: () => void
+}
+
+type QueueEntry = NotificationEntry | AskEntry | ChoiceEntry
 
 type Current =
   | { type: 'notification'; entry: NotificationEntry; remaining: number; startedAt: number; timer: TimerId | null }
   | { type: 'ask'; ask: PermissionAsk; idleTimer: TimerId | null }
+  | { type: 'choice'; entry: ChoiceEntry; idleTimer: TimerId | null }
   | { type: 'overlay'; overlay: ControllerOverlay }
 
 function isInterrupt(entry: QueueEntry): boolean {
-  return entry.type === 'ask' || entry.notification.interrupt
+  return entry.type !== 'notification' || entry.notification.interrupt
 }
 
 function notificationEntry(notification: IslandNotification): NotificationEntry {
@@ -158,7 +173,8 @@ function sameSnapshot(a: IslandSnapshot, b: IslandSnapshot): boolean {
     a.ask === b.ask &&
     a.askPosition?.index === b.askPosition?.index &&
     a.askPosition?.total === b.askPosition?.total &&
-    a.focusMode === b.focusMode
+    a.focusMode === b.focusMode &&
+    a.choice === b.choice
   )
 }
 
@@ -324,9 +340,9 @@ export class IslandCoordinator {
     if (hover === this.hovered) return
     this.hovered = hover
     const current = this.current
-    if (current?.type === 'ask') {
-      this.stopAskIdle(current)
-      if (!hover) this.startAskIdle(current)
+    if (current?.type === 'ask' || current?.type === 'choice') {
+      this.stopIdle(current)
+      if (!hover) this.startIdle(current)
       return
     }
     if (current?.type !== 'notification') return
@@ -375,6 +391,36 @@ export class IslandCoordinator {
   }
 
   // -------------------------------------------------------------------------
+  // Décisions
+  // -------------------------------------------------------------------------
+
+  /** Met une décision en file (avant les notifications). Ignorée si cet id est déjà connu. */
+  requestChoice(choice: IslandChoice, options: { onSetAside?: () => void } = {}): void {
+    if (this.disposed || this.knowsChoice(choice.id)) return
+    this.queue.push({ type: 'choice', choice, onSetAside: options.onSetAside })
+    this.pump()
+    this.commit()
+  }
+
+  /** Décision prise : ferme la décision affichée (file suivante 450 ms après) ou la retire de la file. */
+  resolveChoice(id: string): boolean {
+    if (this.current?.type === 'choice' && this.current.entry.choice.id === id) {
+      this.goHome()
+      return true
+    }
+    const index = this.queue.findIndex((entry) => entry.type === 'choice' && entry.choice.id === id)
+    if (index < 0) return false
+    this.queue.splice(index, 1)
+    this.commit()
+    return true
+  }
+
+  /** La décision `id` est affichée ou en file. */
+  hasChoice(id: string): boolean {
+    return this.knowsChoice(id)
+  }
+
+  // -------------------------------------------------------------------------
   // Overlays du contrôleur
   // -------------------------------------------------------------------------
 
@@ -386,8 +432,11 @@ export class IslandCoordinator {
       this.stopNotificationTimer(current)
       this.queue.unshift(current.entry)
     } else if (current?.type === 'ask') {
-      this.stopAskIdle(current)
+      this.stopIdle(current)
       this.queue.unshift({ type: 'ask', ask: current.ask })
+    } else if (current?.type === 'choice') {
+      this.stopIdle(current)
+      this.queue.unshift(current.entry)
     }
     this.current = { type: 'overlay', overlay }
     this.commit()
@@ -404,7 +453,7 @@ export class IslandCoordinator {
   dispose(): void {
     this.disposed = true
     if (this.current?.type === 'notification') this.stopNotificationTimer(this.current)
-    if (this.current?.type === 'ask') this.stopAskIdle(this.current)
+    if (this.current?.type === 'ask' || this.current?.type === 'choice') this.stopIdle(this.current)
     if (this.pumpTimer !== null) this.clock.clearTimeout(this.pumpTimer)
     this.pumpTimer = null
     this.listeners.clear()
@@ -429,6 +478,11 @@ export class IslandCoordinator {
     return this.queue.some((entry) => entry.type === 'notification' && entry.notification.id === id)
   }
 
+  private knowsChoice(id: string): boolean {
+    if (this.current?.type === 'choice' && this.current.entry.choice.id === id) return true
+    return this.queue.some((entry) => entry.type === 'choice' && entry.choice.id === id)
+  }
+
   private knowsAsk(id: string): boolean {
     if (this.current?.type === 'ask' && this.current.ask.id === id) return true
     return this.queue.some((entry) => entry.type === 'ask' && entry.ask.id === id)
@@ -450,7 +504,7 @@ export class IslandCoordinator {
   /** Prototype : goHomeOr. Retour à la principale, file suivante 450 ms après. */
   private goHome(): void {
     if (this.current?.type === 'notification') this.stopNotificationTimer(this.current)
-    if (this.current?.type === 'ask') this.stopAskIdle(this.current)
+    if (this.current?.type === 'ask' || this.current?.type === 'choice') this.stopIdle(this.current)
     this.current = null
     this.schedulePump()
     this.commit()
@@ -492,7 +546,13 @@ export class IslandCoordinator {
     if (entry.type === 'ask') {
       const current: Current = { type: 'ask', ask: entry.ask, idleTimer: null }
       this.current = current
-      if (!this.hovered) this.startAskIdle(current)
+      if (!this.hovered) this.startIdle(current)
+      return
+    }
+    if (entry.type === 'choice') {
+      const current: Current = { type: 'choice', entry, idleTimer: null }
+      this.current = current
+      if (!this.hovered) this.startIdle(current)
       return
     }
     const duration = entry.notification.durationMs
@@ -521,16 +581,23 @@ export class IslandCoordinator {
     current.timer = null
   }
 
-  /** Décompte de la demande affichée : à la fin, elle est mise de côté (retour à la principale). */
-  private startAskIdle(current: Extract<Current, { type: 'ask' }>): void {
-    current.idleTimer = this.clock.setTimeout(() => {
-      current.idleTimer = null
-      if (this.current !== current) return
-      this.goHome()
-    }, ASK_IDLE_MS)
+  /**
+   * Décompte de la demande ou de la décision affichée : à la fin, elle est mise de côté (retour à la
+   * principale ; une décision prévient sa source par onSetAside).
+   */
+  private startIdle(current: Extract<Current, { type: 'ask' | 'choice' }>): void {
+    current.idleTimer = this.clock.setTimeout(
+      () => {
+        current.idleTimer = null
+        if (this.current !== current) return
+        this.goHome()
+        if (current.type === 'choice') current.entry.onSetAside?.()
+      },
+      current.type === 'choice' ? CHOICE_IDLE_MS : ASK_IDLE_MS,
+    )
   }
 
-  private stopAskIdle(current: Extract<Current, { type: 'ask' }>): void {
+  private stopIdle(current: Extract<Current, { type: 'ask' | 'choice' }>): void {
     if (current.idleTimer !== null) this.clock.clearTimeout(current.idleTimer)
     current.idleTimer = null
   }
@@ -550,6 +617,7 @@ export class IslandCoordinator {
     let state: IslandState = stateOfActivity(primary)
     if (current?.type === 'notification') state = 'notif'
     else if (current?.type === 'ask') state = 'agentAsk'
+    else if (current?.type === 'choice') state = 'choice'
     else if (current?.type === 'overlay') state = current.overlay
     const notification = current?.type === 'notification' ? current.entry.notification : null
     const ask = current?.type === 'ask' ? current.ask : null
@@ -566,6 +634,7 @@ export class IslandCoordinator {
       ask,
       askPosition: waiting > 0 ? Object.freeze({ index: 1, total: waiting + 1 }) : null,
       focusMode: this.focusMode,
+      choice: current?.type === 'choice' ? current.entry.choice : null,
     })
   }
 

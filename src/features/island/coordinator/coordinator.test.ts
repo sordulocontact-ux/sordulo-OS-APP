@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createNotification } from '../catalog'
-import type { PermissionAsk } from '../types'
-import { ASK_IDLE_MS, IslandCoordinator, NEXT_IN_QUEUE_DELAY_MS, type ActivityInput } from './coordinator'
+import type { IslandChoice, PermissionAsk } from '../types'
+import { ASK_IDLE_MS, CHOICE_IDLE_MS, IslandCoordinator, NEXT_IN_QUEUE_DELAY_MS, type ActivityInput } from './coordinator'
 import { digestTexts } from './digest'
 import { FakeClock } from './fakeClock'
 import { sortActivities } from './ranking'
@@ -427,6 +427,67 @@ describe('demandes d’autorisation', () => {
     island.endNotification()
     island.notify(plain())
     expect(snap()).toMatchObject({ state: 'agentAsk', withCall: true })
+  })
+})
+
+function choice(id: string): IslandChoice {
+  return { id, icon: 'folder', tone: 'info', eyebrow: 'Classé par l’IA', title: 'Devis D-1', always: null, secondary: 'Modifier', primary: 'Ranger' }
+}
+
+describe('décisions', () => {
+  it('passe avant les notifications en file, n’est jamais regroupée, se ferme à la décision', () => {
+    const { clock, island, snap } = setup()
+    island.addActivity(music)
+    island.showOverlay('dragOver')
+    island.notify(note())
+    island.notify(note())
+    island.notify(note())
+    island.requestChoice(choice('c1'))
+    island.hideOverlay()
+    clock.advance(NEXT_IN_QUEUE_DELAY_MS)
+    expect(snap()).toMatchObject({ state: 'choice', notification: null })
+    expect(snap().choice?.id).toBe('c1')
+    // Même id : ignorée.
+    island.requestChoice(choice('c1'))
+    expect(island.hasChoice('c1')).toBe(true)
+    expect(island.resolveChoice('c1')).toBe(true)
+    expect(snap()).toMatchObject({ state: 'music', choice: null })
+    expect(island.hasChoice('c1')).toBe(false)
+    clock.advance(NEXT_IN_QUEUE_DELAY_MS)
+    expect(snap().notification?.kind).toBe('digest')
+  })
+
+  it('mise de côté sans le curseur sur l’île : retour à la principale et onSetAside', () => {
+    const { clock, island, snap } = setup()
+    island.addActivity(agent)
+    let setAside = 0
+    island.requestChoice(choice('c1'), { onSetAside: () => setAside++ })
+    clock.advance(5000)
+    island.setHover(true)
+    clock.advance(60_000)
+    expect(snap().state).toBe('choice')
+    island.setHover(false)
+    clock.advance(CHOICE_IDLE_MS - 1)
+    expect(setAside).toBe(0)
+    clock.advance(1)
+    expect(snap()).toMatchObject({ state: 'agent', choice: null })
+    expect(setAside).toBe(1)
+    expect(island.resolveChoice('c1')).toBe(false)
+  })
+
+  it('retire de la file une décision résolue avant son affichage ; un overlay la remet en tête', () => {
+    const { clock, island, snap } = setup()
+    island.requestChoice(choice('c1'))
+    island.requestChoice(choice('c2'))
+    expect(island.resolveChoice('c2')).toBe(true)
+    island.showOverlay('dragWake')
+    expect(snap()).toMatchObject({ state: 'dragWake', choice: null })
+    island.hideOverlay()
+    clock.advance(NEXT_IN_QUEUE_DELAY_MS)
+    expect(snap().choice?.id).toBe('c1')
+    island.resolveChoice('c1')
+    clock.advance(NEXT_IN_QUEUE_DELAY_MS)
+    expect(snap().state).toBe('repos')
   })
 })
 

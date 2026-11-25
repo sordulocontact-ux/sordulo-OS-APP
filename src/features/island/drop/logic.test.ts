@@ -77,11 +77,21 @@ describe('zones', () => {
     expect(hasActiveClaudeSession([session('sleep')])).toBe(true)
   })
 
-  it('Transcrire pour l’audio seulement, Claude Code avec une session, Fichiers jamais', () => {
+  it('Transcrire pour l’audio seulement, Claude Code avec une session, Ranger selon la connexion', () => {
     expect(zonesFor(true, [])).toEqual({ transcribe: true, analyse: false, files: false, claude: false })
     expect(zonesFor(false, [session('working')])).toEqual({ transcribe: false, analyse: false, files: false, claude: true })
     expect(zonesFor(false, [])).toEqual({ transcribe: false, analyse: false, files: false, claude: false })
     expect(zonesFor(false, [], true)).toEqual({ transcribe: false, analyse: true, files: false, claude: false })
+    expect(zonesFor(false, [], false, true)).toEqual({ transcribe: false, analyse: false, files: true, claude: false })
+    expect(zonesFor(true, [], false, true)).toEqual({ transcribe: true, analyse: false, files: true, claude: false })
+  })
+
+  it('plusieurs fichiers : « 3 fichiers », zone Ranger proposée', () => {
+    expect(dragLabel('application/pdf', 3)).toBe('3 fichiers')
+    expect(dragLabel('application/pdf', 1)).toBe('Document')
+    const info = dropInfoForDrag({ subject: { mimeType: 'image/png', count: 3 }, sessions: [], projectName: 'App Ibé', filing: true })
+    expect(info).toEqual({ fileName: '3 fichiers', projectName: 'App Ibé', zones: { transcribe: false, analyse: false, files: true, claude: false } })
+    expect(actionableZone('files', info)).toBe('files')
   })
 
   it('infos du rendu pendant le glissement (nom provisoire)', () => {

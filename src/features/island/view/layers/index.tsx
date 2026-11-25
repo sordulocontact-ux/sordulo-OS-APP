@@ -2,7 +2,9 @@
  * Toutes les couches de l'île, dans l'ordre du prototype (les dernières passent au-dessus).
  */
 import type {
+  ChoiceDecision,
   ClaudeSession,
+  IslandChoice,
   IslandMusic,
   IslandNotification,
   IslandSnapshot,
@@ -15,6 +17,7 @@ import type { BackgroundRow } from '../labels'
 import type { ActivityOfKind, IslandCallPrompt, IslandDropInfo, IslandDropZone } from '../types'
 import { MusicLayer, ProgressLayer } from './ActivityLayers'
 import { AppelLayer, MeetLayer, type BaseLayerProps } from './CallLayers'
+import { ChoiceLayer } from './ChoiceLayer'
 import { AgentLayer, AskLayer, MultiLayer } from './ClaudeLayers'
 import { DragOverLayer, DragWakeLayer } from './DragLayers'
 import { NotifLayer } from './NotifLayer'
@@ -49,6 +52,7 @@ export interface ActivityLayersProps {
     onAnswerSession: (sessionId: string) => void
     onOpenSession: (sessionId: string) => void
     onNotificationAction: (notification: IslandNotification) => void
+    onChoiceDecision: (decision: ChoiceDecision, choice: IslandChoice, always: boolean) => void
     onMusicCommand?: (command: MusicCommand) => void
     /** Clic sur une ligne « aussi en cours » (session, activité, « N autres activités »). */
     onSelectRow: (row: BackgroundRow) => void
@@ -124,6 +128,7 @@ export function ActivityLayers({
         askPosition={snapshot.askPosition}
         onAskDecision={handlers.onAskDecision}
       />
+      <ChoiceLayer {...base} choice={snapshot.choice} onChoiceDecision={handlers.onChoiceDecision} />
       <NotifLayer {...base} notification={snapshot.notification} onNotificationAction={handlers.onNotificationAction} />
     </>
   )

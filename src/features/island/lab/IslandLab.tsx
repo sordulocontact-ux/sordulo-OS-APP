@@ -44,6 +44,7 @@ import {
   NOTIFICATION_LABELS,
   type DropFile,
 } from "./fixtures";
+import type { SampleFilingCase } from "../drop/filingFixtures";
 import styles from "./IslandLab.module.css";
 import { LabRuntime, SCENARIOS, type ScenarioId } from "./runtime";
 
@@ -76,6 +77,27 @@ const LAB_ACTIVITIES: ReadonlyArray<readonly [ClaudeActivity, string]> = [
   ["subagent", "Sous-agent"],
 ];
 const NO_HIT_RECTS = () => undefined;
+/** Cas de rangement simulés (drop/filingFixtures.ts). */
+const FILING_CASES: ReadonlyArray<readonly [SampleFilingCase, string]> = [
+  ["sure", "Fichier sûr"],
+  ["version", "Nouvelle version"],
+  ["three", "3 fichiers sûrs"],
+  ["review", "Fichier à vérifier"],
+  ["duplicate", "Doublon"],
+  ["auto", "Rangé automatiquement"],
+  ["error", "Erreur de classement"],
+];
+/** Notifications de la base simulées (drop/filingFixtures.ts, SAMPLE_APP_NOTIFICATIONS). */
+const APP_NOTIFICATION_CASES: ReadonlyArray<readonly [string, string]> = [
+  ["prospect.created", "Site ajouté par l’apporteur"],
+  ["prospect.offer_ready", "Offre prête"],
+  ["input.ready", "Tickets à valider"],
+  ["proposal.created", "Proposition de l’IA"],
+  ["proposal.auto_applied", "Proposition appliquée seule"],
+  ["deliverable.comment", "Commentaire sur un livrable"],
+  ["commission.created", "Commission"],
+  ["recap.weekly", "Récap du lundi"],
+];
 
 /** Onde simulée façon prototype (nextSample) : des phases de parole et de silence, niveaux 0..1. */
 function useSimulatedWave(enabled: boolean): readonly number[] | undefined {
@@ -242,7 +264,7 @@ export default function IslandLab() {
     useState<NotificationKind>("tickets");
   const [sessionCount, setSessionCount] = useState(3);
   const [waitingSession, setWaitingSession] = useState(true);
-  const [filesZone, setFilesZone] = useState(false);
+  const [filesZone, setFilesZone] = useState(true);
   const [claudeZone, setClaudeZone] = useState(true);
   const [musicArtwork, setMusicArtwork] = useState(true);
   const [musicProgress, setMusicProgress] = useState(true);
@@ -340,6 +362,7 @@ export default function IslandLab() {
             onStopRecording={runtime.stopRecording}
             onAnswerSession={runtime.answerSession}
             onOpenSession={runtime.openSession}
+            onChoiceDecision={runtime.decideChoice}
             onMusicCommand={runtime.musicCommand}
             onHitRectsChange={NO_HIT_RECTS}
           />
@@ -517,8 +540,16 @@ export default function IslandLab() {
             >
               Glisser : document
             </Button>
+            <Button
+              size="sm"
+              onClick={() =>
+                apply((r) => r.showDragOver("several" satisfies DropFile))
+              }
+            >
+              Glisser : 3 fichiers
+            </Button>
             <Check
-              label="Zone Fichiers"
+              label="Zone Ranger"
               checked={filesZone}
               onChange={(on) => {
                 setFilesZone(on);
@@ -546,7 +577,7 @@ export default function IslandLab() {
                 <option value="">Aucune</option>
                 <option value="transcribe">Transcrire</option>
                 <option value="analyse">Analyser</option>
-                <option value="files">Fichiers</option>
+                <option value="files">Ranger</option>
                 <option value="claude">Claude Code</option>
               </Select>
             </label>
@@ -753,6 +784,44 @@ export default function IslandLab() {
           <p className={styles.hint}>
             Les sessions du nombre choisi dans « États ». Scénario E : les
             Claude dansent sur la musique.
+          </p>
+        </Group>
+
+        <Group title="Rangement des fichiers (zone Ranger)">
+          <div className={styles.buttons}>
+            {FILING_CASES.map(([kind, label]) => (
+              <Button
+                key={kind}
+                size="sm"
+                onClick={() => apply((r) => r.simulateFiling(kind))}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+          <p className={styles.hint}>
+            Progression du classement, puis ce que l’île annonce. Les
+            boutons des décisions et des notifications enchaînent (Ranger,
+            Annuler, Réessayer…) ; sans survol, une décision est mise de
+            côté au bout de 20 s (« Fichier prêt à ranger », Voir).
+          </p>
+        </Group>
+
+        <Group title="Notifications de la base">
+          <div className={styles.buttons}>
+            {APP_NOTIFICATION_CASES.map(([key, label]) => (
+              <Button
+                key={key}
+                size="sm"
+                onClick={() => runtime.simulateAppNotification(key)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+          <p className={styles.hint}>
+            S’ajoutent à l’état courant, comme dans l’app (la proposition de
+            l’IA ouvre une décision Valider / Refuser / Toujours).
           </p>
         </Group>
 

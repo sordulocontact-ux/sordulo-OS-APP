@@ -69,12 +69,17 @@ export function hasActiveClaudeSession(sessions: readonly ClaudeSession[]): bool
 }
 
 /**
- * Zones proposées pour un fichier : Transcrire pour l'audio seulement, Claude Code si une session est
- * active, Fichiers jamais (les fichiers de projet n'existent pas encore : zone masquée, pas seulement
- * inactive).
+ * Zones proposées pour un fichier : Transcrire pour l'audio seulement, Analyser pour un document, Claude Code
+ * si une session est active, Ranger (`files`) pour tout fichier dès que la connexion n'est pas absente
+ * (`filing` : connecté, ou connexion en cours de lecture ; au dépôt, sans connexion : « Connecte-toi »).
  */
-export function zonesFor(audio: boolean, sessions: readonly ClaudeSession[], document = false): IslandDropInfo['zones'] {
-  return { transcribe: audio, analyse: document, files: false, claude: hasActiveClaudeSession(sessions) }
+export function zonesFor(
+  audio: boolean,
+  sessions: readonly ClaudeSession[],
+  document = false,
+  filing = false,
+): IslandDropInfo['zones'] {
+  return { transcribe: audio, analyse: document, files: filing, claude: hasActiveClaudeSession(sessions) }
 }
 
 /** Types MIME de documents hors `text/*` et PDF (le reste est décidé par `documentKind`). */
@@ -100,6 +105,8 @@ export function isDocumentFile(file: { name: string; type: string }): boolean {
 export interface DragSubject {
   /** Type MIME du premier élément glissé (`dataTransfer.items[0].type`), vide s'il est inconnu. */
   mimeType: string
+  /** Nombre d'éléments glissés (`dataTransfer.items.length`) ; 1 par défaut. */
+  count?: number
 }
 
 /** Conteneurs vidéo acceptés comme audio (voir AUDIO_MIME : mp4, webm). */
@@ -111,8 +118,12 @@ export function isAudioMime(mimeType: string): boolean {
   return type.startsWith('audio/') || AUDIO_CONTAINER_MIME.includes(type)
 }
 
-/** Libellé provisoire du fichier glissé (prototype : `describe`), le vrai nom n'étant connu qu'au dépôt. */
-export function dragLabel(mimeType: string): string {
+/**
+ * Libellé provisoire du fichier glissé (prototype : `describe`), le vrai nom n'étant connu qu'au dépôt.
+ * Plusieurs fichiers : « 3 fichiers ».
+ */
+export function dragLabel(mimeType: string, count = 1): string {
+  if (count > 1) return `${count} fichiers`
   if (isAudioMime(mimeType)) return 'Fichier audio'
   if (mimeType.toLowerCase().startsWith('image/')) return 'Image'
   if (mimeType !== '') return 'Document'
@@ -123,11 +134,14 @@ export function dropInfoForDrag(params: {
   subject: DragSubject
   sessions: readonly ClaudeSession[]
   projectName: string | null
+  /** Zone « Ranger » proposée (connexion présente ou en cours de lecture). */
+  filing?: boolean
 }): IslandDropInfo {
+  const { subject } = params
   return {
-    fileName: dragLabel(params.subject.mimeType),
+    fileName: dragLabel(subject.mimeType, subject.count ?? 1),
     projectName: params.projectName,
-    zones: zonesFor(isAudioMime(params.subject.mimeType), params.sessions, isDocumentMime(params.subject.mimeType)),
+    zones: zonesFor(isAudioMime(subject.mimeType), params.sessions, isDocumentMime(subject.mimeType), params.filing ?? false),
   }
 }
 
@@ -140,9 +154,9 @@ export function audioMimeOfFile(file: { name: string; type: string }): string | 
 export function actionableZone(
   zone: IslandDropZone | null,
   info: IslandDropInfo | null,
-): 'transcribe' | 'analyse' | 'claude' | null {
+): IslandDropZone | null {
   if (!zone || !info?.zones[zone]) return null
-  return zone === 'transcribe' || zone === 'analyse' || zone === 'claude' ? zone : null
+  return zone
 }
 
 // ---------------------------------------------------------------------------

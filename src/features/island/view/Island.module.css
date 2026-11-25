@@ -1169,8 +1169,13 @@
 }
 
 .zone small {
+  max-width: 100%;
+  padding: 0 var(--island-space-6);
   font-size: var(--island-font-size-xs);
   color: var(--island-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .zoneHot::before {
@@ -1223,6 +1228,76 @@
   font: inherit;
   font-size: var(--island-font-size-md);
   padding: 0 var(--island-space-10);
+}
+
+/*
+ * Décision dans l'île (état choice : rangement d'un fichier, proposition de l'IA). Même couche que
+ * « Transcrire cet appel ? » (layerAppel, appelRow) ; sur Mac, le contenu commence sous l'encoche (44 px).
+ */
+.choiceIcon {
+  flex: none;
+  width: var(--island-size-28);
+  height: var(--island-size-28);
+  padding: var(--island-space-6);
+  border-radius: var(--island-radius-control);
+  color: var(--island-tone);
+  background: color-mix(in srgb, var(--island-tone) var(--island-tint), transparent);
+}
+
+.choiceIcon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.choiceText {
+  flex: 1;
+  min-width: 0;
+}
+
+.choiceText small,
+.choiceText strong {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: var(--island-line-height);
+}
+
+.choiceText small {
+  font-size: var(--island-font-size-sm);
+  color: var(--island-muted);
+}
+
+.choiceText strong {
+  font-size: var(--island-font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Case « Toujours » : à gauche de la ligne des boutons, elle pousse les boutons à droite */
+.choiceAlways {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--island-space-8);
+  font-size: var(--island-font-size-md);
+  color: var(--island-text-soft);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.choiceAlways input {
+  flex: none;
+  width: var(--island-size-16);
+  height: var(--island-size-16);
+  margin: 0;
+  accent-color: var(--island-btn-main-bg);
+  cursor: pointer;
+}
+
+.choiceSpacer {
+  flex: 1;
 }
 
 /* Notifications */

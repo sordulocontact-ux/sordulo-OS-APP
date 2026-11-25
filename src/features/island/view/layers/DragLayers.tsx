@@ -1,7 +1,8 @@
 /**
  * Glisser-déposer : « Dépose ici » (dragWake), puis les zones (dragOver). La flèche est un élément partagé.
  * Chaque zone porte `data-zone` pour le test de position (controller/sources/drop.ts). Les zones non proposées
- * (`drop.zones`) ne sont pas rendues du tout ; « Transcrire » et « Analyser » affichent le projet qui recevra l'entrée.
+ * (`drop.zones`) ne sont pas rendues du tout ; « Transcrire » et « Analyser » affichent le projet qui recevra l'entrée,
+ * « Ranger » rappelle que l'IA trouve le projet de chaque fichier.
  */
 import { cx } from '../cx'
 import { useLastNonNull } from '../hooks'
@@ -41,11 +42,12 @@ function ZoneContent({ zone, projectName }: { zone: IslandDropZone; projectName:
     )
   }
   if (zone === 'files') {
+    // Ranger : l'IA trouve le type, le client et le projet de chaque fichier (tous ceux de la sélection).
     return (
       <>
         <IslandIcon name="folder" />
-        <b>Fichiers</b>
-        <small>{projectName ?? 'Projet'}</small>
+        <b>Ranger</b>
+        <small>L’IA trouve le projet</small>
       </>
     )
   }

@@ -198,6 +198,7 @@ export function startIslandRuntime(options: IslandRuntimeOptions): IslandRuntime
     onAskDecision: gesture('onAskDecision'),
     onAnswerSession: gesture('onAnswerSession'),
     onOpenSession: gesture('onOpenSession'),
+    onChoiceDecision: gesture('onChoiceDecision'),
     onMusicCommand: gesture('onMusicCommand'),
   }
 

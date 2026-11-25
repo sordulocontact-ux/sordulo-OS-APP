@@ -51,8 +51,8 @@ export interface NotificationParams {
   uploadError: { message?: string; title?: string };
   /** Au démarrage : un enregistrement n'a pas été envoyé. */
   pendingUpload: { detail?: string };
-  /** Appel détecté sans session Supabase. */
-  loginRequired: { appName?: string | null; route?: string };
+  /** Appel détecté (ou fichier déposé) sans session Supabase. `reason` remplace « Pour transcrire tes appels ». */
+  loginRequired: { appName?: string | null; route?: string; reason?: string };
   /** Accès au compte Spotify perdu. */
   spotifyReconnect: Record<string, never>;
   /** Jeton Vercel refusé (invalide, expiré ou révoqué). */
@@ -127,6 +127,24 @@ export interface NotificationParams {
   relecture: { authorInitials: string; taskTitle: string; route: string };
   fileAdded: { projectName: string; fileName: string; route: string };
   conflictOk: ClaudeNotificationParams;
+  /**
+   * Rangement des fichiers déposés sur « Ranger » (rangé, à vérifier, échec, annulé, prêt à ranger) : textes et
+   * action composés par drop/filing.ts (logique pure, testée).
+   */
+  filing: FreeNotificationParams;
+  /** Notification de la base (passage de main) : composée par appNotifications/logic.ts. */
+  appNotification: FreeNotificationParams;
+}
+
+/** Notification composée ailleurs (logique pure testée) : textes, visuel, ton, bouton et action. */
+export interface FreeNotificationParams {
+  icon: IslandIconName;
+  tone: IslandTone;
+  title: string;
+  subtitle: string;
+  button: string | null;
+  action: NotificationAction;
+  durationMs?: number;
 }
 
 let sequence = 0;
@@ -161,6 +179,18 @@ function make(kind: NotificationKind, fields: Fields): IslandNotification {
     durationMs: fields.durationMs ?? DEFAULT_NOTIFICATION_MS,
     interrupt: fields.interrupt ?? false,
   };
+}
+
+function makeFree(kind: NotificationKind, p: FreeNotificationParams): IslandNotification {
+  return make(kind, {
+    visual: icon(p.icon),
+    tone: p.tone,
+    title: p.title,
+    subtitle: p.subtitle,
+    button: p.button,
+    action: p.action,
+    durationMs: p.durationMs,
+  });
 }
 
 const icon = (name: IslandIconName): NotificationVisual => ({
@@ -258,9 +288,11 @@ export const notificationCatalog: {
       visual: icon("sun"),
       tone: "neutral",
       title: "Connecte-toi dans Sordulo OS",
-      subtitle: p.appName
-        ? `Pour transcrire l'appel ${p.appName}`
-        : "Pour transcrire tes appels",
+      subtitle:
+        p.reason ??
+        (p.appName
+          ? `Pour transcrire l'appel ${p.appName}`
+          : "Pour transcrire tes appels"),
       button: "Ouvrir",
       action: { type: "openMain", route: p.route ?? "/login" },
     }),
@@ -446,6 +478,8 @@ export const notificationCatalog: {
       button: "Voir",
       action: { type: "openMain", route: p.route },
     }),
+  filing: (p) => makeFree("filing", p),
+  appNotification: (p) => makeFree("appNotification", p),
   conflictOk: (p) =>
     make("conflictOk", {
       visual: icon("check"),

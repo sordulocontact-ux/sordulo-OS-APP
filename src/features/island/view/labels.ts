@@ -239,6 +239,10 @@ export function islandLabel(
       return sessionsTitle(sessionCount)
     case 'music':
       return musicLabel(music)
+    case 'choice': {
+      const c = snapshot.choice
+      return c ? `${c.title}, ${c.eyebrow} : ${c.secondary ? `${c.secondary} ou ` : ''}${c.primary}` : 'Décision à prendre'
+    }
     case 'appel':
       // Nom d'app vide : enregistrement lancé à la main (menu du soleil, bouton du header).
       if (callAppName === '') return 'Enregistrer un appel'

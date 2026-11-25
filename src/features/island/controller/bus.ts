@@ -19,6 +19,13 @@ export interface IslandBusEvents {
    * déposé sur l'île (lot glisser-déposer) peut l'émettre aussi.
    */
   trackInput: { inputId: string; durationSecs: number | null }
+  /** Fichiers déposés sur la zone « Ranger » (tous ceux de la sélection) : la source « rangement » les classe. */
+  fileFiles: { files: readonly File[] }
+  /**
+   * Un lot de rangement part de cette île (avant l'envoi) : la source « notifications » ignore ensuite les
+   * notifications file.ready / file.auto_filed de ce lot, déjà annoncées par le déroulé de l'île.
+   */
+  filingBatch: { batchId: string }
 }
 
 export type IslandBusEvent = keyof IslandBusEvents

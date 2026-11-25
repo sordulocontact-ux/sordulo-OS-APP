@@ -92,14 +92,14 @@ describe('source « dépôt »', () => {
     expect(t.event.listeners).toBe(0)
   })
 
-  it('enter : « Dépose ici », libellé provisoire et zones (audio sans session : Transcrire seulement)', async () => {
+  it('enter : « Dépose ici », libellé provisoire et zones (audio sans session : Transcrire et Ranger)', async () => {
     const t = await started(setup({ lastProjectId: 'p-2' }))
     t.send({ type: 'enter', mimeType: AUDIO_MIME, position: IN_MARGIN })
     expect(t.snap().state).toBe('dragWake')
     expect(t.view().drop).toEqual({
       fileName: 'Fichier audio',
       projectName: 'Site Sordulo',
-      zones: { transcribe: true, analyse: false, files: false, claude: false },
+      zones: { transcribe: true, analyse: false, files: true, claude: false },
     })
     expect(t.view().hotZone).toBeNull()
   })
@@ -110,14 +110,60 @@ describe('source « dépôt »', () => {
     expect(t.view().drop?.projectName).toBe('App Ibé')
   })
 
-  it('zone Claude Code seulement avec une session active ; Fichiers jamais', async () => {
+  it('zone Claude Code seulement avec une session active ; Ranger pour tout fichier une fois connecté', async () => {
     const t = await started(setup())
     t.send({ type: 'enter', mimeType: PDF_MIME, position: FAR })
-    expect(t.view().drop).toMatchObject({ fileName: 'Document', zones: { transcribe: false, analyse: true, files: false, claude: false } })
+    expect(t.view().drop).toMatchObject({ fileName: 'Document', zones: { transcribe: false, analyse: true, files: true, claude: false } })
     t.send({ type: 'leave' })
     t.runtime.view.patch({ sessions: [WORKING] })
     t.send({ type: 'enter', mimeType: PDF_MIME, position: FAR })
-    expect(t.view().drop?.zones).toEqual({ transcribe: false, analyse: true, files: false, claude: true })
+    expect(t.view().drop?.zones).toEqual({ transcribe: false, analyse: true, files: true, claude: true })
+    t.send({ type: 'leave' })
+    t.send({ type: 'enter', mimeType: 'image/png', position: FAR })
+    expect(t.view().drop?.zones).toEqual({ transcribe: false, analyse: false, files: true, claude: true })
+  })
+
+  it('sans connexion : pas de zone Ranger ; connexion en cours de lecture : proposée', async () => {
+    const t = await started(setup({ signedIn: false }))
+    t.send({ type: 'enter', mimeType: PDF_MIME, position: FAR })
+    expect(t.view().drop?.zones.files).toBe(false)
+    t.send({ type: 'leave' })
+    t.session.set({ status: 'loading', userId: 'u-1', memberId: null, organizationId: null })
+    t.send({ type: 'enter', mimeType: PDF_MIME, position: FAR })
+    expect(t.view().drop?.zones.files).toBe(true)
+  })
+
+  it('plusieurs fichiers glissés : « 3 fichiers »', async () => {
+    const t = await started(setup())
+    t.send({ type: 'enter', mimeType: PDF_MIME, count: 3, position: FAR })
+    expect(t.view().drop?.fileName).toBe('3 fichiers')
+  })
+
+  describe('dépôt sur Ranger', () => {
+    it('tous les fichiers partent à la source « rangement » (bus fileFiles)', async () => {
+      const t = await started(setup())
+      const filed = vi.fn()
+      t.runtime.bus.on('fileFiles', filed)
+      const second = new File(['b'], 'facture.pdf', { type: 'application/pdf' })
+      t.send({ type: 'enter', mimeType: PDF_MIME, count: 2, position: ON_SHAPE })
+      t.setZone('files')
+      t.send({ type: 'drop', files: [PDF, second], position: ON_SHAPE })
+      await flush()
+      expect(filed).toHaveBeenCalledWith({ files: [PDF, second] })
+      expect(t.snap().state).toBe('repos')
+      expect(t.deps.createDocumentInput).not.toHaveBeenCalled()
+    })
+
+    it('les autres zones ne prennent que le premier fichier', async () => {
+      const t = await started(setup())
+      const second = new File(['b'], 'autre.pdf', { type: 'application/pdf' })
+      t.send({ type: 'enter', mimeType: PDF_MIME, count: 2, position: ON_SHAPE })
+      t.setZone('analyse')
+      t.send({ type: 'drop', files: [PDF, second], position: ON_SHAPE })
+      await flush()
+      expect(t.deps.createDocumentInput).toHaveBeenCalledTimes(1)
+      expect(t.deps.createDocumentInput).toHaveBeenCalledWith(PDF, 'p-1')
+    })
   })
 
   it('over : sur la forme → zones et zone survolée ; trop loin → retour à « Dépose ici »', async () => {
@@ -160,7 +206,7 @@ describe('source « dépôt »', () => {
     t.send({ type: 'enter', mimeType: AUDIO_MIME, position: ON_SHAPE })
     expect(t.snap().state).toBe('appel')
     expect(t.view().drop).toBeNull()
-    t.send({ type: 'drop', file: AUDIO, position: ON_SHAPE })
+    t.send({ type: 'drop', files: [AUDIO], position: ON_SHAPE })
     expect(t.deps.uploadMeetingRecording).not.toHaveBeenCalled()
   })
 
@@ -168,7 +214,7 @@ describe('source « dépôt »', () => {
     async function dropAudio(t: T) {
       t.send({ type: 'enter', mimeType: AUDIO_MIME, position: ON_SHAPE })
       t.setZone('transcribe')
-      t.send({ type: 'drop', file: AUDIO, position: ON_SHAPE })
+      t.send({ type: 'drop', files: [AUDIO], position: ON_SHAPE })
       await flush()
     }
 
@@ -176,7 +222,7 @@ describe('source « dépôt »', () => {
       const t = await started(setup({ lastProjectId: 'p-2' }))
       t.send({ type: 'enter', mimeType: AUDIO_MIME, position: ON_SHAPE })
       t.setZone('transcribe')
-      t.send({ type: 'drop', file: AUDIO, position: ON_SHAPE })
+      t.send({ type: 'drop', files: [AUDIO], position: ON_SHAPE })
       expect(t.snap().state).not.toBe('dragOver')
       expect(t.coordinator.getActivity(DROP_PROGRESS_ID)).toMatchObject({ stage: 'upload', label: 'Import de l’audio' })
       await flush()
@@ -219,7 +265,7 @@ describe('source « dépôt »', () => {
       t.send({ type: 'enter', mimeType: '', position: ON_SHAPE })
       expect(t.view().drop).toMatchObject({ fileName: 'Fichier', zones: { transcribe: false } })
       t.setZone('transcribe')
-      t.send({ type: 'drop', file: untyped, position: ON_SHAPE })
+      t.send({ type: 'drop', files: [untyped], position: ON_SHAPE })
       await flush()
       expect(t.deps.uploadMeetingRecording).not.toHaveBeenCalled() // zone non proposée : annulé
     })
@@ -243,7 +289,7 @@ describe('source « dépôt »', () => {
     async function dropDocument(t: T, file: File = PDF) {
       t.send({ type: 'enter', mimeType: file.type, position: ON_SHAPE })
       t.setZone('analyse')
-      t.send({ type: 'drop', file, position: ON_SHAPE })
+      t.send({ type: 'drop', files: [file], position: ON_SHAPE })
       await flush()
     }
 
@@ -252,7 +298,7 @@ describe('source « dépôt »', () => {
       t.send({ type: 'enter', mimeType: PDF_MIME, position: ON_SHAPE })
       expect(t.view().drop?.zones).toMatchObject({ transcribe: false, analyse: true })
       t.setZone('analyse')
-      t.send({ type: 'drop', file: PDF, position: ON_SHAPE })
+      t.send({ type: 'drop', files: [PDF], position: ON_SHAPE })
       expect(t.coordinator.getActivity(DROP_PROGRESS_ID)).toMatchObject({ stage: 'upload', label: 'Lecture du document' })
       await flush()
       expect(t.deps.createDocumentInput).toHaveBeenCalledWith(PDF, 'p-2')
@@ -266,7 +312,7 @@ describe('source « dépôt »', () => {
       // Le type MIME annonçait un PDF (zone proposée), mais le vrai fichier n'est pas un document.
       t.send({ type: 'enter', mimeType: PDF_MIME, position: ON_SHAPE })
       t.setZone('analyse')
-      t.send({ type: 'drop', file: new File(['x'], 'photo.png', { type: 'image/png' }), position: ON_SHAPE })
+      t.send({ type: 'drop', files: [new File(['x'], 'photo.png', { type: 'image/png' })], position: ON_SHAPE })
       await flush()
       expect(t.deps.createDocumentInput).not.toHaveBeenCalled()
       expect(t.snap().notification).toMatchObject({ kind: 'uploadError', subtitle: expect.stringContaining('format non pris en charge') })
@@ -297,7 +343,7 @@ describe('source « dépôt »', () => {
       t.send({ type: 'enter', mimeType: AUDIO_MIME, position: ON_SHAPE })
       expect(t.view().drop?.zones.analyse).toBe(false)
       t.setZone('analyse')
-      t.send({ type: 'drop', file: AUDIO, position: ON_SHAPE })
+      t.send({ type: 'drop', files: [AUDIO], position: ON_SHAPE })
       await flush()
       expect(t.deps.createDocumentInput).not.toHaveBeenCalled()
     })
@@ -309,7 +355,7 @@ describe('source « dépôt »', () => {
       t.runtime.view.patch({ sessions: [WORKING] })
       t.send({ type: 'enter', mimeType: PDF_MIME, position: ON_SHAPE })
       t.setZone('claude')
-      t.send({ type: 'drop', file: PDF, position: ON_SHAPE })
+      t.send({ type: 'drop', files: [PDF], position: ON_SHAPE })
       await flush()
       expect(t.deps.saveDroppedFile).toHaveBeenCalledWith(PDF, 'cahier.pdf')
       expect(t.deps.copyText).toHaveBeenCalledWith('C:\\drops\\1-cahier.pdf')
@@ -322,7 +368,7 @@ describe('source « dépôt »', () => {
       t.deps.saveDroppedFile.mockRejectedValueOnce('Ce fichier est trop volumineux (80 Mo). Maximum : 50 Mo.')
       t.send({ type: 'enter', mimeType: PDF_MIME, position: ON_SHAPE })
       t.setZone('claude')
-      t.send({ type: 'drop', file: PDF, position: ON_SHAPE })
+      t.send({ type: 'drop', files: [PDF], position: ON_SHAPE })
       await flush()
       expect(t.deps.copyText).not.toHaveBeenCalled()
       expect(t.snap().notification).toMatchObject({ kind: 'uploadError', subtitle: 'Ce fichier est trop volumineux (80 Mo). Maximum : 50 Mo.' })
@@ -334,7 +380,7 @@ describe('source « dépôt »', () => {
       t.deps.copyText.mockRejectedValueOnce(new Error('presse-papiers occupé'))
       t.send({ type: 'enter', mimeType: PDF_MIME, position: ON_SHAPE })
       t.setZone('claude')
-      t.send({ type: 'drop', file: PDF, position: ON_SHAPE })
+      t.send({ type: 'drop', files: [PDF], position: ON_SHAPE })
       await flush()
       expect(t.snap().notification).toMatchObject({ kind: 'uploadError' })
     })
@@ -343,14 +389,13 @@ describe('source « dépôt »', () => {
   describe('dépôt annulé', () => {
     it.each([
       ['hors de toute zone', null],
-      ['sur Fichiers (masquée)', 'files'],
       ['sur Transcrire avec un non audio', 'transcribe'],
       ['sur Claude Code sans session', 'claude'],
     ] as const)('%s', async (_label, zone) => {
       const t = await started(setup())
       t.send({ type: 'enter', mimeType: PDF_MIME, position: ON_SHAPE })
       t.setZone(zone)
-      t.send({ type: 'drop', file: PDF, position: ON_SHAPE })
+      t.send({ type: 'drop', files: [PDF], position: ON_SHAPE })
       await flush()
       expect(t.snap().state).toBe('repos')
       expect(t.view().drop).toBeNull()
@@ -364,7 +409,7 @@ describe('source « dépôt »', () => {
       const t = await started(setup())
       t.send({ type: 'enter', mimeType: AUDIO_MIME, position: IN_MARGIN })
       t.setZone('transcribe')
-      t.send({ type: 'drop', file: AUDIO, position: IN_MARGIN })
+      t.send({ type: 'drop', files: [AUDIO], position: IN_MARGIN })
       await flush()
       expect(t.deps.uploadMeetingRecording).not.toHaveBeenCalled()
       expect(t.snap().state).toBe('repos')
@@ -410,9 +455,9 @@ describe('domDragEvents', () => {
     const drop = d.fire('drop', fakeDrag({ files: [AUDIO], x: 20, y: 40 }))
     expect(drop.preventDefault).toHaveBeenCalled()
     expect(d.events).toEqual([
-      { type: 'enter', mimeType: 'audio/mp4', position: { x: 12, y: 34 } },
+      { type: 'enter', mimeType: 'audio/mp4', count: 1, position: { x: 12, y: 34 } },
       { type: 'over', position: { x: 15, y: 36 } },
-      { type: 'drop', file: AUDIO, position: { x: 20, y: 40 } },
+      { type: 'drop', files: [AUDIO], position: { x: 20, y: 40 } },
     ])
   })
 
@@ -450,6 +495,18 @@ describe('domDragEvents', () => {
     const d = setupDom()
     d.fire('dragover', fakeDrag())
     expect(d.events.map((e) => e.type)).toEqual(['enter', 'over'])
+  })
+
+  it('plusieurs fichiers : leur nombre au glissement, tous au dépôt', () => {
+    const d = setupDom()
+    const drag = fakeDrag({ mime: 'application/pdf' })
+    drag.dataTransfer.items = [{ type: 'application/pdf' }, { type: 'image/png' }]
+    d.fire('dragenter', drag)
+    d.fire('drop', fakeDrag({ files: [PDF, AUDIO] }))
+    expect(d.events).toEqual([
+      { type: 'enter', mimeType: 'application/pdf', count: 2, position: { x: 10, y: 20 } },
+      { type: 'drop', files: [PDF, AUDIO], position: { x: 10, y: 20 } },
+    ])
   })
 
   it('le désabonnement retire les écouteurs', () => {

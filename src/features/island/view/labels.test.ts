@@ -15,6 +15,7 @@ const snap = (over: Partial<IslandSnapshot>): IslandSnapshot => ({
   ask: null,
   askPosition: null,
   focusMode: false,
+  choice: null,
   ...over,
 })
 

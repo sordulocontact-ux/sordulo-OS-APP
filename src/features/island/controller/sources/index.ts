@@ -4,12 +4,14 @@
  */
 import type { IslandSource } from '../source'
 import { createAnalysisSource } from './analysis'
+import { appNotificationsSource } from './appNotifications'
 import { assignmentsSource } from './assignments'
 import { createCallSource } from './call'
 import { claudeSource } from './claude'
 import { createDeploymentsSource } from './deployments'
 import { desktopDeps } from './desktopDeps'
 import { dropSource } from './drop'
+import { filingSource } from './filing'
 import { createFocusModeSource } from './focusMode'
 import { createMusicSource } from './music'
 import { createSpotifySource } from './spotify'
@@ -23,6 +25,8 @@ export const ISLAND_SOURCES: readonly IslandSource[] = [
   assignmentsSource,
   claudeSource,
   dropSource,
+  filingSource,
+  appNotificationsSource,
   createMusicSource(desktopDeps),
   createSpotifySource(desktopDeps),
   createDeploymentsSource(desktopDeps),

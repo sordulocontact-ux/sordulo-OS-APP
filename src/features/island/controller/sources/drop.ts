@@ -15,7 +15,7 @@
  * - enter : « Dépose ici » (overlay dragWake) et `view.drop` (libellé, projet, zones proposées).
  *   Zones : Transcrire pour l'audio seulement, Analyser pour un document (PDF, Word .docx, texte ; d'après
  *   le type MIME seulement), Claude Code si une session est active (statut autre que
- *   terminé ou inactif), Fichiers jamais (masquée tant que les fichiers de projet n'existent pas).
+ *   terminé ou inactif), Ranger (`files`) pour tout fichier quand la connexion n'est pas absente.
  * - over : curseur sur la forme (marge de 0 px) → les zones (dragOver) ; on y reste tant que le curseur
  *   est à moins de 24 px de la forme (le prototype réveillait à 24 px ; l'écart évite de clignoter entre
  *   les deux états). `view.hotZone` suit l'élément `[data-zone]` sous le curseur.
@@ -29,7 +29,8 @@
  *   écrit créé sur le même projet par `createWrittenInputFromDocument` (comme « Nouvelle entrée > Retour
  *   écrit ») ; progression « Lecture du document » puis suivi d'analyse (trackInput). Erreurs : `uploadError`
  *   avec le message (format, texte vide, API), sans connexion `loginRequired` ; Réessayer reprend le document.
- * - Un seul fichier est traité : le premier de la sélection.
+ * - drop sur Ranger : TOUS les fichiers de la sélection partent à la source « rangement » (bus fileFiles), qui
+ *   les classe et propose de les ranger (sources/filing.ts). Les autres zones ne traitent que le premier.
  * - Pendant la proposition d'un appel (overlay `appel`), le glissement est ignoré : l'appel reste affiché.
  */
 import { copyText, saveDroppedFile } from '../../../../lib/desktop'
@@ -56,9 +57,10 @@ import { listen } from './listen'
 
 /** Événement de dépôt, dérivé des événements DOM (positions en px CSS de la fenêtre). */
 export type DropEvent =
-  | { type: 'enter'; mimeType: string; position: { x: number; y: number } }
+  | { type: 'enter'; mimeType: string; count?: number; position: { x: number; y: number } }
   | { type: 'over'; position: { x: number; y: number } }
-  | { type: 'drop'; file: File; position: { x: number; y: number } }
+  /** `files` : toute la sélection, au moins un fichier (le premier pour Transcrire, Analyser, Claude Code). */
+  | { type: 'drop'; files: readonly File[]; position: { x: number; y: number } }
   | { type: 'leave' }
 
 export const DROP_PROGRESS_ID = 'prog:drop'
@@ -128,6 +130,7 @@ export function createDropSource(deps: DropSourceDeps): IslandSource {
           subject: forSubject,
           sessions: ctx.view.get().sessions,
           projectName: projectForImport()?.name ?? null,
+          filing: ctx.session.get().status !== 'signedOut',
         })
       }
 
@@ -173,7 +176,7 @@ export function createDropSource(deps: DropSourceDeps): IslandSource {
               return
             }
             ignored = false
-            subject = { mimeType: event.mimeType }
+            subject = { mimeType: event.mimeType, count: event.count ?? 1 }
             info = currentInfo(subject)
             ctx.view.patch({ drop: info, hotZone: null })
             showPhase('wake')
@@ -195,10 +198,12 @@ export function createDropSource(deps: DropSourceDeps): IslandSource {
             follow(event.position)
             const zone = phase === 'over' ? actionableZone(ctx.view.get().hotZone, info) : null
             reset()
-            if (!zone) return
-            if (zone === 'transcribe') void startImport(event.file)
-            else if (zone === 'analyse') void startAnalyse(event.file)
-            else void copyPath(event.file)
+            const [file] = event.files
+            if (!zone || !file) return
+            if (zone === 'files') ctx.bus.emit('fileFiles', { files: event.files })
+            else if (zone === 'transcribe') void startImport(file)
+            else if (zone === 'analyse') void startAnalyse(file)
+            else void copyPath(file)
             return
           }
         }
@@ -376,12 +381,15 @@ function hasFiles(event: DragEvent): boolean {
 export function domDragEvents(target: Pick<Window, 'addEventListener' | 'removeEventListener'>, handler: (event: DropEvent) => void): () => void {
   let depth = 0
   const position = (e: DragEvent) => ({ x: e.clientX, y: e.clientY })
+  const mimeOf = (e: DragEvent) => e.dataTransfer?.items[0]?.type ?? ''
+  // Éléments de fichier glissés (le navigateur donne leur nombre, pas leur nom, avant le dépôt).
+  const countOf = (e: DragEvent) => Math.max(1, Array.from(e.dataTransfer?.items ?? []).filter((item) => item.kind !== 'string').length)
 
   const onEnter = (e: DragEvent) => {
     if (!hasFiles(e)) return
     e.preventDefault()
     depth += 1
-    if (depth === 1) handler({ type: 'enter', mimeType: e.dataTransfer?.items[0]?.type ?? '', position: position(e) })
+    if (depth === 1) handler({ type: 'enter', mimeType: mimeOf(e), count: countOf(e), position: position(e) })
   }
   const onOver = (e: DragEvent) => {
     if (!hasFiles(e)) return
@@ -390,7 +398,7 @@ export function domDragEvents(target: Pick<Window, 'addEventListener' | 'removeE
     // Un dragover sans dragenter (page rechargée pendant le glissement) : on rattrape l'entrée.
     if (depth === 0) {
       depth = 1
-      handler({ type: 'enter', mimeType: e.dataTransfer?.items[0]?.type ?? '', position: position(e) })
+      handler({ type: 'enter', mimeType: mimeOf(e), count: countOf(e), position: position(e) })
     }
     handler({ type: 'over', position: position(e) })
   }
@@ -403,8 +411,8 @@ export function domDragEvents(target: Pick<Window, 'addEventListener' | 'removeE
     if (!hasFiles(e)) return
     e.preventDefault()
     depth = 0
-    const file = e.dataTransfer?.files[0]
-    if (file) handler({ type: 'drop', file, position: position(e) })
+    const files = Array.from(e.dataTransfer?.files ?? [])
+    if (files.length > 0) handler({ type: 'drop', files, position: position(e) })
     else handler({ type: 'leave' })
   }
 
