@@ -62,6 +62,18 @@ export const GARDEN = {
     exitSpeed: 24,
     portal: { inset: 8, lead: 0.45, linger: 0.15, open: 0.28, close: 0.2 },
   },
+  /**
+   * Bords gauche et droit de l'île : un Claude qui marche peut les passer (il ressort de l'autre côté, dessiné
+   * coupé des deux côtés le temps du passage), mais aucun ne s'arrête à cheval sur un bord ni à moins de `gap` px
+   * (coin arrondi du bas compris) : arrêté là (session qui attend, dort, a fini…), il s'en écarte à pied vers
+   * l'intérieur, à `exitSpeed` px/s (simulation.ts, clearOfEdges). Demande de Sacha : un Claude posé coupé en
+   * deux au bord de l'île faisait bizarre. Place minimale (aile Mac la plus étroite, 44 px) : portail 8 + écart
+   * de l'encoche 4 + Claude 22 + `gap` 6 = 40 px.
+   */
+  edge: {
+    gap: 6,
+    exitSpeed: 24,
+  },
   /** Hauteur du sol au-dessus du bas de la forme (prototype : gOff). */
   groundOffset: { win: 1, mac: 1 } satisfies Record<IslandPlatform, number>,
   /** Bas des pieds dans le sprite (transform-origin 50% 81%) et haut de la tête (on se pose à 62 %). */

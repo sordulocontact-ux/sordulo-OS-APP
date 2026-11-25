@@ -793,8 +793,9 @@ export class GardenSim {
     }
     this.prune()
     for (const parent of this.mains()) {
-      // Immobiles : personne ne reste à cheval sur le portail de l'encoche.
-      this.place(parent, this.clearOfNotch(this.fold(parent.x), parent.size / 2))
+      // Immobiles : personne ne reste à cheval sur le portail de l'encoche ni sur un bord de l'île.
+      const half = parent.size / 2
+      this.place(parent, this.clearOfNotch(this.insideEdges(this.fold(parent.x), half), half))
       const shown = subsVisible(this.statusOf(parent))
       this.subsOf(parent).forEach((sub, k) => {
         this.placeReducedSub(sub, parent, k)
@@ -892,6 +893,40 @@ export class GardenSim {
     const reach = half + NOTCH_TUNNEL / 2 + GARDEN.notch.gap
     if (Math.abs(u - mid) >= reach) return u
     return u < mid ? mid - reach : mid + reach
+  }
+
+  /**
+   * Position repliée `u` d'un corps de demi-largeur `half` ramenée à l'intérieur de l'île : à au moins
+   * GARDEN.edge.gap px de ses bords gauche et droit (jamais à cheval sur le passage d'un bord à l'autre).
+   */
+  private insideEdges(u: number, half: number): number {
+    const min = half + GARDEN.edge.gap
+    const max = this.fold(this.width) - half - GARDEN.edge.gap
+    if (max < min) return u
+    return Math.min(max, Math.max(min, u))
+  }
+
+  /**
+   * Comme throughNotch pour les bords de l'île : un personnage principal arrêté à cheval sur le bord gauche ou
+   * droit (coupé en deux, une moitié de chaque côté), ou à moins de GARDEN.edge.gap px, s'en écarte à pied vers
+   * l'intérieur. Celui qui marche passe le bord sans s'arrêter.
+   */
+  private clearOfEdges(dt: number): void {
+    if (this.width <= 0) return
+    for (const w of this.list) {
+      if (w.dead || w.sub || w.mode === 'interact' || w.vel !== 0 || w.y !== 0) continue
+      const half = w.size / 2
+      // Coordonnée sans saut au passage du bord : à cheval sur le bord droit, x est juste sous 0 ou juste
+      // sous la largeur selon le côté où se trouve son centre.
+      const fromRight = this.width - w.x
+      const out = w.x < fromRight ? -1 : 1
+      const reach = half + GARDEN.edge.gap
+      const dist = out < 0 ? w.x : fromRight
+      if (dist >= reach) continue
+      const step = GARDEN.edge.exitSpeed * dt
+      w.dir = -out
+      this.teleport(w, out < 0 ? Math.min(reach, w.x + step) : Math.max(this.width - reach, w.x - step))
+    }
   }
 
   /** En partie ou en entier dans l'encoche, ou à moins de GARDEN.notch.gap px d'un de ses bords. */
@@ -1339,6 +1374,7 @@ export class GardenSim {
     }
     this.updateInteractions(dt, width)
     this.throughNotch(dt)
+    this.clearOfEdges(dt)
     this.updatePortals(dt)
     this.prune()
     this.updateDepths(dt)

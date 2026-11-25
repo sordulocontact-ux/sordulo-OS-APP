@@ -1146,3 +1146,70 @@ describe('encoche du Mac', () => {
     expect(visual.twinLeft).toBeNull()
   })
 })
+
+describe('bords de l’île', () => {
+  const calm: Rng = () => 0.5
+  /** Distance du centre au bord le plus proche, et distance minimale d'un Claude arrêté. */
+  const fromEdge = (w: Walker, width: number) => Math.min(w.x, width - w.x)
+  const clearance = (w: Walker) => w.size / 2 + GARDEN.edge.gap
+
+  it('arrêté à cheval sur un bord (coupé en deux), il s’en écarte à pied vers l’intérieur', () => {
+    for (const [x, inward] of [
+      [3, 1],
+      [SIZE.w - 2, -1],
+    ] as const) {
+      const sim = new GardenSim(calm)
+      sim.reset([session(0, { status: 'waiting' })], OPTS)
+      run(sim, 1)
+      const w = main(sim, 's0')
+      w.x = x
+      w.px = x
+      // Coupé en deux : dessiné des deux côtés.
+      expect(walkerVisual(w, 'waiting', visualCtx).twinLeft).not.toBeNull()
+      let walked = false
+      for (let t = 0; t < 2; t += DT) {
+        sim.step(DT, FRAME)
+        if (w.stepAmp > 0.5) walked = true
+      }
+      expect(walked).toBe(true)
+      expect(w.dir).toBe(inward)
+      expect(fromEdge(w, SIZE.w)).toBeCloseTo(clearance(w), 5)
+      expect(walkerVisual(w, 'waiting', visualCtx).twinLeft).toBeNull()
+    }
+  })
+
+  it('sessions qui attendent, dorment ou ont fini : aucune ne reste arrêtée contre un bord (Mac, avec l’encoche)', () => {
+    const MAC = ISLAND_SIZES.mac.multi
+    const MAC_OPTS: GardenSyncOptions = { width: MAC.w, height: MAC.h, platform: 'mac', reduced: false, live: true }
+    const MAC_FRAME: GardenFrame = { width: MAC.w, height: MAC.h, platform: 'mac', mood: CALM_MOOD }
+    const sim = new GardenSim(seeded(7))
+    sim.reset(
+      [session(0), session(1, { status: 'waiting' }), session(2, { status: 'sleep' }), session(3, { status: 'done' }), session(4)],
+      MAC_OPTS,
+    )
+    run(sim, 1, MAC_FRAME)
+    main(sim, 's1').x = 1
+    main(sim, 's2').x = MAC.w - 4
+    const stoppedFor = new Map<number, number>()
+    let longest = 0
+    for (let t = 0; t < 40; t += DT) {
+      sim.step(DT, MAC_FRAME)
+      for (const w of sim.walkers) {
+        if (w.sub || w.dead || w.delay > 0 || w.mode === 'interact' || w.y !== 0 || t <= 3) continue
+        const stopped = w.vel === 0 && fromEdge(w, MAC.w) < clearance(w) - 0.01 ? (stoppedFor.get(w.id) ?? 0) + DT : 0
+        stoppedFor.set(w.id, stopped)
+        longest = Math.max(longest, stopped)
+      }
+    }
+    expect(longest).toBeLessThan(0.25)
+  })
+
+  it('animations réduites : posé à l’intérieur, jamais à cheval sur un bord', () => {
+    const sim = new GardenSim(calm)
+    sim.reset([session(0, { status: 'sleep' })], REDUCED)
+    const w = main(sim, 's0')
+    w.x = 2
+    sim.settle()
+    expect(fromEdge(w, SIZE.w)).toBeGreaterThanOrEqual(clearance(w) - 1e-9)
+  })
+})
